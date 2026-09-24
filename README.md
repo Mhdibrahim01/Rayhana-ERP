@@ -106,4 +106,11 @@ npm run build
 
 ```
 
-*(يمكنك النقر على زر قاعدة البيانات في الشريط العلوي للتطبيق لفتح المجلد مباشرة في النظام)*
+*(يمكنك النقر على زر قاعدة البيانات في الشريط العلوي للتطبيق لفتح المجلد مباشرة في النظا)*
+![Login](assets/login.png)
+![Dashboard](assets/dashboard1.png)
+![Dashboard](assets/dashboard2.png)
+![Rooms](assets/room.png)
+![Reservation](assets/reservation.png)
+
+
