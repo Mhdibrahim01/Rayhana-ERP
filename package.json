@@ -1,0 +1,72 @@
+{
+  "name": "rayhana-suites",
+  "version": "1.0.0",
+  "description": "ريحانة للوحدات السكنية - Rayhana Residential Units ERP",
+  "main": "main.js",
+  "author": "Rayhana Management",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "reset-db": "node reset-db.js",
+    "import-guests": "node import-guests.js",
+    "build": "electron-builder --win",
+    "builder": "electron-builder --win",
+    "dist": "electron-builder --win",
+    "pack": "electron-builder --dir"
+  },
+  "dependencies": {
+    "chart.js": "^4.5.1",
+    "sql.js": "^1.12.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "electron": "^29.4.6",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.rayhana.suites",
+    "productName": "Rayhana Suites",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "icon": "icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Rayhana Suites",
+      "uninstallDisplayName": "Rayhana Suites",
+      "installerIcon": "icon.ico",
+      "uninstallerIcon": "icon.ico",
+      "installerHeaderIcon": "icon.ico",
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "Rayhana-Suites-Setup-${version}.${ext}"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "db.js",
+      "backupScheduler.js",
+      "icon.ico",
+      "rayhana-logo.png",
+      "login.html",
+      "login.js",
+      "dashboard.html",
+      "dashboard.js",
+      "styles.css",
+      "assets/**/*",
+      "node_modules/**/*"
+    ]
+  }
+}

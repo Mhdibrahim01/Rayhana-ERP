@@ -1,0 +1,1778 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة التحكم | ريحانة للوحدات السكنية - Rayhana Suites</title>
+  <!-- Cairo Web Font for Ultra Crisp Arabic & English Readability -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <!-- SheetJS & Chart.js Local Bundles (100% Offline Compatible) -->
+  <script src="node_modules/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="node_modules/chart.js/dist/chart.umd.js"></script>
+</head>
+<body>
+
+  <!-- Toast Notifications Container -->
+  <div id="toast-container"></div>
+
+  <div class="dashboard-layout">
+    
+    <!-- Ambient Dynamic Glowing Orbs for True Glassmorphism Refraction -->
+    <div class="ambient-orb ambient-orb-teal"></div>
+    <div class="ambient-orb ambient-orb-emerald"></div>
+    
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="sidebar-logo" style="background: transparent; padding: 0; box-shadow: none;">
+          <img src="assets/rayhana-logo.png" alt="شعار ريحانة للوحدات السكنية" style="width: 42px; height: 42px; border-radius: 10px; object-fit: cover; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+        </div>
+        <div class="sidebar-title">
+          <h2>ريحانة للوحدات السكنية</h2>
+          <p>Rayhana Suites</p>
+        </div>
+      </div>
+
+      <!-- Navigation Links -->
+      <nav class="sidebar-nav">
+        <div style="font-size: 0.72rem; font-weight: 700; color: #9ca3af; text-transform: uppercase; padding: 4px 14px 6px; letter-spacing: 0.05em;">القائمة الرئيسية</div>
+        <a class="nav-link active" data-section="overview">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          <span>لوحة التحكم الرئيسية</span>
+        </a>
+
+        <a class="nav-link" data-section="reservations">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+          </svg>
+          <span>سجل الحجوزات</span>
+        </a>
+
+        <a class="nav-link" data-section="rooms">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M2 4v16"></path>
+            <path d="M2 8h18a2 2 0 0 1 2 2v10"></path>
+            <path d="M2 17h20"></path>
+            <path d="M6 8v9"></path>
+          </svg>
+          <span>الغرف الفندقية</span>
+        </a>
+
+        <a class="nav-link" data-section="guests">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+          <span>قائمة النزلاء</span>
+        </a>
+
+        <!-- Admin Only Navigation Links -->
+        <a id="nav-admin" class="nav-link" data-section="admin" style="display: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin-top: 8px; padding-top: 14px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+          </svg>
+          <span>لوحة الإدارة والمستخدمين</span>
+        </a>
+
+        <a id="nav-logs" class="nav-link" data-section="logs" style="display: none;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+          <span>سجل نشاط الموظفين</span>
+        </a>
+      </nav>
+
+      <!-- User Profile & Logout -->
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-meta">
+            <h4 id="user-display-name">مدير النظام</h4>
+            <p id="user-display-role">مسؤول الحجوزات</p>
+          </div>
+          <button id="btn-logout" class="btn-logout" title="تسجيل الخروج">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            <span>خروج</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <main class="dashboard-main">
+      
+      <!-- Topbar Header -->
+      <header class="topbar">
+        <div class="topbar-title">
+          <h1 id="topbar-heading">ريحانة للوحدات السكنية</h1>
+          <p id="topbar-subheading">Rayhana Suites • لوحة التحكم وإدارة العمليات</p>
+        </div>
+
+        <div class="topbar-actions">
+          <!-- Shift Audit Button -->
+          <button id="btn-open-shift-audit" data-action="open-shift-audit" class="btn btn-secondary btn-sm" title="عرض تقرير إقفال الوردية والموازنة المالية (Shift Audit)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+            </svg>
+            <span>تقرير الوردية</span>
+          </button>
+
+          <!-- Daily 12:00 AM Automated Backup Status Button -->
+          <button id="btn-daily-backup-modal" data-action="open-daily-backup" class="btn btn-secondary btn-sm" title="النسخ الاحتياطي التلقائي اليومي (الساعة 12:00 منتصف الليل)" style="display: inline-flex; align-items: center; gap: 6px;">
+            <span class="online-dot" style="background: #a67c52; box-shadow: 0 0 0 2px rgba(166, 124, 82, 0.25);"></span>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <span>نسخ تلقائي: 12 ص</span>
+          </button>
+
+          <!-- Backup Button -->
+          <button id="btn-backup-db" data-action="backup-db" class="btn btn-secondary btn-sm" title="أخذ نسخة احتياطية من قاعدة البيانات">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+              <polyline points="17 21 17 13 7 13 7 21"></polyline>
+              <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+            <span>نسخ احتياطي</span>
+          </button>
+
+          <!-- Restore Button -->
+          <button id="btn-restore-db" data-action="restore-db" class="btn btn-secondary btn-sm" title="استعادة قاعدة بيانات من نسخة سابقة">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="1 4 1 10 7 10"></polyline>
+              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+            </svg>
+            <span>استعادة</span>
+          </button>
+
+          <div id="btn-open-db" class="db-badge" title="انقر لعرض مجلد قاعدة بيانات SQLite في Windows Explorer">
+            <span class="online-dot"></span>
+            <span id="db-file-name">قاعدة البيانات</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+          </div>
+        </div>
+      </header>
+
+      <!-- Scrollable Dashboard Content -->
+      <div class="dashboard-content">
+        
+        <!-- ==================================================================
+             SECTION 1: OVERVIEW (لوحة التحكم الرئيسية والتحليلات)
+             ================================================================== -->
+        <div id="view-overview" class="view-section">
+          
+          <!-- KPI Metrics Grid -->
+          <section class="stats-grid" style="margin-bottom: 24px;">
+            <div class="stat-card">
+              <div class="stat-info">
+                <p>الغرف المتاحة</p>
+                <h3 id="stat-available-rooms" style="color: var(--success);">0</h3>
+              </div>
+              <div class="stat-icon icon-emerald">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-info">
+                <p>الغرف المشغولة</p>
+                <h3 id="stat-occupied-rooms" style="color: var(--danger);">0</h3>
+              </div>
+              <div class="stat-icon icon-rose">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-info">
+                <p>قيد التنظيف</p>
+                <h3 id="stat-cleaning-rooms" style="color: var(--warning);">0</h3>
+              </div>
+              <div class="stat-icon icon-amber">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+                </svg>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-info">
+                <p>إجمالي الحجوزات</p>
+                <h3 id="stat-total-reservations" style="color: var(--primary);">0</h3>
+              </div>
+              <div class="stat-icon icon-indigo">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+              </div>
+            </div>
+          </section>
+
+          <!-- 3. Analytics Dashboard (Chart.js Visualizations) -->
+          <section class="charts-grid">
+            <!-- Monthly Revenue Bar Chart -->
+            <div class="chart-card">
+              <div class="chart-card-header">
+                <div>
+                  <h3>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="18" y1="20" x2="18" y2="10"></line>
+                      <line x1="12" y1="20" x2="12" y2="4"></line>
+                      <line x1="6" y1="20" x2="6" y2="14"></line>
+                    </svg>
+                    الإيرادات الشهرية (Revenue per Month)
+                  </h3>
+                  <p>تطور مبيعات الحجوزات الفندقية شهرياً بالريال</p>
+                </div>
+              </div>
+              <div class="chart-canvas-container">
+                <canvas id="monthly-revenue-chart"></canvas>
+              </div>
+            </div>
+
+            <!-- Current Room Status Doughnut Chart -->
+            <div class="chart-card">
+              <div class="chart-card-header">
+                <div>
+                  <h3>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+                      <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+                    </svg>
+                    حالات الغرف (Current Room Status)
+                  </h3>
+                  <p>متاحة vs مشغولة vs تنظيف</p>
+                </div>
+              </div>
+              <div class="chart-canvas-container">
+                <canvas id="room-status-chart"></canvas>
+              </div>
+            </div>
+          </section>
+
+          <!-- ==================================================================
+               WIDGET: TODAY'S CHECK-OUTS (مغادرات اليوم)
+               ================================================================== -->
+          <div class="card" id="widget-today-checkouts" style="margin-bottom: 24px; overflow: hidden;">
+            <!-- FIXED: was rgba(20,61,43,0.45) dark green with white text — broke the light theme.
+                 Now uses the standard glass card-header style (white/translucent + dark text). -->
+            <div class="card-header">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="background: #a67c52; color: #ffffff; width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(166, 124, 82, 0.3); flex-shrink: 0;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                  </svg>
+                </div>
+                <div>
+                  <h2 style="font-size: 1.05rem; color: var(--primary-forest); margin: 0; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+                    <span>مغادرات اليوم (Today's Check-outs)</span>
+                    <span id="today-date-badge" style="font-size: 0.72rem; background: rgba(26,67,50,0.08); color: var(--primary-forest); padding: 2px 8px; border-radius: 6px; font-weight: 700;"></span>
+                  </h2>
+                  <p style="font-size: 0.78rem; color: var(--text-secondary); margin: 2px 0 0;">
+                    قائمة النزلاء المجدول مغادرتهم اليوم لتسليم الغرف وبدء أعمال التنظيف
+                  </p>
+                </div>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span id="today-checkouts-count-badge" class="badge" style="background: #a67c52; color: #ffffff; font-weight: 800; font-size: 0.8rem; padding: 5px 14px; border-radius: 20px; box-shadow: 0 2px 6px rgba(166,124,82,0.25);">
+                  0 مغادرات
+                </span>
+                <button id="btn-refresh-checkouts" class="btn btn-secondary btn-sm" title="تحديث قائمة مغادرات اليوم" style="border-radius: 8px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                  </svg>
+                  <span>تحديث</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="card-body" style="padding: 0; background: transparent;">
+              <div class="table-responsive">
+                <table style="margin: 0;">
+                  <thead>
+                    <tr>
+                      <th>رقم الغرفة</th>
+                      <th>نوع الغرفة</th>
+                      <th>اسم النزيل</th>
+                      <th>رقم الجوال</th>
+                      <th>تاريخ الوصول</th>
+                      <th>المبلغ الإجمالي</th>
+                      <th>حالة الحجز</th>
+                      <th style="text-align: center;">إجراء المغادرة</th>
+                    </tr>
+                  </thead>
+                  <tbody id="today-checkouts-table-body">
+                    <!-- Rendered dynamically -->
+                  </tbody>
+                </table>
+
+                <div id="today-checkouts-empty" style="display: none; padding: 28px 20px; text-align: center;">
+                  <div style="background: rgba(166, 124, 82, 0.08); color: var(--gold-text); width: 44px; height: 44px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 8px; border: 1px solid rgba(166,124,82,0.2);">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                  </div>
+                  <h4 style="margin: 0; font-size: 0.95rem; font-weight: 800; color: var(--text-primary);">لا توجد مغادرات مجدولة لهذا اليوم</h4>
+                  <p style="margin: 4px 0 0; font-size: 0.78rem; color: var(--text-secondary);">جميع الغرف المشغولة لا تنتهي فترة إقامتها اليوم أو تم إنهاء إجراءات مغادرتها بالفعل.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Main Section: Active Bookings Table (Full Width 12-Cols) -->
+          <div class="card" style="margin-bottom: 24px; overflow: hidden;">
+            <div class="card-header" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; padding: 18px 24px;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="background: rgba(26, 67, 50, 0.1); color: var(--primary-accent); width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(26,67,50,0.12);">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                  </svg>
+                </div>
+                <div>
+                  <h2 style="font-size: 1.15rem; font-weight: 800; color: #1e293b; margin: 0;">آخر الحجوزات النشطة</h2>
+                  <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 3px 0 0;">الحجوزات الحالية المسجلة والنزلاء المقيمين في ريحانة</p>
+                </div>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <!-- Prominent New Booking Button -->
+                <button id="btn-open-new-reservation-modal" type="button" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 22px; font-weight: 800; font-size: 0.92rem; background: #1a4332; color: #ffffff; box-shadow: 0 4px 14px rgba(26, 67, 50, 0.3); border-radius: 10px; border: none; cursor: pointer; transition: all 0.2s ease;">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  <span>تسجيل حجز فندقي جديد +</span>
+                </button>
+
+                <!-- Full Reservations Link -->
+                <button type="button" class="btn btn-secondary btn-sm" onclick="switchView('reservations')" style="padding: 9px 16px; font-weight: 700; border-radius: 8px;">
+                  <span>سجل الحجوزات بالكامل &larr;</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="table-responsive w-full" style="overflow-x: auto; min-height: 200px;">
+              <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                  <tr style="background: rgba(0,0,0,0.02); text-align: right;">
+                    <th style="padding: 12px 16px;">رقم الحجز</th>
+                    <th style="padding: 12px 16px;">النزيل</th>
+                    <th style="padding: 12px 16px;">الغرفة</th>
+                    <th style="padding: 12px 16px;">الوصول</th>
+                    <th style="padding: 12px 16px;">المغادرة</th>
+                    <th style="padding: 12px 16px;">الإجمالي والمدفوع</th>
+                    <th style="padding: 12px 16px;">حالة السداد</th>
+                    <th style="padding: 12px 16px;">الحالة</th>
+                    <th style="padding: 12px 16px; text-align: center;">إجراءات وفواتير</th>
+                  </tr>
+                </thead>
+                <tbody id="overview-table-body">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+
+              <div id="overview-empty" style="display: none; padding: 50px 24px; text-align: center;">
+                <div style="background: rgba(26, 67, 50, 0.08); color: var(--primary-accent); width: 60px; height: 60px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 14px;">
+                  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                  </svg>
+                </div>
+                <h3 style="font-size: 1.1rem; font-weight: 800; color: #1e293b; margin: 0 0 6px;">لا توجد حجوزات نشطة حالياً</h3>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); max-width: 440px; margin: 0 auto 20px;">جميع الغرف متاحة أو تم إنهاء إجراءات مغادرتها. يمكنك البدء بتسجيل حجز جديد للنزلاء الآن.</p>
+                <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('btn-open-new-reservation-modal')?.click()" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; font-weight: 800; background: #1a4332; border-radius: 8px; border: none; cursor: pointer;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  <span>تسجيل أول حجز الآن</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================================================================
+             SECTION 2: RESERVATIONS (سجل الحجوزات + تصدير واستيراد Excel)
+             ================================================================== -->
+        <div id="view-reservations" class="view-section" style="display: none;">
+          <div class="card">
+            <div class="table-toolbar" style="flex-wrap: wrap; gap: 12px;">
+              <!-- Filter Tabs -->
+              <div class="filter-tabs-bar" id="res-filter-tabs">
+                <button class="filter-tab-btn active" data-filter="all">جميع الحجوزات</button>
+                <button class="filter-tab-btn" data-filter="مؤكد">مؤكدة (نشطة)</button>
+                <button class="filter-tab-btn" data-filter="مكتمل">مكتملة (تم الخروج)</button>
+                <button class="filter-tab-btn" data-filter="ملغي">ملغاة</button>
+              </div>
+
+              <!-- Search -->
+              <div class="search-box">
+                <span class="search-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                </span>
+                <input type="text" id="search-all-reservations" placeholder="بحث بالاسم، رقم الغرفة، الجوال...">
+              </div>
+
+              <!-- Action Buttons: New Reservation + Excel Import & Export Buttons -->
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <button id="btn-res-new-booking" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 700; background: #1a4332; color: #ffffff; padding: 7px 14px; border-radius: 8px; border: none; cursor: pointer; transition: all 0.2s;" title="تسجيل حجز فندقي جديد">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  <span>+ تسجيل حجز جديد</span>
+                </button>
+
+                <button id="btn-export-reservations-excel" class="btn-excel-export" title="تصدير جدول الحجوزات إلى ملف Excel (.xlsx)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  <span>تصدير Excel</span>
+                </button>
+
+                <label class="btn-excel-import" title="استيراد حجوزات من ملف Excel (.xlsx)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
+                  <span>استيراد Excel</span>
+                  <input type="file" id="input-import-reservations-excel" accept=".xlsx, .xls" style="display: none;">
+                </label>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr>
+                    <th>رقم الحجز</th>
+                    <th>اسم النزيل</th>
+                    <th>رقم الجوال</th>
+                    <th>الغرفة والنوع</th>
+                    <th>تاريخ الوصول</th>
+                    <th>تاريخ المغادرة</th>
+                    <th>المبلغ والمدفوع</th>
+                    <th>طريقة السداد</th>
+                    <th>حالة الدفع</th>
+                    <th>حالة الحجز</th>
+                    <th style="text-align: center;">إجراءات وفواتير</th>
+                  </tr>
+                </thead>
+                <tbody id="all-reservations-table-body">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+
+              <div id="all-reservations-empty" class="empty-box" style="display: none;">
+                <h3>لا توجد نتائج مطابقة</h3>
+                <p>جرب تغيير فلتر الحالة أو كلمة البحث.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================================================================
+             SECTION 3: ROOMS (الغرف الفندقية)
+             ================================================================== -->
+        <div id="view-rooms" class="view-section" style="display: none;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap;">
+            <div class="filter-tabs-bar" id="rooms-filter-tabs">
+              <button class="filter-tab-btn active" data-room-filter="all">جميع الغرف</button>
+              <button class="filter-tab-btn" data-room-filter="متاحة">المتاحة فقط</button>
+              <button class="filter-tab-btn" data-room-filter="محجوزة">المحجوزة (قادمة)</button>
+              <button class="filter-tab-btn" data-room-filter="مشغولة">المشغولة</button>
+              <button class="filter-tab-btn" data-room-filter="تنظيف">قيد التنظيف</button>
+            </div>
+
+            <button id="btn-toggle-add-room" class="btn btn-primary btn-sm">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>إضافة غرفة جديدة</span>
+            </button>
+          </div>
+
+          <!-- Add Room Collapsible Form -->
+          <div id="add-room-panel" class="card" style="display: none; margin-bottom: 24px; border: 2px dashed #c7d2fe;">
+            <div class="card-header" style="background: #eef2ff;">
+              <h2>تسجيل غرفة فندقية جديدة</h2>
+            </div>
+            <div class="card-body">
+              <form id="add-room-form">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="new-room-number">رقم الغرفة *</label>
+                    <input type="text" id="new-room-number" required placeholder="مثال: 301">
+                  </div>
+                  <div class="form-group">
+                    <label for="new-room-type">نوع الغرفة *</label>
+                    <input list="room-types-list" type="text" id="new-room-type" required placeholder="مثال: جناح ملكي فاخر">
+                    <datalist id="room-types-list">
+                      <option value="مفردة قياسية (Single)"></option>
+                      <option value="مزدوجة ديلوكس (Double)"></option>
+                      <option value="جناح عائلي (Family Suite)"></option>
+                      <option value="جناح ملكي (Royal Suite)"></option>
+                      <option value="إطلالة بحرية بانورامية"></option>
+                    </datalist>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="new-room-price">السعر لكل ليلة (ريال / جنيه) *</label>
+                    <input type="number" id="new-room-price" required min="0" step="10" placeholder="مثال: 450">
+                  </div>
+                  <div class="form-group">
+                    <label for="new-room-status">الحالة الأولية</label>
+                    <select id="new-room-status">
+                      <option value="متاحة">متاحة (جاهزة للاستقبال)</option>
+                      <option value="تنظيف">تنظيف</option>
+                      <option value="مشغولة">مشغولة</option>
+                    </select>
+                  </div>
+                </div>
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                  <button type="button" id="btn-cancel-add-room" class="btn btn-secondary btn-sm">إلغاء</button>
+                  <button type="submit" class="btn btn-primary btn-sm">حفظ الغرفة في قاعدة البيانات</button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- Rooms Cards Grid -->
+          <div id="rooms-grid-container" class="rooms-grid"></div>
+        </div>
+
+        <!-- ==================================================================
+             SECTION 4: GUESTS (قائمة النزلاء + إضافة نزيل + تصدير واستيراد Excel)
+             ================================================================== -->
+        <div id="view-guests" class="view-section" style="display: none;">
+          
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap;">
+            <div style="font-size: 1.15rem; font-weight: 800; color: var(--primary-forest);">
+              سجل النزلاء والعملاء (متاح لجميع المستخدمين والمدراء)
+            </div>
+
+            <!-- Add Customer Button (Available to both Admin and User) -->
+            <button id="btn-toggle-add-customer" class="btn btn-primary btn-sm">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>إضافة عميل / نزيل جديد</span>
+            </button>
+          </div>
+
+          <!-- Add Customer Collapsible Panel -->
+          <div id="add-customer-panel" class="card" style="display: none; margin-bottom: 24px; border: 2px dashed #a7f3d0;">
+            <div class="card-header" style="background: #ecfdf5;">
+              <h2>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="8.5" cy="7" r="4"></circle>
+                  <line x1="20" y1="8" x2="20" y2="14"></line>
+                  <line x1="23" y1="11" x2="17" y2="11"></line>
+                </svg>
+                تسجيل بيانات عميل / نزيل جديد
+              </h2>
+            </div>
+            <div class="card-body">
+              <form id="add-customer-form">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="new-customer-name">اسم النزيل / العميل الكامل *</label>
+                    <input type="text" id="new-customer-name" required placeholder="مثال: عبد الله خالد الشمري">
+                  </div>
+                  <div class="form-group">
+                    <label for="new-customer-phone">رقم الجوال</label>
+                    <input type="tel" id="new-customer-phone" placeholder="مثال: 0551234567">
+                  </div>
+                  <div class="form-group">
+                    <label for="new-customer-id">رقم الهوية الوطنية / الإقامة / جواز السفر</label>
+                    <input type="text" id="new-customer-id" placeholder="الهوية أو الإقامة أو الجواز (مثال: 1098765432 أو A12345678)">
+                  </div>
+                </div>
+                <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px;">
+                  <button type="button" id="btn-cancel-add-customer" class="btn btn-secondary btn-sm">إلغاء</button>
+                  <button type="submit" class="btn btn-primary btn-sm">حفظ بيانات النزيل في قاعدة البيانات</button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="table-toolbar" style="flex-wrap: wrap; gap: 12px;">
+              <div class="search-box">
+                <span class="search-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                </span>
+                <input type="text" id="search-guests" placeholder="بحث بالاسم، رقم الجوال، الهوية...">
+              </div>
+
+              <!-- Excel Buttons for Guests -->
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <button id="btn-export-guests-excel" class="btn-excel-export" title="تصدير قائمة النزلاء إلى ملف Excel (.xlsx)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  <span>تصدير النزلاء (Excel)</span>
+                </button>
+
+                <label class="btn-excel-import" title="استيراد نزلاء من ملف Excel أو CSV (.xlsx, .csv)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
+                  <span>استيراد نزلاء (Excel / CSV)</span>
+                  <input type="file" id="input-import-guests-excel" accept=".xlsx, .xls, .csv" style="display: none;">
+                </label>
+              </div>
+
+              <div style="font-size: 0.84rem; font-weight: 800; color: var(--gold-text);">
+                <span id="guests-count-badge" style="font-size: 1rem;">0</span> نزيل مسجل
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr>
+                    <th>معرف النزيل</th>
+                    <th>اسم النزيل الكامل</th>
+                    <th>رقم الجوال</th>
+                    <th>رقم الهوية / الجواز</th>
+                    <th>عدد الإقامات السابقة</th>
+                    <th>إجمالي المدفوعات</th>
+                    <th>تاريخ أول تسجيل</th>
+                  </tr>
+                </thead>
+                <tbody id="guests-table-body"></tbody>
+              </table>
+
+              <div id="guests-empty" class="empty-box" style="display: none;">
+                <h3>لا يوجد نزلاء مسجلين</h3>
+                <p>يمكنك تسجيل النزلاء يدوياً من نموذج الحجز أو استيرادهم من ملف Excel.</p>
+              </div>
+            </div>
+
+            <!-- Server-Side Pagination Controls -->
+            <div id="guests-pagination" class="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3.5 bg-slate-50/90 border-t border-slate-200 mt-1 rounded-b-xl" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; background: #f8fafc; border-top: 1px solid #e2e8f0; flex-wrap: wrap; gap: 10px;">
+              <div class="text-xs text-slate-500 font-semibold" style="font-size: 0.82rem; color: #64748b; font-weight: 600;">
+                عرض <span id="guests-page-range" class="font-bold text-slate-700" style="color: #334155; font-weight: 800;">1 - 50</span> من إجمالي <span id="guests-total-count" class="font-bold text-emerald-700" style="color: #047857; font-weight: 800;">0</span> نزيل
+              </div>
+              <div class="flex items-center gap-2" style="display: flex; align-items: center; gap: 8px;">
+                <button type="button" id="btn-guests-prev-page" class="px-3.5 py-1.5 text-xs font-bold rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm" style="padding: 6px 14px; font-size: 0.8rem; font-weight: 700; border-radius: 8px; border: 1px solid #cbd5e1; background: white; color: #334155; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px;">
+                  <span>&rarr; السابق</span>
+                </button>
+                <div id="guests-page-info" class="px-3 py-1 text-xs font-extrabold text-slate-700 bg-white border border-slate-200 rounded-lg shadow-sm" style="padding: 6px 14px; font-size: 0.82rem; font-weight: 800; color: #1e1b4b; background: white; border: 1px solid #e2e8f0; border-radius: 8px;">
+                  صفحة <span id="guests-current-page">1</span> من <span id="guests-total-pages">1</span>
+                </div>
+                <button type="button" id="btn-guests-next-page" class="px-3.5 py-1.5 text-xs font-bold rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm" style="padding: 6px 14px; font-size: 0.8rem; font-weight: 700; border-radius: 8px; border: 1px solid #cbd5e1; background: white; color: #334155; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px;">
+                  <span>التالي &larr;</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================================================================
+             SECTION 5: ADMIN PANEL (لوحة الإدارة والمستخدمين - Admin Only)
+             ================================================================== -->
+        <div id="view-admin" class="view-section" style="display: none;">
+          <div style="display: flex; flex-direction: column; gap: 24px;">
+            
+            <!-- Side-by-Side Forms Grid (grid-cols-1 lg:grid-cols-2 gap-6) -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 24px;">
+              
+              <!-- Form: Add New User Card -->
+              <div class="card" style="background: rgba(255, 255, 255, 0.92); border: 1px solid rgba(226, 232, 240, 0.85); border-radius: 16px; box-shadow: 0 10px 25px -4px rgba(15, 23, 42, 0.05), 0 4px 10px -2px rgba(15, 23, 42, 0.02); overflow: hidden;">
+                <div class="card-header" style="border-bottom: 1px solid #f1f5f9; padding: 18px 22px; background: rgba(255, 255, 255, 0.85);">
+                  <h2 style="font-size: 1.1rem; font-weight: 800; color: #1a4332; display: flex; align-items: center; gap: 10px; margin: 0;">
+                    <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(26, 67, 50, 0.08); color: #1a4332; display: flex; align-items: center; justify-content: center;">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="8.5" cy="7" r="4"></circle>
+                        <line x1="20" y1="8" x2="20" y2="14"></line>
+                        <line x1="23" y1="11" x2="17" y2="11"></line>
+                      </svg>
+                    </div>
+                    <span>إضافة مستخدم جديد للنظام</span>
+                  </h2>
+                </div>
+                <div class="card-body" style="padding: 22px;">
+                  <form id="add-user-form">
+                    <div class="form-group" style="margin-bottom: 16px;">
+                      <label for="new-username" style="display: block; font-weight: 700; font-size: 0.86rem; color: #1e293b; margin-bottom: 6px;">اسم المستخدم *</label>
+                      <input type="text" id="new-username" required placeholder="اسم الدخول (e.g. ahmed)" style="width: 100%; background: #f8fafc; border: 1px solid #e2e8f0; color: #1e293b; border-radius: 12px; padding: 10px 14px; font-weight: 600;">
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 16px;">
+                      <label for="new-user-password" style="display: block; font-weight: 700; font-size: 0.86rem; color: #1e293b; margin-bottom: 6px;">كلمة المرور *</label>
+                      <input type="password" id="new-user-password" required placeholder="كلمة المرور" style="width: 100%; background: #f8fafc; border: 1px solid #e2e8f0; color: #1e293b; border-radius: 12px; padding: 10px 14px; font-weight: 600;">
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 20px;">
+                      <label for="new-user-role" style="display: block; font-weight: 700; font-size: 0.86rem; color: #1e293b; margin-bottom: 6px;">الصلاحية (Role) *</label>
+                      <select id="new-user-role" required style="width: 100%; background: #f8fafc; border: 1px solid #e2e8f0; color: #1e293b; border-radius: 12px; padding: 10px 14px; font-weight: 600;">
+                        <option value="User">مستخدم عادي / موظف استقبال (User)</option>
+                        <option value="Admin">مدير نظام (Admin)</option>
+                      </select>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" style="width: 100%; background: #1a4332; color: #ffffff; padding: 11px 20px; font-weight: 800; border-radius: 12px; border: none; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(26, 67, 50, 0.2);">
+                      إنشاء حساب المستخدم ✓
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+              <!-- Form: Update My Admin Password Card -->
+              <div class="card" style="background: rgba(255, 255, 255, 0.92); border: 1px solid rgba(226, 232, 240, 0.85); border-radius: 16px; box-shadow: 0 10px 25px -4px rgba(15, 23, 42, 0.05), 0 4px 10px -2px rgba(15, 23, 42, 0.02); overflow: hidden;">
+                <div class="card-header" style="border-bottom: 1px solid #f1f5f9; padding: 18px 22px; background: rgba(255, 255, 255, 0.85);">
+                  <h2 style="font-size: 1.1rem; font-weight: 800; color: #1a4332; display: flex; align-items: center; gap: 10px; margin: 0;">
+                    <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(26, 67, 50, 0.08); color: #1a4332; display: flex; align-items: center; justify-content: center;">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                      </svg>
+                    </div>
+                    <span>تغيير كلمة المرور الخاصة بك</span>
+                  </h2>
+                </div>
+                <div class="card-body" style="padding: 22px;">
+                  <form id="update-password-form">
+                    <div class="form-group" style="margin-bottom: 20px;">
+                      <label for="current-admin-new-password" style="display: block; font-weight: 700; font-size: 0.86rem; color: #1e293b; margin-bottom: 6px;">كلمة المرور الجديدة *</label>
+                      <input type="password" id="current-admin-new-password" required placeholder="أدخل كلمة المرور الجديدة" style="width: 100%; background: #f8fafc; border: 1px solid #e2e8f0; color: #1e293b; border-radius: 12px; padding: 10px 14px; font-weight: 600;">
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%; background: #1a4332; color: #ffffff; padding: 11px 20px; font-weight: 800; border-radius: 12px; border: none; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(26, 67, 50, 0.2); margin-top: 52px;">
+                      تحديث كلمة المرور ✓
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Users Management Table Card -->
+            <div class="card" style="background: rgba(255, 255, 255, 0.92); border: 1px solid rgba(226, 232, 240, 0.85); border-radius: 16px; box-shadow: 0 10px 25px -4px rgba(15, 23, 42, 0.05), 0 4px 10px -2px rgba(15, 23, 42, 0.02); overflow: hidden;">
+              <div class="card-header" style="border-bottom: 1px solid #f1f5f9; padding: 18px 22px; background: rgba(255, 255, 255, 0.85); display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                  <h2 style="font-size: 1.1rem; font-weight: 800; color: #1a4332; margin: 0;">المستخدمون المسجلون في النظام</h2>
+                  <p style="font-size: 0.78rem; color: #64748b; margin: 2px 0 0; font-weight: 600;">إدارة الحسابات وصلاحيات الوصول (RBAC)</p>
+                </div>
+                <button id="btn-refresh-users" class="btn btn-secondary btn-sm" style="border-radius: 8px; font-weight: 700;">تحديث</button>
+              </div>
+
+              <div class="table-responsive w-full overflow-x-auto">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#ID</th>
+                      <th>اسم المستخدم</th>
+                      <th>نوع الصلاحية</th>
+                      <th>تاريخ الإنشاء</th>
+                      <th style="text-align: center;">إجراءات</th>
+                    </tr>
+                  </thead>
+                  <tbody id="users-table-body">
+                    <!-- Rendered dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Danger Zone: Factory Reset App Data (Admin & Password Required) -->
+            <div class="card" style="background: rgba(255, 255, 255, 0.95); border: 1.5px solid #fecaca; border-radius: 16px; box-shadow: 0 10px 25px -4px rgba(239, 68, 68, 0.08); overflow: hidden; margin-top: 4px;">
+              <div class="card-header" style="border-bottom: 1px solid #fee2e2; padding: 18px 22px; background: #fff5f5; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <div style="width: 38px; height: 38px; border-radius: 10px; background: #fee2e2; color: #dc2626; display: flex; align-items: center; justify-content: center;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                      <line x1="12" y1="9" x2="12" y2="13"></line>
+                      <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 style="font-size: 1.05rem; font-weight: 800; color: #991b1b; margin: 0;">منطقة العمليات الحساسة | تصفير بيانات التطبيق (Factory Reset)</h2>
+                    <p style="font-size: 0.78rem; color: #7f1d1d; margin: 3px 0 0; font-weight: 600;">يتطلب صلاحيات مدير النظام وكلمة المرور لتأكيد العملية</p>
+                  </div>
+                </div>
+                <button id="btn-open-factory-reset" type="button" class="btn" style="background: #dc2626; color: #ffffff; padding: 10px 20px; font-weight: 800; border-radius: 10px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25); transition: all 0.2s;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="1 4 1 10 7 10"></polyline>
+                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                  </svg>
+                  <span>تصفير بيانات التطبيق والبدء من جديد ⚠️</span>
+                </button>
+              </div>
+              <div class="card-body" style="padding: 18px 22px; background: #fffaf0;">
+                <p style="margin: 0; font-size: 0.85rem; color: #92400e; line-height: 1.6; font-weight: 600;">
+                  ⚠️ <strong>تنبيه أمني هام:</strong> تصفير النظام سيقوم بحذف كافة الحجوزات، والنزلاء، وسندات القبض، وسجلات النشاط نهائياً وإعادة ضبط النظام لتهيئة المصنع الافتراضية مع الغرف الافتراضية وحسابات الإدارة. يتم أخذ نسخة احتياطية آمنة تلقائياً في مجلد Backups قبل التنفيذ.
+                </p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ==================================================================
+             SECTION 6: EMPLOYEE ACTIVITY LOGS (سجل نشاط الموظفين - Admin Only)
+             ================================================================== -->
+        <div id="view-logs" class="view-section" style="display: none;">
+          <div class="card">
+            <div class="table-toolbar" style="flex-wrap: wrap; gap: 12px;">
+              <div class="search-box">
+                <span class="search-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                </span>
+                <input type="text" id="search-logs" placeholder="بحث باسم الموظف أو الصلاحية...">
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 0.84rem; font-weight: 700; color: var(--text-secondary);">
+                  إجمالي الجلسات المسجلة: <span id="logs-count-badge" style="color: var(--gold-text); font-weight: 800; font-size: 0.95rem;">0</span>
+                </span>
+                <button id="btn-refresh-logs" class="btn btn-secondary btn-sm" title="تحديث سجل الموظفين">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                  </svg>
+                  تحديث
+                </button>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr>
+                    <th>معرف السجل</th>
+                    <th>اسم الموظف</th>
+                    <th>نوع الصلاحية</th>
+                    <th>وقت تسجيل الدخول (Login Time)</th>
+                    <th>وقت تسجيل الخروج (Logout Time)</th>
+                    <th>حالة الجلسة</th>
+                  </tr>
+                </thead>
+                <tbody id="logs-table-body">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+
+              <div id="logs-empty" class="empty-box" style="display: none;">
+                <h3>لا توجد سجلات نشاط مسجلة</h3>
+                <p>يتم تسجيل عمليات الدخول والخروج تلقائياً فور استخدام الموظفين للنظام.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div> <!-- End .dashboard-layout -->
+
+  <!-- ==================================================================
+       NEW RESERVATION MODAL / SLIDE-OVER DRAWER
+       ================================================================== -->
+  <div id="new-reservation-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.65); z-index: 100000; align-items: center; justify-content: center; padding: 20px; overflow-y: auto;">
+    <div class="modal-glass-container" style="background: #ffffff; border-radius: 16px; max-width: 680px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); overflow: hidden; margin: auto; border: 1px solid #e2e8f0;">
+      
+      <!-- Drawer Header -->
+      <div style="background: linear-gradient(135deg, #1a4332 0%, #112d22 100%); color: white; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1);">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 38px; height: 38px; border-radius: 10px; background: rgba(255, 255, 255, 0.15); display: flex; align-items: center; justify-content: center;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </div>
+          <div>
+            <h2 style="font-size: 1.15rem; font-weight: 800; margin: 0; color: #ffffff;">تسجيل حجز فندقي جديد</h2>
+            <p style="font-size: 0.78rem; color: #a7f3d0; margin: 2px 0 0;">إدخال بيانات النزيل وتسكين الغرفة فورياً في النظام</p>
+          </div>
+        </div>
+        <button id="btn-close-new-reservation" type="button" class="btn btn-sm" style="background: rgba(255,255,255,0.15); color: white; border: none; font-size: 1.3rem; width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer;" title="إغلاق">&times;</button>
+      </div>
+
+      <!-- Drawer Body -->
+      <div style="padding: 24px; max-height: calc(85vh - 75px); overflow-y: auto;">
+        <form id="reservation-form">
+          <!-- Returning Guest Auto-fill Banner -->
+          <div id="autofill-guest-status" style="display: none; margin-bottom: 18px; padding: 10px 14px; background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 10px; color: #065f46; font-size: 0.85rem; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+              </svg>
+              <span id="autofill-guest-msg"><strong>تم التعرف على النزيل السابق:</strong> تم ملء الاسم والبيانات تلقائياً.</span>
+            </div>
+            <span id="autofill-guest-badge" class="badge" style="background: rgba(16, 185, 129, 0.2); color: #047857; border: 1px solid rgba(16, 185, 129, 0.4); font-weight: 800;">نزيل سابق</span>
+          </div>
+
+          <!-- Section 1: Guest Information -->
+          <div style="font-size: 0.85rem; font-weight: 800; color: #1e293b; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px;">
+            <span>👤 بيانات النزيل الشخصية</span>
+          </div>
+
+          <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 6px;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="guest-phone" style="font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; display: block; color: #334155;">رقم الجوال *</label>
+              <input type="tel" id="guest-phone" required placeholder="05xxxxxxxx" class="form-control">
+              <p id="guest-phone-error" class="hidden text-rose-500 text-xs font-bold mt-1.5" style="display:none; color:#f43f5e; font-size:0.76rem; font-weight:700; margin-top:4px;"></p>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="guest-id-number" style="font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; display: block; color: #334155;">رقم الهوية / الإقامة / الجواز</label>
+              <input type="text" id="guest-id-number" placeholder="الهوية أو الإقامة أو جواز السفر" class="form-control">
+              <p id="guest-id-error" class="hidden text-rose-500 text-xs font-bold mt-1.5" style="display:none; color:#f43f5e; font-size:0.76rem; font-weight:700; margin-top:4px;"></p>
+            </div>
+          </div>
+          <div style="font-size: 0.74rem; color: #a67c52; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 4px;">
+            <span>⚡ إدخال الجوال أو رقم الهوية / الجواز يسترجع سجل النزيل السابق تلقائياً</span>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 18px;">
+            <label for="guest-name" style="font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; display: block; color: #334155;">اسم النزيل الثلاثي *</label>
+            <input type="text" id="guest-name" required placeholder="مثال: محمد عبدالله العمري" class="form-control">
+          </div>
+
+          <!-- Section 2: Room & Stay Details -->
+          <div style="font-size: 0.85rem; font-weight: 800; color: #1e293b; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px;">
+            <span>🏨 تفاصيل الغرفة والإقامة</span>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 14px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+              <label for="room-select" style="font-weight: 700; font-size: 0.82rem; margin-bottom: 0; display: block; color: #334155;">اختيار الغرفة *</label>
+              <span id="room-select-lock-badge" style="display: none; font-size: 0.76rem; font-weight: 800; color: #166534; background: #ecfdf5; border: 1px solid #86efac; border-radius: 6px; padding: 2px 8px;"></span>
+            </div>
+            <select id="room-select" required class="form-control">
+              <option value="">-- اختر الغرفة --</option>
+            </select>
+          </div>
+
+          <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="check-in-date" style="font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; display: block; color: #334155;">تاريخ الوصول *</label>
+              <input type="date" id="check-in-date" required class="form-control">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="check-out-date" style="font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; display: block; color: #334155;">تاريخ المغادرة *</label>
+              <input type="date" id="check-out-date" required class="form-control">
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 18px;">
+            <label for="total-price" style="font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; display: block; color: #334155;">السعر الإجمالي للإقامة (ريال) *</label>
+            <input type="number" id="total-price" required min="0" step="0.5" placeholder="0.00" class="form-control" style="font-weight: 700; color: #1e293b;">
+          </div>
+
+          <!-- Section 3: Payment & Accounting -->
+          <div style="font-size: 0.85rem; font-weight: 800; color: #1e293b; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px;">
+            <span>💳 المحاسبة والدفع</span>
+          </div>
+
+          <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="payment-method" style="font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; display: block; color: #334155;">طريقة السداد *</label>
+              <select id="payment-method" required class="form-control">
+                <option value="نقداً" selected>نقداً (Cash)</option>
+                <option value="بطاقة / مدى">بطاقة / مدى / فيزا (Card)</option>
+                <option value="تحويل بنكي">تحويل بنكي (Bank Transfer)</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="paid-amount" style="font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; display: block; color: #334155;">المبلغ المدفوع مقدماً *</label>
+              <input type="number" id="paid-amount" required min="0" step="0.5" placeholder="0.00" class="form-control" style="font-weight: 700; color: #047857;">
+            </div>
+          </div>
+
+          <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 22px;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="deposit-amount" style="font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; display: block; color: #334155;">مبلغ التأمين المسترد (اختياري)</label>
+              <input type="number" id="deposit-amount" min="0" step="10" placeholder="0.00" value="0" class="form-control">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label style="font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; display: block; color: #334155;">المبلغ المتبقي على النزيل</label>
+              <div id="remaining-balance-badge" style="padding: 10px 14px; background: rgba(255, 255, 255, 0.95); border: 1.5px solid var(--accent-border); border-radius: var(--radius-sm); font-weight: 800; color: var(--gold-text); font-size: 0.92rem; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 8px rgba(166,124,82,0.08);">
+                <span>المتبقي:</span>
+                <span id="remaining-balance-val">0.00 ريال</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Drawer Action Buttons -->
+          <div style="display: flex; gap: 12px; border-top: 1px solid #e2e8f0; padding-top: 18px;">
+            <button type="button" id="btn-clear-form" class="btn btn-secondary" style="flex: 1; padding: 11px; font-weight: 700;">
+              إفراغ الحقول
+            </button>
+            <button type="submit" class="btn btn-primary" style="flex: 2; padding: 11px; font-weight: 800; background: #1a4332; color: white; display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+              </svg>
+              <span>تأكيد وحفظ الحجز</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Universal In-App Confirmation Modal (Prevents native browser confirm freezing) -->
+  <div id="app-confirm-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 999999; align-items: center; justify-content: center; padding: 20px;">
+    <div class="modal-glass-container" style="padding: 28px; max-width: 440px; width: 92%; text-align: center; margin: auto;">
+      <div id="confirm-modal-icon-container" style="width: 52px; height: 52px; border-radius: 50%; background: rgba(239, 68, 68, 0.12); color: #dc2626; border: 1px solid rgba(239, 68, 68, 0.25); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+      </div>
+      <h3 id="confirm-modal-title" style="font-size: 1.15rem; font-weight: 800; color: #1e293b; margin-bottom: 8px;">تأكيد الإجراء</h3>
+      <p id="confirm-modal-message" style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 22px; line-height: 1.6; white-space: pre-line;">هل أنت متأكد من رغبتك في المتابعة؟</p>
+      <div style="display: flex; gap: 12px; justify-content: center;">
+        <button id="btn-modal-cancel" type="button" class="btn btn-secondary" style="flex: 1; padding: 10px; font-weight: 700;">إلغاء</button>
+        <button id="btn-modal-confirm" type="button" class="btn btn-danger" style="flex: 1; padding: 10px; font-weight: 700;">تأكيد</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- In-App Logout Confirmation Modal (Prevents native browser confirm freezing) -->
+  <div id="logout-confirm-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 99999; align-items: center; justify-content: center; padding: 20px;">
+    <div class="modal-glass-container" style="padding: 28px; max-width: 400px; width: 90%; text-align: center; margin: auto;">
+      <div style="width: 52px; height: 52px; border-radius: 50%; background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+          <polyline points="16 17 21 12 16 7"></polyline>
+          <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+      </div>
+      <h3 style="font-size: 1.15rem; font-weight: 800; color: #1e293b; margin-bottom: 8px;">تسجيل الخروج</h3>
+      <p style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 22px;">هل أنت متأكد من رغبتك في تسجيل الخروج والعودة لشاشة الدخول؟</p>
+      <div style="display: flex; gap: 12px; justify-content: center;">
+        <button id="btn-cancel-logout" type="button" class="btn btn-secondary" style="flex: 1; padding: 10px; font-weight: 600;">إلغاء</button>
+        <button id="btn-confirm-logout" type="button" class="btn btn-danger" style="flex: 1; padding: 10px; background: #dc2626; color: white; font-weight: 600;">نعم، خروج</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Printable Hotel Tax Invoice Modal (Feature 1) -->
+  <div id="invoice-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100000; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
+    <div style="background: white; border-radius: 16px; max-width: 820px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35); overflow: hidden; margin: auto;">
+      <!-- Action Toolbar (No-Print) -->
+      <div class="no-print" style="background: #1e1b4b; color: white; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+          <span style="font-weight: 800; font-size: 1.05rem;">معاينة سند الاستلام والإقامة</span>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="btn-trigger-print-invoice" type="button" class="btn btn-sm" style="background: #143d2b; color: white; font-weight: 700; padding: 7px 14px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 6 2 18 2 18 9"></polyline>
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+              <rect x="6" y="14" width="12" height="8"></rect>
+            </svg>
+            <span>طباعة فورية 🖨️</span>
+          </button>
+          <button id="btn-export-pdf-invoice" type="button" class="btn btn-sm" style="background: #059669; color: white; font-weight: 700; padding: 7px 14px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            <span>حفظ PDF 📄</span>
+          </button>
+          <button id="btn-preview-window-invoice" type="button" class="btn btn-sm" style="background: #0e2e1f; color: white; font-weight: 700; padding: 7px 14px; border: 1px solid #143d2b;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <span>معاينة مستقلة 🔍</span>
+          </button>
+          <button id="btn-edit-invoice" type="button" class="btn btn-sm" style="background: #4338ca; color: white; font-weight: 700; padding: 7px 14px; border: 1px solid #6366f1;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+            <span>تعديل السند ✏️</span>
+          </button>
+          <button id="btn-close-invoice-modal" type="button" class="btn btn-sm" style="background: rgba(255,255,255,0.15); color: white; border: none; font-size: 0.95rem;">
+            إغلاق &times;
+          </button>
+        </div>
+      </div>
+
+      <!-- Printable Area -->
+      <div id="invoice-printable-area" style="padding: 36px 40px; background: white; color: #0f172a; direction: rtl; text-align: right;">
+        <!-- Filled dynamically by JavaScript -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Edit Receipt / Invoice -->
+  <div id="edit-invoice-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100050; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
+    <div style="background: white; border-radius: 16px; max-width: 540px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35); overflow: hidden; margin: auto;">
+      <div style="background: #1e1b4b; color: white; padding: 16px 22px; display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.2rem;">✏️</span>
+          <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800;">تعديل بيانات السند والنزيل</h3>
+        </div>
+        <button id="btn-close-edit-invoice" type="button" style="background: none; border: none; color: white; font-size: 1.3rem; cursor: pointer;">&times;</button>
+      </div>
+      <form id="edit-invoice-form" style="padding: 22px;">
+        <input type="hidden" id="edit-inv-res-id">
+
+        <!-- Guest Info Section -->
+        <div style="font-size: 0.8rem; font-weight: 800; color: #64748b; margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px;">👤 بيانات النزيل</div>
+        <div class="form-group" style="margin-bottom: 12px;">
+          <label for="edit-inv-guest-name" style="display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; color: #334155;">اسم النزيل *</label>
+          <input type="text" id="edit-inv-guest-name" required class="form-control" style="font-weight: 600;">
+        </div>
+        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="edit-inv-guest-phone" style="display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; color: #334155;">رقم الجوال *</label>
+            <input type="tel" id="edit-inv-guest-phone" required class="form-control" placeholder="05xxxxxxxx">
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="edit-inv-guest-id" style="display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; color: #334155;">الهوية / الجواز</label>
+            <input type="text" id="edit-inv-guest-id" class="form-control" placeholder="10 أرقام أو جواز">
+          </div>
+        </div>
+
+        <!-- Financial Section -->
+        <div style="font-size: 0.8rem; font-weight: 800; color: #64748b; margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px;">💰 المبالغ المالية وطريقة السداد</div>
+        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="edit-inv-total-price" style="display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; color: #334155;">السعر الإجمالي (ريال) *</label>
+            <input type="number" id="edit-inv-total-price" required min="1" step="0.5" class="form-control" style="font-weight: 700; color: #1e1b4b;">
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="edit-inv-paid-amount" style="display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; color: #334155;">المبلغ المدفوع (ريال) *</label>
+            <input type="number" id="edit-inv-paid-amount" required min="0" step="0.5" class="form-control" style="font-weight: 700; color: #047857;">
+          </div>
+        </div>
+        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="edit-inv-deposit-amount" style="display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; color: #334155;">مبلغ التأمين المسترد (ريال)</label>
+            <input type="number" id="edit-inv-deposit-amount" min="0" step="10" class="form-control" value="0">
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="edit-inv-payment-method" style="display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; color: #334155;">طريقة السداد</label>
+            <select id="edit-inv-payment-method" class="form-control" style="font-weight: 600;">
+              <option value="نقداً">نقداً (Cash)</option>
+              <option value="بطاقة / مدى">بطاقة / مدى / فيزا (Card)</option>
+              <option value="تحويل بنكي">تحويل بنكي (Bank Transfer)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Live Remaining Preview -->
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 0.82rem; font-weight: 700; color: #475569;">المبلغ المتبقي المحسوب:</span>
+          <span id="edit-inv-remaining-preview" style="font-size: 0.95rem; font-weight: 800; color: #059669;">0.00 ريال</span>
+        </div>
+
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button type="button" id="btn-cancel-edit-inv" class="btn btn-secondary btn-sm" style="padding: 8px 16px;">إلغاء</button>
+          <button type="submit" class="btn btn-primary btn-sm" style="background: #4338ca; border-color: #4338ca; padding: 8px 18px; font-weight: 700;">حفظ تعديلات السند ✓</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Shift Audit & Night Closing Modal (Feature 5) -->
+  <div id="shift-audit-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100000; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
+    <div style="background: white; border-radius: 16px; max-width: 860px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35); overflow: hidden; margin: auto;">
+      <!-- Action Toolbar (No-Print) -->
+      <div class="no-print" style="background: #0f172a; color: white; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+          <span style="font-weight: 800; font-size: 1.05rem;">تقرير إقفال الوردية والموازنة المالية (Night Audit)</span>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="btn-print-shift-audit" type="button" class="btn btn-sm" style="background: #059669; color: white; font-weight: 700; padding: 7px 14px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 6 2 18 2 18 9"></polyline>
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+              <rect x="6" y="14" width="12" height="8"></rect>
+            </svg>
+            <span>طباعة فورية 🖨️</span>
+          </button>
+          <button id="btn-export-pdf-shift-audit" type="button" class="btn btn-sm" style="background: #143d2b; color: white; font-weight: 700; padding: 7px 14px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            <span>حفظ PDF 📄</span>
+          </button>
+          <button id="btn-preview-window-shift-audit" type="button" class="btn btn-sm" style="background: #334155; color: white; font-weight: 700; padding: 7px 14px; border: 1px solid #475569;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <span>معاينة مستقلة 🔍</span>
+          </button>
+          <button id="btn-close-shift-audit" type="button" class="btn btn-sm" style="background: rgba(255,255,255,0.15); color: white; border: none; font-size: 0.95rem;">
+            إغلاق &times;
+          </button>
+        </div>
+      </div>
+
+      <!-- Printable Audit Sheet -->
+      <div id="shift-audit-content" style="padding: 32px 36px; background: white; color: #0f172a; direction: rtl; text-align: right;">
+        <!-- Filled dynamically by JavaScript -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Daily 12:00 AM Automated Backup Management Modal -->
+  <div id="daily-backup-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 100000; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
+    <div class="modal-glass-container" style="max-width: 860px; width: 100%; overflow: hidden; margin: auto;">
+      <!-- Header -->
+      <div style="background: linear-gradient(135deg, rgba(20, 61, 43, 0.85) 0%, rgba(14, 46, 31, 0.95) 100%); color: white; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--glass-border);">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="background: rgba(255,255,255,0.15); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800;">النسخ الاحتياطي التلقائي اليومي (Daily Backup at 12:00 AM)</h3>
+            <p style="margin: 3px 0 0; font-size: 0.82rem; color: var(--gold-text);">جدولة آلية يومية لحفظ قاعدة البيانات في تمام الساعة 12:00 منتصف الليل</p>
+          </div>
+        </div>
+        <button id="btn-close-daily-backup" type="button" class="btn btn-sm" style="background: rgba(255,255,255,0.15); color: white; border: none; font-size: 1.1rem; width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer;">&times;</button>
+      </div>
+
+      <!-- Modal Body -->
+      <div style="padding: 24px; background: transparent;">
+        <!-- Status KPI Cards -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px;">
+          <!-- Card 1: Schedule -->
+          <div class="card" style="padding: 14px 16px;">
+            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">⏰ موعد الجدولة اليومي</div>
+            <div style="font-size: 1.1rem; font-weight: 800; color: #1e293b;">12:00 ص (منتصف الليل)</div>
+            <div style="font-size: 0.75rem; color: #10b981; margin-top: 4px; font-weight: 600;">كل 24 ساعة تلقائياً</div>
+          </div>
+
+          <!-- Card 2: Status & Next Run -->
+          <div class="card" style="padding: 14px 16px;">
+            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">🟢 حالة النظام الآن</div>
+            <div id="daily-backup-status-badge" style="font-size: 1.05rem; font-weight: 800; color: #059669;">مفعّل ونشط ✅</div>
+            <div id="daily-backup-next-run" style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">النسخة القادمة: الليلة 12:00 ص</div>
+          </div>
+
+          <!-- Card 3: Last Backup -->
+          <div class="card" style="padding: 14px 16px;">
+            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">💾 آخر نسخة تم حفظها</div>
+            <div id="daily-backup-last-time" style="font-size: 0.95rem; font-weight: 800; color: var(--gold-text);">جاري التحميل...</div>
+            <div id="daily-backup-last-file" style="font-size: 0.72rem; color: #059669; font-weight: 600; margin-top: 4px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">-</div>
+          </div>
+
+          <!-- Card 4: Total Backups Count -->
+          <div class="card" style="padding: 14px 16px;">
+            <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">📦 النسخ المحفوظة بالأرشيف</div>
+            <div id="daily-backup-total-count" style="font-size: 1.1rem; font-weight: 800; color: #1e293b;">-</div>
+            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">الاحتفاظ بآخر 60 يوماً</div>
+          </div>
+        </div>
+
+        <!-- Destination Folder Configuration Card -->
+        <div class="card" style="padding: 14px 18px; margin-bottom: 16px; background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(226, 232, 240, 0.9); border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(26, 67, 50, 0.1); color: var(--primary-accent); display: flex; align-items: center; justify-content: center;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                </svg>
+              </div>
+              <div>
+                <span style="font-weight: 800; font-size: 0.92rem; color: #1e293b;">مجلد حفظ النسخ الاحتياطية التلقائية</span>
+                <span id="daily-backup-folder-type-badge" style="margin-right: 8px; font-size: 0.72rem; padding: 2px 8px; border-radius: 6px; font-weight: 700; background: #f1f5f9; color: #475569;">افتراضي</span>
+              </div>
+            </div>
+
+            <!-- Action buttons for folder -->
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              <button id="btn-change-daily-backup-folder" type="button" class="btn btn-sm btn-primary" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 0.82rem; font-weight: 700;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  <line x1="12" y1="11" x2="12" y2="17"></line>
+                  <line x1="9" y1="14" x2="15" y2="14"></line>
+                </svg>
+                <span>تغيير مجلد الحفظ 📁</span>
+              </button>
+              <button id="btn-reset-daily-backup-folder" type="button" class="btn btn-sm btn-secondary" style="display: none; align-items: center; gap: 6px; padding: 6px 12px; font-size: 0.8rem; font-weight: 600; color: #64748b;" title="إعادة المسار إلى مجلد التطبيق الافتراضي">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                  <path d="M3 3v5h5"></path>
+                </svg>
+                <span>استعادة الافتراضي ↩️</span>
+              </button>
+              <button id="btn-open-daily-backups-folder" type="button" class="btn btn-sm btn-secondary" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 0.8rem; font-weight: 600;" title="فتح هذا المجلد في مستكشف ويندوز">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                  <polyline points="15 3 21 3 21 9"></polyline>
+                  <line x1="10" y1="14" x2="21" y2="3"></line>
+                </svg>
+                <span>فتح المجلد 🗁</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Path display box -->
+          <div style="background: rgba(248, 250, 252, 0.95); border: 1px dashed #cbd5e1; border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; width: 100%;">
+              <span style="font-size: 0.78rem; color: #64748b; font-weight: 600; white-space: nowrap;">المسار الحالي:</span>
+              <span id="daily-backup-folder-path-display" style="font-size: 0.8rem; color: #0f172a; font-family: 'Consolas', monospace; direction: ltr; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700;">جاري التحميل...</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Toolbar -->
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; justify-content: space-between;">
+          <button id="btn-trigger-daily-backup-now" type="button" class="btn btn-sm btn-primary" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+            </svg>
+            <span>أخذ نسخة تجريبية فورية الآن (Run Now)</span>
+          </button>
+          <button id="btn-refresh-daily-backups" type="button" class="btn btn-sm btn-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"></path>
+            </svg>
+            <span>تحديث السجل</span>
+          </button>
+        </div>
+
+        <!-- Backups List Section -->
+        <div class="card" style="overflow: hidden; margin-bottom: 16px;">
+          <div style="padding: 12px 18px; background: rgba(0, 0, 0, 0.02); border-bottom: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-weight: 700; font-size: 0.9rem; color: #1e293b;">سجل ملفات النسخ الاحتياطية المتوفرة (SQLite Files)</span>
+            <span id="daily-backup-table-count-badge" style="font-size: 0.76rem; color: var(--gold-text); font-weight: 700;"></span>
+          </div>
+          <div style="max-height: 250px; overflow-y: auto;">
+            <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+              <thead>
+                <tr style="background: rgba(255, 255, 255, 0.03); color: var(--text-secondary); text-align: right;">
+                  <th style="padding: 10px 14px;">اسم الملف</th>
+                  <th style="padding: 10px 14px;">تاريخ ووقت النسخة</th>
+                  <th style="padding: 10px 14px;">الحجم</th>
+                  <th style="padding: 10px 14px;">النوع</th>
+                  <th style="padding: 10px 14px; text-align: center;">الإجراء</th>
+                </tr>
+              </thead>
+              <tbody id="daily-backups-table-body">
+                <!-- Populated dynamically via JS -->
+              </tbody>
+            </table>
+            <div id="daily-backups-empty" style="display: none; padding: 30px; text-align: center; color: var(--text-muted);">
+              لا توجد نسخ احتياطية محفوظة حالياً في هذا المجلد.
+            </div>
+          </div>
+        </div>
+
+        <!-- Explanatory Guarantees Card -->
+        <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 10px; padding: 12px 16px; font-size: 0.82rem; color: #d1fae5; line-height: 1.6;">
+          <div style="font-weight: 800; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; color: #34d399;">
+            <span>🛡️ كيفية عمل نظام النسخ التلقائي في الفندق:</span>
+          </div>
+          <ul style="margin: 0; padding-right: 20px; list-style-type: disc;">
+            <li><strong>يومياً الساعة 12:00 ص:</strong> يقوم النظام تلقائياً وبدون أي تدخل بشري بحفظ نسخة كاملة ومستقلة من قاعدة بيانات الفندق.</li>
+            <li><strong>تعويض الإغلاق (Catch-up):</strong> إذا كان الحاسوب أو البرنامج مغلقاً في تمام الساعة 12:00 منتصف الليل، يقوم النظام تلقائياً بأخذ نسخة اليوم فور تشغيل البرنامج صباحاً لضمان عدم ضياع أي يوم.</li>
+            <li><strong>نسخة مرآة بالمستندات:</strong> يتم حفظ نسخة إضافية تلقائياً في مجلد Documents لتمكينك من نسخها على فلاش ميموري بسهولة تامة.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Room Modal -->
+  <div id="edit-room-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 100000; align-items: center; justify-content: center; padding: 20px;">
+    <div class="modal-glass-container" style="max-width: 520px; width: 100%; overflow: hidden; margin: auto;">
+      <div style="background: linear-gradient(135deg, rgba(20, 61, 43, 0.85) 0%, rgba(14, 46, 31, 0.95) 100%); color: white; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--glass-border);">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+          <span style="font-weight: 800; font-size: 1.1rem;">تعديل بيانات الغرفة الفندقية</span>
+        </div>
+        <button id="btn-close-edit-room-modal" type="button" class="btn btn-sm" style="background: rgba(255,255,255,0.15); color: white; border: none; font-size: 1.1rem; cursor: pointer; padding: 4px 10px;">&times;</button>
+      </div>
+      <form id="edit-room-form" style="padding: 24px;">
+        <input type="hidden" id="edit-room-id">
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label for="edit-room-number" style="font-weight: 700; margin-bottom: 6px; display: block; color: #1e293b;">رقم الغرفة *</label>
+          <input type="text" id="edit-room-number" required class="form-control">
+        </div>
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label for="edit-room-type" style="font-weight: 700; margin-bottom: 6px; display: block; color: #1e293b;">نوع الغرفة *</label>
+          <input list="room-types-list" type="text" id="edit-room-type" required class="form-control">
+        </div>
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label for="edit-room-price" style="font-weight: 700; margin-bottom: 6px; display: block; color: #1e293b;">السعر لكل ليلة (ريال / جنيه) *</label>
+          <input type="number" id="edit-room-price" required min="0" step="10" class="form-control">
+        </div>
+        <div class="form-group" style="margin-bottom: 24px;">
+          <label for="edit-room-status" style="font-weight: 700; margin-bottom: 6px; display: block; color: #1e293b;">حالة الغرفة</label>
+          <select id="edit-room-status" class="form-control">
+            <option value="متاحة">متاحة (جاهزة للاستقبال)</option>
+            <option value="تنظيف">تنظيف</option>
+            <option value="مشغولة">مشغولة</option>
+          </select>
+          <p id="edit-room-status-locked-hint" style="display: none; margin-top: 6px; font-size: 0.78rem; color: #dc2626; font-weight: 700;">
+            🔒 الغرفة مشغولة بنزيل حالياً. الحالة مقفلة ولا يمكن تعديلها يدوياً إلا بعد تسجيل المغادرة (Check-out).
+          </p>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--glass-border); padding-top: 18px;">
+          <button type="button" id="btn-delete-room" class="btn btn-danger btn-sm" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; font-weight: 700; border-radius: 8px; cursor: pointer;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            <span>حذف الغرفة</span>
+          </button>
+          <div style="display: flex; gap: 10px;">
+            <button type="button" id="btn-cancel-edit-room" class="btn btn-secondary btn-sm" style="padding: 8px 16px;">إلغاء</button>
+            <button type="submit" class="btn btn-primary btn-sm" style="padding: 8px 18px; font-weight: 700;">حفظ التعديلات ✓</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modern Import Result & Audit Modal -->
+  <div id="import-result-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 100000; align-items: center; justify-content: center; padding: 20px;">
+    <div class="modal-glass-container" style="max-width: 640px; width: 100%; overflow: hidden; margin: auto;">
+      
+      <!-- Modal Header -->
+      <div style="background: linear-gradient(135deg, rgba(20, 61, 43, 0.85) 0%, rgba(14, 46, 31, 0.95) 100%); color: white; padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #b0834d;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 40px; height: 40px; border-radius: 10px; background: rgba(255, 255, 255, 0.15); display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+            📋
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #ffffff;">تقرير استيراد بيانات النزلاء</h3>
+            <p style="margin: 2px 0 0; font-size: 0.78rem; color: var(--gold-text);">ملخص استيراد الملف ومنع تكرار السجلات</p>
+          </div>
+        </div>
+        <button id="btn-close-import-result-modal" type="button" style="background: rgba(255,255,255,0.12); color: white; border: none; font-size: 1.3rem; border-radius: 8px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">&times;</button>
+      </div>
+
+      <!-- Modal Body -->
+      <div style="padding: 24px; max-height: calc(85vh - 140px); overflow-y: auto;">
+        
+        <!-- Top Status Banner -->
+        <div style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+          <div style="width: 32px; height: 32px; border-radius: 50%; background: #10b981; color: white; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.1rem; flex-shrink: 0;">✓</div>
+          <div>
+            <div style="font-weight: 800; font-size: 0.95rem; color: #34d399;">اكتملت معالجة ملف البيانات بنجاح تام</div>
+            <div id="import-modal-message" style="font-size: 0.8rem; color: #a7f3d0; margin-top: 2px;">تم تحديث وحفظ سجلات النزلاء بقاعدة بيانات الفندق.</div>
+          </div>
+        </div>
+
+        <!-- 3 Stats Cards Grid -->
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;">
+          <!-- Card 1: New Inserted -->
+          <div class="card" style="border: 1.5px solid rgba(16, 185, 129, 0.4); padding: 14px 12px; text-align: center;">
+            <div style="font-size: 0.75rem; font-weight: 700; color: #34d399; margin-bottom: 4px;">عملاء جدد مضافين</div>
+            <div id="import-modal-inserted" style="font-size: 1.6rem; font-weight: 900; color: #34d399; line-height: 1.2;">0</div>
+            <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 4px;">تم تسجيلهم بالكامل</div>
+          </div>
+
+          <!-- Card 2: Duplicates Merged -->
+          <div class="card" style="border: 1.5px solid rgba(245, 158, 11, 0.4); padding: 14px 12px; text-align: center;">
+            <div style="font-size: 0.75rem; font-weight: 700; color: #fbbf24; margin-bottom: 4px;">سجلات مكررة دُمجت</div>
+            <div id="import-modal-updated" style="font-size: 1.6rem; font-weight: 900; color: #fbbf24; line-height: 1.2;">0</div>
+            <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 4px;">تكرار تم دمجه تلقائياً</div>
+          </div>
+
+          <!-- Card 3: Total Rows Processed -->
+          <div class="card" style="padding: 14px 12px; text-align: center;">
+            <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">إجمالي بالملف</div>
+            <div id="import-modal-total" style="font-size: 1.6rem; font-weight: 900; color: #1e293b; line-height: 1.2;">0</div>
+            <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 4px;">سجل تمت قراءته</div>
+          </div>
+        </div>
+
+        <!-- Explanatory Deduplication Box -->
+        <div id="import-modal-dedup-notice" style="background: rgba(166, 124, 82, 0.1); border: 1px solid rgba(166, 124, 82, 0.25); border-radius: 12px; padding: 12px 16px; margin-bottom: 20px; font-size: 0.82rem; color: #6e4b21; line-height: 1.6;">
+          <div style="font-weight: 800; display: flex; align-items: center; gap: 6px; margin-bottom: 4px; color: var(--gold-text);">
+            <span>💡 أين ذهبت السجلات المحدثة (الـ <span id="import-modal-updated-inline">0</span> عميل)؟</span>
+          </div>
+          <div>
+            هذه السجلات تخص عملاء تكرر رقم هاتفهم أو رقم هويتهم أكثر من مرة داخل ملف الـ CSV/Excel القديم. قام النظام بدمج هذه السجلات مع بطاقة النزيل الأصلية تلقائياً <strong>لمنع ازدواجية الحسابات</strong> ولضمان أن يكون لكل نزيل بطاقة واحدة فقط.
+          </div>
+        </div>
+
+        <!-- Accordion / List of Merged Customers -->
+        <div id="import-modal-updated-section" style="border: 1px solid var(--glass-border); border-radius: 12px; overflow: hidden; margin-bottom: 10px;">
+          <button id="btn-toggle-updated-guests-list" type="button" style="width: 100%; padding: 12px 16px; background: #f8fafc; border: none; text-align: right; font-weight: 700; font-size: 0.85rem; color: #1e293b; display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+            <span style="display: flex; align-items: center; gap: 8px;">
+              <span>🔍 استعراض قائمة السجلات المكررة التي تم دمجها (<span id="import-modal-merged-list-count">0</span>)</span>
+            </span>
+            <span id="import-modal-toggle-arrow" style="font-size: 0.8rem; color: var(--gold-text);">إظهار التفاصيل ▼</span>
+          </button>
+          
+          <div id="import-modal-updated-container" style="display: none; max-height: 220px; overflow-y: auto; background: #ffffff; border-top: 1px solid var(--glass-border);">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem; text-align: right;">
+              <thead>
+                <tr style="background: #f8fafc; color: var(--text-secondary);">
+                  <th style="padding: 8px 12px; border-bottom: 1px solid var(--glass-border);">اسم النزيل</th>
+                  <th style="padding: 8px 12px; border-bottom: 1px solid var(--glass-border);">الجوال</th>
+                  <th style="padding: 8px 12px; border-bottom: 1px solid var(--glass-border);">رقم الهوية</th>
+                  <th style="padding: 8px 12px; border-bottom: 1px solid var(--glass-border);">سبب الدمج</th>
+                </tr>
+              </thead>
+              <tbody id="import-modal-updated-table-body">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 0.8rem; color: var(--text-secondary);">
+          إجمالي النزلاء بالنظام الآن: <strong id="import-modal-total-system-guests" style="color: var(--primary-forest);">0</strong> نزيل
+        </span>
+        <div style="display: flex; gap: 10px;">
+          <button id="btn-confirm-import-result" type="button" class="btn btn-primary">
+            <span>عرض قائمة النزلاء بالجدول ✓</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Add Subsequent Payment Modal (تسجيل سداد دفعة جديدة للحجز) -->
+  <div id="add-payment-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 100000; align-items: center; justify-content: center; padding: 20px;">
+    <div class="modal-glass-container" style="max-width: 520px; width: 100%; overflow: hidden; margin: auto;">
+      
+      <!-- Modal Header (Forest Green #1a4332 with Gold #a67c52 border) -->
+      <div style="background: linear-gradient(135deg, rgba(26, 67, 50, 0.9) 0%, rgba(14, 46, 31, 0.95) 100%); color: white; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #a67c52;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 40px; height: 40px; border-radius: 10px; background: rgba(255, 255, 255, 0.15); display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+            💳
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #ffffff;">تسجيل دفعة سداد (إيصال قبض)</h3>
+            <p style="margin: 2px 0 0; font-size: 0.76rem; color: var(--gold-text);">ريحانة للوحدات السكنية - سند سداد حجز</p>
+          </div>
+        </div>
+        <button id="btn-close-payment-modal" type="button" style="background: rgba(255,255,255,0.12); color: white; border: none; font-size: 1.3rem; border-radius: 8px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">&times;</button>
+      </div>
+
+      <!-- Modal Body / Form -->
+      <form id="add-payment-form" style="padding: 24px;">
+        <input type="hidden" id="payment-reservation-id">
+
+        <!-- Reservation & Guest Info Header Card -->
+        <div class="card" style="padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
+          <div>
+            <span style="font-size: 0.72rem; color: var(--text-secondary); display: block;">النزيل:</span>
+            <strong id="payment-modal-guest-name" style="font-size: 0.95rem; color: #1e293b;">-</strong>
+          </div>
+          <div style="text-align: left;">
+            <span style="font-size: 0.72rem; color: var(--text-secondary); display: block;">رقم الحجز والغرفة:</span>
+            <strong id="payment-modal-room-info" style="font-size: 0.95rem; color: var(--gold-text);">-</strong>
+          </div>
+        </div>
+
+        <!-- 3 Read-Only Accounting Metrics (Total, Paid, Remaining) -->
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 22px;">
+          <!-- Metric 1: Total Price -->
+          <div class="card" style="padding: 10px; text-align: center;">
+            <div style="font-size: 0.72rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">إجمالي الحجز</div>
+            <div id="payment-modal-total-price" style="font-size: 1.05rem; font-weight: 800; color: #1e293b;">0 ريال</div>
+            <div style="font-size: 0.68rem; color: var(--text-muted);">(Total Price)</div>
+          </div>
+
+          <!-- Metric 2: Already Paid -->
+          <div class="card" style="border: 1px solid rgba(16, 185, 129, 0.4); padding: 10px; text-align: center;">
+            <div style="font-size: 0.72rem; font-weight: 700; color: #059669; margin-bottom: 4px;">المسدد مسبقاً</div>
+            <div id="payment-modal-paid-amount" style="font-size: 1.05rem; font-weight: 800; color: #059669;">0 ريال</div>
+            <div style="font-size: 0.68rem; color: #059669;">(Already Paid)</div>
+          </div>
+
+          <!-- Metric 3: Remaining Balance -->
+          <div class="card" style="border: 1.5px solid rgba(239, 68, 68, 0.4); padding: 10px; text-align: center;">
+            <div style="font-size: 0.72rem; font-weight: 700; color: #dc2626; margin-bottom: 4px;">المتبقي للسداد</div>
+            <div id="payment-modal-remaining-balance" style="font-size: 1.15rem; font-weight: 900; color: #dc2626;">0 ريال</div>
+            <div style="font-size: 0.68rem; color: #dc2626;">(Remaining Balance)</div>
+          </div>
+        </div>
+
+        <!-- Input Field: New Payment Amount (المبلغ المدفوع الآن) -->
+        <div class="form-group" style="margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label for="payment-new-amount" style="font-weight: 700; font-size: 0.88rem; color: #1e293b;">
+              المبلغ المدفوع الآن (ريال) *
+            </label>
+            <button type="button" id="btn-pay-full-remaining" style="background: none; border: none; color: var(--gold-text); font-size: 0.78rem; font-weight: 800; cursor: pointer; text-decoration: underline; padding: 0;">
+              سداد كامل المتبقي
+            </button>
+          </div>
+          <div style="position: relative;">
+            <input type="number" id="payment-new-amount" required min="0.01" step="any" class="form-control" placeholder="أدخل مبلغ السداد..." style="font-size: 1.05rem; font-weight: 700;">
+          </div>
+        </div>
+
+        <!-- Dropdown: Payment Method (طريقة السداد) -->
+        <div class="form-group" style="margin-bottom: 24px;">
+          <label for="payment-method-select-modal" style="font-weight: 700; font-size: 0.88rem; color: #1e293b; margin-bottom: 6px; display: block;">
+            طريقة السداد (Payment Method) *
+          </label>
+          <select id="payment-method-select-modal" required class="form-control" style="font-size: 0.95rem; font-weight: 600;">
+            <option value="شبكة / مدى">شبكة / مدى (Mada)</option>
+            <option value="نقداً">نقداً (Cash)</option>
+            <option value="تحويل بنكي">تحويل بنكي (Bank Transfer)</option>
+            <option value="فيزا / ماستركارد">فيزا / ماستركارد (Credit Card)</option>
+          </select>
+        </div>
+
+        <!-- Modal Actions Footer -->
+        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--glass-border); padding-top: 18px;">
+          <button type="button" id="btn-cancel-payment-modal" class="btn btn-secondary btn-sm" style="padding: 9px 18px; border-radius: 8px; font-weight: 700;">
+            إلغاء
+          </button>
+          <button type="submit" id="btn-save-payment" class="btn btn-sm btn-primary" style="padding: 10px 24px; font-weight: 800; font-size: 0.95rem; border-radius: 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+            <span>حفظ وتأكيد السداد ✓</span>
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================================================================
+       FACTORY RESET CONFIRMATION MODAL (Admin & Password Required)
+       ================================================================== -->
+  <div id="factory-reset-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); z-index: 100000; align-items: center; justify-content: center; padding: 20px;">
+    <div class="modal-glass-container" style="background: #ffffff; border-radius: 16px; max-width: 520px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3); overflow: hidden; border: 1.5px solid #fecaca;">
+      
+      <!-- Modal Header -->
+      <div style="background: linear-gradient(135deg, #b91c1c 0%, #7f1d1d 100%); color: white; padding: 18px 22px; display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(255, 255, 255, 0.2); display: flex; align-items: center; justify-content: center;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+              <line x1="12" y1="9" x2="12" y2="13"></line>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 800;">تأكيد تصفير بيانات التطبيق</h3>
+            <span style="font-size: 0.75rem; opacity: 0.9;">مطلوب تحقق كلمة مرور حساب مدير النظام (Admin)</span>
+          </div>
+        </div>
+        <button id="btn-close-factory-reset" type="button" style="background: rgba(255,255,255,0.2); color: white; border: none; font-size: 1.2rem; width: 32px; height: 32px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;">&times;</button>
+      </div>
+
+      <!-- Modal Body / Form -->
+      <form id="factory-reset-form" style="padding: 22px;">
+        <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 14px; margin-bottom: 18px;">
+          <p style="margin: 0; font-size: 0.84rem; color: #991b1b; line-height: 1.6; font-weight: 600;">
+            ⚠️ <strong>تحذير نهائي:</strong> سيتم مسح كافة النزلاء، والحجوزات، وسندات القبض المالية، وسجلات النشاط نهائياً. وسيتم إعادة ضبط الغرف الافتراضية وحسابات الإدارة.
+          </p>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label for="factory-reset-password" style="display: block; font-weight: 800; font-size: 0.88rem; color: #1e293b; margin-bottom: 8px;">
+            أدخل كلمة مرور حساب المدير (Admin Password) للتأكيد *
+          </label>
+          <input type="password" id="factory-reset-password" required placeholder="كلمة مرور حساب المدير الحالي" style="width: 100%; padding: 11px 14px; border: 1.5px solid #cbd5e1; border-radius: 10px; font-weight: 600; font-size: 0.95rem; background: #f8fafc;" autocomplete="current-password">
+          <div id="factory-reset-error-msg" style="color: #dc2626; font-size: 0.82rem; font-weight: 700; margin-top: 6px; display: none;"></div>
+        </div>
+
+        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px;">
+          <button type="button" id="btn-cancel-factory-reset" class="btn btn-secondary" style="padding: 10px 18px; font-weight: 700; border-radius: 10px;">إلغاء</button>
+          <button type="submit" id="btn-submit-factory-reset" class="btn" style="background: #dc2626; color: #ffffff; padding: 10px 22px; font-weight: 800; border-radius: 10px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);">
+            <span>تأكيد التصفير واستعادة المصنع ⚠️</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>
