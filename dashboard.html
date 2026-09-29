@@ -685,6 +685,13 @@
                 <input type="text" id="search-guests" placeholder="بحث بالاسم، رقم الجوال، الهوية...">
               </div>
 
+              <!-- Ban-status filter -->
+              <div class="filter-tabs-bar" id="guests-ban-filter-tabs">
+                <button class="filter-tab-btn active" data-ban-filter="all">الكل</button>
+                <button class="filter-tab-btn" data-ban-filter="active">نشط</button>
+                <button class="filter-tab-btn" data-ban-filter="banned">محظور</button>
+              </div>
+
               <!-- Excel Buttons for Guests -->
               <div style="display: flex; align-items: center; gap: 8px;">
                 <button id="btn-export-guests-excel" class="btn-excel-export" title="تصدير قائمة النزلاء إلى ملف Excel (.xlsx)">
