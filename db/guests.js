@@ -32,22 +32,32 @@ function getAllGuests() {
  * Server-Side Pagination for Guests directory (LIMIT & OFFSET)
  * Returns the requested chunk of data (e.g. 50 records) and the total COUNT(*)
  */
-function getGuestsPaginated({ page = 1, limit = 50, search = '' } = {}) {
+function getGuestsPaginated({ page = 1, limit = 50, search = '', banFilter = 'all' } = {}) {
   const p = Math.max(1, parseInt(page, 10) || 1);
   const l = Math.max(1, Math.min(200, parseInt(limit, 10) || 50));
   const offset = (p - 1) * l;
   const cleanSearch = (search || '').trim();
 
-  let whereClause = '';
+  let conditions = [];
   let queryParams = [];
   let countParams = [];
 
   if (cleanSearch) {
-    whereClause = `WHERE (g.name LIKE ? OR g.phone LIKE ? OR g.id_number LIKE ?)`;
+    conditions.push('(g.name LIKE ? OR g.phone LIKE ? OR g.id_number LIKE ?)');
     const wildcard = `%${cleanSearch}%`;
-    queryParams = [wildcard, wildcard, wildcard];
-    countParams = [wildcard, wildcard, wildcard];
+    queryParams.push(wildcard, wildcard, wildcard);
+    countParams.push(wildcard, wildcard, wildcard);
   }
+
+  // Ban-status filter: only add a clause when not 'all' — existing callers
+  // that omit banFilter (or pass 'all') get identical query behaviour as before.
+  if (banFilter === 'banned') {
+    conditions.push('g.is_banned = 1');
+  } else if (banFilter === 'active') {
+    conditions.push('g.is_banned = 0');
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
   // 1. Get total COUNT(*) of matching guests
   const countSql = `SELECT COUNT(*) AS total FROM guests g ${whereClause}`;

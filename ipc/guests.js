@@ -34,7 +34,7 @@ module.exports = function registerGuestsIpc(ipcMain, { db, session }) {
   // 6. Guests & Customers (Server-Side Pagination)
   ipcMain.handle('guests:get-all', async (event, params = {}) => {
     try {
-      if (params && (params.page !== undefined || params.limit !== undefined || params.search !== undefined)) {
+      if (params && (params.page !== undefined || params.limit !== undefined || params.search !== undefined || params.banFilter !== undefined)) {
         const result = db.getGuestsPaginated(params);
         return { 
           success: true, 

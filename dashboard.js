@@ -233,6 +233,7 @@
   const guestsTableBody = document.getElementById('guests-table-body');
   const guestsEmpty = document.getElementById('guests-empty');
   const searchGuests = document.getElementById('search-guests');
+  const guestsBanFilterTabs = document.querySelectorAll('#guests-ban-filter-tabs .filter-tab-btn');
   const guestsCountBadge = document.getElementById('guests-count-badge');
   const btnExportGuestsExcel = document.getElementById('btn-export-guests-excel');
   const inputImportGuestsExcel = document.getElementById('input-import-guests-excel');
@@ -1802,10 +1803,17 @@
         if (discountReasonInput) discountReasonInput.value = '';
         if (roomDefaultRateBadge) roomDefaultRateBadge.textContent = '';
         if (priceCalculationBreakdown) priceCalculationBreakdown.style.display = 'none';
-        clearFieldError(guestPhoneInput, guestPhoneError);
+         clearFieldError(guestPhoneInput, guestPhoneError);
         clearFieldError(guestIdNumberInput, guestIdError);
         updateRemainingBalance();
         resetAutofillBanner();
+        // form.reset() clears date inputs to empty (no default HTML value) —
+        // always re-fill with today/tomorrow so the modal never opens empty
+        // next time.
+        checkInInput.value = getLocalDateString(new Date());
+        checkOutInput.value = getLocalDateString(new Date(Date.now() + 86400000));
+
+        // 2. Close booking modal
 
         // 2. Close booking modal
         closeNewReservationModal();
@@ -1947,22 +1955,32 @@
     }
   }
 
-  function openNewReservationModal() {
-    if (!newReservationModal) return;
-    clearFieldError(guestPhoneInput, guestPhoneError);
-    clearFieldError(guestIdNumberInput, guestIdError);
-    isPaidAmountCustomized = false;
-    if (roomSelect && roomSelect.value) {
-      calculatePrice(true);
-    }
-    newReservationModal.style.display = 'flex';
-    setTimeout(() => {
-      if (guestPhoneInput) {
-        guestPhoneInput.focus();
-      }
-    }, 100);
+ function openNewReservationModal() {
+  if (!newReservationModal) return;
+  clearFieldError(guestPhoneInput, guestPhoneError);
+  clearFieldError(guestIdNumberInput, guestIdError);
+  isPaidAmountCustomized = false;
+
+  // Safety net: never open the modal with empty date fields, regardless
+  // of what happened before this call.
+  if (!checkInInput.value) {
+    checkInInput.value = getLocalDateString(new Date());
+  }
+  if (!checkOutInput.value) {
+    checkOutInput.value = getLocalDateString(new Date(Date.now() + 86400000));
   }
 
+  if (roomSelect && roomSelect.value) {
+    calculatePrice(true);
+  }
+  
+  newReservationModal.style.display = 'flex';
+  setTimeout(() => {
+    if (guestPhoneInput) {
+      guestPhoneInput.focus();
+    }
+  }, 100);
+}
   function closeNewReservationModal() {
     if (!newReservationModal) return;
     newReservationModal.style.display = 'none';
@@ -2064,37 +2082,37 @@
         <tr>
           <td style="font-family: monospace; font-weight: 700; color: var(--primary); white-space: nowrap;">#${r.id}</td>
           <td>
-            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; line-height: 1.2;">
               <span style="font-weight: 800; color: #1e293b; font-size: 0.9rem; white-space: nowrap;">${escapeHtml(r.guest_name)}</span>
               ${typeBadge}
             </div>
-            ${r.guest_id_number ? `<div style="font-size: 0.72rem; color: var(--text-muted); white-space: nowrap;">هوية: ${escapeHtml(r.guest_id_number)}</div>` : ''}
+            ${r.guest_id_number ? `<div style="font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; line-height: 1.2; margin-top: 2px;">هوية: ${escapeHtml(r.guest_id_number)}</div>` : ''}
           </td>
           <td style="font-family: monospace; font-size: 0.85rem; color: var(--text-secondary); white-space: nowrap;">${escapeHtml(r.guest_phone || '-')}</td>
-          <td style="white-space: nowrap;">
-            <span style="font-weight: 800; color: #1a4332;">غرفة ${escapeHtml(r.room_number)}</span>
-            <div style="font-size: 0.72rem; color: var(--text-muted);">${escapeHtml(r.room_type || '')}</div>
+          <td style="white-space: nowrap; line-height: 1.2;">
+            <span style="font-weight: 800; color: #1a4332; line-height: 1.2;">غرفة ${escapeHtml(r.room_number)}</span>
+            <div style="font-size: 0.72rem; color: var(--text-muted); line-height: 1.2; margin-top: 2px;">${escapeHtml(r.room_type || '')}</div>
           </td>
-          <td style="font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; font-family: monospace; direction: ltr; text-align: right;">
-            <div>${escapeHtml(r.check_in_date)}</div>
-            ${r.booking_time ? `<div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">${escapeHtml(r.booking_time)}</div>` : ''}
+          <td style="font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; font-family: monospace; direction: ltr; text-align: right; line-height: 1.2;">
+            <div style="line-height: 1.2;">${escapeHtml(r.check_in_date)}</div>
+            ${r.booking_time ? `<div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace; line-height: 1.2; margin-top: 2px;">${escapeHtml(r.booking_time)}</div>` : ''}
           </td>
-          <td style="font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; font-family: ${r.check_out_date ? 'monospace' : 'inherit'}; direction: ${r.check_out_date ? 'ltr' : 'rtl'}; text-align: right;">${escapeHtml(checkOutDisplay)}</td>
-          <td style="white-space: nowrap;">
-            <div style="font-weight: 800; color: #1e293b; font-size: 0.88rem;">${fmtTotal} ريال</div>
-            ${r.original_calculated_charge != null ? `<div style="font-size: 0.70rem; color: #64748b; font-weight: 600;" title="المبلغ الأصلي قبل تعديل الإدارة">معدل يدوياً (أصلي: ${parseFloat(r.original_calculated_charge).toLocaleString()} ريال)</div>` : ''}
-            ${parseFloat(r.discount_amount || 0) > 0 ? `<div style="font-size: 0.70rem; color: #b91c1c; font-weight: 700;">خصم: ${parseFloat(r.discount_amount).toLocaleString()} ريال ${r.discount_reason ? `(${escapeHtml(r.discount_reason)})` : ''}</div>` : ''}
-            <div style="font-size: 0.74rem; color: #059669; font-weight: 600;">مدفوع: ${fmtPaid}</div>
-            ${isCredit ? `<div style="font-size: 0.72rem; color: #2563eb; font-weight: 800;">رصيد دائن: ${Math.abs(rawRemaining).toLocaleString()} ريال</div>` : (remaining > 0 ? `<div style="font-size: 0.72rem; color: #dc2626; font-weight: 700;">متبقي: ${fmtRem}</div>` : '')}
-            ${deposit > 0 ? `<div style="font-size: 0.70rem; color: #4338ca;">تأمين: ${fmtDep}</div>` : ''}
+          <td style="font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; font-family: ${r.check_out_date ? 'monospace' : 'inherit'}; direction: ${r.check_out_date ? 'ltr' : 'rtl'}; text-align: right; line-height: 1.2;">${escapeHtml(checkOutDisplay)}</td>
+          <td style="white-space: nowrap; line-height: 1.2;">
+            <div style="font-weight: 800; color: #1e293b; font-size: 0.88rem; line-height: 1.2;">${fmtTotal} ريال</div>
+            ${r.original_calculated_charge != null ? `<div style="font-size: 0.70rem; color: #64748b; font-weight: 600; line-height: 1.2; margin-top: 2px;" title="المبلغ الأصلي قبل تعديل الإدارة">معدل يدوياً (أصلي: ${parseFloat(r.original_calculated_charge).toLocaleString()} ريال)</div>` : ''}
+            ${parseFloat(r.discount_amount || 0) > 0 ? `<div style="font-size: 0.70rem; color: #b91c1c; font-weight: 700; line-height: 1.2; margin-top: 2px;">خصم: ${parseFloat(r.discount_amount).toLocaleString()} ريال ${r.discount_reason ? `(${escapeHtml(r.discount_reason)})` : ''}</div>` : ''}
+            <div style="font-size: 0.74rem; color: #059669; font-weight: 600; line-height: 1.2; margin-top: 2px;">مدفوع: ${fmtPaid}</div>
+            ${isCredit ? `<div style="font-size: 0.72rem; color: #2563eb; font-weight: 800; line-height: 1.2; margin-top: 2px;">رصيد دائن: ${Math.abs(rawRemaining).toLocaleString()} ريال</div>` : (remaining > 0 ? `<div style="font-size: 0.72rem; color: #dc2626; font-weight: 700; line-height: 1.2; margin-top: 2px;">متبقي: ${fmtRem}</div>` : '')}
+            ${deposit > 0 ? `<div style="font-size: 0.70rem; color: #4338ca; line-height: 1.2; margin-top: 2px;">تأمين: ${fmtDep}</div>` : ''}
           </td>
           <td style="font-size: 0.82rem; white-space: nowrap;">
             <span class="badge" style="background: rgba(0,0,0,0.04); color: #334155; border: 1px solid #cbd5e1; font-weight: 600;">${escapeHtml(r.payment_method || 'نقداً')}</span>
           </td>
           <td style="white-space: nowrap;">${getPaymentStatusBadge(r.payment_status)}</td>
-          <td style="white-space: nowrap;">
+          <td style="white-space: nowrap; line-height: 1.2;">
             ${getReservationStatusBadge(r.status)}
-            ${r.checkout_time ? `<div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace; margin-top: 2px;">${escapeHtml(r.checkout_time)}</div>` : ''}
+            ${r.checkout_time ? `<div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace; line-height: 1.2; margin-top: 2px;">${escapeHtml(r.checkout_time)}</div>` : ''}
           </td>
           <td style="text-align: center; white-space: nowrap;">
             <div style="display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: nowrap;">
@@ -2697,6 +2715,7 @@
   let guestsTotalPages = 1;
   let guestsTotalCount = 0;
   let guestSearchDebounceTimer = null;
+  let currentGuestBanFilter = 'all';
 
   async function loadGuestsData(page = guestsCurrentPage) {
     try {
@@ -2706,7 +2725,8 @@
       const res = await window.api.getGuestsPaginated({
         page: guestsCurrentPage,
         limit: guestsPageLimit,
-        search: query
+        search: query,
+        banFilter: currentGuestBanFilter
       });
 
       if (res && res.success) {
@@ -2834,6 +2854,16 @@
       }, 250);
     });
   }
+
+  // Ban-status filter tabs — re-fetch from page 1 with new filter applied server-side
+  guestsBanFilterTabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      guestsBanFilterTabs.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentGuestBanFilter = btn.dataset.banFilter;
+      loadGuestsData(1);
+    });
+  });
 
   // Ban / Unban & Edit Guest Action Delegation
   if (guestsTableBody) {
