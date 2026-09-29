@@ -1,0 +1,75 @@
+/**
+ * نظام أحمد لإدارة الفنادق (Ahmed Hotel ERP)
+ * Database Subsystem Unified Facade
+ * Aggregates and re-exports all domain modules preserving exact backward compatibility.
+ */
+
+const connection = require('./connection');
+const users = require('./users');
+const guests = require('./guests');
+const rooms = require('./rooms');
+const reservations = require('./reservations');
+const reports = require('./reports');
+
+module.exports = {
+  // connection & lifecycle
+  init: connection.init,
+  factoryReset: connection.factoryReset,
+  getLocalDateString: connection.getLocalDateString,
+  getDatabaseFilePath: connection.getDatabaseFilePath,
+  createBackupCopy: connection.createBackupCopy,
+  restoreDatabaseFile: connection.restoreDatabaseFile,
+  roundMoney: connection.roundMoney,
+  close: connection.close,
+
+  // users & logs
+  verifyUser: users.verifyUser,
+  getAllUsers: users.getAllUsers,
+  addUser: users.addUser,
+  updateUserPassword: users.updateUserPassword,
+  deleteUser: users.deleteUser,
+  logEmployeeLogin: users.logEmployeeLogin,
+  logEmployeeLogout: users.logEmployeeLogout,
+  getEmployeeLogs: users.getEmployeeLogs,
+
+  // guests
+  getAllGuests: guests.getAllGuests,
+  getGuestsPaginated: guests.getGuestsPaginated,
+  addCustomer: guests.addCustomer,
+  addGuest: guests.addGuest,
+  updateGuest: guests.updateGuest,
+  searchGuest: guests.searchGuest,
+  findGuestByPhoneOrId: guests.findGuestByPhoneOrId,
+  setGuestBanStatus: guests.setGuestBanStatus,
+  bulkImportGuests: guests.bulkImportGuests,
+
+  // rooms
+  getAllRooms: rooms.getAllRooms,
+  getAvailableRooms: rooms.getAvailableRooms,
+  updateRoomStatus: rooms.updateRoomStatus,
+  addRoom: rooms.addRoom,
+  updateRoom: rooms.updateRoom,
+  deleteRoom: rooms.deleteRoom,
+  autoUpdateRoomStatuses: rooms.autoUpdateRoomStatuses,
+  getRoomRevenueStats: rooms.getRoomRevenueStats,
+
+  // reservations & payments
+  getAllReservations: reservations.getAllReservations,
+  getReservationById: reservations.getReservationById,
+  createReservation: reservations.createReservation,
+  updateReservationReceipt: reservations.updateReservationReceipt,
+  checkoutReservation: reservations.checkoutReservation,
+  extendReservation: reservations.extendReservation,
+  cancelReservation: reservations.cancelReservation,
+  addPaymentToReservation: reservations.addPaymentToReservation,
+  getReservationPayments: reservations.getReservationPayments,
+  getPaymentReceipt: reservations.getPaymentReceipt,
+  generateReceiptNumber: reservations.generateReceiptNumber,
+  bulkImportReservations: reservations.bulkImportReservations,
+
+  // reports
+  getTodayCheckouts: reports.getTodayCheckouts,
+  getMonthlyRevenue: reports.getMonthlyRevenue,
+  getDashboardStats: reports.getDashboardStats,
+  getShiftAuditReport: reports.getShiftAuditReport
+};

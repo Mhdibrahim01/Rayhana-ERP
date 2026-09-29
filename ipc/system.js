@@ -1,0 +1,393 @@
+/**
+ * Rayhana ERP - System, Backup, Print & External IPC Handlers
+ * Domain: ipc/system.js
+ */
+
+const path = require('path');
+const fs = require('fs');
+
+module.exports = function registerSystemIpc(ipcMain, { app, BrowserWindow, dialog, shell, db, backupScheduler, session, helpers }) {
+  // 8. System Info & Database Path
+  ipcMain.handle('app:get-info', async () => {
+    return {
+      dbPath: session.dbPath,
+      user: session.currentUser,
+      logId: session.currentLogId,
+      version: app.getVersion()
+    };
+  });
+
+  ipcMain.handle('app:open-db-folder', async () => {
+    try {
+      if (fs.existsSync(session.dbPath)) {
+        shell.showItemInFolder(session.dbPath);
+        return { success: true };
+      } else {
+        shell.openPath(path.dirname(session.dbPath));
+        return { success: true };
+      }
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  // 8.1 Secure Factory Reset (Requires Admin Role & Admin Password)
+  ipcMain.handle('app:factory-reset', async (event, { password }) => {
+    try {
+      if (!session.currentUser || session.currentUser.role !== 'Admin') {
+        return { success: false, error: 'غير مصرح: تصفير بيانات النظام يتطلب صلاحيات مدير النظام (Admin).' };
+      }
+      if (!password || !password.trim()) {
+        return { success: false, error: 'يرجى إدخال كلمة المرور لتأكيد تصفير البيانات.' };
+      }
+
+      // Verify admin credentials
+      const verify = db.verifyUser(session.currentUser.username, password);
+      if (!verify.success) {
+        return { success: false, error: 'كلمة المرور غير صحيحة. تم إلغاء عملية التصفير لأسباب أمنية.' };
+      }
+
+      // Emergency pre-reset safety snapshot in backups folder
+      try {
+        const backupDir = path.join(path.dirname(session.dbPath), 'backups');
+        if (!fs.existsSync(backupDir)) {
+          fs.mkdirSync(backupDir, { recursive: true });
+        }
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        fs.copyFileSync(session.dbPath, path.join(backupDir, `pre_reset_backup_${timestamp}.sqlite`));
+      } catch (bErr) {
+        console.warn('[Factory Reset] Pre-reset backup warning:', bErr.message);
+      }
+
+      // Perform factory reset in db layer
+      await db.factoryReset(session.dbPath);
+
+      // Re-link admin user in session
+      const recheck = db.verifyUser('admin', 'admin');
+      if (recheck.success) {
+        session.currentUser = recheck.user;
+      }
+
+      return { success: true, message: 'تم تصفير كافة بيانات النظام واستعادة تهيئة المصنع بنجاح!' };
+    } catch (err) {
+      console.error('[Factory Reset Error]:', err);
+      return { success: false, error: 'حدث خطأ أثناء تصفير قاعدة البيانات: ' + err.message };
+    }
+  });
+
+  // 11. Database Backup & Restore
+  ipcMain.handle('db:create-backup', async () => {
+    try {
+      const defaultName = `rayhana_backup_${helpers.getLocalDateString()}.sqlite`;
+      const { canceled, filePath } = await dialog.showSaveDialog(session.mainWindow, {
+        title: 'حفظ نسخة احتياطية من قاعدة بيانات ريحانة للوحدات السكنية',
+        defaultPath: defaultName,
+        filters: [{ name: 'SQLite Database (*.sqlite)', extensions: ['sqlite', 'db'] }]
+      });
+
+      if (canceled || !filePath) {
+        return { success: false, canceled: true };
+      }
+
+      db.createBackupCopy(filePath);
+
+      // Automated local archive copy
+      try {
+        const autoBackupDir = path.join(path.dirname(session.dbPath), 'backups');
+        if (!fs.existsSync(autoBackupDir)) {
+          fs.mkdirSync(autoBackupDir, { recursive: true });
+        }
+        db.createBackupCopy(path.join(autoBackupDir, defaultName));
+      } catch (e) {
+        console.warn('[Auto-Backup Archive]:', e);
+      }
+
+      return { success: true, path: filePath };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('db:restore-backup', async () => {
+    try {
+      const { canceled, filePaths } = await dialog.showOpenDialog(session.mainWindow, {
+        title: 'اختر ملف النسخة الاحتياطية للاستعادة (*.sqlite)',
+        filters: [{ name: 'SQLite Database (*.sqlite, *.db)', extensions: ['sqlite', 'db'] }],
+        properties: ['openFile']
+      });
+
+      if (canceled || !filePaths || filePaths.length === 0) {
+        return { success: false, canceled: true };
+      }
+
+      await db.restoreDatabaseFile(filePaths[0]);
+      return { success: true, restoredPath: filePaths[0] };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  // 11.1 Daily Automated 12:00 AM Backup IPCs
+  ipcMain.handle('backups:get-status', async () => {
+    try {
+      const status = backupScheduler.getBackupStatus();
+      return { success: true, data: status };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('backups:run-now', async () => {
+    try {
+      const result = await backupScheduler.performDailyBackup('manual_request');
+      return result;
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('backups:open-folder', async () => {
+    try {
+      return await backupScheduler.openBackupsFolder();
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('backups:restore-file', async (event, targetFilePath) => {
+    if (!targetFilePath || !fs.existsSync(targetFilePath)) {
+      return { success: false, error: 'ملف النسخة الاحتياطية المحدد غير موجود.' };
+    }
+    try {
+      await db.restoreDatabaseFile(targetFilePath);
+      return { success: true, restoredPath: targetFilePath };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('backups:run-onedrive-backup', async () => {
+    return helpers.backupDatabase();
+  });
+
+  ipcMain.handle('backups:select-folder', async () => {
+    try {
+      const result = await dialog.showOpenDialog(session.mainWindow, {
+        title: 'اختر مجلد حفظ النسخ الاحتياطية التلقائية',
+        buttonLabel: 'اختيار هذا المجلد لحفظ النسخ',
+        properties: ['openDirectory', 'createDirectory']
+      });
+
+      if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+        return { success: false, canceled: true };
+      }
+
+      const selectedDir = result.filePaths[0];
+      const updateRes = backupScheduler.setCustomBackupDirectory(selectedDir);
+      return {
+        ...updateRes,
+        folderPath: selectedDir
+      };
+    } catch (err) {
+      console.error('[IPC backups:select-folder error]:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('backups:reset-folder', async () => {
+    try {
+      const resetRes = backupScheduler.resetBackupDirectoryToDefault();
+      return resetRes;
+    } catch (err) {
+      console.error('[IPC backups:reset-folder error]:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // 12. Native PDF Export & Dedicated Print Preview Window
+  ipcMain.handle('print:to-pdf', async (event, { html, title, defaultFilename }) => {
+    try {
+      const defaultName = defaultFilename || `hotel_document_${helpers.getLocalDateString()}.pdf`;
+      const { canceled, filePath } = await dialog.showSaveDialog(session.mainWindow, {
+        title: 'تصدير وحفظ ملف PDF',
+        defaultPath: defaultName,
+        filters: [{ name: 'PDF Document (*.pdf)', extensions: ['pdf'] }]
+      });
+
+      if (canceled || !filePath) {
+        return { success: false, canceled: true };
+      }
+
+      // Invisible offscreen window to generate pixel-perfect A4 PDF
+      const pdfWin = new BrowserWindow({
+        show: false,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true
+        }
+      });
+
+      const fullHtml = `
+        <!DOCTYPE html>
+        <html lang="ar" dir="rtl">
+        <head>
+          <meta charset="UTF-8">
+          <title>${title || 'مستند فندقي'}</title>
+          <style>
+            @page { size: A4 portrait; margin: 12mm 14mm; }
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body {
+              font-family: "Segoe UI", Tahoma, "Cairo", Arial, sans-serif;
+              direction: rtl;
+              text-align: right;
+              background: white;
+              color: #0f172a;
+              padding: 0;
+              margin: 0;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            table { width: 100%; border-collapse: collapse; }
+          </style>
+        </head>
+        <body>
+          <div style="padding: 10px;">
+            ${html}
+          </div>
+        </body>
+        </html>
+      `;
+
+      await pdfWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(fullHtml)}`);
+      const pdfData = await pdfWin.webContents.printToPDF({
+        printBackground: true,
+        pageSize: 'A4',
+        landscape: false,
+        margins: { top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 }
+      });
+
+      fs.writeFileSync(filePath, pdfData);
+      pdfWin.destroy();
+
+      // Automatically open the saved PDF for the user!
+      try {
+        shell.openPath(filePath);
+      } catch (e) {}
+
+      return { success: true, filePath };
+    } catch (err) {
+      console.error('[PDF Export Error]:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('print:open-preview-window', async (event, { html, title }) => {
+    try {
+      const previewWin = new BrowserWindow({
+        width: 960,
+        height: 900,
+        minWidth: 800,
+        minHeight: 650,
+        title: title || 'معاينة الطباعة الرسمية',
+        autoHideMenuBar: true,
+        backgroundColor: '#f8fafc',
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true
+        }
+      });
+
+      const fullHtml = `
+        <!DOCTYPE html>
+        <html lang="ar" dir="rtl">
+        <head>
+          <meta charset="UTF-8">
+          <title>${title || 'معاينة الطباعة'}</title>
+          <style>
+            @page { size: A4 portrait; margin: 12mm 14mm; }
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body {
+              font-family: "Segoe UI", Tahoma, "Cairo", Arial, sans-serif;
+              direction: rtl;
+              text-align: right;
+              background: #f1f5f9;
+              color: #0f172a;
+              padding: 24px;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            .preview-toolbar {
+              max-width: 820px;
+              margin: 0 auto 16px auto;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              background: #1e1b4b;
+              color: white;
+              padding: 12px 20px;
+              border-radius: 10px;
+              box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            }
+            .btn-preview-print {
+              background: #4f46e5;
+              color: white;
+              border: none;
+              padding: 9px 20px;
+              border-radius: 6px;
+              font-weight: 700;
+              cursor: pointer;
+              font-size: 0.92rem;
+              display: inline-flex;
+              align-items: center;
+              gap: 8px;
+            }
+            .btn-preview-print:hover { background: #4338ca; }
+            .sheet-card {
+              max-width: 820px;
+              margin: 0 auto;
+              background: white;
+              box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+              border-radius: 12px;
+              padding: 30px;
+            }
+            @media print {
+              body { background: white !important; padding: 0 !important; }
+              .preview-toolbar { display: none !important; }
+              .sheet-card { box-shadow: none !important; border: none !important; padding: 0 !important; max-width: 100% !important; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="preview-toolbar">
+            <div style="font-weight: 800; font-size: 1.05rem;">📄 ${title || 'معاينة الطباعة الرسمية'}</div>
+            <button class="btn-preview-print" onclick="window.print()">طباعة هذا المستند (Print) 🖨️</button>
+          </div>
+          <div class="sheet-card">
+            ${html}
+          </div>
+        </body>
+        </html>
+      `;
+
+      previewWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(fullHtml)}`);
+      return { success: true };
+    } catch (err) {
+      console.error('[Preview Window Error]:', err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // 13. Open WhatsApp via OS Default Browser / App
+  ipcMain.handle('open-whatsapp', async (event, url) => {
+    try {
+      if (!url || typeof url !== 'string' || !url.startsWith('https://wa.me/')) {
+        return { success: false, error: 'رابط واتساب غير صالح.' };
+      }
+      await shell.openExternal(url);
+      return { success: true };
+    } catch (err) {
+      console.error('[WhatsApp Open External Error]:', err);
+      return { success: false, error: err.message };
+    }
+  });
+};

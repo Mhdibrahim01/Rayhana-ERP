@@ -1,0 +1,4 @@
+node_modules/
+dist/
+diag_out.json
+guest.csv
