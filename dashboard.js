@@ -1802,10 +1802,17 @@
         if (discountReasonInput) discountReasonInput.value = '';
         if (roomDefaultRateBadge) roomDefaultRateBadge.textContent = '';
         if (priceCalculationBreakdown) priceCalculationBreakdown.style.display = 'none';
-        clearFieldError(guestPhoneInput, guestPhoneError);
+         clearFieldError(guestPhoneInput, guestPhoneError);
         clearFieldError(guestIdNumberInput, guestIdError);
         updateRemainingBalance();
         resetAutofillBanner();
+        // form.reset() clears date inputs to empty (no default HTML value) —
+        // always re-fill with today/tomorrow so the modal never opens empty
+        // next time.
+        checkInInput.value = getLocalDateString(new Date());
+        checkOutInput.value = getLocalDateString(new Date(Date.now() + 86400000));
+
+        // 2. Close booking modal
 
         // 2. Close booking modal
         closeNewReservationModal();
@@ -1947,22 +1954,32 @@
     }
   }
 
-  function openNewReservationModal() {
-    if (!newReservationModal) return;
-    clearFieldError(guestPhoneInput, guestPhoneError);
-    clearFieldError(guestIdNumberInput, guestIdError);
-    isPaidAmountCustomized = false;
-    if (roomSelect && roomSelect.value) {
-      calculatePrice(true);
-    }
-    newReservationModal.style.display = 'flex';
-    setTimeout(() => {
-      if (guestPhoneInput) {
-        guestPhoneInput.focus();
-      }
-    }, 100);
+ function openNewReservationModal() {
+  if (!newReservationModal) return;
+  clearFieldError(guestPhoneInput, guestPhoneError);
+  clearFieldError(guestIdNumberInput, guestIdError);
+  isPaidAmountCustomized = false;
+
+  // Safety net: never open the modal with empty date fields, regardless
+  // of what happened before this call.
+  if (!checkInInput.value) {
+    checkInInput.value = getLocalDateString(new Date());
+  }
+  if (!checkOutInput.value) {
+    checkOutInput.value = getLocalDateString(new Date(Date.now() + 86400000));
   }
 
+  if (roomSelect && roomSelect.value) {
+    calculatePrice(true);
+  }
+  
+  newReservationModal.style.display = 'flex';
+  setTimeout(() => {
+    if (guestPhoneInput) {
+      guestPhoneInput.focus();
+    }
+  }, 100);
+}
   function closeNewReservationModal() {
     if (!newReservationModal) return;
     newReservationModal.style.display = 'none';
