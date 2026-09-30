@@ -799,13 +799,221 @@ body {
   white-space: nowrap;
 }
 
-#widget-today-checkouts .checkout-row-action {
-  min-height: 34px;
-  padding: 6px 14px;
-  border-radius: 8px;
+#widget-today-checkouts .today-checkouts-table td {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+
+#widget-today-checkouts .today-checkouts-table {
+  width: 100%;
+  min-width: 1072px;
+  table-layout: fixed;
+}
+
+#widget-today-checkouts .today-checkouts-table th {
+  padding: 12px 10px;
+  white-space: nowrap;
+}
+
+#widget-today-checkouts .today-checkouts-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e8edf2;
+}
+
+#widget-today-checkouts .today-checkouts-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 320px;
+  max-width: 420px;
+}
+
+#widget-today-checkouts .today-checkouts-search-icon {
+  position: absolute;
+  right: 13px;
+  color: #8b9bb0;
+  font-size: 1.3rem;
+  line-height: 1;
+  pointer-events: none;
+}
+
+#widget-today-checkouts .today-checkouts-search {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 40px 0 12px;
+  border: 1px solid #dbe3ed;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: var(--text-primary);
+  font: inherit;
   font-size: 0.85rem;
+  outline: none;
+}
+
+#widget-today-checkouts .today-checkouts-search:focus {
+  border-color: #94a3b8;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(26, 67, 50, 0.08);
+}
+
+#widget-today-checkouts .today-checkouts-search::placeholder {
+  color: #91a1b7;
+}
+
+#widget-today-checkouts .today-checkouts-filters {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  flex: 0 0 auto;
+}
+
+#widget-today-checkouts .today-checkouts-filter {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #64748b;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+#widget-today-checkouts .today-checkouts-filter:hover {
+  color: var(--primary-forest);
+  background: rgba(26, 67, 50, 0.06);
+}
+
+#widget-today-checkouts .today-checkouts-filter.active {
+  background: var(--primary-forest);
+  color: #ffffff;
+  box-shadow: 0 2px 5px rgba(26, 67, 50, 0.16);
+}
+
+#widget-today-checkouts .today-checkouts-filter[data-checkout-filter="overdue"].active {
+  background: #e11d48;
+  box-shadow: 0 2px 5px rgba(225, 29, 72, 0.18);
+}
+
+@media (max-width: 760px) {
+  #widget-today-checkouts .today-checkouts-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  #widget-today-checkouts .today-checkouts-search-wrap {
+    max-width: none;
+    flex-basis: auto;
+  }
+
+  #widget-today-checkouts .today-checkouts-filters {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  #widget-today-checkouts .today-checkouts-filter {
+    flex: 1 1 auto;
+    padding: 0 8px;
+  }
+}
+
+#widget-today-checkouts .today-checkouts-table .badge,
+#widget-today-checkouts .today-checkouts-table .status-badge {
+  padding: 4px 12px !important;
+  border-radius: 6px !important;
+  white-space: nowrap;
+}
+
+#widget-today-checkouts .checkout-cell-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  text-align: center;
+}
+
+#widget-today-checkouts .checkout-guest-stack > div:first-child {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#widget-today-checkouts .today-checkouts-table td:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#widget-today-checkouts .checkout-guest-stack .guest-id-number {
+  margin-top: 0;
+}
+
+#widget-today-checkouts .checkouts-status-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+#widget-today-checkouts .checkouts-status-stack .badge {
+  margin: 0 !important;
+}
+
+#widget-today-checkouts .checkouts-status-stack .table-time {
+  margin-top: 0;
+}
+
+#widget-today-checkouts .checkout-date-stack .table-time,
+#widget-today-checkouts .checkouts-status-stack .table-time {
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+#widget-today-checkouts .checkout-date-stack .table-time-label,
+#widget-today-checkouts .checkouts-status-stack .table-time-label,
+#widget-today-checkouts .checkout-date-stack .table-time-value,
+#widget-today-checkouts .checkouts-status-stack .table-time-value {
+  display: inline;
+}
+
+#widget-today-checkouts .overview-row-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+#widget-today-checkouts .checkout-row-action {
+  box-sizing: border-box;
+  width: 124px;
+  min-width: 124px;
+  height: 38px;
+  min-height: 38px;
+  flex: 0 0 124px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 0.8rem;
   font-weight: 700;
   line-height: 1.2;
+  white-space: nowrap;
   box-shadow: none;
 }
 
