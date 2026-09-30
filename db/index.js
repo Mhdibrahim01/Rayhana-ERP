@@ -58,6 +58,7 @@ module.exports = {
   getReservationById: reservations.getReservationById,
   createReservation: reservations.createReservation,
   updateReservationReceipt: reservations.updateReservationReceipt,
+  computeCheckoutSettlement: reservations.computeCheckoutSettlement,
   checkoutReservation: reservations.checkoutReservation,
   extendReservation: reservations.extendReservation,
   cancelReservation: reservations.cancelReservation,
