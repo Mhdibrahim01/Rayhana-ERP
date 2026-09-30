@@ -2241,8 +2241,8 @@
               ${typeBadge}
             </div>
             ${r.guest_id_number ? `<div style="font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; line-height: 1.2; margin-top: 2px;">هوية: ${escapeHtml(r.guest_id_number)}</div>` : ''}
+            ${r.guest_phone ? `<div class="reservation-guest-phone"><span dir="rtl">جوال:</span> <bdi dir="ltr">${escapeHtml(r.guest_phone)}</bdi></div>` : ''}
           </td>
-          <td style="font-family: monospace; font-size: 0.85rem; color: var(--text-secondary); white-space: nowrap;">${escapeHtml(r.guest_phone || '-')}</td>
           <td style="white-space: nowrap; line-height: 1.2;">
             <span style="font-weight: 800; color: #1a4332; line-height: 1.2;">غرفة ${escapeHtml(r.room_number)}</span>
             <div style="font-size: 0.72rem; color: var(--text-muted); line-height: 1.2; margin-top: 2px;">${escapeHtml(r.room_type || '')}</div>
