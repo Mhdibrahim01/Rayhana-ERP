@@ -97,13 +97,13 @@ function topLevelFunctionDefinitions(ast) {
   }
   for (const statement of statements) {
     if (statement.type === 'FunctionDeclaration' && statement.id) {
-      definitions.push({ name: statement.id.name, line: statement.loc.start.line });
+      definitions.push({ name: statement.id.name, line: statement.loc.start.line, node: statement });
     }
     if (statement.type === 'VariableDeclaration') {
       for (const declaration of statement.declarations) {
         if (declaration.id.type === 'Identifier' && declaration.init &&
             ['FunctionExpression', 'ArrowFunctionExpression'].includes(declaration.init.type)) {
-          definitions.push({ name: declaration.id.name, line: declaration.loc.start.line });
+          definitions.push({ name: declaration.id.name, line: declaration.loc.start.line, node: declaration.init });
         }
       }
     }
@@ -113,7 +113,7 @@ function topLevelFunctionDefinitions(ast) {
         assignment.left.object.type === 'Identifier' && assignment.left.object.name === 'window';
       const name = isWindowGlobal ? functionNameFromAssignment(assignment) : null;
       if (name && ['FunctionExpression', 'ArrowFunctionExpression'].includes(assignment.right.type)) {
-        definitions.push({ name, line: statement.loc.start.line });
+        definitions.push({ name, line: statement.loc.start.line, node: assignment.right });
       }
     }
   }
@@ -122,7 +122,7 @@ function topLevelFunctionDefinitions(ast) {
     if (node.left.object.type !== 'Identifier' || node.left.object.name !== 'window') return;
     if (!['FunctionExpression', 'ArrowFunctionExpression'].includes(node.right.type)) return;
     const name = functionNameFromAssignment(node);
-    if (name) definitions.push({ name, line: node.loc.start.line });
+    if (name) definitions.push({ name, line: node.loc.start.line, node: node.right });
   });
   const seen = new Set();
   return definitions.filter(definition => {

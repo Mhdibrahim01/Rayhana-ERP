@@ -39,20 +39,71 @@ function getGlobalFunctionNames(files) {
   return names;
 }
 
+const KNOWN_DUPLICATES = [
+  { name: 'getLocalDateString', scope: 'main-process', files: ['backupScheduler.js', 'db/connection.js', 'main.js'] },
+  { name: 'init', scope: 'documented-cross-scope', files: ['dashboard.js', 'db/connection.js'] },
+  { name: 'showToast', scope: 'documented-cross-page', files: ['dashboard.js', 'renderer.js'] }
+];
+
+function scriptsLoadedByHtml(files) {
+  const appFiles = new Set(files.map(file => path.resolve(file)));
+  const groups = [];
+  for (const htmlFile of appHtmlFiles()) {
+    const html = fs.readFileSync(htmlFile, 'utf8');
+    const loaded = new Set();
+    for (const match of html.matchAll(/<script\b([^>]*)>/gi)) {
+      const src = match[1].match(/\bsrc\s*=\s*(["'])(.*?)\1/i)?.[2];
+      if (!src || /^(?:[a-z]+:)?\/\//i.test(src) || src.startsWith('data:')) continue;
+      const scriptPath = path.resolve(path.dirname(htmlFile), decodeURIComponent(src.split(/[?#]/, 1)[0]));
+      if (appFiles.has(scriptPath)) loaded.add(scriptPath);
+    }
+    groups.push({ scope: `html:${relative(htmlFile)}`, files: [...loaded] });
+  }
+  return groups;
+}
+
+function mainProcessFiles(files) {
+  return files.filter(file => {
+    const rel = relative(file);
+    return rel === 'main.js' || rel === 'preload.js' || rel === 'backupScheduler.js' ||
+      rel === 'db.js' || rel.startsWith('db/') || rel.startsWith('ipc/');
+  });
+}
+
+function isThinDelegatingWrapper(node) {
+  if (!node || !node.loc || node.loc.end.line - node.loc.start.line + 1 > 3) return false;
+  let expression = null;
+  if (node.body?.type === 'BlockStatement' && node.body.body.length === 1) {
+    const statement = node.body.body[0];
+    if (statement.type === 'ReturnStatement') expression = statement.argument;
+    else if (statement.type === 'ExpressionStatement') expression = statement.expression;
+  } else if (node.body?.type === 'CallExpression') {
+    expression = node.body;
+  }
+  return expression?.type === 'CallExpression' &&
+    (expression.callee.type === 'Identifier' || expression.callee.type === 'MemberExpression');
+}
+
 function collectTopLevelFunctionDuplicates(files) {
-  const locations = new Map();
-  for (const file of files) {
-    const ast = parseJavaScript(fs.readFileSync(file, 'utf8'), relative(file));
-    for (const definition of topLevelFunctionDefinitions(ast)) {
-      const existing = locations.get(definition.name) || [];
-      existing.push(`${relative(file)}:${definition.line}`);
-      locations.set(definition.name, existing);
+  const groups = [...scriptsLoadedByHtml(files), { scope: 'main-process', files: mainProcessFiles(files) }];
+  const duplicates = [];
+  for (const group of groups) {
+    const definitionsByName = new Map();
+    for (const file of group.files) {
+      const ast = parseJavaScript(fs.readFileSync(file, 'utf8'), relative(file));
+      for (const definition of topLevelFunctionDefinitions(ast)) {
+        if (isThinDelegatingWrapper(definition.node)) continue;
+        const entries = definitionsByName.get(definition.name) || [];
+        entries.push(relative(file));
+        definitionsByName.set(definition.name, entries);
+      }
+    }
+    for (const [name, locations] of definitionsByName) {
+      const uniqueFiles = [...new Set(locations)].sort();
+      if (uniqueFiles.length > 1) duplicates.push({ name, scope: group.scope, files: uniqueFiles });
     }
   }
-  return Object.fromEntries([...locations.entries()]
-    .map(([name, locationsForName]) => [name, [...new Set(locationsForName.map(location => location.split(':')[0]))].sort()])
-    .filter(([, filesForName]) => filesForName.length > 1)
-    .sort(([a], [b]) => a.localeCompare(b)));
+  return duplicates.sort((a, b) => a.scope.localeCompare(b.scope) || a.name.localeCompare(b.name));
 }
 
 function checkDashboardScriptEntries() {
@@ -91,22 +142,19 @@ function main() {
   const files = appJavaScriptFiles();
   const failures = [];
   const duplicates = collectTopLevelFunctionDuplicates(files);
-  const baselinePath = path.join(ROOT, 'tests', 'baseline', 'baseline.json');
-  if (!fs.existsSync(baselinePath)) {
-    failures.push('Reference baseline is missing. Run "npm run baseline:update" deliberately before the guard.');
-  } else {
-    const baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
-    const knownDuplicates = baseline.knownTopLevelFunctionDuplicates || {};
-    const newDuplicates = Object.entries(duplicates).filter(([name, locations]) =>
-      JSON.stringify(locations) !== JSON.stringify(knownDuplicates[name] || [])
-    );
-    if (newDuplicates.length) {
-      failures.push(`New or changed duplicate top-level function names:\n${newDuplicates.map(([name, locations]) => `  - ${name}: ${locations.join(', ')}`).join('\n')}`);
-    }
-    if (Object.keys(duplicates).length) {
-      console.log(`Existing baseline duplicate(s), unchanged: ${Object.keys(duplicates).join(', ')}`);
-    }
+  const knownMainProcess = KNOWN_DUPLICATES.find(item => item.name === 'getLocalDateString' && item.scope === 'main-process');
+  const unexpectedDuplicates = duplicates.filter(item =>
+    !(item.scope === knownMainProcess.scope && item.name === knownMainProcess.name &&
+      JSON.stringify(item.files) === JSON.stringify(knownMainProcess.files))
+  );
+  if (unexpectedDuplicates.length) {
+    failures.push(`Duplicate real-body functions within one renderer page or main-process scope:\n${unexpectedDuplicates.map(item => `  - ${item.name} (${item.scope}): ${item.files.join(', ')}`).join('\n')}`);
   }
+  console.log('Known duplicate definitions:');
+  for (const item of KNOWN_DUPLICATES) {
+    console.log(`  - ${item.name} [${item.scope}]: ${item.files.join(', ')}`);
+  }
+  console.log(`Duplicate scan: ${duplicates.length} in-scope duplicate group(s); thin delegating wrappers (3 lines or fewer) ignored.`);
   if (checkDashboardScriptEntries()) failures.push('dashboard.html loads dashboard.js and a module script entry at the same time.');
 
   const globalNames = getGlobalFunctionNames(files);
