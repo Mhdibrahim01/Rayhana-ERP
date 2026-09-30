@@ -4882,7 +4882,9 @@
       const baseSubtotal = (typeof nights === 'number' && nights > 0) ? (nights * effectiveNightlyRate) : (total + discount);
 
       const invoiceNum = `SND-2026-${String(inv.id).padStart(5, '0')}`;
-      const printDate = new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const issuedAt = new Date();
+      const printDate = issuedAt.toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
+      const printTime = issuedAt.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
 
       invoicePrintableArea.innerHTML = `
         <div style="border: 2px solid #e2e8f0; border-radius: 12px; padding: 28px; background: white;">
@@ -4911,8 +4913,9 @@
               <div style="font-size: 0.85rem; color: #334155; margin-top: 8px; font-weight: 700; direction: rtl; text-align: left;">
                 رقم السند: <span style="font-family: monospace; color: #4338ca;">${invoiceNum}</span>
               </div>
-              <div style="font-size: 0.8rem; color: #64748b; margin-top: 4px; direction: rtl; text-align: left;">
-                تاريخ الإصدار: <span>${printDate}</span>
+              <div style="font-size: 0.8rem; color: #64748b; margin-top: 4px; direction: rtl; text-align: left; line-height: 1.6;">
+                <div>تاريخ الإصدار: <bdi dir="auto" style="white-space: nowrap; unicode-bidi: isolate;">${escapeHtml(printDate)}</bdi></div>
+                <div>الوقت: <bdi dir="ltr" style="white-space: nowrap; unicode-bidi: isolate;">${escapeHtml(printTime)}</bdi></div>
               </div>
               <div style="margin-top: 6px; direction: rtl; text-align: left;">
                 ${getPaymentStatusBadge(inv.payment_status)}
