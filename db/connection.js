@@ -145,6 +145,8 @@ async function init(dbPath) {
         FOREIGN KEY(room_id) REFERENCES rooms(id)
       );
 
+      CREATE INDEX IF NOT EXISTS idx_reservations_status_id ON reservations(status, id DESC);
+
       -- جدول سجل المدفوعات وسندات القبض (Payments / Receipts Ledger Table)
       CREATE TABLE IF NOT EXISTS payments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

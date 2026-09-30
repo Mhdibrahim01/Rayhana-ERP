@@ -55,6 +55,7 @@ module.exports = {
 
   // reservations & payments
   getAllReservations: reservations.getAllReservations,
+  getReservationsPage: reservations.getReservationsPage,
   getReservationById: reservations.getReservationById,
   createReservation: reservations.createReservation,
   updateReservationReceipt: reservations.updateReservationReceipt,

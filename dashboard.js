@@ -15,10 +15,23 @@
   let usersCache = [];
   let logsCache = [];
   let currentReservationFilter = 'all';
+  let reservationsTableRows = [];
+  let reservationsTableTotal = 0;
+  let reservationsTablePage = 1;
+  let reservationsTablePageSize = 50;
+  let reservationsTableRequestId = 0;
+  let reservationsSearchDebounce = null;
   let currentRoomFilter = 'all';
   let currentRoomSearch = '';
   let currentRoomBookingType = 'all';
   let currentRoomPaymentFilter = 'all';
+
+  function findLoadedReservation(reservationId) {
+    const targetId = Number(reservationId);
+    return reservationsTableRows.find(item => Number(item.id) === targetId)
+      || reservationsCache.find(item => Number(item.id) === targetId)
+      || null;
+  }
 
   // Chart Instances
   let monthlyRevenueChart = null;
@@ -198,6 +211,11 @@
   // All Reservations Elements
   const allReservationsTableBody = document.getElementById('all-reservations-table-body');
   const allReservationsEmpty = document.getElementById('all-reservations-empty');
+  const reservationsPagination = document.getElementById('reservations-pagination');
+  const reservationsPaginationSummary = document.getElementById('reservations-pagination-summary');
+  const reservationsPaginationPage = document.getElementById('reservations-pagination-page');
+  const btnReservationsPrevPage = document.getElementById('btn-reservations-prev-page');
+  const btnReservationsNextPage = document.getElementById('btn-reservations-next-page');
   const searchAllReservations = document.getElementById('search-all-reservations');
   const resFilterTabs = document.querySelectorAll('#res-filter-tabs .filter-tab-btn');
   const btnExportReservationsExcel = document.getElementById('btn-export-reservations-excel');
@@ -1289,9 +1307,9 @@
       }
 
       // 4. Load Recent Reservations into Overview Table
-      const resRes = await window.api.getAllReservations();
-      if (resRes.success) {
-        reservationsCache = resRes.data || [];
+      const resRes = await window.api.getReservationsPage({ page: 1, pageSize: 8, status: 'مؤكد' });
+      if (resRes && resRes.success) {
+        reservationsCache = resRes.data?.rows || [];
         renderOverviewTable();
       }
 
@@ -1929,7 +1947,7 @@
         await Promise.all([
           loadRoomsData(),
           loadOverviewData(),
-          loadReservationsData()
+          loadReservationsData(true)
         ]);
 
         // 4. Smooth Visual Feedback: Highlight the updated room card on screen
@@ -2126,38 +2144,60 @@
   // =========================================================================
   // VIEW 2: ALL RESERVATIONS LOGIC + EXCEL IMPORT / EXPORT
   // =========================================================================
-  async function loadReservationsData() {
+  async function loadReservationsData(resetToFirstPage = false) {
+    if (resetToFirstPage) reservationsTablePage = 1;
+    const requestId = ++reservationsTableRequestId;
     try {
-      const res = await window.api.getAllReservations();
-      if (res.success) {
-        reservationsCache = res.data || [];
-        renderAllReservationsTable();
+      const res = await window.api.getReservationsPage({
+        page: reservationsTablePage,
+        pageSize: reservationsTablePageSize,
+        search: searchAllReservations.value || '',
+        status: currentReservationFilter
+      });
+      if (!res || !res.success) {
+        console.error('Error loading reservations:', res?.error || 'Unknown error');
+        return;
       }
+
+      if (requestId !== reservationsTableRequestId) return;
+
+      const data = res.data || {};
+      reservationsTableRows = data.rows || [];
+      reservationsTableTotal = Number(data.total) || 0;
+      reservationsTablePage = Number(data.page) || 1;
+      reservationsTablePageSize = Number(data.pageSize) || reservationsTablePageSize;
+      const reservationsScroll = document.querySelector('.reservations-table-scroll');
+      if (reservationsScroll) reservationsScroll.scrollTop = 0;
+
+      // Keep current-page entries available to existing reservation actions without
+      // replacing the shared full-data cache used by rooms and dashboard widgets.
+      const cacheById = new Map((reservationsCache || []).map(item => [Number(item.id), item]));
+      reservationsTableRows.forEach(item => cacheById.set(Number(item.id), item));
+      reservationsCache = [...cacheById.values()];
+
+      renderAllReservationsTable();
     } catch (err) {
       console.error('Error loading reservations:', err);
     }
   }
 
   function renderAllReservationsTable() {
-    const query = (searchAllReservations.value || '').toLowerCase().trim();
+    const filtered = reservationsTableRows;
+    const totalPages = Math.max(1, Math.ceil(reservationsTableTotal / reservationsTablePageSize));
+    const firstRow = reservationsTableTotal ? ((reservationsTablePage - 1) * reservationsTablePageSize) + 1 : 0;
+    const lastRow = Math.min(reservationsTablePage * reservationsTablePageSize, reservationsTableTotal);
 
-    const filtered = reservationsCache.filter(item => {
-      if (currentReservationFilter !== 'all') {
-        if (currentReservationFilter === 'ملغي') {
-          if (item.status !== 'ملغي' && item.status !== 'ملغي جزئي') return false;
-        } else if (item.status !== currentReservationFilter) {
-          return false;
-        }
-      }
-      if (!query) return true;
-      return (
-        String(item.id || '').includes(query) ||
-        String(item.guest_name || '').toLowerCase().includes(query) ||
-        String(item.room_number || '').includes(query) ||
-        String(item.guest_phone || '').includes(query) ||
-        String(item.guest_id_number || '').includes(query)
-      );
-    });
+    if (reservationsPagination) {
+      reservationsPagination.style.display = reservationsTableTotal ? 'flex' : 'none';
+    }
+    if (reservationsPaginationSummary) {
+      reservationsPaginationSummary.textContent = `عرض ${firstRow}–${lastRow} من ${reservationsTableTotal} حجز`;
+    }
+    if (reservationsPaginationPage) {
+      reservationsPaginationPage.textContent = `${reservationsTablePage} / ${totalPages}`;
+    }
+    if (btnReservationsPrevPage) btnReservationsPrevPage.disabled = reservationsTablePage <= 1;
+    if (btnReservationsNextPage) btnReservationsNextPage.disabled = reservationsTablePage >= totalPages;
 
     if (filtered.length === 0) {
       allReservationsTableBody.innerHTML = '';
@@ -2265,26 +2305,63 @@
       resFilterTabs.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentReservationFilter = btn.dataset.filter;
-      renderAllReservationsTable();
+      reservationsTablePage = 1;
+      loadReservationsData();
     });
   });
 
-  searchAllReservations.addEventListener('input', renderAllReservationsTable);
+  searchAllReservations.addEventListener('input', () => {
+    clearTimeout(reservationsSearchDebounce);
+    reservationsSearchDebounce = setTimeout(() => {
+      reservationsTablePage = 1;
+      loadReservationsData();
+    }, 250);
+  });
+
+  if (btnReservationsPrevPage) {
+    btnReservationsPrevPage.addEventListener('click', () => {
+      if (reservationsTablePage <= 1) return;
+      reservationsTablePage -= 1;
+      loadReservationsData();
+    });
+  }
+
+  if (btnReservationsNextPage) {
+    btnReservationsNextPage.addEventListener('click', () => {
+      const totalPages = Math.max(1, Math.ceil(reservationsTableTotal / reservationsTablePageSize));
+      if (reservationsTablePage >= totalPages) return;
+      reservationsTablePage += 1;
+      loadReservationsData();
+    });
+  }
 
   // 2. SheetJS Export Reservations to Excel
-  btnExportReservationsExcel.addEventListener('click', () => {
+  btnExportReservationsExcel.addEventListener('click', async () => {
     if (typeof XLSX === 'undefined') {
       showToast('مكتبة SheetJS غير متوفرة.', 'error');
       return;
     }
 
-    if (reservationsCache.length === 0) {
-      showToast('لا توجد حجوزات لتصديرها.', 'info');
-      return;
-    }
-
     try {
-      const exportRows = reservationsCache.map(r => ({
+      btnExportReservationsExcel.disabled = true;
+      const response = await window.api.getReservationsPage({
+        page: 1,
+        pageSize: reservationsTablePageSize,
+        search: searchAllReservations.value || '',
+        status: currentReservationFilter,
+        exportAll: true
+      });
+      if (!response || !response.success) {
+        showToast(response?.error || 'تعذر تحميل الحجوزات للتصدير.', 'error');
+        return;
+      }
+      const rows = response.data?.rows || [];
+      if (rows.length === 0) {
+        showToast('لا توجد حجوزات مطابقة للتصدير.', 'info');
+        return;
+      }
+
+      const exportRows = rows.map(r => ({
         'رقم الحجز': r.id,
         'اسم النزيل': r.guest_name,
         'رقم الجوال': r.guest_phone || '',
@@ -2315,6 +2392,8 @@
     } catch (err) {
       console.error('Export error:', err);
       showToast(`فشل تصدير Excel: ${err.message}`, 'error');
+    } finally {
+      btnExportReservationsExcel.disabled = false;
     }
   });
 
@@ -2340,7 +2419,7 @@
         const res = await window.api.bulkImportReservations(rows);
         if (res.success && res.data) {
           showToast(`تم استيراد ${res.data.inserted} حجز بنجاح! (تم تخطي ${res.data.skipped})`, 'success');
-          await loadReservationsData();
+          await loadReservationsData(true);
           await loadOverviewData();
         } else {
           showToast(res.error || 'فشل استيراد الحجوزات.', 'error');
@@ -3499,7 +3578,7 @@
     }
 
     // Find in cache or fetch
-    let res = (reservationsCache || []).find(r => parseInt(r.id, 10) === targetId);
+    let res = findLoadedReservation(targetId);
     if (!res) {
       try {
         const allRes = await window.api.getAllReservations();
@@ -4156,7 +4235,7 @@
     }
 
     // Find reservation in cache or fetch
-    let res = (reservationsCache || []).find(r => parseInt(r.id, 10) === targetId);
+    let res = findLoadedReservation(targetId);
     if (!res) {
       try {
         const allRes = await window.api.getAllReservations();
@@ -6169,7 +6248,7 @@
 
   async function sendReservationWhatsApp(reservationId) {
     const targetId = parseInt(reservationId, 10);
-    const res = reservationsCache.find(r => r.id === targetId);
+    const res = findLoadedReservation(targetId);
     if (!res) {
       showToast('لم يتم العثور على بيانات هذا الحجز.', 'error');
       return;
@@ -6311,7 +6390,7 @@
     }
 
     if (action === 'checkout') {
-      let resData = reservationsCache.find(r => r.id === id);
+      let resData = findLoadedReservation(id);
       if (!resData) {
         try {
           const invRes = await window.api.getInvoiceData(id);
@@ -6366,7 +6445,7 @@
         showToast(`خطأ في تحميل بيانات التسوية: ${err.message}`, 'error');
       }
     } else if (action === 'cancel') {
-      let targetRes = reservationsCache.find(r => r.id === id);
+      let targetRes = findLoadedReservation(id);
       if (!targetRes) {
         try {
           const allRes = await window.api.getAllReservations();
