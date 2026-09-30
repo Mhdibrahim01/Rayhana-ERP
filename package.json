@@ -7,6 +7,11 @@
   "license": "MIT",
   "scripts": {
     "start": "electron .",
+    "lint": "eslint .",
+    "circular": "node scripts/check-circular.js",
+    "baseline:check": "node scripts/baseline.js check",
+    "baseline:update": "node scripts/baseline.js update",
+    "guard": "node scripts/refactor-guard.js",
     "reset-db": "node reset-db.js",
     "import-guests": "node import-guests.js",
     "build": "electron-builder --win",
@@ -22,7 +27,9 @@
   },
   "devDependencies": {
     "electron": "^29.4.6",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "^24.13.3",
+    "eslint": "^10.11.0",
+    "madge": "^8.0.0"
   },
   "build": {
     "appId": "com.rayhana.suites",
