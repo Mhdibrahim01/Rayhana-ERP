@@ -71,6 +71,10 @@
   const todayCheckoutsCountBadge = document.getElementById('today-checkouts-count-badge');
   const todayDateBadge = document.getElementById('today-date-badge');
   const btnRefreshCheckouts = document.getElementById('btn-refresh-checkouts');
+  const todayCheckoutsSearch = document.getElementById('today-checkouts-search');
+  const todayCheckoutsFilters = document.getElementById('today-checkouts-filters');
+  let todayCheckoutsRows = [];
+  let todayCheckoutsActiveFilter = 'all';
 
   // Reservation Form Elements
   const reservationForm = document.getElementById('reservation-form');
@@ -1468,21 +1472,48 @@
     checkouts = [...latestRoomRows, ...overdueRows].sort((a, b) =>
       String(a.room_number || '').localeCompare(String(b.room_number || ''), undefined, { numeric: true })
     );
+    todayCheckoutsRows = checkouts;
 
     if (todayCheckoutsCountBadge) {
       const count = checkouts.length;
       todayCheckoutsCountBadge.textContent = `${count} ${count === 1 ? 'مغادرة' : 'مغادرات'}`;
     }
 
-    if (checkouts.length === 0) {
+    const searchTerm = String(todayCheckoutsSearch?.value || '').trim().toLocaleLowerCase();
+    const visibleCheckouts = checkouts.filter(row => {
+      const overdue = isReservationOverdue(row);
+      const statusMatches = todayCheckoutsActiveFilter === 'all'
+        || (todayCheckoutsActiveFilter === 'pending' && row.status === 'مؤكد' && !overdue)
+        || (todayCheckoutsActiveFilter === 'overdue' && overdue)
+        || (todayCheckoutsActiveFilter === 'completed' && row.status === 'مكتمل');
+      if (!statusMatches) return false;
+
+      if (!searchTerm) return true;
+      const searchableText = [row.room_number, row.room_type, row.guest_name, row.guest_phone, row.guest_id_number]
+        .filter(Boolean)
+        .join(' ')
+        .toLocaleLowerCase();
+      return searchableText.includes(searchTerm);
+    });
+
+    if (visibleCheckouts.length === 0) {
       todayCheckoutsTableBody.innerHTML = '';
       if (todayCheckoutsEmpty) todayCheckoutsEmpty.style.display = 'block';
+      if (todayCheckoutsEmpty) {
+        const title = todayCheckoutsEmpty.querySelector('h4');
+        const description = todayCheckoutsEmpty.querySelector('p');
+        const noRowsAtAll = checkouts.length === 0;
+        if (title) title.textContent = noRowsAtAll ? 'لا توجد مغادرات مجدولة لهذا اليوم' : 'لا توجد نتائج مطابقة';
+        if (description) description.textContent = noRowsAtAll
+          ? 'جميع الغرف المشغولة لا تنتهي فترة إقامتها اليوم أو تم إنهاء إجراءات مغادرتها بالفعل.'
+          : 'جرّب تغيير حالة المغادرة أو تعديل عبارة البحث.';
+      }
       return;
     }
 
     if (todayCheckoutsEmpty) todayCheckoutsEmpty.style.display = 'none';
 
-    todayCheckoutsTableBody.innerHTML = checkouts.map(r => {
+    todayCheckoutsTableBody.innerHTML = visibleCheckouts.map(r => {
       const isConfirmed = r.status === 'مؤكد';
       const isCompleted = r.status === 'مكتمل';
       const expectedCheckoutTime = isConfirmed && r.booking_type !== 'عقد مفتوح' && r.check_out_date && r.check_out_date !== 'مفتوح' ? '14:00' : '';
@@ -1496,16 +1527,22 @@
           </td>
           <td style="font-size: 0.88rem; color: var(--text-secondary);">${escapeHtml(r.room_type || '')}</td>
           <td>
-            <div style="font-weight: 800; color: #1e293b; font-size: 0.92rem;">${escapeHtml(r.guest_name)}</div>
-            ${r.guest_id_number ? `<small class="guest-id-number">هوية: ${escapeHtml(r.guest_id_number)}</small>` : ''}
+            <div class="checkout-cell-stack checkout-guest-stack">
+              <div style="font-weight: 800; color: #1e293b; font-size: 0.92rem;">${escapeHtml(r.guest_name)}</div>
+              ${r.guest_id_number ? `<small class="guest-id-number">هوية: ${escapeHtml(r.guest_id_number)}</small>` : ''}
+            </div>
           </td>
           <td style="font-family: monospace; font-size: 0.88rem; color: var(--text-secondary);">${escapeHtml(r.guest_phone || '-')}</td>
-          <td style="font-size: 0.84rem; color: var(--text-secondary);">${renderDateTimeCell(r.check_in_date, r.booking_time, '-', 'الوصول')}</td>
+          <td style="font-size: 0.84rem; color: var(--text-secondary);">
+            <div class="checkout-cell-stack checkout-date-stack">${renderDateTimeCell(r.check_in_date, r.booking_time, '-', 'الوصول')}</div>
+          </td>
           <td style="font-weight: 800; color: var(--primary); font-size: 0.92rem;">${parseFloat(r.total_price || 0).toLocaleString()} ريال</td>
           <td>
-            ${getReservationStatusBadge(r.status)}
-            ${renderOverdueBadge(r, String(r.check_out_date || '').slice(0, 10) < getLocalDateString() ? 'متأخر' : 'متأخر عن المغادرة')}
-            ${r.checkout_time ? `<div class="table-time"><span class="table-time-label">مغادرة فعلية:</span><bdi class="table-time-value">${escapeHtml(r.checkout_time)}</bdi></div>` : (expectedCheckoutTime ? `<div class="table-time"><span class="table-time-label">مغادرة متوقعة:</span><bdi class="table-time-value">${expectedCheckoutTime}</bdi></div>` : '')}
+            <div class="checkouts-status-stack">
+              ${getReservationStatusBadge(r.status)}
+              ${renderOverdueBadge(r, String(r.check_out_date || '').slice(0, 10) < getLocalDateString() ? 'متأخر' : 'متأخر عن المغادرة')}
+              ${r.checkout_time ? `<div class="table-time"><span class="table-time-label">مغادرة فعلية:</span><bdi class="table-time-value">${escapeHtml(r.checkout_time)}</bdi></div>` : (expectedCheckoutTime ? `<div class="table-time"><span class="table-time-label">مغادرة متوقعة:</span><bdi class="table-time-value">${expectedCheckoutTime}</bdi></div>` : '')}
+            </div>
           </td>
           <td style="text-align: center;">
             ${isConfirmed ? `
@@ -1544,6 +1581,25 @@
 
   if (btnRefreshCheckouts) {
     btnRefreshCheckouts.addEventListener('click', loadTodayCheckouts);
+  }
+
+  if (todayCheckoutsSearch) {
+    todayCheckoutsSearch.addEventListener('input', () => renderTodayCheckoutsTable(todayCheckoutsRows));
+  }
+
+  if (todayCheckoutsFilters) {
+    todayCheckoutsFilters.addEventListener('click', event => {
+      const button = event.target.closest('[data-checkout-filter]');
+      if (!button) return;
+
+      todayCheckoutsActiveFilter = button.dataset.checkoutFilter || 'all';
+      todayCheckoutsFilters.querySelectorAll('[data-checkout-filter]').forEach(filterButton => {
+        const active = filterButton === button;
+        filterButton.classList.toggle('active', active);
+        filterButton.setAttribute('aria-pressed', String(active));
+      });
+      renderTodayCheckoutsTable(todayCheckoutsRows);
+    });
   }
 
   // =========================================================================

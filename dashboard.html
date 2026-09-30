@@ -301,8 +301,30 @@
             </div>
 
             <div class="card-body" style="padding: 0; background: transparent;">
+              <div class="today-checkouts-toolbar" dir="rtl">
+                <label class="today-checkouts-search-wrap">
+                  <span class="today-checkouts-search-icon" aria-hidden="true">⌕</span>
+                  <input id="today-checkouts-search" type="search" class="today-checkouts-search" placeholder="بحث برقم الغرفة، اسم النزيل، الجوال أو الهوية..." aria-label="بحث في مغادرات اليوم">
+                </label>
+                <div id="today-checkouts-filters" class="today-checkouts-filters" role="group" aria-label="تصفية مغادرات اليوم">
+                  <button type="button" class="today-checkouts-filter active" data-checkout-filter="all" aria-pressed="true">الكل</button>
+                  <button type="button" class="today-checkouts-filter" data-checkout-filter="pending" aria-pressed="false">بانتظار المغادرة</button>
+                  <button type="button" class="today-checkouts-filter" data-checkout-filter="overdue" aria-pressed="false">متأخر</button>
+                  <button type="button" class="today-checkouts-filter" data-checkout-filter="completed" aria-pressed="false">تمت المغادرة</button>
+                </div>
+              </div>
               <div class="table-responsive">
-                <table style="margin: 0;">
+                <table class="today-checkouts-table" style="margin: 0;">
+                  <colgroup>
+                    <col style="width: 7%;">
+                    <col style="width: 9%;">
+                    <col style="width: 17%;">
+                    <col style="width: 10%;">
+                    <col style="width: 9%;">
+                    <col style="width: 8%;">
+                    <col style="width: 14%;">
+                    <col style="width: 280px;">
+                  </colgroup>
                   <thead>
                     <tr>
                       <th>رقم الغرفة</th>
