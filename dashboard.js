@@ -3661,9 +3661,9 @@
     const room = roomsCache.find(rm => rm.id === res.room_id);
     const pricePerNight = parseFloat(res.custom_nightly_price || res.price_per_night || (room ? room.price_per_night : 0)) || 0;
     const isContract = res.booking_type === 'عقد مفتوح';
-    const calculatedBase = isContract
-      ? Math.round((nights * pricePerNight + Number.EPSILON) * 100) / 100
-      : Math.round((parseFloat(res.total_price || 0) + Number.EPSILON) * 100) / 100;
+    // Both open-contract and regular/monthly bookings use actual nights × rate so the
+    // modal's subtotal matches the backend recompute in checkoutReservation exactly.
+    const calculatedBase = Math.round((nights * pricePerNight + Number.EPSILON) * 100) / 100;
     const paidSoFar = Math.round((parseFloat(res.paid_amount || 0) + Number.EPSILON) * 100) / 100;
     const existingDiscount = Math.round((parseFloat(res.discount_amount || 0) + Number.EPSILON) * 100) / 100;
 
