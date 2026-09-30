@@ -2457,6 +2457,20 @@
 
   function renderRoomsGrid() {
     const searchTerm = currentRoomSearch.trim().toLowerCase();
+    const today = getLocalDateString();
+    const futureReservationByRoom = new Map();
+
+    // Index each room's nearest future confirmed reservation once per render,
+    // instead of filtering and sorting the full reservation cache for every card.
+    reservationsCache.forEach(reservation => {
+      if (reservation.status !== 'مؤكد' || !reservation.check_in_date || reservation.check_in_date <= today) return;
+
+      const current = futureReservationByRoom.get(reservation.room_id);
+      if (!current || reservation.check_in_date.localeCompare(current.check_in_date) < 0) {
+        futureReservationByRoom.set(reservation.room_id, reservation);
+      }
+    });
+
     if (roomsPaymentFilterContainer) {
       roomsPaymentFilterContainer.style.display = currentRoomFilter === 'مشغولة' ? 'flex' : 'none';
     }
@@ -2511,10 +2525,7 @@
       const nextActiveRes = room.status === 'مشغولة' ? activeReservations[1] || null : null;
 
       // Future reservations remain a separate lookup; cleaning rooms show the next arrival too.
-      const futureReservation =
-        reservationsCache
-            .filter(r => r.room_id === room.id && r.status === 'مؤكد' && r.check_in_date > getLocalDateString())
-            .sort((a, b) => a.check_in_date.localeCompare(b.check_in_date))[0] || null;
+      const futureReservation = futureReservationByRoom.get(room.id) || null;
       const upcomingRes = (room.status === 'محجوزة' || room.status === 'متاحة')
         ? futureReservation
         : null;
