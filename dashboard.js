@@ -57,6 +57,9 @@
   const todayCheckoutsCountBadge = document.getElementById('today-checkouts-count-badge');
   const todayDateBadge = document.getElementById('today-date-badge');
   const btnRefreshCheckouts = document.getElementById('btn-refresh-checkouts');
+  const todayArrivalsTableBody = document.getElementById('today-arrivals-table-body');
+  const todayArrivalsEmpty = document.getElementById('today-arrivals-empty');
+  const todayArrivalsCountBadge = document.getElementById('today-arrivals-count-badge');
 
   // Reservation Form Elements
   const reservationForm = document.getElementById('reservation-form');
@@ -1243,6 +1246,7 @@
       if (resRes.success) {
         reservationsCache = resRes.data || [];
         renderOverviewTable();
+        renderTodayArrivalsTable();
       }
 
       // 5. Load Today's Check-outs Widget
@@ -1376,42 +1380,38 @@
     todayCheckoutsTableBody.innerHTML = checkouts.map(r => {
       const isConfirmed = r.status === 'مؤكد';
       const isCompleted = r.status === 'مكتمل';
-      const dateParts = String(r.check_in_date || '').split('-').map(Number);
-      const checkInDisplay = dateParts.length === 3 && dateParts.every(Number.isFinite)
-        ? new Date(dateParts[0], dateParts[1] - 1, dateParts[2]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-        : (r.check_in_date || '-');
 
       return `
-        <tr class="checkout-row ${isCompleted ? 'is-completed' : isConfirmed ? 'is-confirmed' : ''}">
+        <tr style="border-bottom: 1px solid #f1f5f9;">
           <td>
-            <span class="checkout-room-badge">
+            <span style="font-weight: 800; font-size: 0.92rem; color: #1a4332; background: #ecfdf5; padding: 3px 8px; border-radius: 6px; border: 1px solid #a7f3d0;">
               غرفة ${escapeHtml(r.room_number)}
             </span>
           </td>
-          <td class="checkout-secondary">${escapeHtml(r.room_type || '')}</td>
+          <td style="font-size: 0.88rem; color: var(--text-secondary);">${escapeHtml(r.room_type || '')}</td>
           <td>
-            <div class="checkout-guest-name">${escapeHtml(r.guest_name)}</div>
-            ${r.guest_id_number ? `<small class="checkout-guest-id">هوية ${escapeHtml(r.guest_id_number)}</small>` : ''}
+            <div style="font-weight: 800; color: #1e293b; font-size: 0.92rem;">${escapeHtml(r.guest_name)}</div>
+            ${r.guest_id_number ? `<small style="color: var(--text-muted);">هوية: ${escapeHtml(r.guest_id_number)}</small>` : ''}
           </td>
-          <td class="checkout-phone">${escapeHtml(r.guest_phone || '-')}</td>
-          <td class="checkout-secondary">${escapeHtml(checkInDisplay)}</td>
-          <td class="checkout-total">${parseFloat(r.total_price || 0).toLocaleString()} ريال</td>
+          <td style="font-family: monospace; font-size: 0.88rem; color: var(--text-secondary);">${escapeHtml(r.guest_phone || '-')}</td>
+          <td style="font-size: 0.84rem; color: var(--text-secondary);">${escapeHtml(r.check_in_date)}</td>
+          <td style="font-weight: 800; color: var(--primary); font-size: 0.92rem;">${parseFloat(r.total_price || 0).toLocaleString()} ريال</td>
           <td>
             ${getReservationStatusBadge(r.status)}
-            ${r.checkout_time ? `<div class="checkout-time">${escapeHtml(r.checkout_time)}</div>` : ''}
+            ${r.checkout_time ? `<div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace; margin-top: 2px;">${escapeHtml(r.checkout_time)}</div>` : ''}
           </td>
-          <td class="checkout-actions">
+          <td style="text-align: center;">
             ${isConfirmed ? `
-              <div class="checkout-action-group">
-                <button class="btn btn-primary btn-sm" data-action="checkout" data-id="${r.id}" title="تسجيل مغادرة النزيل وتسليم الغرفة">
+              <div style="display: flex; gap: 5px; justify-content: center; align-items: center;">
+                <button class="btn btn-primary btn-sm" data-action="checkout" data-id="${r.id}" style="padding: 5px 11px; font-weight: 800; font-size: 0.8rem;" title="تسجيل مغادرة النزيل وتسليم الغرفة">
                   تسجيل مغادرة &larr;
                 </button>
-                <button type="button" class="btn btn-secondary btn-sm checkout-extend-action" data-action="extend" data-id="${r.id}" title="تمديد فترة الإقامة">
+                <button type="button" class="btn btn-secondary btn-sm" data-action="extend" data-id="${r.id}" style="padding: 5px 9px; font-weight: 800; font-size: 0.8rem; background: #eff6ff; color: #1e40af; border: 1.5px solid #bfdbfe;" title="تمديد فترة الإقامة">
                   تمديد ⏳
                 </button>
               </div>
             ` : isCompleted ? `
-              <span class="checkout-completed-badge">تمت المغادرة <span aria-hidden="true">✓</span></span>
+              <span class="badge" style="background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; font-weight: 800;">تمت المغادرة &check;</span>
             ` : `<span style="color: var(--text-secondary); font-size: 0.8rem;">-</span>`}
           </td>
         </tr>
@@ -1419,8 +1419,56 @@
     }).join('');
   }
 
+  function renderTodayArrivalsTable() {
+    if (!todayArrivalsTableBody) return;
+    const today = getLocalDateString();
+    const arrivals = reservationsCache.filter(r => r.status === 'مؤكد' && r.check_in_date === today);
+
+    if (todayArrivalsCountBadge) {
+      todayArrivalsCountBadge.textContent = `${arrivals.length} ${arrivals.length === 1 ? 'وصول' : 'حجوزات وصول'}`;
+    }
+    if (todayArrivalsEmpty) todayArrivalsEmpty.hidden = arrivals.length > 0;
+    todayArrivalsTableBody.innerHTML = arrivals.map(r => `
+      <tr>
+        <td><strong>غرفة ${escapeHtml(r.room_number || '-')}</strong></td>
+        <td>${escapeHtml(r.guest_name || '-')}</td>
+        <td>${escapeHtml(r.guest_phone || '-')}</td>
+        <td>${escapeHtml(r.booking_type || 'حجز عادي')}</td>
+        <td>${getReservationStatusBadge(r.status)}</td>
+      </tr>
+    `).join('');
+  }
+
+  const operationsTabs = document.querySelectorAll('[data-operations-tab]');
+  operationsTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const selectedPanel = tab.getAttribute('aria-controls');
+      operationsTabs.forEach(item => {
+        const active = item === tab;
+        item.classList.toggle('active', active);
+        item.setAttribute('aria-selected', String(active));
+      });
+      if (todayCheckoutsCountBadge) todayCheckoutsCountBadge.style.display = selectedPanel === 'panel-today-departures' ? '' : 'none';
+      if (todayArrivalsCountBadge) todayArrivalsCountBadge.style.display = selectedPanel === 'panel-today-arrivals' ? '' : 'none';
+      document.querySelectorAll('.overview-operations-panel').forEach(panel => {
+        panel.hidden = panel.id !== selectedPanel;
+      });
+    });
+  });
+
   if (btnRefreshCheckouts) {
-    btnRefreshCheckouts.addEventListener('click', loadTodayCheckouts);
+    btnRefreshCheckouts.addEventListener('click', async () => {
+      await loadTodayCheckouts();
+      try {
+        const res = await window.api.getAllReservations();
+        if (res && res.success) {
+          reservationsCache = res.data || [];
+          renderTodayArrivalsTable();
+        }
+      } catch (err) {
+        console.warn('Could not refresh today arrivals:', err);
+      }
+    });
   }
 
   // =========================================================================
@@ -2454,6 +2502,12 @@
       renderRoomsGrid();
     });
   });
+
+  window.openRoomsFiltered = function (status) {
+    window.switchView('rooms');
+    const filterButton = Array.from(roomsFilterTabs).find(btn => btn.dataset.roomFilter === status);
+    if (filterButton) filterButton.click();
+  };
 
   // Search rooms by room_number / type — re-render on every keystroke
   if (searchRoomsInput) {
