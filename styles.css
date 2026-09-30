@@ -1134,6 +1134,78 @@ select option {
   -webkit-overflow-scrolling: touch;
 }
 
+/* Dense reservation log: keep scrolling inside the table and make each row shorter. */
+.reservations-table-scroll {
+  max-height: min(68vh, 620px);
+  max-height: min(68dvh, 620px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.reservations-table {
+  width: 100%;
+  min-width: 1765px;
+  table-layout: fixed;
+  font-size: 0.76rem;
+}
+
+.reservations-table th,
+.reservations-table td {
+  padding: 7px 9px;
+  line-height: 1.2;
+}
+
+.reservations-table th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+
+.reservations-table th:nth-child(1),
+.reservations-table td:nth-child(1) { width: 78px; }
+.reservations-table th:nth-child(2),
+.reservations-table td:nth-child(2) { width: 220px; }
+.reservations-table th:nth-child(3),
+.reservations-table td:nth-child(3) { width: 135px; }
+.reservations-table th:nth-child(4),
+.reservations-table td:nth-child(4) { width: 160px; }
+.reservations-table th:nth-child(5),
+.reservations-table td:nth-child(5),
+.reservations-table th:nth-child(6),
+.reservations-table td:nth-child(6) { width: 120px; }
+.reservations-table th:nth-child(7),
+.reservations-table td:nth-child(7) { width: 150px; }
+.reservations-table th:nth-child(8),
+.reservations-table td:nth-child(8) { width: 150px; }
+.reservations-table th:nth-child(9),
+.reservations-table td:nth-child(9) { width: 165px; }
+.reservations-table th:nth-child(10),
+.reservations-table td:nth-child(10) { width: 185px; }
+.reservations-table th:nth-child(11),
+.reservations-table td:nth-child(11) { width: 280px; }
+
+.reservations-table td:nth-child(2) > div:first-child {
+  min-width: 0;
+}
+
+.reservations-table td:nth-child(2) > div:first-child > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 900px) {
+  .reservations-table-scroll {
+    max-height: 64vh;
+    max-height: 64dvh;
+  }
+}
+
 /* Checkout settlement: keep the header visible while long refund/settlement
    forms scroll inside the viewport. */
 .checkout-settle-card {
