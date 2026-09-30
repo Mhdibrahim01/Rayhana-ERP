@@ -1199,6 +1199,33 @@ select option {
   text-overflow: ellipsis;
 }
 
+.reservations-pagination {
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 4px 2px;
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.reservations-pagination-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.reservations-pagination-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .reservations-pagination {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 @media (max-width: 900px) {
   .reservations-table-scroll {
     max-height: 64vh;

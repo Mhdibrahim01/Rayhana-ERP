@@ -5,44 +5,104 @@
 
 const { db, queryOne, queryAll, saveToFile, roundMoney, getLocalDateString } = require('./connection');
 
+const RESERVATION_LIST_SQL = `
+  SELECT
+    r.id,
+    r.guest_id,
+    r.room_id,
+    r.check_in_date,
+    r.check_out_date,
+    r.total_price,
+    r.paid_amount,
+    r.deposit_amount,
+    r.payment_method,
+    r.payment_status,
+    r.status,
+    r.booking_type,
+    r.custom_nightly_price,
+    r.discount_amount,
+    r.discount_reason,
+    r.original_calculated_charge,
+    r.checked_out_at,
+    r.created_at,
+    strftime('%H:%M', r.created_at, 'localtime') AS booking_time,
+    strftime('%H:%M', r.checked_out_at, 'localtime') AS checkout_time,
+    g.name AS guest_name,
+    g.phone AS guest_phone,
+    g.id_number AS guest_id_number,
+    rm.room_number,
+    rm.type AS room_type,
+    rm.price_per_night
+  FROM reservations r
+  JOIN guests g ON r.guest_id = g.id
+  JOIN rooms rm ON r.room_id = rm.id
+`;
+
+function buildReservationListFilter({ search = '', status = 'all' } = {}) {
+  const conditions = [];
+  const params = [];
+
+  if (status === 'ملغي') {
+    conditions.push("r.status IN ('ملغي', 'ملغي جزئي')");
+  } else if (['مؤكد', 'مكتمل'].includes(status)) {
+    conditions.push('r.status = ?');
+    params.push(status);
+  }
+
+  const normalizedSearch = String(search || '').trim().slice(0, 120);
+  if (normalizedSearch) {
+    const escapedSearch = normalizedSearch.replace(/[\\%_]/g, '\\$&');
+    const like = `%${escapedSearch}%`;
+    conditions.push(`(
+      CAST(r.id AS TEXT) LIKE ? ESCAPE '\\'
+      OR LOWER(COALESCE(g.name, '')) LIKE ? ESCAPE '\\'
+      OR CAST(COALESCE(rm.room_number, '') AS TEXT) LIKE ? ESCAPE '\\'
+      OR COALESCE(g.phone, '') LIKE ? ESCAPE '\\'
+      OR COALESCE(g.id_number, '') LIKE ? ESCAPE '\\'
+    )`);
+    params.push(like, like, like, like, like);
+  }
+
+  return {
+    sql: conditions.length ? `WHERE ${conditions.join(' AND ')}` : '',
+    params
+  };
+}
+
 /**
  * Reservation Functions
  */
 function getAllReservations() {
-  const sql = `
-    SELECT 
-      r.id, 
-      r.guest_id, 
-      r.room_id, 
-      r.check_in_date, 
-      r.check_out_date, 
-      r.total_price, 
-      r.paid_amount,
-      r.deposit_amount,
-      r.payment_method,
-      r.payment_status,
-      r.status, 
-      r.booking_type,
-      r.custom_nightly_price,
-      r.discount_amount,
-      r.discount_reason,
-      r.original_calculated_charge,
-      r.checked_out_at,
-      r.created_at,
-      strftime('%H:%M', r.created_at, 'localtime') AS booking_time,
-      strftime('%H:%M', r.checked_out_at, 'localtime') AS checkout_time,
-      g.name AS guest_name, 
-      g.phone AS guest_phone, 
-      g.id_number AS guest_id_number,
-      rm.room_number, 
-      rm.type AS room_type, 
-      rm.price_per_night
-    FROM reservations r
-    JOIN guests g ON r.guest_id = g.id
-    JOIN rooms rm ON r.room_id = rm.id
-    ORDER BY r.id DESC
-  `;
-  return queryAll(sql);
+  return queryAll(`${RESERVATION_LIST_SQL} ORDER BY r.id DESC`);
+}
+
+function getReservationsPage({ page = 1, pageSize = 50, search = '', status = 'all', exportAll = false } = {}) {
+  const normalizedPageSize = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 50));
+  const normalizedPage = Math.max(1, parseInt(page, 10) || 1);
+  const filter = buildReservationListFilter({ search, status });
+  const count = queryOne(
+    `SELECT COUNT(*) AS total FROM reservations r JOIN guests g ON r.guest_id = g.id JOIN rooms rm ON r.room_id = rm.id ${filter.sql}`,
+    filter.params
+  );
+  const total = Number(count?.total || 0);
+  const totalPages = Math.max(1, Math.ceil(total / normalizedPageSize));
+  const effectivePage = Math.min(normalizedPage, totalPages);
+  const paginationSql = exportAll ? '' : 'LIMIT ? OFFSET ?';
+  const paginationParams = exportAll
+    ? []
+    : [normalizedPageSize, (effectivePage - 1) * normalizedPageSize];
+  const rows = queryAll(
+    `${RESERVATION_LIST_SQL} ${filter.sql} ORDER BY r.id DESC ${paginationSql}`,
+    [...filter.params, ...paginationParams]
+  );
+
+  return {
+    rows,
+    total,
+    page: effectivePage,
+    pageSize: normalizedPageSize,
+    totalPages
+  };
 }
 
 function getReservationById(reservationId) {
@@ -1545,6 +1605,7 @@ function updateReservationReceipt({
 
 module.exports = {
   getAllReservations,
+  getReservationsPage,
   getReservationById,
   generateReceiptNumber,
   createReservation,

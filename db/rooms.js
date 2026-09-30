@@ -181,6 +181,7 @@ function autoUpdateRoomStatuses(currentDate) {
 
   const allRooms = queryAll("SELECT id, status FROM rooms");
   let occupiedCount = 0;
+  let hasStatusChanges = false;
 
   for (const room of allRooms) {
     let targetStatus = room.status;
@@ -202,10 +203,11 @@ function autoUpdateRoomStatuses(currentDate) {
     if (targetStatus === 'مشغولة') occupiedCount++;
     if (targetStatus !== room.status) {
       db.run("UPDATE rooms SET status = ? WHERE id = ?", [targetStatus, room.id]);
+      hasStatusChanges = true;
     }
   }
 
-  saveToFile();
+  if (hasStatusChanges) saveToFile();
   return {
     success: true,
     date: today,
