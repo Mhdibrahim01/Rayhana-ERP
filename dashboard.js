@@ -2691,11 +2691,17 @@
                 <button type="button" class="btn-room-action" data-action="invoice" data-id="${activeRes.id}" style="border: none; border-radius: 8px; padding: 7px 12px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: #1a4332; color: #ffffff;">
                   <span>فاتورة 🖨️</span>
                 </button>
+                <button type="button" class="btn-room-action" data-action="cancel" data-id="${activeRes.id}" aria-label="إلغاء الحجز" title="إلغاء الحجز" style="border: 1px solid #fecaca; border-radius: 8px; padding: 7px 12px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: #fef2f2; color: #b91c1c;">
+                  <span>إلغاء الحجز ✕</span>
+                </button>
               ` : ''}
 
               ${room.status === 'محجوزة' && upcomingRes ? `
                 <button type="button" class="btn-room-action" data-action="invoice" data-id="${upcomingRes.id}" style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 12px; font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: all 0.15s; background: #ffffff; color: #1e293b;">
                   <span>فاتورة الحجز 🖨️</span>
+                </button>
+                <button type="button" class="btn-room-action" data-action="cancel" data-id="${upcomingRes.id}" aria-label="إلغاء الحجز" title="إلغاء الحجز" style="border: 1px solid #fecaca; border-radius: 8px; padding: 7px 12px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: #fef2f2; color: #b91c1c;">
+                  <span>إلغاء الحجز ✕</span>
                 </button>
               ` : ''}
 
@@ -4001,11 +4007,19 @@
           const nights = Math.max(1, Math.round((Date.UTC(y2, m2-1, d2) - Date.UTC(y1, m1-1, d1)) / 86400000));
           const base = Math.round((nights * pricePerNight + Number.EPSILON) * 100) / 100;
           const existDisc = Math.round((parseFloat(res.discount_amount || 0) + Number.EPSILON) * 100) / 100;
-          const net = Math.max(0, Math.round((base - existDisc + Number.EPSILON) * 100) / 100);
+          const [bookedYear, bookedMonth, bookedDay] = (res.check_out_date || '').split('-').map(Number);
+          const bookedEndUtc = Date.UTC(bookedYear, bookedMonth - 1, bookedDay);
+          const checkInUtc = Date.UTC(y1, m1 - 1, d1);
+          const bookedNights = Number.isFinite(bookedEndUtc) && bookedEndUtc > checkInUtc
+            ? Math.max(1, Math.round((bookedEndUtc - checkInUtc) / 86400000))
+            : nights;
+          const discountRatio = nights < bookedNights ? nights / bookedNights : 1;
+          const appliedDiscount = Math.min(base, Math.round((existDisc * discountRatio + Number.EPSILON) * 100) / 100);
+          const net = Math.max(0, Math.round((base - appliedDiscount + Number.EPSILON) * 100) / 100);
           if (settleNightsCount) settleNightsCount.textContent = `${nights} ${nights === 1 ? 'ليلة' : 'ليالٍ'} (بسعر ${pricePerNight.toLocaleString()} ريال/ليلة)`;
           if (settleTotalPriceDisplay) settleTotalPriceDisplay.textContent = `${base.toFixed(2)} ريال`;
           if (settleFinalTotalInput) settleFinalTotalInput.value = net.toFixed(2);
-          if (settleDiscountInput) settleDiscountInput.value = existDisc > 0 ? existDisc.toFixed(2) : '0';
+          if (settleDiscountInput) settleDiscountInput.value = appliedDiscount > 0 ? appliedDiscount.toFixed(2) : '0';
           if (settleDiscountReasonInput) settleDiscountReasonInput.value = res.discount_reason || '';
         }
       } catch (e) {

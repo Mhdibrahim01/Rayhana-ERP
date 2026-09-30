@@ -423,6 +423,27 @@ function createReservation({
   }
 }
 
+function calculateCheckoutDiscount(discountAmount, actualNights, checkInDate, bookedCheckOutDate, baseCharge, prorate) {
+  const normalizedDiscount = Math.max(0, roundMoney(discountAmount || 0));
+  if (!normalizedDiscount || !baseCharge) return 0;
+
+  let appliedDiscount = normalizedDiscount;
+  if (prorate && checkInDate && bookedCheckOutDate && bookedCheckOutDate !== 'مفتوح') {
+    const [startYear, startMonth, startDay] = String(checkInDate).slice(0, 10).split('-').map(Number);
+    const [endYear, endMonth, endDay] = String(bookedCheckOutDate).slice(0, 10).split('-').map(Number);
+    const startUtc = Date.UTC(startYear, startMonth - 1, startDay);
+    const endUtc = Date.UTC(endYear, endMonth - 1, endDay);
+    if (Number.isFinite(startUtc) && Number.isFinite(endUtc) && endUtc > startUtc) {
+      const bookedNights = Math.max(1, Math.round((endUtc - startUtc) / 86400000));
+      if (actualNights < bookedNights) {
+        appliedDiscount = roundMoney(normalizedDiscount * actualNights / bookedNights);
+      }
+    }
+  }
+
+  return Math.min(roundMoney(baseCharge), appliedDiscount);
+}
+
 /**
  * computeCheckoutSettlement — read-only preview (writes nothing).
  *
@@ -449,7 +470,7 @@ function computeCheckoutSettlement(reservationId, {
   if (!targetId || isNaN(targetId)) throw new Error('معرف الحجز غير صالح.');
 
   const res = queryOne(`
-    SELECT r.id, r.booking_type, r.check_in_date, r.total_price, r.paid_amount,
+    SELECT r.id, r.booking_type, r.check_in_date, r.check_out_date, r.total_price, r.paid_amount,
            r.custom_nightly_price, r.discount_amount, r.discount_reason, r.status,
            rm.price_per_night
     FROM reservations r
@@ -469,14 +490,17 @@ function computeCheckoutSettlement(reservationId, {
   // No renderer-supplied rate override is accepted.
   const effectiveNightlyRate = roundMoney(res.custom_nightly_price || res.price_per_night || 0);
 
-  // Effective discount (already stripped for non-Admin by the IPC layer)
-  const normDiscount = (discountAmount !== undefined && discountAmount !== null && discountAmount !== '' && !isNaN(Number(discountAmount)))
+  // A stored reservation discount is allocated across the booked stay. An
+  // explicit checkout discount is already for this settlement and is not prorated.
+  const hasExplicitDiscount = discountAmount !== undefined && discountAmount !== null && discountAmount !== '' && !isNaN(Number(discountAmount));
+  const normDiscount = hasExplicitDiscount
     ? Math.max(0, roundMoney(discountAmount))
     : roundMoney(res.discount_amount || 0);
 
   let actualNights = null;
   let baseCharge = null;
   let netCharge = null;
+  let appliedDiscount = null;
 
   if (!isOpenContract) {
     const d1 = new Date(res.check_in_date + 'T00:00:00');
@@ -484,7 +508,15 @@ function computeCheckoutSettlement(reservationId, {
     const diffDays = Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
     actualNights = Math.max(1, diffDays);
     baseCharge = roundMoney(actualNights * effectiveNightlyRate);
-    netCharge = Math.max(0, roundMoney(baseCharge - normDiscount));
+    appliedDiscount = calculateCheckoutDiscount(
+      normDiscount,
+      actualNights,
+      res.check_in_date,
+      res.check_out_date,
+      baseCharge,
+      !hasExplicitDiscount
+    );
+    netCharge = Math.max(0, roundMoney(baseCharge - appliedDiscount));
   }
 
   const paidAmount = roundMoney(res.paid_amount || 0);
@@ -498,7 +530,7 @@ function computeCheckoutSettlement(reservationId, {
     actualNights,
     effectiveNightlyRate,
     baseCharge,
-    discountApplied: isOpenContract ? null : normDiscount,
+    discountApplied: appliedDiscount,
     netCharge,
     paidAmount,
     // difference > 0 → guest owes money
@@ -639,14 +671,14 @@ function checkoutReservation(reservationId, {
     : null;
   const normDiscountReason = discountReason !== undefined ? (discountReason || '').trim() : null;
 
-  const effectiveDiscount = normDiscountAmount !== null
+  const requestedDiscount = normDiscountAmount !== null
     ? normDiscountAmount
     : roundMoney(res.discount_amount || 0);
   // Stored rate only — finalTotalPrice from renderer is ignored for non-contract.
   const effectiveNightlyRate = roundMoney(res.custom_nightly_price || res.price_per_night || 0);
 
   // Discount validation: require a non-empty reason when discount > 0
-  if (effectiveDiscount > 0) {
+  if (requestedDiscount > 0) {
     const reason = normDiscountReason !== null ? normDiscountReason : (res.discount_reason || '').trim();
     if (!reason) {
       throw new Error('يرجى إدخال سبب الخصم عند تطبيق خصم على المغادرة.');
@@ -660,6 +692,14 @@ function checkoutReservation(reservationId, {
   const diffDays = Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
   const actualNights = Math.max(1, diffDays);
   const baseCharge = roundMoney(actualNights * effectiveNightlyRate);
+  const effectiveDiscount = calculateCheckoutDiscount(
+    requestedDiscount,
+    actualNights,
+    res.check_in_date,
+    res.check_out_date,
+    baseCharge,
+    normDiscountAmount === null
+  );
   const finalTotal = Math.max(0, roundMoney(baseCharge - effectiveDiscount));
 
   const currentPaid = roundMoney(res.paid_amount || 0);
@@ -788,7 +828,9 @@ function checkoutReservation(reservationId, {
     }
 
     // Single UPDATE that includes checked_out_at (inside the transaction)
-    const effectiveDiscountForWrite = normDiscountAmount !== null ? normDiscountAmount : null;
+    // Store the amount actually applied to this completed stay so the receipt
+    // and the checkout settlement use the same figures.
+    const effectiveDiscountForWrite = effectiveDiscount;
     const effectiveReasonForWrite   = normDiscountReason !== null ? normDiscountReason : null;
 
     const stmt1 = db.prepare(`
