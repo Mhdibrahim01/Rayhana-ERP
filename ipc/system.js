@@ -18,6 +18,9 @@ module.exports = function registerSystemIpc(ipcMain, { app, BrowserWindow, dialo
   });
 
   ipcMain.handle('app:open-db-folder', async () => {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
+      return { success: false, error: 'غير مصرح: هذا الإجراء مخصص لمدير النظام (Admin).' };
+    }
     try {
       if (fs.existsSync(session.dbPath)) {
         shell.showItemInFolder(session.dbPath);
@@ -77,6 +80,9 @@ module.exports = function registerSystemIpc(ipcMain, { app, BrowserWindow, dialo
 
   // 11. Database Backup & Restore
   ipcMain.handle('db:create-backup', async () => {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
+      return { success: false, error: 'غير مصرح: النسخ الاحتياطي يتطلب صلاحيات مدير النظام (Admin).' };
+    }
     try {
       const defaultName = `rayhana_backup_${helpers.getLocalDateString()}.sqlite`;
       const { canceled, filePath } = await dialog.showSaveDialog(session.mainWindow, {
@@ -109,6 +115,9 @@ module.exports = function registerSystemIpc(ipcMain, { app, BrowserWindow, dialo
   });
 
   ipcMain.handle('db:restore-backup', async () => {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
+      return { success: false, error: 'غير مصرح: استعادة النسخة الاحتياطية تتطلب صلاحيات مدير النظام (Admin).' };
+    }
     try {
       const { canceled, filePaths } = await dialog.showOpenDialog(session.mainWindow, {
         title: 'اختر ملف النسخة الاحتياطية للاستعادة (*.sqlite)',
@@ -138,6 +147,9 @@ module.exports = function registerSystemIpc(ipcMain, { app, BrowserWindow, dialo
   });
 
   ipcMain.handle('backups:run-now', async () => {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
+      return { success: false, error: 'غير مصرح: تشغيل النسخ الاحتياطي يتطلب صلاحيات مدير النظام (Admin).' };
+    }
     try {
       const result = await backupScheduler.performDailyBackup('manual_request');
       return result;
@@ -147,6 +159,9 @@ module.exports = function registerSystemIpc(ipcMain, { app, BrowserWindow, dialo
   });
 
   ipcMain.handle('backups:open-folder', async () => {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
+      return { success: false, error: 'غير مصرح: فتح مجلد النسخ الاحتياطي يتطلب صلاحيات مدير النظام (Admin).' };
+    }
     try {
       return await backupScheduler.openBackupsFolder();
     } catch (err) {
@@ -155,6 +170,9 @@ module.exports = function registerSystemIpc(ipcMain, { app, BrowserWindow, dialo
   });
 
   ipcMain.handle('backups:restore-file', async (event, targetFilePath) => {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
+      return { success: false, error: 'غير مصرح: استعادة النسخة الاحتياطية تتطلب صلاحيات مدير النظام (Admin).' };
+    }
     if (!targetFilePath || !fs.existsSync(targetFilePath)) {
       return { success: false, error: 'ملف النسخة الاحتياطية المحدد غير موجود.' };
     }
@@ -171,6 +189,9 @@ module.exports = function registerSystemIpc(ipcMain, { app, BrowserWindow, dialo
   });
 
   ipcMain.handle('backups:select-folder', async () => {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
+      return { success: false, error: 'غير مصرح: تغيير مجلد النسخ الاحتياطي يتطلب صلاحيات مدير النظام (Admin).' };
+    }
     try {
       const result = await dialog.showOpenDialog(session.mainWindow, {
         title: 'اختر مجلد حفظ النسخ الاحتياطية التلقائية',
@@ -195,6 +216,9 @@ module.exports = function registerSystemIpc(ipcMain, { app, BrowserWindow, dialo
   });
 
   ipcMain.handle('backups:reset-folder', async () => {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
+      return { success: false, error: 'غير مصرح: إعادة ضبط مجلد النسخ الاحتياطي تتطلب صلاحيات مدير النظام (Admin).' };
+    }
     try {
       const resetRes = backupScheduler.resetBackupDirectoryToDefault();
       return resetRes;
