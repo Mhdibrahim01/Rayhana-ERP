@@ -57,9 +57,6 @@
   const todayCheckoutsCountBadge = document.getElementById('today-checkouts-count-badge');
   const todayDateBadge = document.getElementById('today-date-badge');
   const btnRefreshCheckouts = document.getElementById('btn-refresh-checkouts');
-  const todayArrivalsTableBody = document.getElementById('today-arrivals-table-body');
-  const todayArrivalsEmpty = document.getElementById('today-arrivals-empty');
-  const todayArrivalsCountBadge = document.getElementById('today-arrivals-count-badge');
 
   // Reservation Form Elements
   const reservationForm = document.getElementById('reservation-form');
@@ -1246,7 +1243,6 @@
       if (resRes.success) {
         reservationsCache = resRes.data || [];
         renderOverviewTable();
-        renderTodayArrivalsTable();
       }
 
       // 5. Load Today's Check-outs Widget
@@ -1257,7 +1253,7 @@
   }
 
   function renderOverviewTable() {
-    const recent = reservationsCache.slice(0, 8);
+    const recent = reservationsCache.filter(r => r.status === 'مؤكد').slice(0, 8);
 
     if (recent.length === 0) {
       overviewTableBody.innerHTML = '';
@@ -1286,15 +1282,13 @@
               <span style="font-weight: 800; color: #1e293b; font-size: 0.92rem; white-space: nowrap;">${escapeHtml(r.guest_name)}</span>
               ${typeBadge}
             </div>
+            ${r.guest_id_number ? `<small class="guest-id-number">هوية: ${escapeHtml(r.guest_id_number)}</small>` : ''}
           </td>
           <td style="white-space: nowrap;">
             <span style="font-weight: 800; color: #1a4332;">غرفة ${escapeHtml(r.room_number)}</span>
           </td>
-          <td style="font-size: 0.82rem; color: var(--text-secondary); white-space: nowrap; font-family: monospace; direction: ltr; text-align: right;">
-            <div>${escapeHtml(r.check_in_date)}</div>
-            ${r.booking_time ? `<div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">${escapeHtml(r.booking_time)}</div>` : ''}
-          </td>
-          <td style="font-size: 0.82rem; color: var(--text-secondary); white-space: nowrap; font-family: ${r.check_out_date ? 'monospace' : 'inherit'}; direction: ${r.check_out_date ? 'ltr' : 'rtl'}; text-align: right;">${escapeHtml(checkOutDisplay)}</td>
+          <td style="font-size: 0.82rem; color: var(--text-secondary); white-space: nowrap; font-family: monospace; direction: ltr; text-align: right;">${renderDateTimeCell(r.check_in_date, r.booking_time)}</td>
+          <td style="font-size: 0.82rem; color: var(--text-secondary); white-space: nowrap; font-family: ${r.check_out_date ? 'monospace' : 'inherit'}; direction: ${r.check_out_date ? 'ltr' : 'rtl'}; text-align: right;">${renderDateTimeCell(r.check_out_date, r.checkout_time, checkOutDisplay)}</td>
           <td style="white-space: nowrap;">
             <div style="font-weight: 800; color: #1e293b; font-size: 0.9rem;">${total.toLocaleString()} ريال</div>
             ${r.original_calculated_charge != null ? `<div style="font-size: 0.70rem; color: #64748b; font-weight: 600;" title="المبلغ الأصلي قبل تعديل الإدارة">معدل يدوياً (أصلي: ${parseFloat(r.original_calculated_charge).toLocaleString()} ريال)</div>` : ''}
@@ -1304,10 +1298,9 @@
           <td style="white-space: nowrap;">${getPaymentStatusBadge(r.payment_status)}</td>
           <td style="white-space: nowrap;">
             ${getReservationStatusBadge(r.status)}
-            ${r.checkout_time ? `<div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace; margin-top: 2px;">${escapeHtml(r.checkout_time)}</div>` : ''}
           </td>
           <td style="text-align: center; white-space: nowrap;">
-            <div style="display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: nowrap;">
+            <div class="overview-row-actions">
               <button type="button" class="btn-action-icon" data-action="invoice" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #f0fdf4; color: #166534; border: 1.5px solid #bbf7d0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="طباعة سند الاستلام والإقامة (فاتورة)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
               </button>
@@ -1339,6 +1332,17 @@
     }).join('');
   }
 
+  function renderDateTimeCell(dateValue, timeValue, fallback = '-') {
+    const rawDate = String(dateValue || '').trim();
+    if (!rawDate) return escapeHtml(fallback);
+
+    const [datePart, embeddedTime] = rawDate.split(/[T ]/);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return escapeHtml(rawDate);
+
+    const time = String(timeValue || embeddedTime || '').trim().slice(0, 5);
+    return `<div class="table-date">${escapeHtml(datePart)}</div>${time ? `<div class="table-time">${escapeHtml(time)}</div>` : ''}`;
+  }
+
   // =========================================================================
   // TODAY'S CHECK-OUTS (مغادرات اليوم) WIDGET LOGIC
   // =========================================================================
@@ -1363,6 +1367,30 @@
 
   function renderTodayCheckoutsTable(checkouts) {
     if (!todayCheckoutsTableBody) return;
+
+    const uniqueReservations = new Map();
+    (checkouts || []).forEach(row => {
+      const reservationId = row.reservation_id ?? row.id;
+      const key = reservationId != null
+        ? `reservation:${reservationId}`
+        : `room:${row.room_id ?? row.room_number}|guest:${row.guest_id_number ?? row.guest_name ?? ''}|date:${row.check_in_date ?? ''}`;
+      if (!uniqueReservations.has(key)) uniqueReservations.set(key, row);
+    });
+
+    // A room should appear once in today's operational list. Keep its newest
+    // reservation when legacy/imported data contains repeated room entries.
+    const latestFirst = [...uniqueReservations.values()].sort((a, b) => {
+      const byCreatedAt = String(b.created_at || '').localeCompare(String(a.created_at || ''));
+      return byCreatedAt || Number(b.id || 0) - Number(a.id || 0);
+    });
+    const latestByRoom = new Map();
+    latestFirst.forEach(row => {
+      const roomKey = row.room_id ?? row.room_number ?? `reservation:${row.reservation_id ?? row.id}`;
+      if (!latestByRoom.has(String(roomKey))) latestByRoom.set(String(roomKey), row);
+    });
+    checkouts = [...latestByRoom.values()].sort((a, b) =>
+      String(a.room_number || '').localeCompare(String(b.room_number || ''), undefined, { numeric: true })
+    );
 
     if (todayCheckoutsCountBadge) {
       const count = checkouts.length;
@@ -1391,18 +1419,18 @@
           <td style="font-size: 0.88rem; color: var(--text-secondary);">${escapeHtml(r.room_type || '')}</td>
           <td>
             <div style="font-weight: 800; color: #1e293b; font-size: 0.92rem;">${escapeHtml(r.guest_name)}</div>
-            ${r.guest_id_number ? `<small style="color: var(--text-muted);">هوية: ${escapeHtml(r.guest_id_number)}</small>` : ''}
+            ${r.guest_id_number ? `<small class="guest-id-number">هوية: ${escapeHtml(r.guest_id_number)}</small>` : ''}
           </td>
           <td style="font-family: monospace; font-size: 0.88rem; color: var(--text-secondary);">${escapeHtml(r.guest_phone || '-')}</td>
-          <td style="font-size: 0.84rem; color: var(--text-secondary);">${escapeHtml(r.check_in_date)}</td>
+          <td style="font-size: 0.84rem; color: var(--text-secondary);">${renderDateTimeCell(r.check_in_date, r.booking_time)}</td>
           <td style="font-weight: 800; color: var(--primary); font-size: 0.92rem;">${parseFloat(r.total_price || 0).toLocaleString()} ريال</td>
           <td>
             ${getReservationStatusBadge(r.status)}
-            ${r.checkout_time ? `<div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace; margin-top: 2px;">${escapeHtml(r.checkout_time)}</div>` : ''}
+            ${r.checkout_time ? `<div class="table-time">${escapeHtml(r.checkout_time)}</div>` : ''}
           </td>
           <td style="text-align: center;">
             ${isConfirmed ? `
-              <div style="display: flex; gap: 5px; justify-content: center; align-items: center;">
+              <div class="overview-row-actions">
                 <button class="btn btn-primary btn-sm" data-action="checkout" data-id="${r.id}" style="padding: 5px 11px; font-weight: 800; font-size: 0.8rem;" title="تسجيل مغادرة النزيل وتسليم الغرفة">
                   تسجيل مغادرة &larr;
                 </button>
@@ -1419,56 +1447,24 @@
     }).join('');
   }
 
-  function renderTodayArrivalsTable() {
-    if (!todayArrivalsTableBody) return;
-    const today = getLocalDateString();
-    const arrivals = reservationsCache.filter(r => r.status === 'مؤكد' && r.check_in_date === today);
-
-    if (todayArrivalsCountBadge) {
-      todayArrivalsCountBadge.textContent = `${arrivals.length} ${arrivals.length === 1 ? 'وصول' : 'حجوزات وصول'}`;
-    }
-    if (todayArrivalsEmpty) todayArrivalsEmpty.hidden = arrivals.length > 0;
-    todayArrivalsTableBody.innerHTML = arrivals.map(r => `
-      <tr>
-        <td><strong>غرفة ${escapeHtml(r.room_number || '-')}</strong></td>
-        <td>${escapeHtml(r.guest_name || '-')}</td>
-        <td>${escapeHtml(r.guest_phone || '-')}</td>
-        <td>${escapeHtml(r.booking_type || 'حجز عادي')}</td>
-        <td>${getReservationStatusBadge(r.status)}</td>
-      </tr>
-    `).join('');
-  }
-
-  const operationsTabs = document.querySelectorAll('[data-operations-tab]');
-  operationsTabs.forEach(tab => {
+  document.querySelectorAll('[data-overview-table-tab]').forEach(tab => {
     tab.addEventListener('click', () => {
-      const selectedPanel = tab.getAttribute('aria-controls');
-      operationsTabs.forEach(item => {
-        const active = item === tab;
-        item.classList.toggle('active', active);
-        item.setAttribute('aria-selected', String(active));
+      const selectedPanelId = tab.dataset.overviewTableTab;
+      document.querySelectorAll('[data-overview-table-tab]').forEach(button => {
+        const active = button === tab;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-selected', String(active));
       });
-      if (todayCheckoutsCountBadge) todayCheckoutsCountBadge.style.display = selectedPanel === 'panel-today-departures' ? '' : 'none';
-      if (todayArrivalsCountBadge) todayArrivalsCountBadge.style.display = selectedPanel === 'panel-today-arrivals' ? '' : 'none';
-      document.querySelectorAll('.overview-operations-panel').forEach(panel => {
-        panel.hidden = panel.id !== selectedPanel;
+      document.querySelectorAll('[data-overview-table-panel]').forEach(panel => {
+        const active = panel.id === selectedPanelId;
+        panel.hidden = !active;
+        panel.classList.toggle('active', active);
       });
     });
   });
 
   if (btnRefreshCheckouts) {
-    btnRefreshCheckouts.addEventListener('click', async () => {
-      await loadTodayCheckouts();
-      try {
-        const res = await window.api.getAllReservations();
-        if (res && res.success) {
-          reservationsCache = res.data || [];
-          renderTodayArrivalsTable();
-        }
-      } catch (err) {
-        console.warn('Could not refresh today arrivals:', err);
-      }
-    });
+    btnRefreshCheckouts.addEventListener('click', loadTodayCheckouts);
   }
 
   // =========================================================================
