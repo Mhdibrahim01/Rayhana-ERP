@@ -186,10 +186,23 @@
              SECTION 1: OVERVIEW (لوحة التحكم الرئيسية والتحليلات)
              ================================================================== -->
         <div id="view-overview" class="view-section">
+
+          <section class="overview-welcome">
+            <div>
+              <p class="overview-eyebrow">لوحة التشغيل اليومية</p>
+              <h2>نظرة عامة على الفندق</h2>
+              <p>تابع حالة الغرف ومهام الوصول والمغادرة من مكان واحد.</p>
+            </div>
+            <div class="overview-welcome-actions">
+              <button id="btn-open-new-reservation-modal" type="button" class="btn btn-primary">
+                + تسجيل حجز جديد
+              </button>
+            </div>
+          </section>
           
           <!-- KPI Metrics Grid -->
           <section class="stats-grid" style="margin-bottom: 24px;">
-            <div class="stat-card">
+            <button type="button" class="stat-card overview-stat-card" onclick="window.openRoomsFiltered('متاحة')" aria-label="عرض الغرف المتاحة">
               <div class="stat-info">
                 <p>الغرف المتاحة</p>
                 <h3 id="stat-available-rooms" style="color: var(--success);">0</h3>
@@ -200,9 +213,9 @@
                   <polyline points="22 4 12 14.01 9 11.01"></polyline>
                 </svg>
               </div>
-            </div>
+            </button>
 
-            <div class="stat-card">
+            <button type="button" class="stat-card overview-stat-card" onclick="window.openRoomsFiltered('مشغولة')" aria-label="عرض الغرف المشغولة">
               <div class="stat-info">
                 <p>الغرف المشغولة</p>
                 <h3 id="stat-occupied-rooms" style="color: var(--danger);">0</h3>
@@ -213,9 +226,9 @@
                   <circle cx="12" cy="7" r="4"></circle>
                 </svg>
               </div>
-            </div>
+            </button>
 
-            <div class="stat-card">
+            <button type="button" class="stat-card overview-stat-card" onclick="window.openRoomsFiltered('تنظيف')" aria-label="عرض الغرف قيد التنظيف">
               <div class="stat-info">
                 <p>قيد التنظيف</p>
                 <h3 id="stat-cleaning-rooms" style="color: var(--warning);">0</h3>
@@ -225,9 +238,9 @@
                   <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
                 </svg>
               </div>
-            </div>
+            </button>
 
-            <div class="stat-card">
+            <button type="button" class="stat-card overview-stat-card" onclick="switchView('reservations')" aria-label="عرض سجل الحجوزات">
               <div class="stat-info">
                 <p>إجمالي الحجوزات</p>
                 <h3 id="stat-total-reservations" style="color: var(--primary);">0</h3>
@@ -240,53 +253,11 @@
                   <line x1="3" y1="10" x2="21" y2="10"></line>
                 </svg>
               </div>
-            </div>
-          </section>
-
-          <!-- 3. Analytics Dashboard (Chart.js Visualizations) -->
-          <section class="charts-grid">
-            <!-- Monthly Revenue Bar Chart -->
-            <div class="chart-card">
-              <div class="chart-card-header">
-                <div>
-                  <h3>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <line x1="18" y1="20" x2="18" y2="10"></line>
-                      <line x1="12" y1="20" x2="12" y2="4"></line>
-                      <line x1="6" y1="20" x2="6" y2="14"></line>
-                    </svg>
-                    الإيرادات الشهرية (Revenue per Month)
-                  </h3>
-                  <p>تطور مبيعات الحجوزات الفندقية شهرياً بالريال</p>
-                </div>
-              </div>
-              <div class="chart-canvas-container">
-                <canvas id="monthly-revenue-chart"></canvas>
-              </div>
-            </div>
-
-            <!-- Current Room Status Doughnut Chart -->
-            <div class="chart-card">
-              <div class="chart-card-header">
-                <div>
-                  <h3>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
-                      <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
-                    </svg>
-                    حالات الغرف (Current Room Status)
-                  </h3>
-                  <p>متاحة vs مشغولة vs تنظيف</p>
-                </div>
-              </div>
-              <div class="chart-canvas-container">
-                <canvas id="room-status-chart"></canvas>
-              </div>
-            </div>
+            </button>
           </section>
 
           <!-- ==================================================================
-               WIDGET: TODAY'S CHECK-OUTS (مغادرات اليوم)
+               WIDGET: TODAY'S OPERATIONS (الوصول والمغادرات)
                ================================================================== -->
           <div class="card" id="widget-today-checkouts" style="margin-bottom: 24px; overflow: hidden;">
             <!-- FIXED: was rgba(20,61,43,0.45) dark green with white text — broke the light theme.
@@ -302,20 +273,24 @@
                 </div>
                 <div>
                   <h2 style="font-size: 1.05rem; color: var(--primary-forest); margin: 0; font-weight: 800; display: flex; align-items: center; gap: 8px;">
-                    <span>مغادرات اليوم (Today's Check-outs)</span>
+                    <span>مهام اليوم</span>
                     <span id="today-date-badge" style="font-size: 0.72rem; background: rgba(26,67,50,0.08); color: var(--primary-forest); padding: 2px 8px; border-radius: 6px; font-weight: 700;"></span>
                   </h2>
                   <p style="font-size: 0.78rem; color: var(--text-secondary); margin: 2px 0 0;">
-                    قائمة النزلاء المجدول مغادرتهم اليوم لتسليم الغرف وبدء أعمال التنظيف
+                    متابعة حجوزات الوصول اليوم والمغادرات المجدولة لتسليم الغرف وبدء أعمال التنظيف
                   </p>
                 </div>
               </div>
 
-              <div style="display: flex; align-items: center; gap: 10px;">
+              <div class="overview-operations-controls">
+                <div class="overview-operations-tabs" role="tablist" aria-label="مهام اليوم">
+                  <button type="button" class="overview-operations-tab active" id="tab-today-departures" role="tab" aria-selected="true" aria-controls="panel-today-departures" data-operations-tab="departures">المغادرات</button>
+                  <button type="button" class="overview-operations-tab" id="tab-today-arrivals" role="tab" aria-selected="false" aria-controls="panel-today-arrivals" data-operations-tab="arrivals">الوصول اليوم <span id="today-arrivals-count-badge" style="display: none;">0</span></button>
+                </div>
                 <span id="today-checkouts-count-badge" class="badge" style="background: #a67c52; color: #ffffff; font-weight: 800; font-size: 0.8rem; padding: 5px 14px; border-radius: 20px; box-shadow: 0 2px 6px rgba(166,124,82,0.25);">
                   0 مغادرات
                 </span>
-                <button id="btn-refresh-checkouts" class="btn btn-secondary btn-sm" title="تحديث قائمة مغادرات اليوم" style="border-radius: 8px;">
+                <button id="btn-refresh-checkouts" class="btn btn-secondary btn-sm" title="تحديث مهام الوصول والمغادرة" style="border-radius: 8px;">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="23 4 23 10 17 10"></polyline>
                     <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
@@ -325,6 +300,7 @@
               </div>
             </div>
 
+            <div class="overview-operations-panel" id="panel-today-departures" role="tabpanel" aria-labelledby="tab-today-departures">
             <div class="card-body" style="padding: 0; background: transparent;">
               <div class="table-responsive">
                 <table style="margin: 0;">
@@ -357,6 +333,27 @@
                 </div>
               </div>
             </div>
+            </div>
+            <div class="overview-operations-panel" id="panel-today-arrivals" role="tabpanel" aria-labelledby="tab-today-arrivals" hidden>
+              <div class="table-responsive">
+                <table style="margin: 0;">
+                  <thead>
+                    <tr>
+                      <th>رقم الغرفة</th>
+                      <th>اسم النزيل</th>
+                      <th>رقم الجوال</th>
+                      <th>نوع الحجز</th>
+                      <th>حالة الحجز</th>
+                    </tr>
+                  </thead>
+                  <tbody id="today-arrivals-table-body"></tbody>
+                </table>
+                <div id="today-arrivals-empty" class="overview-operations-empty" hidden>
+                  <strong>لا توجد حجوزات وصول اليوم</strong>
+                  <span>ستظهر هنا الحجوزات المؤكدة بتاريخ وصول اليوم.</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Main Section: Active Bookings Table (Full Width 12-Cols) -->
@@ -372,21 +369,12 @@
                   </svg>
                 </div>
                 <div>
-                  <h2 style="font-size: 1.15rem; font-weight: 800; color: #1e293b; margin: 0;">آخر الحجوزات النشطة</h2>
-                  <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 3px 0 0;">الحجوزات الحالية المسجلة والنزلاء المقيمين في ريحانة</p>
+                <h2 style="font-size: 1.15rem; font-weight: 800; color: #1e293b; margin: 0;">أحدث الحجوزات</h2>
+                  <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 3px 0 0;">آخر الحجوزات المسجلة مع حالة السداد والإجراءات السريعة</p>
                 </div>
               </div>
 
               <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-                <!-- Prominent New Booking Button -->
-                <button id="btn-open-new-reservation-modal" type="button" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 22px; font-weight: 800; font-size: 0.92rem; background: #1a4332; color: #ffffff; box-shadow: 0 4px 14px rgba(26, 67, 50, 0.3); border-radius: 10px; border: none; cursor: pointer; transition: all 0.2s ease;">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                  </svg>
-                  <span>تسجيل حجز فندقي جديد +</span>
-                </button>
-
                 <!-- Full Reservations Link -->
                 <button type="button" class="btn btn-secondary btn-sm" onclick="switchView('reservations')" style="padding: 9px 16px; font-weight: 700; border-radius: 8px;">
                   <span>سجل الحجوزات بالكامل &larr;</span>
@@ -435,6 +423,34 @@
               </div>
             </div>
           </div>
+          <section class="overview-analytics-section">
+            <div class="overview-section-heading">
+              <div>
+                <h2>الأداء والتحليلات</h2>
+                <p>ملخص الإيرادات وتوزيع حالة الغرف.</p>
+              </div>
+            </div>
+            <section class="charts-grid">
+              <div class="chart-card">
+                <div class="chart-card-header">
+                  <div>
+                    <h3>الإيرادات الشهرية</h3>
+                    <p>تطور إيرادات الحجوزات شهرياً بالريال</p>
+                  </div>
+                </div>
+                <div class="chart-canvas-container"><canvas id="monthly-revenue-chart"></canvas></div>
+              </div>
+              <div class="chart-card">
+                <div class="chart-card-header">
+                  <div>
+                    <h3>حالات الغرف</h3>
+                    <p>الغرف المتاحة والمشغولة وقيد التنظيف</p>
+                  </div>
+                </div>
+                <div class="chart-canvas-container"><canvas id="room-status-chart"></canvas></div>
+              </div>
+            </section>
+          </section>
         </div>
 
         <!-- ==================================================================
