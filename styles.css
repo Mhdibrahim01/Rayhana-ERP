@@ -612,6 +612,42 @@ body {
   white-space: nowrap;
 }
 
+#widget-today-checkouts .checkout-row-action {
+  min-height: 34px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.2;
+  box-shadow: none;
+}
+
+#widget-today-checkouts .checkout-row-action-primary {
+  border: 1px solid #dc2626;
+  background: #dc2626;
+  color: #ffffff;
+}
+
+#widget-today-checkouts .checkout-row-action-primary:hover {
+  border-color: #b91c1c;
+  background: #b91c1c;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+#widget-today-checkouts .checkout-row-action-secondary {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1e40af;
+}
+
+#widget-today-checkouts .checkout-row-action-secondary:hover {
+  border-color: #93c5fd;
+  background: #dbeafe;
+  color: #1e3a8a;
+  box-shadow: none;
+}
+
 .guest-id-number {
   display: block;
   margin-top: 3px;
@@ -1420,6 +1456,71 @@ tr:hover td {
   background: rgba(255, 255, 255, 0.9);
   color: #0f172a;
   border: 1px solid var(--glass-input-border);
+}
+
+/* Room card hierarchy: one status badge, readable stay details, and a stable action row. */
+.room-card-redesigned {
+  padding: 0;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #e4ebe7;
+  border-radius: 16px;
+  box-shadow: 0 5px 18px rgba(15, 23, 42, 0.06);
+}
+
+.room-card-redesigned:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
+}
+
+.room-card-content {
+  flex: 1;
+  padding: 18px 18px 14px;
+}
+
+.room-card-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.room-card-quick-actions .btn-room-action {
+  min-height: 38px;
+  padding: 7px 12px !important;
+  border-radius: 9px !important;
+  box-shadow: none !important;
+  line-height: 1.2;
+}
+
+.room-card-footer {
+  min-height: 52px;
+  padding: 9px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #f8faf9;
+  border-top: 1px solid #edf1ef;
+}
+
+.room-card-footer-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.room-card-footer > .btn-room-action {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 480px) {
+  .room-card-content { padding: 15px 14px 12px; }
+  .room-card-quick-actions { gap: 7px; }
+  .room-card-quick-actions .btn-room-action { flex: 1 1 auto; }
+  .room-card-footer { padding-inline: 12px; }
 }
 
 /* ==========================================================================

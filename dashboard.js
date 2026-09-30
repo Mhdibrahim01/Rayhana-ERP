@@ -1431,10 +1431,10 @@
           <td style="text-align: center;">
             ${isConfirmed ? `
               <div class="overview-row-actions">
-                <button class="btn btn-primary btn-sm" data-action="checkout" data-id="${r.id}" style="padding: 5px 11px; font-weight: 800; font-size: 0.8rem;" title="تسجيل مغادرة النزيل وتسليم الغرفة">
+                <button class="btn btn-primary btn-sm checkout-row-action checkout-row-action-primary" data-action="checkout" data-id="${r.id}" title="تسجيل مغادرة النزيل وتسليم الغرفة">
                   تسجيل مغادرة &larr;
                 </button>
-                <button type="button" class="btn btn-secondary btn-sm" data-action="extend" data-id="${r.id}" style="padding: 5px 9px; font-weight: 800; font-size: 0.8rem; background: #eff6ff; color: #1e40af; border: 1.5px solid #bfdbfe;" title="تمديد فترة الإقامة">
+                <button type="button" class="btn btn-secondary btn-sm checkout-row-action checkout-row-action-secondary" data-action="extend" data-id="${r.id}" title="تمديد فترة الإقامة">
                   تمديد ⏳
                 </button>
               </div>
@@ -2376,8 +2376,8 @@
       const hasCheckOut = checkOutDateVal && String(checkOutDateVal).trim() !== '';
 
       return `
-        <div class="room-card ${borderClass}" data-room-id="${room.id}" style="background: rgba(255, 255, 255, 0.94); border: 1px solid rgba(226, 232, 240, 0.9); border-radius: 16px; box-shadow: 0 10px 25px -4px rgba(15, 23, 42, 0.05), 0 4px 10px -2px rgba(15, 23, 42, 0.02); overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; transition: all 0.2s ease;">
-          <div style="padding: 20px 20px 14px;">
+        <div class="room-card room-card-redesigned ${borderClass}" data-room-id="${room.id}">
+          <div class="room-card-content">
             <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 6px;">
               <div>
                 <div style="font-size: 1.5rem; font-weight: 900; color: #1a4332; line-height: 1.2; letter-spacing: -0.01em;">
@@ -2423,7 +2423,7 @@
             ` : ''}
 
             <!-- Quick Action Buttons -->
-            <div style="display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap;">
+            <div class="room-card-quick-actions">
               ${(room.status === 'متاحة' || room.status === 'محجوزة') ? `
                 <button type="button" class="btn-room-action" data-action="quick-book" data-room-id="${room.id}" style="border: none; border-radius: 8px; padding: 7px 14px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: #1a4332; color: #ffffff; box-shadow: 0 2px 6px rgba(26,67,50,0.25);">
                   <span>حجز الغرفة ➕</span>
@@ -2463,23 +2463,14 @@
           </div>
 
           <!-- Seamless Acrylic Footer -->
-          <div style="border-top: 1px solid #f1f5f9; background: rgba(248, 250, 252, 0.7); padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-            <div style="display: flex; align-items: center; gap: 6px;">
-              <span style="font-size: 0.76rem; font-weight: 700; color: #64748b;">الحالة:</span>
-              ${room.status === 'مشغولة' ? `
-                <div style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; font-size: 0.8rem; font-weight: 800; border-radius: 6px; background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5;" title="الغرفة مشغولة بنزيل حالياً - مقفلة حتى تسجيل المغادرة (Check-out)">
-                  <span>🔒 مشغولة</span>
-                </div>
-              ` : room.status === 'محجوزة' ? `
-                <div style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; font-size: 0.8rem; font-weight: 800; border-radius: 6px; background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe;" title="الغرفة محجوزة لحجز قادم">
-                  <span>⏳ محجوزة</span>
-                </div>
-              ` : `
+          <div class="room-card-footer">
+            <div class="room-card-footer-status">
+              ${room.status !== 'مشغولة' && room.status !== 'محجوزة' ? `
                 <select class="room-status-select" data-room-id="${room.id}" style="width: auto; padding: 4px 8px; font-size: 0.8rem; font-weight: 700; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; color: #0f172a;">
                   <option value="متاحة" ${room.status === 'متاحة' ? 'selected' : ''}>متاحة</option>
                   <option value="تنظيف" ${room.status === 'تنظيف' ? 'selected' : ''}>تنظيف</option>
                 </select>
-              `}
+              ` : ''}
             </div>
             <button type="button" class="btn-room-action" data-action="edit-room" data-room-id="${room.id}" style="background: #ffffff; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: 700; font-size: 0.78rem; padding: 5px 12px; cursor: pointer; transition: all 0.15s;" title="تعديل تفاصيل الغرفة (الرقم، النوع، السعر)">
               <span>تعديل ✏️</span>
