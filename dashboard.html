@@ -128,7 +128,7 @@
 
         <div class="topbar-actions">
           <!-- Shift Audit Button -->
-          <button id="btn-open-shift-audit" data-action="open-shift-audit" class="btn btn-secondary btn-sm" title="عرض تقرير إقفال الوردية والموازنة المالية (Shift Audit)">
+          <button id="btn-open-shift-audit" data-role-required="Admin" data-action="open-shift-audit" class="btn btn-secondary btn-sm" title="عرض تقرير إقفال الوردية والموازنة المالية (Shift Audit)">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
               <polyline points="14 2 14 8 20 8"></polyline>
@@ -139,7 +139,7 @@
           </button>
 
           <!-- Daily 12:00 AM Automated Backup Status Button -->
-          <button id="btn-daily-backup-modal" data-action="open-daily-backup" class="btn btn-secondary btn-sm" title="النسخ الاحتياطي التلقائي اليومي (الساعة 12:00 منتصف الليل)" style="display: inline-flex; align-items: center; gap: 6px;">
+          <button id="btn-daily-backup-modal" data-role-required="Admin" data-action="open-daily-backup" class="btn btn-secondary btn-sm" title="النسخ الاحتياطي التلقائي اليومي (الساعة 12:00 منتصف الليل)" style="display: inline-flex; align-items: center; gap: 6px;">
             <span class="online-dot" style="background: #a67c52; box-shadow: 0 0 0 2px rgba(166, 124, 82, 0.25);"></span>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"></circle>
@@ -149,7 +149,7 @@
           </button>
 
           <!-- Backup Button -->
-          <button id="btn-backup-db" data-action="backup-db" class="btn btn-secondary btn-sm" title="أخذ نسخة احتياطية من قاعدة البيانات">
+          <button id="btn-backup-db" data-role-required="Admin" data-action="backup-db" class="btn btn-secondary btn-sm" title="أخذ نسخة احتياطية من قاعدة البيانات">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
               <polyline points="17 21 17 13 7 13 7 21"></polyline>
@@ -159,7 +159,7 @@
           </button>
 
           <!-- Restore Button -->
-          <button id="btn-restore-db" data-action="restore-db" class="btn btn-secondary btn-sm" title="استعادة قاعدة بيانات من نسخة سابقة">
+          <button id="btn-restore-db" data-role-required="Admin" data-action="restore-db" class="btn btn-secondary btn-sm" title="استعادة قاعدة بيانات من نسخة سابقة">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="1 4 1 10 7 10"></polyline>
               <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
@@ -167,7 +167,7 @@
             <span>استعادة</span>
           </button>
 
-          <div id="btn-open-db" class="db-badge" title="انقر لعرض مجلد قاعدة بيانات SQLite في Windows Explorer">
+          <div id="btn-open-db" data-role-required="Admin" class="db-badge" title="انقر لعرض مجلد قاعدة بيانات SQLite في Windows Explorer">
             <span class="online-dot"></span>
             <span id="db-file-name">قاعدة البيانات</span>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1591,7 +1591,7 @@
   </div>
 
   <!-- Daily 12:00 AM Automated Backup Management Modal -->
-  <div id="daily-backup-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 100000; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
+  <div id="daily-backup-modal" data-role-required="Admin" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 100000; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
     <div class="modal-glass-container" style="max-width: 860px; width: 100%; overflow: hidden; margin: auto;">
       <!-- Header -->
       <div style="background: linear-gradient(135deg, rgba(20, 61, 43, 0.85) 0%, rgba(14, 46, 31, 0.95) 100%); color: white; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--glass-border);">

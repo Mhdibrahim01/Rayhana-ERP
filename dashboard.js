@@ -5872,6 +5872,10 @@
 
   async function openDailyBackupModal() {
     if (!dailyBackupModal) return;
+    if (!currentUser || currentUser.role !== 'Admin') {
+      showToast('غير مصرح: النسخ الاحتياطي مخصص لمدير النظام (Admin).', 'error');
+      return;
+    }
     try {
       const res = await window.api.getDailyBackupStatus();
       if (!res || !res.success) {
@@ -6034,7 +6038,10 @@
   if (btnOpenDailyBackupsFolder) {
     btnOpenDailyBackupsFolder.addEventListener('click', async () => {
       try {
-        await window.api.openBackupsFolder();
+        const res = await window.api.openBackupsFolder();
+        if (!res || !res.success) {
+          showToast(res?.error || 'تعذر فتح مجلد النسخ الاحتياطي.', 'error');
+        }
       } catch (err) {
         showToast(`تعذر فتح مجلد النسخ: ${err.message}`, 'error');
       }
@@ -6491,9 +6498,12 @@
   // Open DB folder
   btnOpenDb.addEventListener('click', async () => {
     try {
-      await window.api.openDbFolder();
+      const res = await window.api.openDbFolder();
+      if (!res || !res.success) {
+        showToast(res?.error || 'تعذر فتح مجلد قاعدة البيانات.', 'error');
+      }
     } catch (err) {
-      console.error(err);
+      showToast(`تعذر فتح مجلد قاعدة البيانات: ${err.message}`, 'error');
     }
   });
 
@@ -6616,6 +6626,9 @@
         if (info.logId) {
           localStorage.setItem('ahmed_hotel_log_id', String(info.logId));
         }
+      } else {
+        currentUser = null;
+        applyRbacUi(null);
       }
       if (info && info.dbPath) {
         const name = info.dbPath.split(/[/\\]/).pop();
@@ -6632,6 +6645,8 @@
         }
       } catch (be) {}
     } catch (err) {
+      currentUser = null;
+      applyRbacUi(null);
       console.warn('App info error:', err);
     }
 
