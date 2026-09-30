@@ -1341,6 +1341,7 @@
       const remaining = isContract ? rawRemaining : Math.max(0, rawRemaining);
       const typeBadge = getBookingTypeBadge(r.booking_type);
       const checkOutDisplay = r.check_out_date || (isContract ? 'مفتوح (غير محدد)' : '-');
+      const expectedCheckoutTime = isConfirmed && !isContract && r.check_out_date && r.check_out_date !== 'مفتوح' ? '14:00' : '';
 
       return `
         <tr>
@@ -1355,8 +1356,8 @@
           <td style="white-space: nowrap;">
             <span style="font-weight: 800; color: #1a4332;">غرفة ${escapeHtml(r.room_number)}</span>
           </td>
-          <td style="font-size: 0.82rem; color: var(--text-secondary); white-space: nowrap; font-family: monospace; direction: ltr; text-align: right;">${renderDateTimeCell(r.check_in_date, r.booking_time)}</td>
-          <td style="font-size: 0.82rem; color: var(--text-secondary); white-space: nowrap; font-family: ${r.check_out_date ? 'monospace' : 'inherit'}; direction: ${r.check_out_date ? 'ltr' : 'rtl'}; text-align: right;">${renderDateTimeCell(r.check_out_date, r.checkout_time, checkOutDisplay)}</td>
+          <td style="font-size: 0.82rem; color: var(--text-secondary); white-space: nowrap; font-family: monospace; direction: ltr; text-align: right;">${renderDateTimeCell(r.check_in_date, r.booking_time, '-', 'الوصول')}</td>
+          <td style="font-size: 0.82rem; color: var(--text-secondary); white-space: nowrap; font-family: ${r.check_out_date ? 'monospace' : 'inherit'}; direction: ${r.check_out_date ? 'ltr' : 'rtl'}; text-align: right;">${renderDateTimeCell(r.check_out_date, expectedCheckoutTime || r.checkout_time, checkOutDisplay, expectedCheckoutTime ? 'متوقع' : (r.checkout_time ? 'فعلي' : ''))}</td>
           <td style="white-space: nowrap;">
             <div style="font-weight: 800; color: #1e293b; font-size: 0.9rem;">${total.toLocaleString()} ريال</div>
             ${r.original_calculated_charge != null ? `<div style="font-size: 0.70rem; color: #64748b; font-weight: 600;" title="المبلغ الأصلي قبل تعديل الإدارة">معدل يدوياً (أصلي: ${parseFloat(r.original_calculated_charge).toLocaleString()} ريال)</div>` : ''}
@@ -1401,7 +1402,7 @@
     }).join('');
   }
 
-  function renderDateTimeCell(dateValue, timeValue, fallback = '-') {
+  function renderDateTimeCell(dateValue, timeValue, fallback = '-', timeLabel = '') {
     const rawDate = String(dateValue || '').trim();
     if (!rawDate) return escapeHtml(fallback);
 
@@ -1409,7 +1410,7 @@
     if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return escapeHtml(rawDate);
 
     const time = String(timeValue || embeddedTime || '').trim().slice(0, 5);
-    return `<div class="table-date">${escapeHtml(datePart)}</div>${time ? `<div class="table-time">${escapeHtml(time)}</div>` : ''}`;
+    return `<div class="table-date">${escapeHtml(datePart)}</div>${time ? `<div class="table-time">${timeLabel ? `<span class="table-time-label">${escapeHtml(timeLabel)}:</span>` : ''}<bdi class="table-time-value">${escapeHtml(time)}</bdi></div>` : ''}`;
   }
 
   // =========================================================================
@@ -1484,6 +1485,7 @@
     todayCheckoutsTableBody.innerHTML = checkouts.map(r => {
       const isConfirmed = r.status === 'مؤكد';
       const isCompleted = r.status === 'مكتمل';
+      const expectedCheckoutTime = isConfirmed && r.booking_type !== 'عقد مفتوح' && r.check_out_date && r.check_out_date !== 'مفتوح' ? '14:00' : '';
 
       return `
         <tr style="border-bottom: 1px solid #f1f5f9;">
@@ -1498,12 +1500,12 @@
             ${r.guest_id_number ? `<small class="guest-id-number">هوية: ${escapeHtml(r.guest_id_number)}</small>` : ''}
           </td>
           <td style="font-family: monospace; font-size: 0.88rem; color: var(--text-secondary);">${escapeHtml(r.guest_phone || '-')}</td>
-          <td style="font-size: 0.84rem; color: var(--text-secondary);">${renderDateTimeCell(r.check_in_date, r.booking_time)}</td>
+          <td style="font-size: 0.84rem; color: var(--text-secondary);">${renderDateTimeCell(r.check_in_date, r.booking_time, '-', 'الوصول')}</td>
           <td style="font-weight: 800; color: var(--primary); font-size: 0.92rem;">${parseFloat(r.total_price || 0).toLocaleString()} ريال</td>
           <td>
             ${getReservationStatusBadge(r.status)}
             ${renderOverdueBadge(r, String(r.check_out_date || '').slice(0, 10) < getLocalDateString() ? 'متأخر' : 'متأخر عن المغادرة')}
-            ${r.checkout_time ? `<div class="table-time">${escapeHtml(r.checkout_time)}</div>` : ''}
+            ${r.checkout_time ? `<div class="table-time"><span class="table-time-label">مغادرة فعلية:</span><bdi class="table-time-value">${escapeHtml(r.checkout_time)}</bdi></div>` : (expectedCheckoutTime ? `<div class="table-time"><span class="table-time-label">مغادرة متوقعة:</span><bdi class="table-time-value">${expectedCheckoutTime}</bdi></div>` : '')}
           </td>
           <td style="text-align: center;">
             ${isConfirmed ? `
@@ -2225,6 +2227,10 @@
       const typeBadge = getBookingTypeBadge(r.booking_type);
       const checkOutDisplay = r.check_out_date || (isContract ? 'مفتوح (غير محدد)' : '-');
       const overdueBadge = renderOverdueBadge(r);
+      const expectedCheckoutTime = isConfirmed && !isContract && r.check_out_date && r.check_out_date !== 'مفتوح' ? '14:00' : '';
+      const departureTime = r.checkout_time
+        ? `<div class="table-time"><span class="table-time-label">مغادرة فعلية:</span><bdi class="table-time-value">${escapeHtml(r.checkout_time)}</bdi></div>`
+        : (expectedCheckoutTime ? `<div class="table-time"><span class="table-time-label">مغادرة متوقعة:</span><bdi class="table-time-value">${expectedCheckoutTime}</bdi></div>` : '');
 
       return `
         <tr>
@@ -2235,17 +2241,17 @@
               ${typeBadge}
             </div>
             ${r.guest_id_number ? `<div style="font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; line-height: 1.2; margin-top: 2px;">هوية: ${escapeHtml(r.guest_id_number)}</div>` : ''}
+            ${r.guest_phone ? `<div class="reservation-guest-phone"><span dir="rtl">جوال:</span> <bdi dir="ltr">${escapeHtml(r.guest_phone)}</bdi></div>` : ''}
           </td>
-          <td style="font-family: monospace; font-size: 0.85rem; color: var(--text-secondary); white-space: nowrap;">${escapeHtml(r.guest_phone || '-')}</td>
           <td style="white-space: nowrap; line-height: 1.2;">
             <span style="font-weight: 800; color: #1a4332; line-height: 1.2;">غرفة ${escapeHtml(r.room_number)}</span>
             <div style="font-size: 0.72rem; color: var(--text-muted); line-height: 1.2; margin-top: 2px;">${escapeHtml(r.room_type || '')}</div>
           </td>
           <td style="font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; font-family: monospace; direction: ltr; text-align: right; line-height: 1.2;">
             <div style="line-height: 1.2;">${escapeHtml(r.check_in_date)}</div>
-            ${r.booking_time ? `<div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace; line-height: 1.2; margin-top: 2px;">${escapeHtml(r.booking_time)}</div>` : ''}
+            ${r.booking_time ? `<div class="table-time"><span class="table-time-label">الوصول:</span><bdi class="table-time-value">${escapeHtml(r.booking_time)}</bdi></div>` : ''}
           </td>
-          <td style="font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; font-family: ${r.check_out_date ? 'monospace' : 'inherit'}; direction: ${r.check_out_date ? 'ltr' : 'rtl'}; text-align: right; line-height: 1.2;">${escapeHtml(checkOutDisplay)}</td>
+          <td style="font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; font-family: ${r.check_out_date ? 'monospace' : 'inherit'}; direction: ${r.check_out_date ? 'ltr' : 'rtl'}; text-align: right; line-height: 1.2;">${escapeHtml(checkOutDisplay)}${departureTime}</td>
           <td style="white-space: nowrap; line-height: 1.2;">
             <div style="font-weight: 800; color: #1e293b; font-size: 0.88rem; line-height: 1.2;">${fmtTotal} ريال</div>
             ${r.original_calculated_charge != null ? `<div style="font-size: 0.70rem; color: #64748b; font-weight: 600; line-height: 1.2; margin-top: 2px;" title="المبلغ الأصلي قبل تعديل الإدارة">معدل يدوياً (أصلي: ${parseFloat(r.original_calculated_charge).toLocaleString()} ريال)</div>` : ''}
@@ -2261,7 +2267,6 @@
           <td style="white-space: nowrap; line-height: 1.2;">
             ${getReservationStatusBadge(r.status)}
             ${overdueBadge}
-            ${r.checkout_time ? `<div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace; line-height: 1.2; margin-top: 2px;">${escapeHtml(r.checkout_time)}</div>` : ''}
           </td>
           <td style="text-align: center; white-space: nowrap;">
             <div style="display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: nowrap;">

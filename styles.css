@@ -71,6 +71,7 @@
   --text-light: #cbd5e1;
 
   --sidebar-w: 260px;
+  --sidebar-collapsed-w: 72px;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
@@ -218,31 +219,65 @@ body {
    Sidebar Navigation (Frosted White Milky Glass with Forest Green Accents)
    ========================================================================== */
 .sidebar {
-  width: var(--sidebar-w);
-  background: var(--glass-sidebar);  /* 0.95 opacity — no blur needed */
+  width: var(--sidebar-collapsed-w);
+  flex: 0 0 var(--sidebar-collapsed-w);
+  background: transparent;
   color: var(--text-primary);
   display: flex;
   flex-direction: column;
-  border-left: 1px solid #e2e8f0;   /* solid border replaces glass-border */
+  border-left: 0;
   flex-shrink: 0;
+  overflow: visible;
   position: relative;
   z-index: 20;
-  /* Depth illusion: side shadow replaces backdrop blur */
-  box-shadow: -4px 0 24px rgba(15, 23, 42, 0.06), 4px 0 0 rgba(255,255,255,0.5) inset;
   /* GPU compositing layer — still needed even without blur */
   transform: translateZ(0);
   will-change: transform;
 }
 
+.sidebar::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--sidebar-collapsed-w);
+  background: var(--glass-sidebar);
+  border-left: 1px solid #e2e8f0;
+  box-shadow: -4px 0 24px rgba(15, 23, 42, 0.06), 4px 0 0 rgba(255,255,255,0.5) inset;
+  pointer-events: none;
+  transition: width 140ms ease;
+}
+
+.sidebar:hover::before,
+.sidebar:focus-within::before {
+  width: var(--sidebar-w);
+}
+
 .sidebar-brand {
-  padding: 22px 20px;
+  width: var(--sidebar-collapsed-w);
+  min-height: 82px;
+  padding: 16px 8px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 0;
+  overflow: hidden;
   border-bottom: 1px solid var(--glass-border-subtle);
+  transition: width 140ms ease, padding 140ms ease, gap 140ms ease;
+}
+
+.sidebar:hover .sidebar-brand,
+.sidebar:focus-within .sidebar-brand {
+  width: var(--sidebar-w);
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 22px 20px;
 }
 
 .sidebar-logo {
+  flex: 0 0 42px;
   width: 42px;
   height: 42px;
   background: transparent;
@@ -260,6 +295,20 @@ body {
   letter-spacing: -0.01em;
 }
 
+.sidebar-title {
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  white-space: nowrap;
+  transition: max-width 180ms ease, opacity 140ms ease;
+}
+
+.sidebar:hover .sidebar-title,
+.sidebar:focus-within .sidebar-title {
+  max-width: 190px;
+  opacity: 1;
+}
+
 .sidebar-title p {
   font-size: 0.76rem;
   color: var(--accent);
@@ -268,18 +317,40 @@ body {
 
 .sidebar-nav {
   flex: 1;
-  padding: 20px 14px;
+  width: var(--sidebar-collapsed-w);
+  padding: 16px 8px;
   display: flex;
   flex-direction: column;
   gap: 6px;
   overflow-y: auto;
+  overflow-x: hidden;
+  transition: width 140ms ease, padding 140ms ease;
+}
+
+.sidebar:hover .sidebar-nav,
+.sidebar:focus-within .sidebar-nav {
+  width: var(--sidebar-w);
+  padding: 20px 14px;
+}
+
+.sidebar-nav > div:first-child {
+  display: none;
+}
+
+.sidebar:hover .sidebar-nav > div:first-child,
+.sidebar:focus-within .sidebar-nav > div:first-child {
+  display: block;
 }
 
 .nav-link {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+  justify-content: center;
+  gap: 0;
+  min-height: 46px;
+  padding: 10px 0;
+  overflow: hidden;
+  white-space: nowrap;
   border-radius: var(--radius-md);
   color: #475569;
   text-decoration: none;
@@ -288,6 +359,44 @@ body {
   border: 1px solid transparent;
   transition: all 0.2s ease;
   cursor: pointer;
+}
+
+.sidebar:hover .nav-link,
+.sidebar:focus-within .nav-link {
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.nav-link > svg {
+  flex: 0 0 20px;
+}
+
+.nav-link > span {
+  display: inline-block;
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-width 180ms ease, opacity 140ms ease;
+}
+
+.sidebar:hover .nav-link > span,
+.sidebar:focus-within .nav-link > span {
+  max-width: 200px;
+  opacity: 1;
+}
+
+#nav-admin {
+  border-top: 0 !important;
+  margin-top: 4px !important;
+  padding-top: 10px !important;
+}
+
+.sidebar:hover #nav-admin,
+.sidebar:focus-within #nav-admin {
+  border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+  margin-top: 8px !important;
+  padding-top: 14px !important;
 }
 
 .nav-link svg {
@@ -319,15 +428,45 @@ body {
 }
 
 .sidebar-footer {
-  padding: 16px 20px;
+  width: var(--sidebar-collapsed-w);
+  padding: 12px 8px;
   border-top: 1px solid var(--glass-border-subtle);
   background: rgba(255, 255, 255, 0.45);
+  transition: width 140ms ease, padding 140ms ease;
+}
+
+.sidebar:hover .sidebar-footer,
+.sidebar:focus-within .sidebar-footer {
+  width: var(--sidebar-w);
+  padding: 16px 20px;
 }
 
 .user-profile {
   display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.user-meta {
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  white-space: nowrap;
+  transition: max-width 180ms ease, opacity 140ms ease;
+}
+
+.sidebar:hover .user-profile,
+.sidebar:focus-within .user-profile {
+  flex-direction: row;
   justify-content: space-between;
+}
+
+.sidebar:hover .user-meta,
+.sidebar:focus-within .user-meta {
+  max-width: 150px;
+  opacity: 1;
 }
 
 .user-meta h4 {
@@ -357,6 +496,53 @@ body {
   transition: all 0.2s ease;
 }
 
+.btn-logout {
+  width: 40px;
+  height: 40px;
+  justify-content: center;
+  padding: 0;
+  gap: 0;
+}
+
+.btn-logout span {
+  display: none;
+}
+
+.sidebar:hover .btn-logout,
+.sidebar:focus-within .btn-logout {
+  width: auto;
+  height: auto;
+  padding: 7px 14px;
+  gap: 6px;
+}
+
+.sidebar:hover .btn-logout span,
+.sidebar:focus-within .btn-logout span {
+  display: inline;
+}
+
+@media (max-width: 600px) {
+  .sidebar:hover::before,
+  .sidebar:focus-within::before {
+    width: min(var(--sidebar-w), 85vw);
+  }
+
+  .sidebar:hover,
+  .sidebar:focus-within {
+    width: var(--sidebar-collapsed-w);
+    flex-basis: var(--sidebar-collapsed-w);
+  }
+
+  .sidebar:hover .sidebar-brand,
+  .sidebar:focus-within .sidebar-brand,
+  .sidebar:hover .sidebar-nav,
+  .sidebar:focus-within .sidebar-nav,
+  .sidebar:hover .sidebar-footer,
+  .sidebar:focus-within .sidebar-footer {
+    width: min(var(--sidebar-w), 85vw);
+  }
+}
+
 .btn-logout:hover {
   background: #dc2626;
   color: white;
@@ -368,6 +554,7 @@ body {
    ========================================================================== */
 .dashboard-main {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -657,13 +844,35 @@ body {
 
 .table-date {
   white-space: nowrap;
+  direction: ltr;
+  unicode-bidi: isolate;
 }
 
 .table-time {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
   margin-top: 3px;
   color: #64748b;
   font-size: 0.75rem;
-  white-space: nowrap;
+  white-space: normal;
+  direction: rtl;
+  line-height: 1.1;
+}
+
+.table-time-label {
+  display: block;
+  direction: rtl;
+  unicode-bidi: isolate;
+  font-size: 0.68rem;
+}
+
+.table-time-value {
+  display: block;
+  direction: ltr;
+  unicode-bidi: isolate;
 }
 
 @media (max-width: 760px) {
@@ -1147,7 +1356,7 @@ select option {
 
 .reservations-table {
   width: 100%;
-  min-width: 1765px;
+  min-width: 1630px;
   table-layout: fixed;
   font-size: 0.76rem;
 }
@@ -1171,23 +1380,21 @@ select option {
 .reservations-table th:nth-child(2),
 .reservations-table td:nth-child(2) { width: 220px; }
 .reservations-table th:nth-child(3),
-.reservations-table td:nth-child(3) { width: 135px; }
+.reservations-table td:nth-child(3) { width: 160px; }
 .reservations-table th:nth-child(4),
-.reservations-table td:nth-child(4) { width: 160px; }
+.reservations-table td:nth-child(4),
 .reservations-table th:nth-child(5),
-.reservations-table td:nth-child(5),
+.reservations-table td:nth-child(5) { width: 120px; }
 .reservations-table th:nth-child(6),
-.reservations-table td:nth-child(6) { width: 120px; }
+.reservations-table td:nth-child(6) { width: 150px; }
 .reservations-table th:nth-child(7),
 .reservations-table td:nth-child(7) { width: 150px; }
 .reservations-table th:nth-child(8),
-.reservations-table td:nth-child(8) { width: 150px; }
+.reservations-table td:nth-child(8) { width: 165px; }
 .reservations-table th:nth-child(9),
-.reservations-table td:nth-child(9) { width: 165px; }
+.reservations-table td:nth-child(9) { width: 185px; }
 .reservations-table th:nth-child(10),
-.reservations-table td:nth-child(10) { width: 185px; }
-.reservations-table th:nth-child(11),
-.reservations-table td:nth-child(11) { width: 280px; }
+.reservations-table td:nth-child(10) { width: 280px; }
 
 .reservations-table td:nth-child(2) > div:first-child {
   min-width: 0;
@@ -1197,6 +1404,17 @@ select option {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.reservation-guest-phone {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: right;
 }
 
 .reservations-pagination {
