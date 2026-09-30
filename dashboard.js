@@ -3661,10 +3661,12 @@
     const isContract = res.booking_type === 'عقد مفتوح';
     const paidSoFar = Math.round((parseFloat(res.paid_amount || 0) + Number.EPSILON) * 100) / 100;
 
-    // Show/hide discount section based on Admin role
+    // Show/hide discount section:
+    // - Non-contract: Admin only (discount lowers the backend-computed charge)
+    // - Open-contract: always visible (same as before this change)
     const activeRole = localStorage.getItem('currentUserRole') || (currentUser ? currentUser.role : null);
     const isAdmin = activeRole === 'Admin';
-    if (settleDiscountSection) settleDiscountSection.style.display = isAdmin ? 'block' : 'none';
+    if (settleDiscountSection) settleDiscountSection.style.display = (isContract || isAdmin) ? 'block' : 'none';
 
     if (settleReservationId) settleReservationId.value = res.id;
     if (settleGuestName) settleGuestName.textContent = res.guest_name || 'نزيل';
@@ -3725,6 +3727,19 @@
       if (settleDiscountReasonInput) settleDiscountReasonInput.value = res.discount_reason || '';
       const initialNet = Math.max(0, calculatedBase - existingDiscount);
       if (settleFinalTotalInput) settleFinalTotalInput.value = initialNet.toFixed(2);
+    }
+
+    // Non-contract: read-only (backend computes the net); open-contract: editable as before
+    if (settleFinalTotalInput) {
+      if (isContract) {
+        settleFinalTotalInput.removeAttribute('readonly');
+        settleFinalTotalInput.style.background = '#f8fafc';
+        settleFinalTotalInput.style.cursor = '';
+      } else {
+        settleFinalTotalInput.setAttribute('readonly', 'readonly');
+        settleFinalTotalInput.style.background = '#f1f5f9';
+        settleFinalTotalInput.style.cursor = 'default';
+      }
     }
 
     updateSettleCalculations();
@@ -4532,13 +4547,22 @@
       const isCredit = rawRemaining < -0.005;
       const remaining = isContract ? rawRemaining : Math.max(0, rawRemaining);
 
-      // Compute total refunded from the payments ledger (sum of negative rows)
+      // Compute total refunded from the payments ledger.
+      // Only rows whose notes start with 'استرداد - تسوية مغادرة' are checkout
+      // refunds. Cancel refunds ('استرداد كامل' / 'استرداد نقدي') are excluded
+      // so old invoices look exactly as before.
       let refundedTotal = 0;
       try {
         const paymentsRes = await window.api.getReservationPayments(targetId);
         if (paymentsRes && paymentsRes.success && Array.isArray(paymentsRes.data)) {
           for (const p of paymentsRes.data) {
-            if (parseFloat(p.amount) < 0) refundedTotal += Math.abs(parseFloat(p.amount));
+            if (
+              parseFloat(p.amount) < 0 &&
+              typeof p.notes === 'string' &&
+              p.notes.startsWith('استرداد - تسوية مغادرة')
+            ) {
+              refundedTotal += Math.abs(parseFloat(p.amount));
+            }
           }
         }
       } catch (_) { /* non-critical — invoice still renders without it */ }

@@ -364,15 +364,14 @@ function createReservation({
 /**
  * computeCheckoutSettlement — read-only preview (writes nothing).
  *
- * Returns the backend-authoritative settlement figures for the supplied
- * reservation as of today.  The caller (IPC layer) strips discountAmount
- * for non-Admin users before passing it here.
+ * Uses only the rate stored on the reservation (custom_nightly_price, else
+ * price_per_night). No renderer-supplied rate override is accepted.
+ * The caller (IPC layer) strips discountAmount for non-Admin users.
  *
  * @param {number|string} reservationId
  * @param {object}        opts
- * @param {number}        [opts.discountAmount]  – checkout discount (Admin only, already stripped by IPC)
+ * @param {number}        [opts.discountAmount]  – checkout discount (Admin only)
  * @param {string}        [opts.discountReason]
- * @param {number}        [opts.customNightlyPrice]
  * @returns {{
  *   reservationId, isOpenContract, checkInDate, actualCheckOutDate,
  *   actualNights, effectiveNightlyRate, baseCharge, discountApplied,
@@ -382,8 +381,7 @@ function createReservation({
  */
 function computeCheckoutSettlement(reservationId, {
   discountAmount,
-  discountReason,
-  customNightlyPrice
+  discountReason
 } = {}) {
   const targetId = parseInt(reservationId, 10);
   if (!targetId || isNaN(targetId)) throw new Error('معرف الحجز غير صالح.');
@@ -405,13 +403,9 @@ function computeCheckoutSettlement(reservationId, {
   const isOpenContract = res.booking_type === 'عقد مفتوح';
   const todayStr = getLocalDateString();
 
-  // Effective nightly rate: caller-supplied > stored custom > room default
-  const normCustom = (customNightlyPrice !== undefined && customNightlyPrice !== null && customNightlyPrice !== '' && !isNaN(Number(customNightlyPrice)))
-    ? roundMoney(customNightlyPrice)
-    : null;
-  const effectiveNightlyRate = normCustom !== null
-    ? normCustom
-    : roundMoney(res.custom_nightly_price || res.price_per_night || 0);
+  // Effective nightly rate: stored custom rate, else room default.
+  // No renderer-supplied rate override is accepted.
+  const effectiveNightlyRate = roundMoney(res.custom_nightly_price || res.price_per_night || 0);
 
   // Effective discount (already stripped for non-Admin by the IPC layer)
   const normDiscount = (discountAmount !== undefined && discountAmount !== null && discountAmount !== '' && !isNaN(Number(discountAmount)))
@@ -575,21 +569,19 @@ function checkoutReservation(reservationId, {
   // NON-OPEN-CONTRACT PATH: full settlement logic.
   // -------------------------------------------------------------------------
 
-  // Resolve discount and rate (discount already stripped for non-Admin by IPC layer)
+  // Resolve discount and rate.
+  // Rate: always from the stored reservation — no caller override accepted.
+  // Discount: already stripped for non-Admin by the IPC layer.
   const normDiscountAmount = (discountAmount !== undefined && discountAmount !== null && discountAmount !== '' && !isNaN(Number(discountAmount)))
     ? Math.max(0, roundMoney(discountAmount))
     : null;
   const normDiscountReason = discountReason !== undefined ? (discountReason || '').trim() : null;
-  const normCustomNightlyPrice = (customNightlyPrice !== undefined && customNightlyPrice !== null && customNightlyPrice !== '' && !isNaN(Number(customNightlyPrice)))
-    ? roundMoney(customNightlyPrice)
-    : null;
 
   const effectiveDiscount = normDiscountAmount !== null
     ? normDiscountAmount
     : roundMoney(res.discount_amount || 0);
-  const effectiveNightlyRate = normCustomNightlyPrice !== null
-    ? normCustomNightlyPrice
-    : roundMoney(res.custom_nightly_price || res.price_per_night || 0);
+  // Stored rate only — finalTotalPrice from renderer is ignored for non-contract.
+  const effectiveNightlyRate = roundMoney(res.custom_nightly_price || res.price_per_night || 0);
 
   // Discount validation: require a non-empty reason when discount > 0
   if (effectiveDiscount > 0) {
@@ -660,21 +652,26 @@ function checkoutReservation(reservationId, {
     const actingUser = userId ? parseInt(userId, 10) : null;
 
     if (resolvedMode === 'collect') {
-      // Positive payment row for the amount collected now
+      // Positive payment row: collectAmount must be > 0 and <= amount due
       const rawCollect = collectAmount !== undefined ? roundMoney(collectAmount)
         : (settleAmount !== undefined ? roundMoney(settleAmount) : 0);
-      if (rawCollect > 0) {
-        newPaid = roundMoney(currentPaid + rawCollect);
-        collectionReceiptNumber = generateReceiptNumber(targetId);
-        const ps = db.prepare(`
-          INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
-          VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
-        `);
-        ps.run([collectionReceiptNumber, targetId, rawCollect, effMethod, actingUser,
-          `تحصيل عند المغادرة #${targetId}`]);
-        ps.free();
+      const amountDue = roundMoney(Math.max(0, finalTotal - currentPaid));
+      if (rawCollect <= 0) {
+        throw new Error('مبلغ التحصيل يجب أن يكون أكبر من الصفر.');
       }
-      // Determine status: fully paid if newPaid covers finalTotal
+      if (roundMoney(rawCollect - amountDue) > 0.005) {
+        throw new Error(`مبلغ التحصيل (${rawCollect} ريال) يتجاوز المبلغ المستحق (${amountDue} ريال).`);
+      }
+      newPaid = roundMoney(currentPaid + rawCollect);
+      collectionReceiptNumber = generateReceiptNumber(targetId);
+      const ps = db.prepare(`
+        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
+        VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
+      `);
+      ps.run([collectionReceiptNumber, targetId, rawCollect, effMethod, actingUser,
+        `تحصيل عند المغادرة #${targetId}`]);
+      ps.free();
+      // Status
       if (newPaid >= finalTotal - 0.005) {
         newPaymentStatus = 'مدفوع بالكامل';
       } else if (newPaid > 0) {
@@ -685,7 +682,7 @@ function checkoutReservation(reservationId, {
 
     } else if (resolvedMode === 'defer') {
       // No new payment row — debt stays on account
-      newPaid = currentPaid; // unchanged
+      newPaid = currentPaid;
       if (finalTotal === 0 && currentPaid === 0) {
         newPaymentStatus = 'مدفوع بالكامل';
       } else if (currentPaid >= finalTotal - 0.005) {
@@ -697,23 +694,31 @@ function checkoutReservation(reservationId, {
       }
 
     } else if (resolvedMode === 'refund') {
-      // Negative payment row (exact mechanism of cancelReservation mid-stay)
+      // Negative payment row — exact mechanism of cancelReservation mid-stay.
+      // refundAmount must equal exactly paid - net (roundMoney both sides).
+      const exactRefundDue = roundMoney(Math.max(0, currentPaid - finalTotal));
       const rawRefund = refundAmount !== undefined
         ? roundMoney(refundAmount)
-        : roundMoney(Math.max(0, currentPaid - finalTotal));
+        : exactRefundDue;
 
-      if (rawRefund > 0) {
-        refundReceiptNumber = generateReceiptNumber(targetId);
-        const ps = db.prepare(`
-          INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
-          VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
-        `);
-        ps.run([refundReceiptNumber, targetId, -rawRefund, effMethod, actingUser,
-          `استرداد - تسوية مغادرة #${targetId}`]);
-        ps.free();
-        newPaid = roundMoney(currentPaid - rawRefund);
+      if (rawRefund <= 0) {
+        throw new Error('مبلغ الاسترداد يجب أن يكون أكبر من الصفر.');
       }
-      // After refund, paid_amount = net charge → fully settled
+      if (roundMoney(Math.abs(rawRefund - exactRefundDue)) > 0.005) {
+        throw new Error(
+          `مبلغ الاسترداد (${rawRefund} ريال) يجب أن يساوي الفرق الفعلي المستحق (${exactRefundDue} ريال).`
+        );
+      }
+      refundReceiptNumber = generateReceiptNumber(targetId);
+      const ps = db.prepare(`
+        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
+        VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
+      `);
+      ps.run([refundReceiptNumber, targetId, -rawRefund, effMethod, actingUser,
+        `استرداد - تسوية مغادرة #${targetId}`]);
+      ps.free();
+      newPaid = roundMoney(currentPaid - rawRefund);
+      // After refund paid_amount == finalTotal → fully settled
       newPaymentStatus = 'مدفوع بالكامل';
 
     } else {
@@ -722,8 +727,7 @@ function checkoutReservation(reservationId, {
 
     // Single UPDATE that includes checked_out_at (inside the transaction)
     const effectiveDiscountForWrite = normDiscountAmount !== null ? normDiscountAmount : null;
-    const effectiveReasonForWrite  = normDiscountReason !== null ? normDiscountReason : null;
-    const effectiveRateForWrite     = normCustomNightlyPrice !== null ? normCustomNightlyPrice : null;
+    const effectiveReasonForWrite   = normDiscountReason !== null ? normDiscountReason : null;
 
     const stmt1 = db.prepare(`
       UPDATE reservations
@@ -735,7 +739,6 @@ function checkoutReservation(reservationId, {
           payment_method = CASE WHEN ? IS NOT NULL THEN ? ELSE payment_method END,
           discount_amount = CASE WHEN ? IS NOT NULL THEN ? ELSE discount_amount END,
           discount_reason = CASE WHEN ? IS NOT NULL THEN ? ELSE discount_reason END,
-          custom_nightly_price = CASE WHEN ? IS NOT NULL THEN ? ELSE custom_nightly_price END,
           original_calculated_charge = CASE WHEN original_calculated_charge IS NULL THEN ? ELSE original_calculated_charge END,
           checked_out_at = datetime('now')
       WHERE id = ? AND status != 'مكتمل'
@@ -748,7 +751,6 @@ function checkoutReservation(reservationId, {
       updateMethod, updateMethod,
       effectiveDiscountForWrite, effectiveDiscountForWrite,
       effectiveReasonForWrite,   effectiveReasonForWrite,
-      effectiveRateForWrite,     effectiveRateForWrite,
       originalChargeToWrite,
       targetId
     ]);
