@@ -4,3 +4,4 @@ diag_out.json
 guest.csv
 seed-checkout-tests-runtime.js
 seed-checkout-tests.js
+scratch/
