@@ -903,6 +903,60 @@ select option {
   -webkit-overflow-scrolling: touch;
 }
 
+/* Checkout settlement: keep the header visible while long refund/settlement
+   forms scroll inside the viewport. */
+.checkout-settle-card {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  min-height: 0;
+}
+
+.checkout-settle-form {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Give the departures table more breathing room without changing other tables. */
+#widget-today-checkouts .table-responsive {
+  max-height: 420px;
+}
+
+#widget-today-checkouts table {
+  min-width: 980px;
+}
+
+#widget-today-checkouts th,
+#widget-today-checkouts td {
+  padding: 12px 16px;
+  vertical-align: middle;
+}
+
+@media (max-width: 640px) {
+  .checkout-settle-backdrop {
+    padding: 10px !important;
+    align-items: flex-start !important;
+  }
+
+  .checkout-settle-card {
+    max-height: calc(100vh - 20px);
+    max-height: calc(100dvh - 20px);
+    margin: auto !important;
+  }
+
+  .checkout-settle-form {
+    padding: 16px !important;
+  }
+
+  #widget-today-checkouts th,
+  #widget-today-checkouts td {
+    padding: 10px 12px;
+  }
+}
+
 table {
   width: 100%;
   min-width: 880px;

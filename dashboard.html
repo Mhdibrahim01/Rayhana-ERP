@@ -2010,8 +2010,8 @@
   </div>
 
   <!-- Modal: Open Contract Settlement & Checkout (تصفية حساب وتسجيل مغادرة - عقد مفتوح) -->
-  <div id="open-contract-settle-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 100010; align-items: center; justify-content: center; padding: 20px;">
-    <div class="modal-glass-container" style="max-width: 580px; width: 100%; overflow: hidden; margin: auto; background: white; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35);">
+  <div id="open-contract-settle-modal" class="modal-backdrop checkout-settle-backdrop" style="display: none; position: fixed; inset: 0; z-index: 100010; align-items: center; justify-content: center; padding: 20px;">
+    <div class="modal-glass-container checkout-settle-card" style="max-width: 580px; width: 100%; overflow: hidden; margin: auto; background: white; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35);">
       
       <!-- Modal Header -->
       <div style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); color: white; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #818cf8;">
@@ -2028,7 +2028,7 @@
       </div>
 
       <!-- Modal Form -->
-      <form id="open-contract-settle-form" style="padding: 22px;">
+      <form id="open-contract-settle-form" class="checkout-settle-form" style="padding: 22px;">
         <input type="hidden" id="settle-reservation-id">
         <input type="hidden" id="settle-price-per-night">
 

@@ -1376,38 +1376,42 @@
     todayCheckoutsTableBody.innerHTML = checkouts.map(r => {
       const isConfirmed = r.status === 'مؤكد';
       const isCompleted = r.status === 'مكتمل';
+      const dateParts = String(r.check_in_date || '').split('-').map(Number);
+      const checkInDisplay = dateParts.length === 3 && dateParts.every(Number.isFinite)
+        ? new Date(dateParts[0], dateParts[1] - 1, dateParts[2]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+        : (r.check_in_date || '-');
 
       return `
-        <tr style="border-bottom: 1px solid #f1f5f9;">
+        <tr class="checkout-row ${isCompleted ? 'is-completed' : isConfirmed ? 'is-confirmed' : ''}">
           <td>
-            <span style="font-weight: 800; font-size: 0.92rem; color: #1a4332; background: #ecfdf5; padding: 3px 8px; border-radius: 6px; border: 1px solid #a7f3d0;">
+            <span class="checkout-room-badge">
               غرفة ${escapeHtml(r.room_number)}
             </span>
           </td>
-          <td style="font-size: 0.88rem; color: var(--text-secondary);">${escapeHtml(r.room_type || '')}</td>
+          <td class="checkout-secondary">${escapeHtml(r.room_type || '')}</td>
           <td>
-            <div style="font-weight: 800; color: #1e293b; font-size: 0.92rem;">${escapeHtml(r.guest_name)}</div>
-            ${r.guest_id_number ? `<small style="color: var(--text-muted);">هوية: ${escapeHtml(r.guest_id_number)}</small>` : ''}
+            <div class="checkout-guest-name">${escapeHtml(r.guest_name)}</div>
+            ${r.guest_id_number ? `<small class="checkout-guest-id">هوية ${escapeHtml(r.guest_id_number)}</small>` : ''}
           </td>
-          <td style="font-family: monospace; font-size: 0.88rem; color: var(--text-secondary);">${escapeHtml(r.guest_phone || '-')}</td>
-          <td style="font-size: 0.84rem; color: var(--text-secondary);">${escapeHtml(r.check_in_date)}</td>
-          <td style="font-weight: 800; color: var(--primary); font-size: 0.92rem;">${parseFloat(r.total_price || 0).toLocaleString()} ريال</td>
+          <td class="checkout-phone">${escapeHtml(r.guest_phone || '-')}</td>
+          <td class="checkout-secondary">${escapeHtml(checkInDisplay)}</td>
+          <td class="checkout-total">${parseFloat(r.total_price || 0).toLocaleString()} ريال</td>
           <td>
             ${getReservationStatusBadge(r.status)}
-            ${r.checkout_time ? `<div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace; margin-top: 2px;">${escapeHtml(r.checkout_time)}</div>` : ''}
+            ${r.checkout_time ? `<div class="checkout-time">${escapeHtml(r.checkout_time)}</div>` : ''}
           </td>
-          <td style="text-align: center;">
+          <td class="checkout-actions">
             ${isConfirmed ? `
-              <div style="display: flex; gap: 5px; justify-content: center; align-items: center;">
-                <button class="btn btn-primary btn-sm" data-action="checkout" data-id="${r.id}" style="padding: 5px 11px; font-weight: 800; font-size: 0.8rem;" title="تسجيل مغادرة النزيل وتسليم الغرفة">
+              <div class="checkout-action-group">
+                <button class="btn btn-primary btn-sm" data-action="checkout" data-id="${r.id}" title="تسجيل مغادرة النزيل وتسليم الغرفة">
                   تسجيل مغادرة &larr;
                 </button>
-                <button type="button" class="btn btn-secondary btn-sm" data-action="extend" data-id="${r.id}" style="padding: 5px 9px; font-weight: 800; font-size: 0.8rem; background: #eff6ff; color: #1e40af; border: 1.5px solid #bfdbfe;" title="تمديد فترة الإقامة">
+                <button type="button" class="btn btn-secondary btn-sm checkout-extend-action" data-action="extend" data-id="${r.id}" title="تمديد فترة الإقامة">
                   تمديد ⏳
                 </button>
               </div>
             ` : isCompleted ? `
-              <span class="badge" style="background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; font-weight: 800;">تمت المغادرة &check;</span>
+              <span class="checkout-completed-badge">تمت المغادرة <span aria-hidden="true">✓</span></span>
             ` : `<span style="color: var(--text-secondary); font-size: 0.8rem;">-</span>`}
           </td>
         </tr>
