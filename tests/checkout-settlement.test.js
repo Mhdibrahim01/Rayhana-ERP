@@ -204,7 +204,7 @@ test('checkout settlement scenarios', async t => {
       assertDatabaseIntegrity(connection, 'checkout: transaction rollback');
     });
 
-    await t.test('zero nightly rate is rejected by checkout settlement', { todo: 'Known current gap: settlement accepts a booking whose stored room rate is zero.' }, () => {
+    await t.test('zero nightly rate is rejected by checkout settlement', () => {
       connection.getDb().run("INSERT INTO rooms (room_number, type, price_per_night, status) VALUES ('CS-ZERO-RATE', 'وحدة اختبار', 0, 'متاحة')");
       const room = connection.queryAll("SELECT id FROM rooms WHERE room_number = 'CS-ZERO-RATE'")[0];
       const reservationId = createReservation({

@@ -70,7 +70,7 @@ test('checkout settlement and cancellation essentials', async t => {
       const id = createReservation({ roomId: room.id, name: 'Stored Rate', checkIn: today, checkOut: addDays(today, 2), totalPrice: 360 });
       assert.equal(appDb.computeCheckoutSettlement(id).effectiveNightlyRate, 180);
 
-      await t2.test('zero nightly rate is rejected', { todo: 'Current settlement calculation accepts a zero stored rate; see tests/KNOWN-ISSUES.md.' }, () => {
+      await t2.test('zero nightly rate is rejected', () => {
         connection.getDb().run("INSERT INTO rooms (room_number, type, price_per_night, status) VALUES ('SC-ZERO-RATE', 'وحدة اختبار', 0, 'متاحة')");
         const zeroRoom = connection.queryAll("SELECT id FROM rooms WHERE room_number = 'SC-ZERO-RATE'")[0];
         const zeroId = createReservation({ roomId: zeroRoom.id, name: 'Zero Stored Rate', checkIn: today, checkOut: addDays(today, 1), totalPrice: 100 });
