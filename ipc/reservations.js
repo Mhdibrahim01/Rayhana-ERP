@@ -91,18 +91,18 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
 
     if (bookingType === 'عقد مفتوح') {
       if (checkOutDate && checkOutDate <= checkInDate) {
-        return { valid: false, error: 'تاريخ المغادرة يجب أن يكون بعد تاريخ الوصول بشكل محدد.' };
+        return { valid: false, error: 'يجب أن تكون المغادرة في اليوم التالي للوصول على الأقل (ليلة واحدة).' };
       }
     } else if (bookingType === 'حجز شهري') {
       if (checkOutDate && checkOutDate <= checkInDate) {
-        return { valid: false, error: 'تاريخ المغادرة يجب أن يكون بعد تاريخ الوصول بشكل محدد.' };
+        return { valid: false, error: 'يجب أن تكون المغادرة في اليوم التالي للوصول على الأقل (ليلة واحدة).' };
       }
     } else {
       if (!checkOutDate) {
         return { valid: false, error: 'تاريخ المغادرة مطلوب.' };
       }
       if (checkOutDate <= checkInDate) {
-        return { valid: false, error: 'تاريخ المغادرة يجب أن يكون بعد تاريخ الوصول بشكل محدد.' };
+        return { valid: false, error: 'يجب أن تكون المغادرة في اليوم التالي للوصول على الأقل (ليلة واحدة).' };
       }
     }
 
@@ -150,11 +150,35 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
       // NEVER trust any role claim from the renderer.
       // customNightlyPrice is never accepted from the renderer for non-contract bookings.
       const isAdmin = session.currentUser && session.currentUser.role === 'Admin';
+      const reservation = db.getReservationById(id);
+      if (!reservation) throw new Error('الحجز غير موجود.');
+      const isOpenContract = reservation.booking_type === 'عقد مفتوح';
+
       if (!isAdmin) {
         options = { ...options, discountAmount: undefined, discountReason: undefined };
       }
-      // Always strip customNightlyPrice — rate comes only from the stored reservation.
-      options = { ...options, customNightlyPrice: undefined, finalTotalPrice: undefined };
+
+      // Never accept a renderer-supplied rate. Only Admin may override an
+      // open-contract final total; for other users, derive it from stored rates.
+      options = { ...options, customNightlyPrice: undefined };
+      if (!isOpenContract) {
+        options = { ...options, finalTotalPrice: undefined };
+      } else {
+        const submittedTotal = Number(options.finalTotalPrice);
+        if (!isAdmin || options.finalTotalPrice === undefined || options.finalTotalPrice === null || options.finalTotalPrice === '' || !Number.isFinite(submittedTotal) || submittedTotal < 0) {
+          const today = db.getLocalDateString();
+          const [startYear, startMonth, startDay] = String(reservation.check_in_date || today).slice(0, 10).split('-').map(Number);
+          const [endYear, endMonth, endDay] = today.split('-').map(Number);
+          const elapsedNights = Math.max(1, Math.round((Date.UTC(endYear, endMonth - 1, endDay) - Date.UTC(startYear, startMonth - 1, startDay)) / 86400000));
+          const nightlyRate = db.roundMoney(reservation.custom_nightly_price || reservation.price_per_night || 0);
+          const storedDiscount = db.roundMoney(reservation.discount_amount || 0);
+          const allowedDiscount = isAdmin && options.discountAmount !== undefined && options.discountAmount !== null && options.discountAmount !== ''
+            ? Math.max(0, db.roundMoney(options.discountAmount))
+            : storedDiscount;
+          const calculatedTotal = Math.max(0, db.roundMoney(elapsedNights * nightlyRate - allowedDiscount));
+          options = { ...options, finalTotalPrice: calculatedTotal };
+        }
+      }
 
       const result = db.checkoutReservation(id, { ...options, userId: activeUserId });
       return result;

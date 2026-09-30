@@ -18,6 +18,7 @@
   let currentRoomFilter = 'all';
   let currentRoomSearch = '';
   let currentRoomBookingType = 'all';
+  let currentRoomPaymentFilter = 'all';
 
   // Chart Instances
   let monthlyRevenueChart = null;
@@ -207,6 +208,8 @@
   const roomsFilterTabs = document.querySelectorAll('#rooms-filter-tabs .filter-tab-btn');
   const searchRoomsInput = document.getElementById('search-rooms');
   const roomsBookingTypeTabs = document.querySelectorAll('#rooms-booking-type-tabs .filter-tab-btn');
+  const roomsPaymentFilterTabs = document.querySelectorAll('#rooms-payment-filter-tabs .filter-tab-btn');
+  const roomsPaymentFilterContainer = document.getElementById('rooms-payment-filter-container');
   const btnToggleAddRoom = document.getElementById('btn-toggle-add-room');
   const addRoomPanel = document.getElementById('add-room-panel');
   const addRoomForm = document.getElementById('add-room-form');
@@ -276,6 +279,25 @@
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  }
+
+  function isReservationOverdue(reservation) {
+    if (!reservation || reservation.status !== 'مؤكد') return false;
+    const checkOutDate = String(reservation.check_out_date || '').slice(0, 10);
+    if (!checkOutDate || checkOutDate === 'مفتوح') return false;
+
+    const todayStr = getLocalDateString();
+    if (checkOutDate < todayStr) return true;
+    if (checkOutDate > todayStr) return false;
+
+    const now = new Date();
+    return now.getHours() > 14 || (now.getHours() === 14 && (now.getMinutes() > 0 || now.getSeconds() > 0 || now.getMilliseconds() > 0));
+  }
+
+  function renderOverdueBadge(reservation, label = 'متأخر عن المغادرة') {
+    return isReservationOverdue(reservation)
+      ? `<span class="badge" style="display: inline-block; margin-top: 4px; background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; font-size: 0.7rem; font-weight: 800;">${escapeHtml(label)}</span>`
+      : '';
   }
 
   // Set default dates
@@ -761,10 +783,32 @@
     }
   }
 
+  function addDaysToLocalDateString(dateValue, days) {
+    const [year, month, day] = String(dateValue || '').split('-').map(Number);
+    if (!year || !month || !day) return '';
+    return getLocalDateString(new Date(year, month - 1, day + days));
+  }
+
+  function updateMinimumCheckoutDate() {
+    if (!checkInInput || !checkOutInput || !checkInInput.value) return;
+    if (bookingTypeSelect && bookingTypeSelect.value === 'عقد مفتوح') {
+      checkOutInput.removeAttribute('min');
+      return;
+    }
+
+    const minimumDate = addDaysToLocalDateString(checkInInput.value, 1);
+    if (!minimumDate) return;
+    checkOutInput.min = minimumDate;
+    if (checkOutInput.value && checkOutInput.value < minimumDate) {
+      checkOutInput.value = minimumDate;
+    }
+  }
+
   function handleBookingTypeChange() {
     const bType = bookingTypeSelect ? bookingTypeSelect.value : 'عادي';
     const checkOutStar = document.getElementById('check-out-required-star');
     const checkOutHint = document.getElementById('check-out-open-hint');
+    const checkOutMinimumHint = document.getElementById('check-out-minimum-hint');
     const priceHint = document.getElementById('total-price-open-hint');
 
     if (bType === 'عقد مفتوح') {
@@ -775,6 +819,7 @@
       }
       if (checkOutStar) checkOutStar.style.display = 'none';
       if (checkOutHint) checkOutHint.style.display = 'block';
+      if (checkOutMinimumHint) checkOutMinimumHint.style.display = 'none';
       if (totalPriceInput) {
         totalPriceInput.removeAttribute('required');
         totalPriceInput.value = '0.00';
@@ -789,6 +834,7 @@
       }
       if (checkOutStar) checkOutStar.style.display = 'inline';
       if (checkOutHint) checkOutHint.style.display = 'none';
+      if (checkOutMinimumHint) checkOutMinimumHint.style.display = 'block';
       if (totalPriceInput) {
         totalPriceInput.setAttribute('required', 'required');
       }
@@ -818,6 +864,7 @@
       }
       if (checkOutStar) checkOutStar.style.display = 'inline';
       if (checkOutHint) checkOutHint.style.display = 'none';
+      if (checkOutMinimumHint) checkOutMinimumHint.style.display = 'block';
       if (totalPriceInput) {
         totalPriceInput.setAttribute('required', 'required');
       }
@@ -832,11 +879,13 @@
 
       calculatePrice(false);
     }
+    updateMinimumCheckoutDate();
   }
 
   if (bookingTypeSelect) {
     bookingTypeSelect.addEventListener('change', handleBookingTypeChange);
   }
+  updateMinimumCheckoutDate();
 
   function calculatePrice(forceSyncPaid = false) {
     const bType = bookingTypeSelect ? bookingTypeSelect.value : 'عادي';
@@ -962,6 +1011,7 @@
 
   // When dates change, update paid amount if user hasn't explicitly customized a partial amount
   checkInInput.addEventListener('change', () => {
+    updateMinimumCheckoutDate();
     calculatePrice(!isPaidAmountCustomized);
   });
   checkOutInput.addEventListener('change', () => {
@@ -1298,6 +1348,7 @@
           <td style="white-space: nowrap;">${getPaymentStatusBadge(r.payment_status)}</td>
           <td style="white-space: nowrap;">
             ${getReservationStatusBadge(r.status)}
+            ${renderOverdueBadge(r)}
           </td>
           <td style="text-align: center; white-space: nowrap;">
             <div class="overview-row-actions">
@@ -1388,7 +1439,14 @@
       const roomKey = row.room_id ?? row.room_number ?? `reservation:${row.reservation_id ?? row.id}`;
       if (!latestByRoom.has(String(roomKey))) latestByRoom.set(String(roomKey), row);
     });
-    checkouts = [...latestByRoom.values()].sort((a, b) =>
+    const latestRoomRows = [...latestByRoom.values()];
+    const visibleReservationIds = new Set(latestRoomRows.map(row => String(row.reservation_id ?? row.id)));
+    const overdueRows = latestFirst.filter(row =>
+      row.status === 'مؤكد' &&
+      String(row.check_out_date || '').slice(0, 10) < getLocalDateString() &&
+      !visibleReservationIds.has(String(row.reservation_id ?? row.id))
+    );
+    checkouts = [...latestRoomRows, ...overdueRows].sort((a, b) =>
       String(a.room_number || '').localeCompare(String(b.room_number || ''), undefined, { numeric: true })
     );
 
@@ -1426,6 +1484,7 @@
           <td style="font-weight: 800; color: var(--primary); font-size: 0.92rem;">${parseFloat(r.total_price || 0).toLocaleString()} ريال</td>
           <td>
             ${getReservationStatusBadge(r.status)}
+            ${renderOverdueBadge(r, String(r.check_out_date || '').slice(0, 10) < getLocalDateString() ? 'متأخر' : 'متأخر عن المغادرة')}
             ${r.checkout_time ? `<div class="table-time">${escapeHtml(r.checkout_time)}</div>` : ''}
           </td>
           <td style="text-align: center;">
@@ -1707,12 +1766,12 @@
     if (bookingType === 'عقد مفتوح') {
       if (checkOutDate && checkOutDate <= checkInDate) {
         if (checkOutInput) { checkOutInput.focus(); highlightField(checkOutInput); }
-        return { valid: false, error: 'تاريخ المغادرة يجب أن يكون بعد تاريخ الوصول بشكل محدد.' };
+        return { valid: false, error: 'يجب أن تكون المغادرة في اليوم التالي للوصول على الأقل (ليلة واحدة).' };
       }
     } else if (bookingType === 'حجز شهري') {
       if (checkOutDate && checkOutDate <= checkInDate) {
         if (checkOutInput) { checkOutInput.focus(); highlightField(checkOutInput); }
-        return { valid: false, error: 'تاريخ المغادرة يجب أن يكون بعد تاريخ الوصول بشكل محدد.' };
+        return { valid: false, error: 'يجب أن تكون المغادرة في اليوم التالي للوصول على الأقل (ليلة واحدة).' };
       }
     } else {
       if (!checkOutDate) {
@@ -1721,7 +1780,7 @@
       }
       if (checkOutDate <= checkInDate) {
         if (checkOutInput) { checkOutInput.focus(); highlightField(checkOutInput); }
-        return { valid: false, error: 'تاريخ المغادرة يجب أن يكون بعد تاريخ الوصول بشكل محدد.' };
+        return { valid: false, error: 'يجب أن تكون المغادرة في اليوم التالي للوصول على الأقل (ليلة واحدة).' };
       }
     }
 
@@ -2125,6 +2184,7 @@
       const fmtDep = deposit.toLocaleString();
       const typeBadge = getBookingTypeBadge(r.booking_type);
       const checkOutDisplay = r.check_out_date || (isContract ? 'مفتوح (غير محدد)' : '-');
+      const overdueBadge = renderOverdueBadge(r);
 
       return `
         <tr>
@@ -2160,6 +2220,7 @@
           <td style="white-space: nowrap;">${getPaymentStatusBadge(r.payment_status)}</td>
           <td style="white-space: nowrap; line-height: 1.2;">
             ${getReservationStatusBadge(r.status)}
+            ${overdueBadge}
             ${r.checkout_time ? `<div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace; line-height: 1.2; margin-top: 2px;">${escapeHtml(r.checkout_time)}</div>` : ''}
           </td>
           <td style="text-align: center; white-space: nowrap;">
@@ -2316,8 +2377,10 @@
   }
 
   function renderRoomsGrid() {
-    const todayStr = getLocalDateString();
     const searchTerm = currentRoomSearch.trim().toLowerCase();
+    if (roomsPaymentFilterContainer) {
+      roomsPaymentFilterContainer.style.display = currentRoomFilter === 'مشغولة' ? 'flex' : 'none';
+    }
 
     const filtered = roomsCache.filter(room => {
       // 1. Status tab filter (unchanged behaviour)
@@ -2333,13 +2396,16 @@
       // 3. Booking-type filter: match against the room's active confirmed reservation.
       //    Rooms with no active reservation are excluded when a type filter is active.
       if (currentRoomBookingType !== 'all') {
-        const activeRes = reservationsCache.find(
-          r => r.room_id === room.id &&
-               r.status === 'مؤكد' &&
-               r.check_in_date <= todayStr &&
-               (r.check_out_date > todayStr || !r.check_out_date || r.booking_type === 'عقد مفتوح')
-        );
+        const activeRes = (room.active_reservations || [])[0];
         if (!activeRes || activeRes.booking_type !== currentRoomBookingType) return false;
+      }
+
+      if (currentRoomPaymentFilter !== 'all') {
+        const currentGuestReservation = room.status === 'مشغولة' ? (room.active_reservations || [])[0] : null;
+        const paymentStatus = currentGuestReservation?.payment_status === 'مكتمل'
+          ? 'مدفوع بالكامل'
+          : (currentGuestReservation?.payment_status || 'غير مدفوع');
+        if (paymentStatus !== currentRoomPaymentFilter) return false;
       }
 
       return true;
@@ -2360,16 +2426,21 @@
       else if (room.status === 'محجوزة') borderClass = 'status-border-reserved';
       else if (room.status === 'تنظيف') borderClass = 'status-border-cleaning';
 
-      // 1. Actively occupied reservation today (check_in <= today AND (check_out > today OR open contract))
-      const activeRes = (room.status === 'مشغولة')
-        ? reservationsCache.find(r => r.room_id === room.id && r.status === 'مؤكد' && r.check_in_date <= todayStr && (r.check_out_date > todayStr || !r.check_out_date || r.booking_type === 'عقد مفتوح'))
-        : null;
+      // The database supplies active reservations using the shared room-status definition.
+      const activeReservations = room.active_reservations || [];
+      const activeRes = room.status === 'مشغولة' ? activeReservations[0] || null : null;
+      const nextActiveRes = room.status === 'مشغولة' ? activeReservations[1] || null : null;
 
-      // 2. Upcoming future reservation (check_in > today)
+      // Future reservations remain a separate lookup; cleaning rooms show the next arrival too.
+      const futureReservation =
+        reservationsCache
+            .filter(r => r.room_id === room.id && r.status === 'مؤكد' && r.check_in_date > getLocalDateString())
+            .sort((a, b) => a.check_in_date.localeCompare(b.check_in_date))[0] || null;
       const upcomingRes = (room.status === 'محجوزة' || room.status === 'متاحة')
-        ? reservationsCache
-            .filter(r => r.room_id === room.id && r.status === 'مؤكد' && r.check_in_date > todayStr)
-            .sort((a, b) => a.check_in_date.localeCompare(b.check_in_date))[0]
+        ? futureReservation
+        : null;
+      const cleaningIncomingRes = room.status === 'تنظيف'
+        ? activeReservations[0] || futureReservation
         : null;
 
       const checkOutDateVal = (activeRes && activeRes.check_out_date) || room.check_out_date;
@@ -2399,8 +2470,12 @@
               <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 9px 12px; margin-top: 10px;">
                 <div style="font-weight: 700; color: #166534; font-size: 0.82rem; display: flex; align-items: center; justify-content: space-between;">
                   <span>👤 ${escapeHtml(activeRes.guest_name)}</span>
-                  <span style="font-size: 0.72rem; color: #a67c52; font-weight: 800;">حجز نشط #${activeRes.id}</span>
+                  <span style="display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end;">
+                    <span style="font-size: 0.72rem; color: #a67c52; font-weight: 800;">حجز نشط #${activeRes.id}</span>
+                    ${getPaymentStatusBadge(activeRes.payment_status)}
+                  </span>
                 </div>
+                ${renderOverdueBadge(activeRes)}
                 <div style="font-size: 0.74rem; color: #475569; margin-top: 4px;">
                   ${hasCheckOut 
                     ? `المغادرة: <strong style="color: #0f172a;">${escapeHtml(checkOutDateVal)}</strong>` 
@@ -2409,18 +2484,35 @@
               </div>
             ` : ''}
 
-            <!-- Upcoming Reservation Box (Future Booking) -->
-            ${(!activeRes && upcomingRes) ? `
-              <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 9px 12px; margin-top: 10px;">
+            ${nextActiveRes ? `
+              <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 9px 12px; margin-top: 8px;">
                 <div style="font-weight: 700; color: #1e40af; font-size: 0.82rem; display: flex; align-items: center; justify-content: space-between;">
-                  <span>📅 ${escapeHtml(upcomingRes.guest_name)}</span>
-                  <span style="font-size: 0.72rem; color: #2563eb; font-weight: 800;">حجز قادم #${upcomingRes.id}</span>
+                  <span>📅 ${escapeHtml(nextActiveRes.guest_name)}</span>
+                  <span style="font-size: 0.72rem; color: #2563eb; font-weight: 800;">قادم اليوم #${nextActiveRes.id}</span>
                 </div>
-                <div style="font-size: 0.74rem; color: #475569; margin-top: 4px;">
-                  الوصول: <strong style="color: #1e3a8a;">${escapeHtml(upcomingRes.check_in_date)}</strong> | ${upcomingRes.check_out_date ? `المغادرة: <strong>${escapeHtml(upcomingRes.check_out_date)}</strong>` : 'المغادرة: <strong style="color: #0284c7;">عقد مفتوح (بدون تاريخ)</strong>'}
-                </div>
+                ${renderOverdueBadge(nextActiveRes)}
               </div>
             ` : ''}
+
+            <!-- Upcoming Reservation Box (Future Booking) -->
+            ${(!activeRes && (upcomingRes || cleaningIncomingRes)) ? (() => {
+              const cardReservation = cleaningIncomingRes || upcomingRes;
+              const cardLabel = room.status === 'تنظيف'
+                ? (cardReservation.check_in_date === getLocalDateString() ? 'قادم اليوم' : 'بانتظار جاهزية الغرفة')
+                : 'حجز قادم';
+              return `
+              <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 9px 12px; margin-top: 10px;">
+                <div style="font-weight: 700; color: #1e40af; font-size: 0.82rem; display: flex; align-items: center; justify-content: space-between;">
+                  <span>📅 ${escapeHtml(cardReservation.guest_name)}</span>
+                  <span style="font-size: 0.72rem; color: #2563eb; font-weight: 800;">${cardLabel} #${cardReservation.id}</span>
+                </div>
+                ${renderOverdueBadge(cardReservation)}
+                <div style="font-size: 0.74rem; color: #475569; margin-top: 4px;">
+                  الوصول: <strong style="color: #1e3a8a;">${escapeHtml(cardReservation.check_in_date)}</strong> | ${cardReservation.check_out_date ? `المغادرة: <strong>${escapeHtml(cardReservation.check_out_date)}</strong>` : 'المغادرة: <strong style="color: #0284c7;">عقد مفتوح (بدون تاريخ)</strong>'}
+                </div>
+              </div>
+              `;
+            })() : ''}
 
             <!-- Quick Action Buttons -->
             <div class="room-card-quick-actions">
@@ -2486,6 +2578,19 @@
       roomsFilterTabs.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentRoomFilter = btn.dataset.roomFilter;
+      if (currentRoomFilter !== 'مشغولة') {
+        currentRoomPaymentFilter = 'all';
+        roomsPaymentFilterTabs.forEach(tab => tab.classList.toggle('active', tab.dataset.roomPaymentStatus === 'all'));
+      }
+      renderRoomsGrid();
+    });
+  });
+
+  roomsPaymentFilterTabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      roomsPaymentFilterTabs.forEach(tab => tab.classList.remove('active'));
+      btn.classList.add('active');
+      currentRoomPaymentFilter = btn.dataset.roomPaymentStatus;
       renderRoomsGrid();
     });
   });
@@ -3711,7 +3816,7 @@
     // - Open-contract: always visible (same as before this change)
     const activeRole = localStorage.getItem('currentUserRole') || (currentUser ? currentUser.role : null);
     const isAdmin = activeRole === 'Admin';
-    if (settleDiscountSection) settleDiscountSection.style.display = (isContract || isAdmin) ? 'block' : 'none';
+    if (settleDiscountSection) settleDiscountSection.style.display = isAdmin ? 'block' : 'none';
 
     if (settleReservationId) settleReservationId.value = res.id;
     if (settleGuestName) settleGuestName.textContent = res.guest_name || 'نزيل';
@@ -3774,9 +3879,9 @@
       if (settleFinalTotalInput) settleFinalTotalInput.value = initialNet.toFixed(2);
     }
 
-    // Non-contract: read-only (backend computes the net); open-contract: editable as before
+    // Only Admin may edit the open-contract final total; other totals are server-calculated.
     if (settleFinalTotalInput) {
-      if (isContract) {
+      if (isContract && isAdmin) {
         settleFinalTotalInput.removeAttribute('readonly');
         settleFinalTotalInput.style.background = '#f8fafc';
         settleFinalTotalInput.style.cursor = '';
@@ -3849,7 +3954,7 @@
     });
   }
 
-  // settleFinalTotalInput is readonly for non-contract; for open-contract it remains editable
+  // Only Admin may edit an open-contract final total.
   if (settleFinalTotalInput) {
     settleFinalTotalInput.addEventListener('input', () => {
       if (!currentSettlingReservation) return;
@@ -4622,6 +4727,7 @@
       const effectiveNightlyRate = parseFloat(inv.custom_nightly_price || inv.price_per_night || 0);
       const discount = parseFloat(inv.discount_amount || 0);
       const discountReasonText = inv.discount_reason ? ` (${escapeHtml(inv.discount_reason)})` : '';
+      const hasCancellationAdjustment = inv.status === 'ملغي جزئياً' && inv.original_calculated_charge != null;
       const baseSubtotal = (typeof nights === 'number' && nights > 0) ? (nights * effectiveNightlyRate) : (total + discount);
 
       const invoiceNum = `SND-2026-${String(inv.id).padStart(5, '0')}`;
@@ -4717,7 +4823,7 @@
                   <td style="padding: 10px 14px; text-align: left; font-weight: 800; color: #b91c1c;">- ${discount.toFixed(2)} ريال</td>
                 </tr>
               ` : ''}
-              ${inv.original_calculated_charge != null ? `
+              ${hasCancellationAdjustment ? `
                 <tr style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
                   <td style="padding: 10px 14px;">
                     <strong style="color: #4338ca;">تعديل إداري معتمد لمبلغ الإلغاء</strong>
