@@ -152,7 +152,8 @@ function getActiveReservations(roomId = null, currentDate) {
 
 /**
  * Automated Room Status Updater:
- * - Cleaning stays stored as cleaning until a manual staff status change.
+ * - Cleaning stays stored as cleaning for a same-day incoming guest until staff marks it ready.
+ * - A confirmed guest who arrived before today and has not checked out keeps the room occupied.
  * - Active confirmed reservations (arrival <= today) set rooms to occupied.
  * - Confirmed future arrivals set rooms to reserved.
  * - Checkout dates alone never set or clear room status.
@@ -162,6 +163,11 @@ function autoUpdateRoomStatuses(currentDate) {
 
   const activeReservations = getActiveReservations(null, today);
   const occupiedRoomIds = new Set(activeReservations.map(r => r.room_id));
+  const activeByRoom = new Map();
+  for (const reservation of activeReservations) {
+    if (!activeByRoom.has(reservation.room_id)) activeByRoom.set(reservation.room_id, []);
+    activeByRoom.get(reservation.room_id).push(reservation);
+  }
 
   // 2. Future reservations: check_in_date > today (not yet arrived)
   const futureSql = `
@@ -174,11 +180,16 @@ function autoUpdateRoomStatuses(currentDate) {
   const futureRoomIds = new Set(futureRows.map(r => r.room_id));
 
   const allRooms = queryAll("SELECT id, status FROM rooms");
+  let occupiedCount = 0;
 
   for (const room of allRooms) {
     let targetStatus = room.status;
+    const roomActiveReservations = activeByRoom.get(room.id) || [];
+    const hasGuestAlreadyArrived = roomActiveReservations.some(reservation => reservation.check_in_date < today);
 
-    if (room.status === 'تنظيف') {
+    // Preserve cleaning after a real checkout for a same-day arrival, but never
+    // show a room as cleaning while its already-arrived guest is still confirmed.
+    if (room.status === 'تنظيف' && !hasGuestAlreadyArrived) {
       targetStatus = 'تنظيف';
     } else if (occupiedRoomIds.has(room.id)) {
       targetStatus = 'مشغولة';
@@ -188,6 +199,7 @@ function autoUpdateRoomStatuses(currentDate) {
       targetStatus = 'متاحة';
     }
 
+    if (targetStatus === 'مشغولة') occupiedCount++;
     if (targetStatus !== room.status) {
       db.run("UPDATE rooms SET status = ? WHERE id = ?", [targetStatus, room.id]);
     }
@@ -197,7 +209,7 @@ function autoUpdateRoomStatuses(currentDate) {
   return {
     success: true,
     date: today,
-    occupiedCount: allRooms.filter(room => room.status !== 'تنظيف' && occupiedRoomIds.has(room.id)).length,
+    occupiedCount,
     reservedCount: futureRoomIds.size
   };
 }
