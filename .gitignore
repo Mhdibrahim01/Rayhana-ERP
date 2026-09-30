@@ -2,3 +2,4 @@ node_modules/
 dist/
 diag_out.json
 guest.csv
+seed-checkout-tests-runtime.js

@@ -3543,6 +3543,7 @@
   const settleBalanceLabel = document.getElementById('settle-balance-label');
   const settleBalanceValue = document.getElementById('settle-balance-value');
   const settleBalanceSub = document.getElementById('settle-balance-sub');
+  const settleDiscountSection = document.getElementById('settle-discount-section');
   const settleDiscountInput = document.getElementById('settle-discount-input');
   const settleDiscountReasonInput = document.getElementById('settle-discount-reason-input');
   const settleBreakdownHint = document.getElementById('settle-breakdown-hint');
@@ -3552,94 +3553,94 @@
   const settlePaymentMethodSelect = document.getElementById('settle-payment-method-select');
   const settleRefundBanner = document.getElementById('settle-refund-banner');
   const settleRefundAmount = document.getElementById('settle-refund-amount');
+  const settleRefundAmountInput = document.getElementById('settle-refund-amount-input');
+  const settleRefundMethodSelect = document.getElementById('settle-refund-method-select');
   const btnCloseSettleModal = document.getElementById('btn-close-settle-modal');
   const btnCancelSettle = document.getElementById('btn-cancel-settle');
   const btnCheckoutWithoutSettle = document.getElementById('btn-checkout-without-settle');
   const btnConfirmSettleCheckout = document.getElementById('btn-confirm-settle-checkout');
 
   let currentSettlingReservation = null;
+  // Last settlement preview fetched from the backend (non-contract bookings only)
+  let currentSettlementPreview = null;
 
+  // -------------------------------------------------------------------------
+  // updateSettleCalculations: render the modal's balance section from the
+  // backend preview (currentSettlementPreview for non-contract) or from the
+  // live fields for open-contract.
+  // -------------------------------------------------------------------------
   function updateSettleCalculations() {
     if (!currentSettlingReservation) return;
-    const paidSoFar = Math.round((parseFloat(currentSettlingReservation.paid_amount || 0) + Number.EPSILON) * 100) / 100;
-    const finalTotal = Math.round((parseFloat(settleFinalTotalInput ? settleFinalTotalInput.value : 0) + Number.EPSILON) * 100) / 100;
+
+    const isContract = currentSettlingReservation.booking_type === 'عقد مفتوح';
+
+    let finalTotal, paidSoFar;
+    if (!isContract && currentSettlementPreview) {
+      // Non-contract: use authoritative backend values
+      finalTotal = currentSettlementPreview.netCharge;
+      paidSoFar  = currentSettlementPreview.paidAmount;
+    } else {
+      // Open-contract (or fallback before preview arrives): use live field
+      finalTotal = Math.round((parseFloat(settleFinalTotalInput ? settleFinalTotalInput.value : 0) + Number.EPSILON) * 100) / 100;
+      paidSoFar  = Math.round((parseFloat(currentSettlingReservation.paid_amount || 0) + Number.EPSILON) * 100) / 100;
+    }
+
     const netBalance = Math.round((finalTotal - paidSoFar + Number.EPSILON) * 100) / 100;
 
-    const discountVal = parseFloat(settleDiscountInput ? settleDiscountInput.value : 0) || 0;
-    if (settleBreakdownHint) {
-      if (discountVal > 0) {
-        settleBreakdownHint.textContent = `(الخصم المطبق: ${discountVal.toFixed(2)} ريال)`;
-        settleBreakdownHint.style.color = '#b91c1c';
-      } else {
-        settleBreakdownHint.textContent = '(الأساس - الخصم)';
-        settleBreakdownHint.style.color = '#64748b';
+    // Discount hint (for open-contract only; non-contract discount is in the preview)
+    if (isContract) {
+      const discountVal = parseFloat(settleDiscountInput ? settleDiscountInput.value : 0) || 0;
+      if (settleBreakdownHint) {
+        if (discountVal > 0) {
+          settleBreakdownHint.textContent = `(الخصم المطبق: ${discountVal.toFixed(2)} ريال)`;
+          settleBreakdownHint.style.color = '#b91c1c';
+        } else {
+          settleBreakdownHint.textContent = '(الأساس - الخصم)';
+          settleBreakdownHint.style.color = '#64748b';
+        }
+      }
+    } else if (currentSettlementPreview) {
+      const disc = currentSettlementPreview.discountApplied || 0;
+      if (settleBreakdownHint) {
+        if (disc > 0) {
+          settleBreakdownHint.textContent = `(الخصم المطبق: ${disc.toFixed(2)} ريال)`;
+          settleBreakdownHint.style.color = '#b91c1c';
+        } else {
+          settleBreakdownHint.textContent = '(الأساس - الخصم)';
+          settleBreakdownHint.style.color = '#64748b';
+        }
       }
     }
 
     if (netBalance > 0.005) {
       // Guest owes money
-      if (settleBalanceBox) {
-        settleBalanceBox.style.background = '#fef2f2';
-        settleBalanceBox.style.borderColor = '#fca5a5';
-      }
-      if (settleBalanceLabel) {
-        settleBalanceLabel.textContent = 'المتبقي للتحصيل';
-        settleBalanceLabel.style.color = '#991b1b';
-      }
-      if (settleBalanceValue) {
-        settleBalanceValue.textContent = `${netBalance.toFixed(2)} ريال`;
-        settleBalanceValue.style.color = '#dc2626';
-      }
-      if (settleBalanceSub) {
-        settleBalanceSub.textContent = '(مستحق على النزيل)';
-        settleBalanceSub.style.color = '#dc2626';
-      }
+      if (settleBalanceBox) { settleBalanceBox.style.background = '#fef2f2'; settleBalanceBox.style.borderColor = '#fca5a5'; }
+      if (settleBalanceLabel) { settleBalanceLabel.textContent = 'المتبقي للتحصيل'; settleBalanceLabel.style.color = '#991b1b'; }
+      if (settleBalanceValue) { settleBalanceValue.textContent = `${netBalance.toFixed(2)} ريال`; settleBalanceValue.style.color = '#dc2626'; }
+      if (settleBalanceSub) { settleBalanceSub.textContent = '(مستحق على النزيل)'; settleBalanceSub.style.color = '#dc2626'; }
       if (settlePaymentSection) settlePaymentSection.style.display = 'block';
       if (settlePayNowInput) settlePayNowInput.value = netBalance.toFixed(2);
       if (settleRefundBanner) settleRefundBanner.style.display = 'none';
       if (btnConfirmSettleCheckout) btnConfirmSettleCheckout.textContent = 'تأكيد السداد وتسجيل المغادرة ✓';
     } else if (netBalance < -0.005) {
-      // Guest has credit (refund)
+      // Guest overpaid — refund due
       const absCredit = Math.abs(netBalance);
-      if (settleBalanceBox) {
-        settleBalanceBox.style.background = '#eff6ff';
-        settleBalanceBox.style.borderColor = '#93c5fd';
-      }
-      if (settleBalanceLabel) {
-        settleBalanceLabel.textContent = 'رصيد دائن للنزيل';
-        settleBalanceLabel.style.color = '#1e40af';
-      }
-      if (settleBalanceValue) {
-        settleBalanceValue.textContent = `${absCredit.toFixed(2)} ريال`;
-        settleBalanceValue.style.color = '#2563eb';
-      }
-      if (settleBalanceSub) {
-        settleBalanceSub.textContent = '(مبلغ مسترد للنزيل)';
-        settleBalanceSub.style.color = '#2563eb';
-      }
+      if (settleBalanceBox) { settleBalanceBox.style.background = '#eff6ff'; settleBalanceBox.style.borderColor = '#93c5fd'; }
+      if (settleBalanceLabel) { settleBalanceLabel.textContent = 'استرداد للنزيل'; settleBalanceLabel.style.color = '#1e40af'; }
+      if (settleBalanceValue) { settleBalanceValue.textContent = `${absCredit.toFixed(2)} ريال`; settleBalanceValue.style.color = '#2563eb'; }
+      if (settleBalanceSub) { settleBalanceSub.textContent = '(مبلغ مسترد للنزيل)'; settleBalanceSub.style.color = '#2563eb'; }
       if (settlePaymentSection) settlePaymentSection.style.display = 'none';
       if (settlePayNowInput) settlePayNowInput.value = '0.00';
       if (settleRefundBanner) settleRefundBanner.style.display = 'block';
       if (settleRefundAmount) settleRefundAmount.textContent = `${absCredit.toFixed(2)} ريال`;
+      if (settleRefundAmountInput) settleRefundAmountInput.value = absCredit.toFixed(2);
       if (btnConfirmSettleCheckout) btnConfirmSettleCheckout.textContent = 'تأكيد الاسترداد وتسجيل المغادرة ✓';
     } else {
-      // Perfectly balanced (0.00)
-      if (settleBalanceBox) {
-        settleBalanceBox.style.background = '#f0fdf4';
-        settleBalanceBox.style.borderColor = '#86efac';
-      }
-      if (settleBalanceLabel) {
-        settleBalanceLabel.textContent = 'صافي الحساب';
-        settleBalanceLabel.style.color = '#166534';
-      }
-      if (settleBalanceValue) {
-        settleBalanceValue.textContent = '0.00 ريال';
-        settleBalanceValue.style.color = '#059669';
-      }
-      if (settleBalanceSub) {
-        settleBalanceSub.textContent = '(الحساب خالص بالكامل)';
-        settleBalanceSub.style.color = '#059669';
-      }
+      // Perfectly balanced
+      if (settleBalanceBox) { settleBalanceBox.style.background = '#f0fdf4'; settleBalanceBox.style.borderColor = '#86efac'; }
+      if (settleBalanceLabel) { settleBalanceLabel.textContent = 'صافي الحساب'; settleBalanceLabel.style.color = '#166534'; }
+      if (settleBalanceValue) { settleBalanceValue.textContent = '0.00 ريال'; settleBalanceValue.style.color = '#059669'; }
+      if (settleBalanceSub) { settleBalanceSub.textContent = '(الحساب خالص بالكامل)'; settleBalanceSub.style.color = '#059669'; }
       if (settlePaymentSection) settlePaymentSection.style.display = 'none';
       if (settlePayNowInput) settlePayNowInput.value = '0.00';
       if (settleRefundBanner) settleRefundBanner.style.display = 'none';
@@ -3647,46 +3648,99 @@
     }
   }
 
-  function openContractSettleModal(res) {
+  // -------------------------------------------------------------------------
+  // openContractSettleModal: fetch backend preview first for non-contract;
+  // populate all fields from authoritative data.
+  // -------------------------------------------------------------------------
+  async function openContractSettleModal(res) {
     if (!res) return;
     currentSettlingReservation = res;
+    currentSettlementPreview = null;
 
     const todayStr = getLocalDateString();
-    const checkInStr = res.check_in_date || todayStr;
-    const [y1, m1, d1] = checkInStr.split('-').map(Number);
-    const [y2, m2, d2] = todayStr.split('-').map(Number);
-    const diffMs = Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1);
-    const nights = Math.max(1, Math.round(diffMs / 86400000));
-
-    const room = roomsCache.find(rm => rm.id === res.room_id);
-    const pricePerNight = parseFloat(res.custom_nightly_price || res.price_per_night || (room ? room.price_per_night : 0)) || 0;
     const isContract = res.booking_type === 'عقد مفتوح';
-    const calculatedBase = isContract
-      ? Math.round((nights * pricePerNight + Number.EPSILON) * 100) / 100
-      : Math.round((parseFloat(res.total_price || 0) + Number.EPSILON) * 100) / 100;
     const paidSoFar = Math.round((parseFloat(res.paid_amount || 0) + Number.EPSILON) * 100) / 100;
-    const existingDiscount = Math.round((parseFloat(res.discount_amount || 0) + Number.EPSILON) * 100) / 100;
+
+    // Show/hide discount section:
+    // - Non-contract: Admin only (discount lowers the backend-computed charge)
+    // - Open-contract: always visible (same as before this change)
+    const activeRole = localStorage.getItem('currentUserRole') || (currentUser ? currentUser.role : null);
+    const isAdmin = activeRole === 'Admin';
+    if (settleDiscountSection) settleDiscountSection.style.display = (isContract || isAdmin) ? 'block' : 'none';
 
     if (settleReservationId) settleReservationId.value = res.id;
-    if (settlePricePerNightInput) settlePricePerNightInput.value = pricePerNight;
     if (settleGuestName) settleGuestName.textContent = res.guest_name || 'نزيل';
     const contractTypeLabel = isContract ? `عقد #${res.id}` : `حجز #${res.id}`;
     if (settleRoomInfo) settleRoomInfo.textContent = `غرفة ${res.room_number || '-'} (${contractTypeLabel})`;
-    if (settleCheckinDate) settleCheckinDate.textContent = checkInStr;
+    if (settleCheckinDate) settleCheckinDate.textContent = res.check_in_date || todayStr;
     if (settleCheckoutDate) settleCheckoutDate.textContent = todayStr;
-    if (settleNightsCount) {
-      const rateNote = res.custom_nightly_price ? ' - سعر خاص' : '';
-      settleNightsCount.textContent = `${nights} ${nights === 1 ? 'ليلة' : 'ليالٍ'} (بسعر ${pricePerNight.toLocaleString()} ريال/ليلة${rateNote})`;
-    }
-    if (settleTotalPriceDisplay) settleTotalPriceDisplay.textContent = `${calculatedBase.toFixed(2)} ريال`;
     if (settlePaidAmountDisplay) settlePaidAmountDisplay.textContent = `${paidSoFar.toFixed(2)} ريال`;
 
-    // Initialize discount inputs
-    if (settleDiscountInput) settleDiscountInput.value = existingDiscount > 0 ? existingDiscount.toFixed(2) : '0';
-    if (settleDiscountReasonInput) settleDiscountReasonInput.value = res.discount_reason || '';
+    if (!isContract) {
+      // Non-contract: fetch authoritative settlement from backend
+      try {
+        const previewRes = await window.api.checkoutPreview(res.id, {});
+        if (previewRes && previewRes.success && previewRes.data) {
+          currentSettlementPreview = previewRes.data;
+          const s = currentSettlementPreview;
+          const nightsLabel = s.actualNights === 1 ? 'ليلة' : 'ليالٍ';
+          const rateNote = res.custom_nightly_price ? ' - سعر خاص' : '';
+          if (settleNightsCount) settleNightsCount.textContent = `${s.actualNights} ${nightsLabel} (بسعر ${s.effectiveNightlyRate.toLocaleString()} ريال/ليلة${rateNote})`;
+          if (settleTotalPriceDisplay) settleTotalPriceDisplay.textContent = `${s.baseCharge.toFixed(2)} ريال`;
+          if (settleFinalTotalInput) settleFinalTotalInput.value = s.netCharge.toFixed(2);
+          // Pre-fill discount fields from stored discount (Admin only — section is already hidden for non-Admin)
+          if (settleDiscountInput) settleDiscountInput.value = (s.discountApplied || 0) > 0 ? (s.discountApplied).toFixed(2) : '0';
+          if (settleDiscountReasonInput) settleDiscountReasonInput.value = res.discount_reason || '';
+        } else {
+          // Fallback: compute from cache
+          const room = roomsCache.find(rm => rm.id === res.room_id);
+          const pricePerNight = parseFloat(res.custom_nightly_price || res.price_per_night || (room ? room.price_per_night : 0)) || 0;
+          const [y1, m1, d1] = (res.check_in_date || todayStr).split('-').map(Number);
+          const [y2, m2, d2] = todayStr.split('-').map(Number);
+          const nights = Math.max(1, Math.round((Date.UTC(y2, m2-1, d2) - Date.UTC(y1, m1-1, d1)) / 86400000));
+          const base = Math.round((nights * pricePerNight + Number.EPSILON) * 100) / 100;
+          const existDisc = Math.round((parseFloat(res.discount_amount || 0) + Number.EPSILON) * 100) / 100;
+          const net = Math.max(0, Math.round((base - existDisc + Number.EPSILON) * 100) / 100);
+          if (settleNightsCount) settleNightsCount.textContent = `${nights} ${nights === 1 ? 'ليلة' : 'ليالٍ'} (بسعر ${pricePerNight.toLocaleString()} ريال/ليلة)`;
+          if (settleTotalPriceDisplay) settleTotalPriceDisplay.textContent = `${base.toFixed(2)} ريال`;
+          if (settleFinalTotalInput) settleFinalTotalInput.value = net.toFixed(2);
+          if (settleDiscountInput) settleDiscountInput.value = existDisc > 0 ? existDisc.toFixed(2) : '0';
+          if (settleDiscountReasonInput) settleDiscountReasonInput.value = res.discount_reason || '';
+        }
+      } catch (e) {
+        showToast('تعذر تحميل بيانات التسوية. يرجى المحاولة مجدداً.', 'error');
+      }
+    } else {
+      // Open contract: compute locally (unchanged behaviour)
+      const room = roomsCache.find(rm => rm.id === res.room_id);
+      const pricePerNight = parseFloat(res.custom_nightly_price || res.price_per_night || (room ? room.price_per_night : 0)) || 0;
+      if (settlePricePerNightInput) settlePricePerNightInput.value = pricePerNight;
+      const [y1, m1, d1] = (res.check_in_date || todayStr).split('-').map(Number);
+      const [y2, m2, d2] = todayStr.split('-').map(Number);
+      const nights = Math.max(1, Math.round((Date.UTC(y2, m2-1, d2) - Date.UTC(y1, m1-1, d1)) / 86400000));
+      const calculatedBase = Math.round((nights * pricePerNight + Number.EPSILON) * 100) / 100;
+      const existingDiscount = Math.round((parseFloat(res.discount_amount || 0) + Number.EPSILON) * 100) / 100;
+      const rateNote = res.custom_nightly_price ? ' - سعر خاص' : '';
+      if (settleNightsCount) settleNightsCount.textContent = `${nights} ${nights === 1 ? 'ليلة' : 'ليالٍ'} (بسعر ${pricePerNight.toLocaleString()} ريال/ليلة${rateNote})`;
+      if (settleTotalPriceDisplay) settleTotalPriceDisplay.textContent = `${calculatedBase.toFixed(2)} ريال`;
+      if (settleDiscountInput) settleDiscountInput.value = existingDiscount > 0 ? existingDiscount.toFixed(2) : '0';
+      if (settleDiscountReasonInput) settleDiscountReasonInput.value = res.discount_reason || '';
+      const initialNet = Math.max(0, calculatedBase - existingDiscount);
+      if (settleFinalTotalInput) settleFinalTotalInput.value = initialNet.toFixed(2);
+    }
 
-    const initialNet = Math.max(0, calculatedBase - existingDiscount);
-    if (settleFinalTotalInput) settleFinalTotalInput.value = initialNet.toFixed(2);
+    // Non-contract: read-only (backend computes the net); open-contract: editable as before
+    if (settleFinalTotalInput) {
+      if (isContract) {
+        settleFinalTotalInput.removeAttribute('readonly');
+        settleFinalTotalInput.style.background = '#f8fafc';
+        settleFinalTotalInput.style.cursor = '';
+      } else {
+        settleFinalTotalInput.setAttribute('readonly', 'readonly');
+        settleFinalTotalInput.style.background = '#f1f5f9';
+        settleFinalTotalInput.style.cursor = 'default';
+      }
+    }
 
     updateSettleCalculations();
 
@@ -3707,6 +3761,7 @@
     if (settleDiscountInput) settleDiscountInput.value = '0';
     if (settleDiscountReasonInput) settleDiscountReasonInput.value = '';
     currentSettlingReservation = null;
+    currentSettlementPreview = null;
   }
 
   if (btnCloseSettleModal) btnCloseSettleModal.addEventListener('click', closeContractSettleModal);
@@ -3717,36 +3772,60 @@
     });
   }
 
+  // Admin-only: when discount changes, re-fetch preview so the net total updates
   if (settleDiscountInput) {
-    settleDiscountInput.addEventListener('input', () => {
+    settleDiscountInput.addEventListener('input', async () => {
       if (!currentSettlingReservation) return;
-      const baseTotal = parseFloat(settleTotalPriceDisplay ? settleTotalPriceDisplay.textContent : 0) || 0;
-      const disc = Math.max(0, parseFloat(settleDiscountInput.value) || 0);
-      const net = Math.max(0, baseTotal - disc);
-      if (settleFinalTotalInput) settleFinalTotalInput.value = net.toFixed(2);
-      updateSettleCalculations();
+      const isContract = currentSettlingReservation.booking_type === 'عقد مفتوح';
+      if (!isContract) {
+        // Re-fetch preview with updated discount
+        const discVal = Math.max(0, parseFloat(settleDiscountInput.value) || 0);
+        const discReason = settleDiscountReasonInput ? settleDiscountReasonInput.value.trim() : '';
+        try {
+          const previewRes = await window.api.checkoutPreview(currentSettlingReservation.id, {
+            discountAmount: discVal,
+            discountReason: discReason
+          });
+          if (previewRes && previewRes.success && previewRes.data) {
+            currentSettlementPreview = previewRes.data;
+            if (settleFinalTotalInput) settleFinalTotalInput.value = previewRes.data.netCharge.toFixed(2);
+            if (settleTotalPriceDisplay) settleTotalPriceDisplay.textContent = `${previewRes.data.baseCharge.toFixed(2)} ريال`;
+          }
+        } catch (e) { /* silent — updateSettleCalculations will use stale preview */ }
+        updateSettleCalculations();
+      } else {
+        // Open-contract: compute locally
+        const baseTotal = parseFloat(settleTotalPriceDisplay ? settleTotalPriceDisplay.textContent : 0) || 0;
+        const disc = Math.max(0, parseFloat(settleDiscountInput.value) || 0);
+        const net = Math.max(0, baseTotal - disc);
+        if (settleFinalTotalInput) settleFinalTotalInput.value = net.toFixed(2);
+        updateSettleCalculations();
+      }
     });
   }
 
+  // settleFinalTotalInput is readonly for non-contract; for open-contract it remains editable
   if (settleFinalTotalInput) {
     settleFinalTotalInput.addEventListener('input', () => {
-      if (currentSettlingReservation && settleTotalPriceDisplay && settleDiscountInput) {
+      if (!currentSettlingReservation) return;
+      const isContract = currentSettlingReservation.booking_type === 'عقد مفتوح';
+      if (!isContract) return; // read-only for non-contract: ignore manual input
+      // Open-contract only: back-calculate discount from entered total
+      if (settleTotalPriceDisplay && settleDiscountInput) {
         const baseTotal = parseFloat(settleTotalPriceDisplay.textContent) || 0;
         const enteredTotal = parseFloat(settleFinalTotalInput.value) || 0;
-        if (baseTotal > enteredTotal) {
-          settleDiscountInput.value = (baseTotal - enteredTotal).toFixed(2);
-        } else {
-          settleDiscountInput.value = '0';
-        }
+        settleDiscountInput.value = baseTotal > enteredTotal ? (baseTotal - enteredTotal).toFixed(2) : '0';
       }
       updateSettleCalculations();
     });
   }
 
+  // آجل button: defer collection, no payment row
   if (btnCheckoutWithoutSettle) {
     btnCheckoutWithoutSettle.addEventListener('click', async () => {
       if (!currentSettlingReservation) return;
       const resId = currentSettlingReservation.id;
+      const isContract = currentSettlingReservation.booking_type === 'عقد مفتوح';
       const finalTotal = parseFloat(settleFinalTotalInput ? settleFinalTotalInput.value : 0) || 0;
       const discAmount = settleDiscountInput ? parseFloat(settleDiscountInput.value) || 0 : 0;
       const discReason = settleDiscountReasonInput ? settleDiscountReasonInput.value.trim() : '';
@@ -3758,27 +3837,17 @@
         cancelText: 'تراجع',
         isDanger: true
       });
-
       if (!confirmed) return;
 
       try {
-        const res = await window.api.checkoutReservation(resId, {
-          finalTotalPrice: finalTotal,
-          settleAmount: 0,
-          discountAmount: discAmount,
-          discountReason: discReason,
-          notes: 'تسجيل مغادرة بدون تحصيل (آجل)'
-        });
-
+        const payload = isContract
+          ? { finalTotalPrice: finalTotal, settleAmount: 0, discountAmount: discAmount, discountReason: discReason, notes: 'تسجيل مغادرة بدون تحصيل (آجل)' }
+          : { settleMode: 'defer', discountAmount: discAmount, discountReason: discReason };
+        const res = await window.api.checkoutReservation(resId, payload);
         if (res.success) {
           showToast(`تم تسجيل مغادرة الحجز #${resId} بنجاح وترحيل الحساب.`, 'success');
           closeContractSettleModal();
-          await Promise.all([
-            loadOverviewData(),
-            loadReservationsData(),
-            loadRoomsData(),
-            loadTodayCheckouts()
-          ]);
+          await Promise.all([loadOverviewData(), loadReservationsData(), loadRoomsData(), loadTodayCheckouts()]);
         } else {
           showToast(res.error || 'فشل تسجيل المغادرة.', 'error');
         }
@@ -3788,67 +3857,66 @@
     });
   }
 
+  // Main form submit: collect now OR refund
   if (openContractSettleForm) {
     openContractSettleForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (!currentSettlingReservation) return;
       const resId = currentSettlingReservation.id;
+      const isContract = currentSettlingReservation.booking_type === 'عقد مفتوح';
       const finalTotal = parseFloat(settleFinalTotalInput ? settleFinalTotalInput.value : 0) || 0;
-      const payNow = parseFloat(settlePayNowInput ? settlePayNowInput.value : 0) || 0;
-      const method = settlePaymentMethodSelect ? settlePaymentMethodSelect.value : 'نقداً';
       const discAmount = settleDiscountInput ? parseFloat(settleDiscountInput.value) || 0 : 0;
       const discReason = settleDiscountReasonInput ? settleDiscountReasonInput.value.trim() : '';
 
-      if (finalTotal < 0) {
-        showToast('إجمالي الحساب لا يمكن أن يكون سالباً.', 'error');
+      // Validate discount reason for non-contract (backend also checks, but give early feedback)
+      if (!isContract && discAmount > 0 && !discReason) {
+        showToast('يرجى إدخال سبب الخصم عند تطبيق خصم على المغادرة.', 'error');
+        if (settleDiscountReasonInput) settleDiscountReasonInput.focus();
         return;
       }
-      if (payNow < 0) {
-        showToast('مبلغ السداد لا يمكن أن يكون سالباً.', 'error');
-        return;
+
+      // Determine whether this is a collection or refund based on balance state
+      const paidSoFar = parseFloat(currentSettlingReservation.paid_amount || 0);
+      const netBalance = finalTotal - paidSoFar;
+      const isRefund = netBalance < -0.005;
+
+      let payload;
+      if (isContract) {
+        // Open-contract path: legacy shim
+        const payNow = parseFloat(settlePayNowInput ? settlePayNowInput.value : 0) || 0;
+        const method = settlePaymentMethodSelect ? settlePaymentMethodSelect.value : 'نقداً';
+        payload = { finalTotalPrice: finalTotal, settleAmount: payNow, paymentMethod: method, discountAmount: discAmount, discountReason: discReason, notes: 'سداد تصفية حساب مغادرة' };
+      } else if (isRefund) {
+        // Refund path
+        const rawRefund = parseFloat(settleRefundAmountInput ? settleRefundAmountInput.value : 0) || 0;
+        const refundMethod = settleRefundMethodSelect ? settleRefundMethodSelect.value : 'نقداً';
+        if (rawRefund <= 0) {
+          showToast('يرجى إدخال مبلغ الاسترداد.', 'error');
+          return;
+        }
+        payload = { settleMode: 'refund', refundAmount: rawRefund, paymentMethod: refundMethod, discountAmount: discAmount, discountReason: discReason };
+      } else {
+        // Collect now path
+        const payNow = parseFloat(settlePayNowInput ? settlePayNowInput.value : 0) || 0;
+        const method = settlePaymentMethodSelect ? settlePaymentMethodSelect.value : 'نقداً';
+        payload = { settleMode: payNow > 0 ? 'collect' : 'defer', collectAmount: payNow, paymentMethod: method, discountAmount: discAmount, discountReason: discReason };
       }
 
       try {
-        if (btnConfirmSettleCheckout) {
-          btnConfirmSettleCheckout.disabled = true;
-          btnConfirmSettleCheckout.textContent = 'جاري التصفية...';
-        }
-
-        const res = await window.api.checkoutReservation(resId, {
-          finalTotalPrice: finalTotal,
-          settleAmount: payNow,
-          paymentMethod: method,
-          discountAmount: discAmount,
-          discountReason: discReason,
-          notes: 'سداد تصفية حساب مغادرة'
-        });
-
+        if (btnConfirmSettleCheckout) { btnConfirmSettleCheckout.disabled = true; btnConfirmSettleCheckout.textContent = 'جاري التصفية...'; }
+        const res = await window.api.checkoutReservation(resId, payload);
         if (res.success) {
           showToast(`تمت تصفية حساب الحجز #${resId} وتسجيل المغادرة بنجاح!`, 'success');
           closeContractSettleModal();
-          await Promise.all([
-            loadOverviewData(),
-            loadReservationsData(),
-            loadRoomsData(),
-            loadTodayCheckouts()
-          ]);
-
-          // Offer to open final invoice
-          setTimeout(() => {
-            if (typeof openInvoiceModal === 'function') {
-              openInvoiceModal(resId);
-            }
-          }, 350);
+          await Promise.all([loadOverviewData(), loadReservationsData(), loadRoomsData(), loadTodayCheckouts()]);
+          setTimeout(() => { if (typeof openInvoiceModal === 'function') openInvoiceModal(resId); }, 350);
         } else {
           showToast(res.error || 'فشل تسجيل المغادرة وتصفية الحساب.', 'error');
         }
       } catch (err) {
         showToast(`خطأ: ${err.message}`, 'error');
       } finally {
-        if (btnConfirmSettleCheckout) {
-          btnConfirmSettleCheckout.disabled = false;
-          btnConfirmSettleCheckout.textContent = 'تأكيد السداد وتسجيل المغادرة ✓';
-        }
+        if (btnConfirmSettleCheckout) { btnConfirmSettleCheckout.disabled = false; btnConfirmSettleCheckout.textContent = 'تأكيد السداد وتسجيل المغادرة ✓'; }
       }
     });
   }
@@ -4479,6 +4547,27 @@
       const isCredit = rawRemaining < -0.005;
       const remaining = isContract ? rawRemaining : Math.max(0, rawRemaining);
 
+      // Compute total refunded from the payments ledger.
+      // Only rows whose notes start with 'استرداد - تسوية مغادرة' are checkout
+      // refunds. Cancel refunds ('استرداد كامل' / 'استرداد نقدي') are excluded
+      // so old invoices look exactly as before.
+      let refundedTotal = 0;
+      try {
+        const paymentsRes = await window.api.getReservationPayments(targetId);
+        if (paymentsRes && paymentsRes.success && Array.isArray(paymentsRes.data)) {
+          for (const p of paymentsRes.data) {
+            if (
+              parseFloat(p.amount) < 0 &&
+              typeof p.notes === 'string' &&
+              p.notes.startsWith('استرداد - تسوية مغادرة')
+            ) {
+              refundedTotal += Math.abs(parseFloat(p.amount));
+            }
+          }
+        }
+      } catch (_) { /* non-critical — invoice still renders without it */ }
+      refundedTotal = Math.round((refundedTotal + Number.EPSILON) * 100) / 100;
+
       const d1 = inv.check_in_date ? new Date(inv.check_in_date) : null;
       const d2 = inv.check_out_date ? new Date(inv.check_out_date) : null;
       const nights = (d1 && d2 && d2 > d1) ? Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24))) : (isContract ? '-' : 1);
@@ -4634,6 +4723,12 @@
                 <span>المبلغ المدفوع:</span>
                 <span>${paid.toFixed(2)} ريال</span>
               </div>
+              ${refundedTotal > 0 ? `
+              <div style="display: flex; justify-content: space-between; margin-bottom: 8px; color: #1d4ed8; font-weight: 700;">
+                <span>المبلغ المسترد:</span>
+                <span>- ${refundedTotal.toFixed(2)} ريال</span>
+              </div>
+              ` : ''}
               <div style="display: flex; justify-content: space-between; padding-top: 6px; border-top: 1px dashed #cbd5e1; font-weight: 800; color: ${isCredit ? '#2563eb' : (remaining > 0 ? '#dc2626' : '#059669')};">
                 <span>${isCredit ? 'رصيد دائن:' : 'المبلغ المتبقي:'}</span>
                 <span>${isCredit ? `${Math.abs(rawRemaining).toFixed(2)} ريال` : `${remaining.toFixed(2)} ريال`}</span>
@@ -6062,39 +6157,55 @@
       if (!resData) {
         try {
           const invRes = await window.api.getInvoiceData(id);
-          if (invRes && invRes.success && invRes.data) {
-            resData = invRes.data;
-          }
+          if (invRes && invRes.success && invRes.data) resData = invRes.data;
         } catch (e) {}
       }
 
-      if (resData && (resData.booking_type === 'عقد مفتوح' || (parseFloat(resData.total_price || 0) - parseFloat(resData.paid_amount || 0) > 0.005))) {
+      // Open contracts always go through the settle modal (unchanged)
+      if (resData && resData.booking_type === 'عقد مفتوح') {
         openContractSettleModal(resData);
         return;
       }
 
-      const confirmed = await showConfirmDialog({
-        title: 'تسجيل خروج النزيل',
-        message: `هل أنت متأكد من تسجيل خروج النزيل للحجز #${id}؟\nسيتم إكمال الحجز وتحويل الغرفة تلقائياً لوضع "تنظيف".`,
-        confirmText: 'تسجيل الخروج',
-        cancelText: 'إلغاء',
-        isDanger: false
-      });
-
-      if (confirmed) {
-        try {
-          const res = await window.api.checkoutReservation(id);
-          if (res.success) {
-            showToast(`تم تسجيل خروج الحجز #${id} بنجاح.`, 'success');
-            await loadOverviewData();
-            await loadReservationsData();
-            await loadRoomsData();
-          } else {
-            showToast(res.error || 'فشل تسجيل الخروج.', 'error');
-          }
-        } catch (err) {
-          showToast(`خطأ: ${err.message}`, 'error');
+      // Non-contract: fetch the authoritative settlement preview from the backend
+      // to decide whether the simple confirm or the settle modal is appropriate.
+      try {
+        const previewRes = await window.api.checkoutPreview(id, {});
+        if (!previewRes || !previewRes.success) {
+          showToast(previewRes?.error || 'تعذر تحميل بيانات التسوية.', 'error');
+          return;
         }
+        const preview = previewRes.data;
+
+        // Use the simple confirm only when the account is exactly settled (difference ≈ 0)
+        if (preview.isSettled) {
+          const confirmed = await showConfirmDialog({
+            title: 'تسجيل خروج النزيل',
+            message: `هل أنت متأكد من تسجيل خروج النزيل للحجز #${id}؟\nالمبلغ مسدد بالكامل (${preview.netCharge.toLocaleString()} ريال).\nسيتم إكمال الحجز وتحويل الغرفة تلقائياً لوضع "تنظيف".`,
+            confirmText: 'تسجيل الخروج',
+            cancelText: 'إلغاء',
+            isDanger: false
+          });
+          if (confirmed) {
+            try {
+              const res = await window.api.checkoutReservation(id, { settleMode: 'defer' });
+              if (res.success) {
+                showToast(`تم تسجيل خروج الحجز #${id} بنجاح.`, 'success');
+                await Promise.all([loadOverviewData(), loadReservationsData(), loadRoomsData(), loadTodayCheckouts()]);
+                setTimeout(() => { if (typeof openInvoiceModal === 'function') openInvoiceModal(id); }, 350);
+              } else {
+                showToast(res.error || 'فشل تسجيل الخروج.', 'error');
+              }
+            } catch (err) {
+              showToast(`خطأ: ${err.message}`, 'error');
+            }
+          }
+        } else {
+          // Amount due or refund due — open the settle modal
+          openContractSettleModal(resData || { id, booking_type: 'عادي', check_in_date: preview.checkInDate, paid_amount: preview.paidAmount });
+        }
+      } catch (err) {
+        showToast(`خطأ في تحميل بيانات التسوية: ${err.message}`, 'error');
       }
     } else if (action === 'cancel') {
       let targetRes = reservationsCache.find(r => r.id === id);

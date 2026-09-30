@@ -145,8 +145,46 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
         options = arg1;
       }
       const activeUserId = options.userId || (session.currentUser ? session.currentUser.id : null);
+
+      // Safe RBAC check: strip discountAmount for non-Admin users.
+      // NEVER trust any role claim from the renderer.
+      // customNightlyPrice is never accepted from the renderer for non-contract bookings.
+      const isAdmin = session.currentUser && session.currentUser.role === 'Admin';
+      if (!isAdmin) {
+        options = { ...options, discountAmount: undefined, discountReason: undefined };
+      }
+      // Always strip customNightlyPrice — rate comes only from the stored reservation.
+      options = { ...options, customNightlyPrice: undefined, finalTotalPrice: undefined };
+
       const result = db.checkoutReservation(id, { ...options, userId: activeUserId });
       return result;
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  // Read-only settlement preview — writes nothing to the database.
+  // Returns the same figures checkoutReservation will use, so the modal
+  // can show an authoritative breakdown before the receptionist commits.
+  ipcMain.handle('reservations:checkout-preview', async (event, arg1, arg2) => {
+    try {
+      let id = arg1;
+      let options = arg2 || {};
+      if (arg1 && typeof arg1 === 'object') {
+        id = arg1.reservationId || arg1.id;
+        options = arg1;
+      }
+
+      // Strip discount for non-Admin (same rule as checkout itself).
+      // Always strip customNightlyPrice — rate comes only from the stored reservation.
+      const isAdmin = session.currentUser && session.currentUser.role === 'Admin';
+      if (!isAdmin) {
+        options = { ...options, discountAmount: undefined, discountReason: undefined };
+      }
+      options = { ...options, customNightlyPrice: undefined };
+
+      const data = db.computeCheckoutSettlement(id, options);
+      return { success: true, data };
     } catch (err) {
       return { success: false, error: err.message };
     }

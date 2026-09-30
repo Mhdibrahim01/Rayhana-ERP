@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('api', {
   getTodayCheckouts: (date) => ipcRenderer.invoke('reservations:get-today-checkouts', date),
   createReservation: (reservationData) => ipcRenderer.invoke('reservations:create', reservationData),
   checkoutReservation: (reservationId, options) => ipcRenderer.invoke('reservations:checkout', reservationId, options),
+  checkoutPreview: (reservationId, options) => ipcRenderer.invoke('reservations:checkout-preview', reservationId, options),
   extendReservation: (data) => ipcRenderer.invoke('reservations:extend', data),
   cancelReservation: (reservationId) => ipcRenderer.invoke('reservations:cancel', reservationId),
   addPayment: (paymentData) => ipcRenderer.invoke('add-payment', paymentData),
