@@ -10,7 +10,13 @@ const { db, queryOne, queryAll, saveToFile, roundMoney, getLocalDateString } = r
  */
 function getAllRooms() {
   autoUpdateRoomStatuses();
-  return queryAll("SELECT * FROM rooms ORDER BY CAST(room_number AS INTEGER) ASC, room_number ASC");
+  const allRooms = queryAll("SELECT * FROM rooms ORDER BY CAST(room_number AS INTEGER) ASC, room_number ASC");
+  const activeByRoom = new Map();
+  for (const reservation of getActiveReservations(null)) {
+    if (!activeByRoom.has(reservation.room_id)) activeByRoom.set(reservation.room_id, []);
+    activeByRoom.get(reservation.room_id).push(reservation);
+  }
+  return allRooms.map(room => ({ ...room, active_reservations: activeByRoom.get(room.id) || [] }));
 }
 
 function getAvailableRooms() {
@@ -29,15 +35,13 @@ function updateRoomStatus(roomId, status) {
     throw new Error('الغرفة غير موجودة.');
   }
 
-  // Check if room has an active confirmed reservation TODAY (check_in_date <= today AND (check_out_date IS NULL OR check_out_date = '' OR check_out_date > today))
+  // An active reservation remains occupied until its status changes from 'مؤكد'.
   const today = getLocalDateString();
-  const activeRes = queryOne(
-    "SELECT id FROM reservations WHERE room_id = ? AND status = 'مؤكد' AND check_in_date <= ? AND (check_out_date IS NULL OR check_out_date = '' OR check_out_date > ?)",
-    [targetId, today, today]
-  );
+  const activeRes = getActiveReservations(targetId, today)[0] || null;
 
   // Strict Lock: If the room is actively occupied by a guest today, reject manual changes away from 'مشغولة'
-  if ((currentRoom.status === 'مشغولة' || activeRes) && status !== 'مشغولة') {
+  const isManualReadyAction = currentRoom.status === 'تنظيف' && status === 'متاحة';
+  if ((currentRoom.status === 'مشغولة' || activeRes) && status !== 'مشغولة' && !isManualReadyAction) {
     throw new Error(`لا يمكن تغيير حالة الغرفة رقم (${currentRoom.room_number}) يدوياً لأنها مشغولة بنزيل حالياً (حجز #${activeRes ? activeRes.id : ''}). يجب تسجيل مغادرة النزيل (Check-out) أولاً.`);
   }
 
@@ -86,16 +90,14 @@ function updateRoom({ id, room_number, type, price_per_night, status = 'متاح
     throw new Error('الغرفة غير موجودة.');
   }
 
-  // Check if room has an active confirmed reservation TODAY
+  // An active reservation remains occupied until its status changes from 'مؤكد'.
   const today = getLocalDateString();
-  const activeRes = queryOne(
-    "SELECT id FROM reservations WHERE room_id = ? AND status = 'مؤكد' AND check_in_date <= ? AND (check_out_date IS NULL OR check_out_date = '' OR check_out_date > ?)",
-    [targetId, today, today]
-  );
+  const activeRes = getActiveReservations(targetId, today)[0] || null;
 
   let finalStatus = status;
   // If the room is currently occupied by an active guest today, lock the status to 'مشغولة'
-  if (currentRoom.status === 'مشغولة' || activeRes) {
+  const isManualReadyAction = currentRoom.status === 'تنظيف' && status === 'متاحة';
+  if ((currentRoom.status === 'مشغولة' || activeRes) && !isManualReadyAction) {
     if (status !== 'مشغولة') {
       throw new Error(`لا يمكن تغيير حالة الغرفة (${cleanNum}) إلى "${status}" لأنها مشغولة بنزيل حالياً (حجز #${activeRes ? activeRes.id : ''}). يجب تسجيل المغادرة أولاً.`);
     }
@@ -129,26 +131,37 @@ function deleteRoom(roomId) {
   return true;
 }
 
+/** Confirmed reservations whose arrival date has started remain active regardless of checkout date. */
+function getActiveReservations(roomId = null, currentDate) {
+  const today = currentDate || getLocalDateString();
+  const roomCondition = roomId === null || roomId === undefined ? '' : 'AND r.room_id = ?';
+  const params = roomId === null || roomId === undefined ? [today] : [today, roomId];
+  return queryAll(`
+    SELECT r.id, r.room_id, r.guest_id, r.check_in_date, r.check_out_date,
+           r.total_price, r.paid_amount, r.payment_status, r.status, r.booking_type,
+           r.custom_nightly_price, r.discount_amount, r.created_at,
+           g.name AS guest_name, g.phone AS guest_phone, g.id_number AS guest_id_number
+    FROM reservations r
+    JOIN guests g ON g.id = r.guest_id
+    WHERE r.status = 'مؤكد'
+      AND r.check_in_date <= ?
+      ${roomCondition}
+    ORDER BY r.room_id ASC, r.check_in_date ASC, r.id ASC
+  `, params);
+}
+
 /**
  * Automated Room Status Updater:
- * - 'مشغولة' (Occupied): active reservation where CURRENT_DATE >= check_in_date AND CURRENT_DATE < check_out_date
- * - 'محجوزة' (Reserved): confirmed reservation where check_in_date > CURRENT_DATE (and not occupied today)
- * - 'تنظيف' (Cleaning): stays where check_out_date <= CURRENT_DATE or room was manually marked for cleaning
- * - 'متاحة' (Available): no active or future confirmed reservations, and not in cleaning
+ * - Cleaning stays stored as cleaning until a manual staff status change.
+ * - Active confirmed reservations (arrival <= today) set rooms to occupied.
+ * - Confirmed future arrivals set rooms to reserved.
+ * - Checkout dates alone never set or clear room status.
  */
 function autoUpdateRoomStatuses(currentDate) {
   const today = currentDate || getLocalDateString();
 
-  // 1. Actively occupied rooms today: check_in_date <= today AND (check_out_date IS NULL OR check_out_date = '' OR check_out_date > today)
-  const occupiedSql = `
-    SELECT DISTINCT room_id 
-    FROM reservations 
-    WHERE status = 'مؤكد' 
-      AND check_in_date <= ? 
-      AND (check_out_date IS NULL OR check_out_date = '' OR check_out_date > ?)
-  `;
-  const occupiedRows = queryAll(occupiedSql, [today, today]);
-  const occupiedRoomIds = new Set(occupiedRows.map(r => r.room_id));
+  const activeReservations = getActiveReservations(null, today);
+  const occupiedRoomIds = new Set(activeReservations.map(r => r.room_id));
 
   // 2. Future reservations: check_in_date > today (not yet arrived)
   const futureSql = `
@@ -160,26 +173,15 @@ function autoUpdateRoomStatuses(currentDate) {
   const futureRows = queryAll(futureSql, [today]);
   const futureRoomIds = new Set(futureRows.map(r => r.room_id));
 
-  // 3. Checkouts that passed or today: check_out_date <= today (only when check_out_date is set and non-empty)
-  const checkoutSql = `
-    SELECT DISTINCT room_id 
-    FROM reservations 
-    WHERE status = 'مكتمل' OR (status = 'مؤكد' AND check_out_date IS NOT NULL AND check_out_date != '' AND check_out_date <= ?)
-  `;
-  const checkoutRows = queryAll(checkoutSql, [today]);
-  const checkoutRoomIds = new Set(checkoutRows.map(r => r.room_id));
-
   const allRooms = queryAll("SELECT id, status FROM rooms");
 
   for (const room of allRooms) {
     let targetStatus = room.status;
 
-    if (occupiedRoomIds.has(room.id)) {
+    if (room.status === 'تنظيف') {
+      targetStatus = 'تنظيف';
+    } else if (occupiedRoomIds.has(room.id)) {
       targetStatus = 'مشغولة';
-    } else if (room.status === 'تنظيف') {
-      targetStatus = 'تنظيف';
-    } else if (checkoutRoomIds.has(room.id) && room.status === 'مشغولة') {
-      targetStatus = 'تنظيف';
     } else if (futureRoomIds.has(room.id)) {
       targetStatus = 'محجوزة';
     } else {
@@ -192,7 +194,12 @@ function autoUpdateRoomStatuses(currentDate) {
   }
 
   saveToFile();
-  return { success: true, date: today, occupiedCount: occupiedRoomIds.size, reservedCount: futureRoomIds.size };
+  return {
+    success: true,
+    date: today,
+    occupiedCount: allRooms.filter(room => room.status !== 'تنظيف' && occupiedRoomIds.has(room.id)).length,
+    reservedCount: futureRoomIds.size
+  };
 }
 
 /**

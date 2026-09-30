@@ -343,9 +343,11 @@ function createReservation({
       }
     }
 
-    const roomStmt = db.prepare("UPDATE rooms SET status = ? WHERE id = ?");
-    roomStmt.run([assignedRoomStatus, parsedRoomId]);
-    roomStmt.free();
+    if (currentRoom && (currentRoom.status === 'متاحة' || currentRoom.status === 'محجوزة')) {
+      const roomStmt = db.prepare("UPDATE rooms SET status = ? WHERE id = ?");
+      roomStmt.run([assignedRoomStatus, parsedRoomId]);
+      roomStmt.free();
+    }
 
     db.run("COMMIT;");
     saveToFile();

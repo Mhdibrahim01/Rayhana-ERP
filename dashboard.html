@@ -560,6 +560,17 @@
             </div>
           </div>
 
+          <div id="rooms-payment-filter-container" style="display: none; align-items: center; gap: 10px; margin: -8px 0 18px; flex-wrap: wrap;">
+            <strong style="font-size: 0.82rem; color: var(--text-secondary);">حالة سداد النزيل الحالي:</strong>
+            <div class="filter-tabs-bar" id="rooms-payment-filter-tabs" role="group" aria-label="فلترة الغرف حسب حالة السداد">
+              <button type="button" class="filter-tab-btn active" data-room-payment-status="all">الكل</button>
+              <button type="button" class="filter-tab-btn" data-room-payment-status="غير مدفوع">غير مدفوع</button>
+              <button type="button" class="filter-tab-btn" data-room-payment-status="مدفوع جزئياً">مدفوع جزئياً</button>
+              <button type="button" class="filter-tab-btn" data-room-payment-status="مدفوع بالكامل">مدفوع بالكامل</button>
+              <button type="button" class="filter-tab-btn" data-room-payment-status="رصيد دائن">رصيد دائن</button>
+            </div>
+          </div>
+
           <!-- Add Room Collapsible Form -->
           <div id="add-room-panel" class="card" style="display: none; margin-bottom: 24px; border: 2px dashed #c7d2fe;">
             <div class="card-header" style="background: #eef2ff;">
@@ -1066,6 +1077,7 @@
             <div class="form-group" id="check-out-container" style="margin-bottom: 0;">
               <label for="check-out-date" id="check-out-label" style="font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; display: block; color: #334155;">تاريخ المغادرة <span id="check-out-required-star">*</span></label>
               <input type="date" id="check-out-date" required class="form-control">
+              <span id="check-out-minimum-hint" style="display: block; font-size: 0.73rem; color: #64748b; font-weight: 600; margin-top: 4px;">الحد الأدنى للإقامة ليلة واحدة؛ المغادرة في اليوم التالي على الأقل.</span>
               <span id="check-out-open-hint" style="display: none; font-size: 0.73rem; color: #0284c7; font-weight: 700; margin-top: 4px;">عقد مفتوح: لا يتطلب تحديد موعد خروج</span>
             </div>
           </div>

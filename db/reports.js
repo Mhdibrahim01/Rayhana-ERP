@@ -35,9 +35,10 @@ function getTodayCheckouts(targetDate) {
     JOIN guests g ON r.guest_id = g.id
     JOIN rooms rm ON r.room_id = rm.id
     WHERE DATE(r.check_out_date) = DATE(?)
+       OR (r.status = 'مؤكد' AND DATE(r.check_out_date) < DATE(?))
     ORDER BY rm.room_number ASC
   `;
-  return queryAll(sql, [today]);
+  return queryAll(sql, [today, today]);
 }
 
 /**
