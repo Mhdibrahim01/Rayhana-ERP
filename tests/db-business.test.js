@@ -103,6 +103,8 @@ test('database and business-logic safety net', async t => {
       const occupiedRoom = addTestRoom('T-OCC');
       const cleaningRoom = addTestRoom('T-CLN');
       const futureRoom = addTestRoom('T-FUT');
+      const maintenanceRoom = addTestRoom('T-MNT');
+      connection.getDb().run("UPDATE rooms SET status = 'صيانة' WHERE id = ?", [maintenanceRoom.id]);
       createTestReservation({
         roomId: occupiedRoom.id,
         name: 'Overdue Occupant',
@@ -128,10 +130,12 @@ test('database and business-logic safety net', async t => {
       assert.equal(roomStatuses['T-OCC'], 'مشغولة');
       assert.equal(roomStatuses['T-CLN'], 'تنظيف');
       assert.equal(roomStatuses['T-FUT'], 'محجوزة');
+      assert.equal(roomStatuses['T-MNT'], 'صيانة');
 
       db.updateRoomStatus(cleaningRoom.id, 'متاحة');
       db.autoUpdateRoomStatuses(today);
       assert.equal(db.getAllRooms().find(room => room.id === cleaningRoom.id).status, 'مشغولة');
+      assert.equal(db.getAllRooms().find(room => room.id === maintenanceRoom.id).status, 'صيانة');
       assertDatabaseIntegrity(connection, 'room status update');
     });
 

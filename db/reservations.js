@@ -1111,7 +1111,7 @@ function extendReservation({
   if (res.status === 'مكتمل') {
     throw new Error('لا يمكن تمديد حجز تم تسجيل مغادرته بالكامل.');
   }
-  if (res.check_out_date === 'مفتوح') {
+  if (res.booking_type === 'عقد مفتوح' || !res.check_out_date || res.check_out_date === 'مفتوح') {
     throw new Error('حجوزات العقود المفتوحة ليس لها تاريخ مغادرة محدد ليتم تمديدها.');
   }
 

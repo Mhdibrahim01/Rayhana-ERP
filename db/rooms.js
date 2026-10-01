@@ -118,10 +118,14 @@ function deleteRoom(roomId) {
     throw new Error('معرف الغرفة غير صالح.');
   }
 
-  // Check if room has active reservations
-  const activeRes = queryOne("SELECT id FROM reservations WHERE room_id = ? AND status = 'مؤكد'", [targetId]);
-  if (activeRes) {
-    throw new Error('لا يمكن حذف هذه الغرفة لأنها مرتبطة بحجز نشط حالياً. يرجى إنهاء أو إلغاء الحجز أولاً.');
+  // Check if room has active or historical reservations to protect data integrity
+  const existingRes = queryOne("SELECT id, status FROM reservations WHERE room_id = ? LIMIT 1", [targetId]);
+  if (existingRes) {
+    if (existingRes.status === 'مؤكد') {
+      throw new Error('لا يمكن حذف هذه الغرفة لأنها مرتبطة بحجز نشط حالياً. يرجى إنهاء أو إلغاء الحجز أولاً.');
+    } else {
+      throw new Error('لا يمكن حذف هذه الغرفة لوجود سجل حجوزات مرتبط بها. يمكنك تغيير حالتها إلى "صيانة" بدلاً من حذفها للحفاظ على السجلات المالية والتاريخية.');
+    }
   }
 
   const stmt = db.prepare("DELETE FROM rooms WHERE id = ?");
@@ -188,9 +192,10 @@ function autoUpdateRoomStatuses(currentDate) {
     const roomActiveReservations = activeByRoom.get(room.id) || [];
     const hasGuestAlreadyArrived = roomActiveReservations.some(reservation => reservation.check_in_date < today);
 
-    // Preserve cleaning after a real checkout for a same-day arrival, but never
-    // show a room as cleaning while its already-arrived guest is still confirmed.
-    if (room.status === 'تنظيف' && !hasGuestAlreadyArrived) {
+    // Preserve cleaning and maintenance statuses when room is not occupied
+    if (room.status === 'صيانة' && !occupiedRoomIds.has(room.id)) {
+      targetStatus = 'صيانة';
+    } else if (room.status === 'تنظيف' && !hasGuestAlreadyArrived) {
       targetStatus = 'تنظيف';
     } else if (occupiedRoomIds.has(room.id)) {
       targetStatus = 'مشغولة';

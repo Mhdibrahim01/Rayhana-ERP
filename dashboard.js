@@ -5002,10 +5002,11 @@
       const effectiveNightlyRate = parseFloat(inv.custom_nightly_price || inv.price_per_night || 0);
       const discount = parseFloat(inv.discount_amount || 0);
       const discountReasonText = inv.discount_reason ? ` (${escapeHtml(inv.discount_reason)})` : '';
-      const hasCancellationAdjustment = inv.status === 'ملغي جزئياً' && inv.original_calculated_charge != null;
+      const hasCancellationAdjustment = (inv.status === 'ملغي جزئي' || inv.status === 'ملغي جزئياً') && inv.original_calculated_charge != null;
       const baseSubtotal = (typeof nights === 'number' && nights > 0) ? (nights * effectiveNightlyRate) : (total + discount);
 
-      const invoiceNum = `SND-2026-${String(inv.id).padStart(5, '0')}`;
+      const invoiceYear = (inv.created_at ? new Date(inv.created_at) : new Date()).getFullYear() || new Date().getFullYear();
+      const invoiceNum = `SND-${invoiceYear}-${String(inv.id).padStart(5, '0')}`;
       const issuedAt = new Date();
       const printDate = issuedAt.toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
       const printTime = issuedAt.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
