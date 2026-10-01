@@ -105,13 +105,18 @@ function updateUserPassword(userId, newPassword) {
 }
 
 function deleteUser(userId) {
-  const user = queryOne("SELECT username FROM users WHERE id = ?", [parseInt(userId, 10)]);
+  const targetId = parseInt(userId, 10);
+  const user = queryOne("SELECT username FROM users WHERE id = ?", [targetId]);
   if (!user) throw new Error('المستخدم غير موجود.');
   if (user.username.toLowerCase() === 'admin') {
     throw new Error('لا يمكن حذف حساب المسؤول الرئيسي (admin).');
   }
+  const hasPayments = queryOne("SELECT id FROM payments WHERE user_id = ? LIMIT 1", [targetId]);
+  if (hasPayments) {
+    throw new Error('لا يمكن حذف هذا المستخدم لوجود سندات مالية ومقبوضات مسجلة باسمه في النظام.');
+  }
   const stmt = db.prepare("DELETE FROM users WHERE id = ?");
-  stmt.run([parseInt(userId, 10)]);
+  stmt.run([targetId]);
   stmt.free();
   saveToFile();
   return true;

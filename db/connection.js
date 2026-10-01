@@ -34,11 +34,16 @@ const dbProxy = new Proxy({}, {
  */
 function saveToFile() {
   if (!db || !currentDbPath) return;
+  const tempPath = `${currentDbPath}.tmp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   try {
     const data = db.export();
     const buffer = Buffer.from(data);
-    fs.writeFileSync(currentDbPath, buffer);
+    fs.writeFileSync(tempPath, buffer);
+    fs.renameSync(tempPath, currentDbPath);
   } catch (err) {
+    try {
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    } catch (_) {}
     console.error('[DB] خطأ أثناء حفظ قاعدة البيانات إلى القرص:', err);
   }
 }

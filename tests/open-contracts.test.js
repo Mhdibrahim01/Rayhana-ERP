@@ -26,6 +26,10 @@ test('open-contract creation, payments, and checkout path', async t => {
       assert.equal(db.getReservationById(reservationId).booking_type, 'عقد مفتوح');
       db.addPaymentToReservation({ reservationId, amount: 50, paymentMethod: 'نقداً' });
       assert.equal(db.getReservationById(reservationId).paid_amount, 150);
+      assert.throws(
+        () => db.extendReservation({ reservationId, newCheckOutDate: addDays(today, 5) }),
+        /حجوزات العقود المفتوحة ليس لها تاريخ مغادرة محدد ليتم تمديدها/
+      );
       assertDatabaseIntegrity(connection, 'open contract after payments');
 
       const checkout = db.checkoutReservation(reservationId, { finalTotalPrice: 200, settleAmount: 50 });
