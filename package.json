@@ -12,6 +12,8 @@
     "baseline:check": "node scripts/baseline.js check",
     "baseline:update": "node scripts/baseline.js update",
     "guard": "node scripts/refactor-guard.js",
+    "test:unit": "node --test",
+    "test:quick": "npm run lint && npm run baseline:check && npm run guard && npm run test:unit",
     "reset-db": "node reset-db.js",
     "import-guests": "node import-guests.js",
     "build": "electron-builder --win",
