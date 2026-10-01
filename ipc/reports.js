@@ -25,6 +25,9 @@ module.exports = function registerReportsIpc(ipcMain, { db, session, helpers }) 
 
   // 10. Shift Audit & Night Closing Report
   ipcMain.handle('reports:get-shift-audit', async (event, customDate, endDate) => {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
+      return { success: false, error: 'غير مصرح: تقرير الوردية يتطلب صلاحيات مدير النظام (Admin).' };
+    }
     try {
       let start = customDate;
       let end = endDate;

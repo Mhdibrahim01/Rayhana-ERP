@@ -14,6 +14,15 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
     }
   });
 
+  ipcMain.handle('reservations:get-page', async (event, params = {}) => {
+    try {
+      const result = db.getReservationsPage(params);
+      return { success: true, data: result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   // =========================================================================
   // Strict Backend Data Validations
   // =========================================================================

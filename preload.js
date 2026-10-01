@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // Reservations & Payments Ledger
   getAllReservations: () => ipcRenderer.invoke('reservations:get-all'),
+  getReservationsPage: (params) => ipcRenderer.invoke('reservations:get-page', params),
   getTodayCheckouts: (date) => ipcRenderer.invoke('reservations:get-today-checkouts', date),
   createReservation: (reservationData) => ipcRenderer.invoke('reservations:create', reservationData),
   checkoutReservation: (reservationId, options) => ipcRenderer.invoke('reservations:checkout', reservationId, options),

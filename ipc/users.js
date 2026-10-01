@@ -31,8 +31,7 @@ module.exports = function registerUsersIpc(ipcMain, { db, session }) {
     }
 
     // Role check: Only 'Admin' is permitted
-    const role = requesterRole || (session.currentUser ? session.currentUser.role : null);
-    if (role !== 'Admin') {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
       return {
         success: false,
         error: 'Access Denied: Admin privileges required.'
@@ -78,8 +77,7 @@ module.exports = function registerUsersIpc(ipcMain, { db, session }) {
     }
 
     // Role check: Only 'Admin' is permitted
-    const role = requesterRole || (session.currentUser ? session.currentUser.role : null);
-    if (role !== 'Admin') {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
       return {
         success: false,
         error: 'Access Denied: Admin privileges required.'
