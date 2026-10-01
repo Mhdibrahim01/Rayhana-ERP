@@ -738,7 +738,14 @@ function checkoutReservation(reservationId, {
         applyStmt.run([applyReceipt, targetId, openDepositApplied, userId ? parseInt(userId, 10) : null, `تسوية من التأمين #${targetId}`]);
         applyStmt.free();
       }
-      if (openDepositRetained > 0) recordDepositMovement({ reservationId: targetId, type: 'retained', amount: openDepositRetained, paymentMethod: depositRefundMethod, userId, reason: String(depositRetainReason || '').trim() });
+      if (openDepositRetained > 0) {
+        const retainReason = String(depositRetainReason || '').trim();
+        recordDepositMovement({ reservationId: targetId, type: 'retained', amount: openDepositRetained, paymentMethod: depositRefundMethod, userId, reason: retainReason });
+        const retainReceipt = generateReceiptNumber(targetId);
+        const retainStmt = db.prepare(`INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes) VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)`);
+        retainStmt.run([retainReceipt, targetId, openDepositRetained, depositRefundMethod || 'نقداً', userId ? parseInt(userId, 10) : null, 'إيراد تعويض/احتفاظ من التأمين']);
+        retainStmt.free();
+      }
       if (openDepositRefunded > 0) recordDepositMovement({ reservationId: targetId, type: 'refunded', amount: openDepositRefunded, paymentMethod: depositRefundMethod, userId, reason: `رد التأمين عند تسجيل المغادرة #${targetId}` });
 
       let openStatus = res.payment_status;
@@ -912,11 +919,19 @@ function checkoutReservation(reservationId, {
       applyStmt.free();
     }
     if (depositRetained > 0) {
+      const retainReason = String(depositRetainReason || '').trim();
       recordDepositMovement({
         reservationId: targetId, type: 'retained', amount: depositRetained,
         paymentMethod: depositRefundMethod, userId: actingUser,
-        reason: String(depositRetainReason || '').trim()
+        reason: retainReason
       });
+      const retainReceiptNumber = generateReceiptNumber(targetId);
+      const retainStmt = db.prepare(`
+        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
+        VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
+      `);
+      retainStmt.run([retainReceiptNumber, targetId, depositRetained, depositRefundMethod || 'نقداً', actingUser, 'إيراد تعويض/احتفاظ من التأمين']);
+      retainStmt.free();
     }
     if (depositRefunded > 0) {
       recordDepositMovement({

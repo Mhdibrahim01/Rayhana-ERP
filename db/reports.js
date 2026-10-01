@@ -174,7 +174,7 @@ function getShiftAuditReport(startDate, endDate) {
 
     if (p.payment_method === 'نقداً') {
       cashTotal += amt;
-    } else if (p.payment_method === 'بطاقة / مدى') {
+    } else if (p.payment_method === 'بطاقة / مدى' || p.payment_method === 'شبكة / مدى') {
       cardTotal += amt;
     } else if (p.payment_method === 'تحويل بنكي') {
       transferTotal += amt;
@@ -232,9 +232,24 @@ function getShiftAuditReport(startDate, endDate) {
     ORDER BY dm.id DESC
   `, [dateFrom, dateTo]);
   const depositActivity = { collected: 0, refunded: 0, applied: 0, retained: 0 };
+  let depositCashCollected = 0;
+  let depositCashRefunded = 0;
+  let depositCashRetained = 0;
   for (const movement of depositMovements) {
     depositActivity[movement.movement_type] = roundMoney((depositActivity[movement.movement_type] || 0) + Number(movement.amount || 0));
+    if (movement.payment_method === 'نقداً') {
+      const amount = roundMoney(movement.amount || 0);
+      if (movement.movement_type === 'collected') depositCashCollected += amount;
+      else if (movement.movement_type === 'refunded') depositCashRefunded += amount;
+      // Retained deposits also get a payment receipt below; subtract them here to
+      // avoid counting the same cash twice in the expected drawer balance.
+      else if (movement.movement_type === 'retained') depositCashRetained += amount;
+    }
   }
+  depositCashCollected = roundMoney(depositCashCollected);
+  depositCashRefunded = roundMoney(depositCashRefunded);
+  depositCashRetained = roundMoney(depositCashRetained);
+  const netCashDeposit = roundMoney(depositCashCollected - depositCashRefunded - depositCashRetained);
 
   // 3. Movements (Check-ins & Check-outs in range)
   const checkinsInRange = queryOne(`
@@ -325,6 +340,11 @@ function getShiftAuditReport(startDate, endDate) {
       transferTotal,
       depositTotal: roundMoney(depositActivity.collected - depositActivity.refunded),
       depositActivity,
+      depositCashCollected,
+      depositCashRefunded,
+      depositCashRetained,
+      netCashDeposit,
+      expectedCashInDrawer: roundMoney(cashTotal + netCashDeposit),
       expectedTotal,
       outstandingTotal
     },

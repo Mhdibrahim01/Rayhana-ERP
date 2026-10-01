@@ -158,12 +158,13 @@ function sqlAll(sql, params = []) {
 function resetScratchRows() {
   const database = connection.getDb();
   database.run('DELETE FROM EmployeeLogs');
+  database.run('DELETE FROM deposit_movements');
   database.run('DELETE FROM payments');
   database.run('DELETE FROM reservations');
   database.run('DELETE FROM guests');
   database.run('DELETE FROM rooms');
   try {
-    database.run("DELETE FROM sqlite_sequence WHERE name IN ('payments', 'reservations', 'guests', 'rooms', 'EmployeeLogs');");
+    database.run("DELETE FROM sqlite_sequence WHERE name IN ('payments', 'deposit_movements', 'reservations', 'guests', 'rooms', 'EmployeeLogs');");
   } catch (_) { /* sqlite_sequence exists when AUTOINCREMENT tables have been created. */ }
   connection.saveToFile();
 }
@@ -175,7 +176,7 @@ function createGuest(name, serial) {
   return guest.id;
 }
 
-function createReservation({ guestId, roomId, checkIn, checkOut, total, paid = 0, method = 'نقداً', bookingType = 'عادي', rate = null, discount = 0, statusLabel }) {
+function createReservation({ guestId, roomId, checkIn, checkOut, total, paid = 0, deposit = 0, method = 'نقداً', bookingType = 'عادي', rate = null, discount = 0, statusLabel }) {
   const guest = sqlAll('SELECT id, name, phone, id_number FROM guests WHERE id = ?', [guestId])[0];
   const result = appDb.createReservation({
     guestName: guest.name,
@@ -186,6 +187,7 @@ function createReservation({ guestId, roomId, checkIn, checkOut, total, paid = 0
     checkOutDate: checkOut,
     totalPrice: total,
     paidAmount: paid,
+    depositAmount: deposit,
     paymentMethod: method,
     bookingType,
     customNightlyPrice: rate,
@@ -217,8 +219,8 @@ function setRoomStatus(roomNumber, status) {
   sqlRun('UPDATE rooms SET status = ? WHERE room_number = ?', [status, roomNumber]);
 }
 
-function addEntry(entries, scenario, guestName, reservationId, roomNumber, checkIn, checkOut, paid, expected) {
-  entries.push({ scenario, guestName, reservationId, roomNumber, checkIn, checkOut, paid, expected });
+function addEntry(entries, scenario, guestName, reservationId, roomNumber, checkIn, checkOut, paid, expected, deposit = 0) {
+  entries.push({ scenario, guestName, reservationId, roomNumber, checkIn, checkOut, paid, expected, deposit });
 }
 
 async function seed(outputPath, today, includeFutureCases) {
@@ -244,7 +246,7 @@ async function seed(outputPath, today, includeFutureCases) {
     const checkOut = outOffset === null ? '' : addDays(today, outOffset);
     const id = createReservation({ guestId: g.id, roomId: roomIds[room], checkIn, checkOut, statusLabel: name, ...options });
     reservations[scenario] = id;
-    addEntry(entries, scenario, name, id, room, checkIn, checkOut || 'مفتوح', options.paid || 0, expected);
+    addEntry(entries, scenario, name, id, room, checkIn, checkOut || 'مفتوح', options.paid || 0, expected, options.deposit || 0);
     return { id, guest: g, room, checkIn, checkOut };
   };
 
@@ -275,15 +277,19 @@ async function seed(outputPath, today, includeFutureCases) {
   const s14b = addScenario('14B', 'SC-14B Completed available room', '206', -17, -15, { total: 1360, paid: 800 }, 'مكتمل والغرفة متاحة');
   setReservationStatus(s14b.id, 'مكتمل', addDays(today, -15));
 
-  // 15–16: use the application's actual cancellation/refund behavior and note text.
+  // 15: pre-arrival cancellation uses the application's actual cancellation/refund behavior.
   const s15 = addScenario('15', 'SC-15 Cancel before arrival', '210', 10, 12, { total: 800, paid: 400, method: 'بطاقة / مدى' }, 'ملغي مع رد كامل سالب في السجل');
   appDb.cancelReservation(s15.id, addDays(today, 9));
   setReservationCreatedDate(s15.id, s15.checkIn, addDays(today, 9));
   entries.find(row => row.scenario === '15').paid = 0;
-  const s16 = addScenario('16', 'SC-16 Mid-stay partial cancel', '211', -5, 5, { total: 2000, paid: 1200 }, 'ملغي جزئياً مع رد نقدي سالب');
-  appDb.cancelReservation(s16.id, addDays(today, -1));
+  // Once a stay has started, the consistent lifecycle requires checkout settlement, not cancellation.
+  const s16 = addScenario('16', 'SC-16 Early checkout refund', '211', -5, 5, { total: 2000, paid: 1200 }, 'مكتمل مع استرداد فرق الإقامة');
+  const earlyCheckoutRate = ROOM_DEFINITIONS.find(room => room[0] === '211')[2];
+  const earlyCheckoutNights = 5;
+  const earlyCheckoutTotal = earlyCheckoutRate * earlyCheckoutNights;
+  appDb.checkoutReservation(s16.id, { settleMode: 'refund', refundAmount: 1200 - earlyCheckoutTotal });
   sqlRun('UPDATE payments SET payment_date = ? WHERE reservation_id = ?', [`${addDays(today, -1)} 14:05:00`, s16.id]);
-  entries.find(row => row.scenario === '16').paid = 800;
+  entries.find(row => row.scenario === '16').paid = earlyCheckoutTotal;
 
   // 17: guest lookup cases — banned guests, a returning guest, and a duplicate-looking name.
   const bannedA = guest('banned-a', 'SC-17 بدر التجريبي (محظور A)');
@@ -300,6 +306,46 @@ async function seed(outputPath, today, includeFutureCases) {
   const dup1 = createReservation({ guestId: duplicateA.id, roomId: roomIds['212'], checkIn: addDays(today, 12), checkOut: addDays(today, 14), total: 760, paid: 200 });
   const dup2 = createReservation({ guestId: duplicateB.id, roomId: roomIds['213'], checkIn: addDays(today, 12), checkOut: addDays(today, 14), total: 1360, paid: 300 });
   addEntry(entries, '17', 'SC-17 Guest lookup examples (same name, different phones)', `${repeat1}, ${repeat2}, ${dup1}, ${dup2}`, '215/216/212/213', `${addDays(today, -50)}; ${addDays(today, 12)}`, `${addDays(today, -48)}; ${addDays(today, 14)}`, 2400, 'ضيف بحجزين، حظر ضيفين، واسم متكرر بهاتفين مختلفين');
+
+  // 20–24: deposit ledger, checkout disposition, and explicit legacy reconciliation cases.
+  const depositRefund = addScenario('20', 'SC-20 Deposit refund at checkout', '214', 0, 3,
+    { total: 1500, paid: 500, deposit: 25, method: 'نقداً' }, 'تأمين مستلم ثم مردود عند المغادرة');
+  const refundResult = appDb.checkoutReservation(depositRefund.id, { settleMode: 'defer', depositDisposition: 'refund' });
+  entries.find(row => row.scenario === '20').expected += ` (${refundResult.depositRefunded} ريال مردود)`;
+  entries.find(row => row.scenario === '20').deposit = appDb.getReservationById(depositRefund.id).deposit_ledger_balance;
+
+  const depositApply = addScenario('21', 'SC-21 Deposit applied to stay', '221', 0, 2,
+    { total: 900, paid: 0, deposit: 40, method: 'بطاقة / مدى' }, 'تطبيق التأمين على رصيد الإقامة');
+  const applyDue = ROOM_DEFINITIONS.find(room => room[0] === '221')[2];
+  const applyResult = appDb.checkoutReservation(depositApply.id, {
+    settleMode: 'collect', collectAmount: applyDue - 40,
+    paymentMethod: 'نقداً', depositDisposition: 'apply'
+  });
+  entries.find(row => row.scenario === '21').paid = applyResult.paidAmount;
+  entries.find(row => row.scenario === '21').deposit = appDb.getReservationById(depositApply.id).deposit_ledger_balance;
+  entries.find(row => row.scenario === '21').expected += ` (${applyResult.depositApplied} ريال من التأمين + تحصيل الباقي)`;
+
+  const depositRetain = addScenario('22', 'SC-22 Deposit partial retention', '210', 0, 2,
+    { total: 1600, paid: 0, deposit: 50, method: 'نقداً' }, 'احتفاظ بجزء مع توثيق السبب ورد الباقي');
+  const retainResult = appDb.checkoutReservation(depositRetain.id, {
+    settleMode: 'defer', depositDisposition: 'retain', depositRetainAmount: 10,
+    depositRetainReason: 'تلف تجريبي موثق', depositRefundMethod: 'نقداً'
+  });
+  entries.find(row => row.scenario === '22').expected += ` (${retainResult.depositRetained} ريال محتفظ به، ${retainResult.depositRefunded} ريال مردود)`;
+  entries.find(row => row.scenario === '22').deposit = appDb.getReservationById(depositRetain.id).deposit_ledger_balance;
+
+  const legacyDeposit = addScenario('23', 'SC-23 Legacy deposit needs review', '219', 4, 6,
+    { total: 1040, paid: 0, deposit: 35 }, 'تأمين تاريخي بلا حركات؛ يتطلب تأكيد المدير');
+  sqlRun('DELETE FROM deposit_movements WHERE reservation_id = ?', [legacyDeposit.id]);
+  sqlRun('UPDATE reservations SET deposit_amount = 35 WHERE id = ?', [legacyDeposit.id]);
+
+  const cancelledDeposit = addScenario('24', 'SC-24 Future cancellation returns deposit', '220', 10, 12,
+    { total: 800, paid: 400, deposit: 15, method: 'بطاقة / مدى' }, 'إلغاء قبل الوصول ورد الإقامة والتأمين');
+  appDb.cancelReservation(cancelledDeposit.id);
+  setReservationCreatedDate(cancelledDeposit.id, cancelledDeposit.checkIn, addDays(today, 9));
+  entries.find(row => row.scenario === '24').paid = 0;
+  entries.find(row => row.scenario === '24').deposit = appDb.getReservationById(cancelledDeposit.id).deposit_ledger_balance;
+  entries.find(row => row.scenario === '24').expected += ' (تأمين 15 ريال مردود)';
 
   // Keep exactly 60 invented guests, including all scenario guests.
   const names = ['سارة النور', 'Omar Cedar', 'ليان الغيم', 'Mira Harbor', 'زياد الورد', 'Nour Atlas', 'هيا السحاب', 'Rami Palm', 'تالا البحر', 'Adam Oasis'];
@@ -336,8 +382,8 @@ async function seed(outputPath, today, includeFutureCases) {
     }
 
     if (i % 10 === 0) {
-      appDb.cancelReservation(id, addDays(checkIn, -1));
-      setReservationCreatedDate(id, checkIn, addDays(checkIn, -1));
+      // Mid-stay cancellations are no longer supported; keep historical volume as completed stays.
+      setReservationStatus(id, 'مكتمل', checkOut);
     } else {
       setReservationStatus(id, 'مكتمل', checkOut);
     }
@@ -395,8 +441,21 @@ function checkIntegrity(expectedStatuses) {
   const historicalRooms = sqlAll("SELECT COUNT(*) AS count FROM rooms WHERE CAST(room_number AS INTEGER) BETWEEN 300 AND 319")[0].count;
   const historicalReservations = sqlAll("SELECT COUNT(*) AS count FROM reservations r JOIN rooms rm ON rm.id = r.room_id WHERE CAST(rm.room_number AS INTEGER) BETWEEN 300 AND 319")[0].count;
   const guestCount = sqlAll('SELECT COUNT(*) AS count FROM guests')[0].count;
+  const depositMismatches = sqlAll(`
+    SELECT r.id, r.deposit_amount,
+      SUM(CASE WHEN dm.movement_type IN ('collected', 'reconciled') THEN dm.amount ELSE -dm.amount END) AS ledger_balance
+    FROM reservations r JOIN deposit_movements dm ON dm.reservation_id = r.id
+    GROUP BY r.id
+    HAVING ABS(COALESCE(r.deposit_amount, 0) - COALESCE(ledger_balance, 0)) > 0.005 OR ledger_balance < -0.005
+  `);
+  const legacyDeposits = sqlAll(`
+    SELECT COUNT(*) AS count FROM reservations r
+    WHERE r.deposit_amount > 0 AND NOT EXISTS (SELECT 1 FROM deposit_movements dm WHERE dm.reservation_id = r.id)
+  `)[0].count;
   const results = {
     paidMatchesLedger: { pass: paymentMismatches.length === 0, detail: paymentMismatches },
+    depositBalancesMatchLedger: { pass: depositMismatches.length === 0, detail: depositMismatches },
+    legacyDepositReviewCase: { pass: legacyDeposits === 1, detail: { expected: 1, actual: legacyDeposits } },
     uniqueReceipts: { pass: Number(receiptRows.total) === Number(receiptRows.distinct_total) && duplicateReceipts.length === 0, detail: { ...receiptRows, duplicates: duplicateReceipts } },
     noUnexpectedOverlaps: { pass: overlaps.length === 0, detail: overlaps },
     scenarioRoomStatuses: { pass: roomStatusMismatches.length === 0, detail: roomStatusMismatches },
@@ -408,16 +467,16 @@ function checkIntegrity(expectedStatuses) {
 function printReport(entries, historicalCount, historicalIds, integrity, outputPath) {
   const scenarioRows = entries
     .filter(row => row.scenario !== '19')
-    .map(row => [row.scenario, row.guestName, row.reservationId, row.roomNumber, `${row.checkIn} → ${row.checkOut}`, row.paid, row.expected]);
+    .map(row => [row.scenario, row.guestName, row.reservationId, row.roomNumber, `${row.checkIn} → ${row.checkOut}`, row.paid, row.deposit, row.expected]);
   const optionalRows = entries
     .filter(row => row.scenario === '19')
-    .map(row => [row.scenario, row.guestName, row.reservationId, row.roomNumber, `${row.checkIn} → ${row.checkOut}`, row.paid, row.expected]);
+    .map(row => [row.scenario, row.guestName, row.reservationId, row.roomNumber, `${row.checkIn} → ${row.checkOut}`, row.paid, row.deposit, row.expected]);
   const allRows = [
     ...scenarioRows,
-    ['18', 'SC-18 Historical volume (150 records)', `${historicalIds[0]}–${historicalIds[historicalIds.length - 1]}`, '300–319', 'آخر 3 أشهر حتى T-9 تقريباً', 'mixed', 'جداول طويلة، تنقل صفحات، ومخططات إيرادات'],
+    ['18', 'SC-18 Historical volume (150 records)', `${historicalIds[0]}–${historicalIds[historicalIds.length - 1]}`, '300–319', 'آخر 3 أشهر حتى T-9 تقريباً', 'mixed', '-', 'جداول طويلة، تنقل صفحات، ومخططات إيرادات'],
     ...optionalRows
   ];
-  const headers = ['Scenario', 'Guest name', 'Reservation ID', 'Room', 'Dates', 'Paid (SAR)', 'Expected behavior'];
+  const headers = ['Scenario', 'Guest name', 'Reservation ID', 'Room', 'Dates', 'Paid (SAR)', 'Deposit balance (SAR)', 'Expected behavior'];
   const widths = headers.map((header, index) => Math.max(header.length, ...allRows.map(row => String(row[index]).length)));
   const line = values => `| ${values.map((value, index) => String(value).padEnd(widths[index])).join(' | ')} |`;
   console.log('\nScenario seed summary (T = ' + todayForReport + '):');
