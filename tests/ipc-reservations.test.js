@@ -101,18 +101,28 @@ test('IPC Reservations handlers', async t => {
       assert.equal(res.total_price, 300);
     });
 
-    await t.test('Cancel handler: manualOverrideAmount stripped for non-Admin and honored for Admin', { todo: 'Cancel IPC honors manualOverrideAmount for non-Admin users' }, async () => {
+    await t.test('Cancel handler: manualOverrideAmount stripped for non-Admin and honored for Admin', async () => {
       const room2 = addRoom('IPC-CANCEL', 200);
-      const resId1 = createReservation({ roomId: room2.id, name: 'User Cancel', checkIn: addDays(today, 2), checkOut: addDays(today, 4), totalPrice: 400, paidAmount: 400 });
+      const resId1 = createReservation({ roomId: room2.id, name: 'User Cancel', checkIn: addDays(today, -2), checkOut: addDays(today, 2), totalPrice: 800, paidAmount: 800 });
       
       deps.session.currentUser = { id: 2, username: 'staff', role: 'User' };
-      const cancel1 = await ipcMain.invoke('reservations:cancel', {}, resId1, { manualOverrideAmount: 50, refundAmount: 50 });
-      assert.equal(cancel1.success, false, 'Expected cancel to fail because override should be stripped and 50 is wrong refund amount');
+      const cancel1 = await ipcMain.invoke('reservations:cancel', {}, { reservationId: resId1, actualDepartureDate: today, manualOverrideAmount: 50 });
+      assert.equal(cancel1.success, true);
+      const res1 = db.getReservationById(resId1);
+      assert.equal(res1.total_price, 400); // 2 nights at 200/night = 400
+      const payments1 = db.getReservationPayments(resId1);
+      const refund1 = payments1.find(p => p.amount < 0);
+      assert.equal(refund1.amount, -400);
 
-      const resId2 = createReservation({ roomId: room2.id, name: 'Admin Cancel', checkIn: addDays(today, 2), checkOut: addDays(today, 4), totalPrice: 400, paidAmount: 400 });
+      const resId2 = createReservation({ roomId: room2.id, name: 'Admin Cancel', checkIn: addDays(today, -2), checkOut: addDays(today, 2), totalPrice: 800, paidAmount: 800 });
       deps.session.currentUser = { id: 1, username: 'admin', role: 'Admin' };
-      const cancel2 = await ipcMain.invoke('reservations:cancel', {}, resId2, { manualOverrideAmount: 50, refundAmount: 350 });
+      const cancel2 = await ipcMain.invoke('reservations:cancel', {}, { reservationId: resId2, actualDepartureDate: today, manualOverrideAmount: 50 });
       assert.equal(cancel2.success, true);
+      const res2 = db.getReservationById(resId2);
+      assert.equal(res2.total_price, 50); // Admin rule honors override
+      const payments2 = db.getReservationPayments(resId2);
+      const refund2 = payments2.find(p => p.amount < 0);
+      assert.equal(refund2.amount, -750);
     });
   });
 });
