@@ -84,7 +84,7 @@ module.exports = function registerGuestsIpc(ipcMain, { db, session }) {
     }
 
     // Role check: Both 'Admin' and 'User' (and legacy 'Staff') are permitted
-    const role = requesterRole || (session.currentUser ? session.currentUser.role : null);
+    const role = session.currentUser ? session.currentUser.role : null;
     if (role !== 'Admin' && role !== 'User' && role !== 'Staff') {
       return {
         success: false,

@@ -29,7 +29,7 @@ test('IPC Users handlers', async t => {
       assert.match(res.error, /لا تقل عن 3 أحرف/);
     });
 
-    await t.test('non-Admin session cannot add users even when renderer passes requesterRole: Admin', { todo: 'Users IPC trusts the renderer-provided requester role' }, async () => {
+    await t.test('non-Admin session cannot add users even when renderer passes requesterRole: Admin', async () => {
       deps.session.currentUser = { id: 2, username: 'staff', role: 'User' };
       // Call signature 1: parameters spread
       const res1 = await ipcMain.invoke('users:add', {}, 'newstaff', 'pass123', 'User', 'Admin');
@@ -40,7 +40,14 @@ test('IPC Users handlers', async t => {
       assert.equal(res2.success, false, 'Expected add-user to fail for non-admin');
     });
 
-    await t.test('non-Admin session cannot delete users even when renderer passes requesterRole: Admin', { todo: 'Users IPC trusts the renderer-provided requester role' }, async () => {
+    await t.test('no session.currentUser is rejected', async () => {
+      deps.session.currentUser = null;
+      const res = await ipcMain.invoke('users:add', {}, { username: 'testuser2', password: '123', role: 'User' });
+      assert.equal(res.success, false);
+      assert.match(res.error, /Access Denied/);
+    });
+
+    await t.test('non-Admin session cannot delete users even when renderer passes requesterRole: Admin', async () => {
       deps.session.currentUser = { id: 2, username: 'staff', role: 'User' };
       // Adding a dummy user to attempt deletion via DB directly since add via IPC fails
       const user = db.addUser({ username: 'dummy', password: '123', role: 'User' });
