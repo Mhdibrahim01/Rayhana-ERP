@@ -1,3 +1,5 @@
 # Known Issues Covered by TODO Tests
 
-- **Users IPC trusts the renderer-provided requester role.** This previously identified RBAC issue remains assigned to the IPC test phase. Its TODO assertion is deferred because Step 4 has not been approved or started.
+- **Users IPC trusts the renderer-provided requester role.** This previously identified RBAC issue is now covered by `node:test` TODOs in `tests/ipc-users.test.js`. App code is intentionally unchanged.
+- **Cancel IPC honors manualOverrideAmount for non-Admin users.** This is now covered by a \
+ode:test\ TODO in \	ests/ipc-reservations.test.js\.
