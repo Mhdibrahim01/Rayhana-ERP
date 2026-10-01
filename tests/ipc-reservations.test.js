@@ -101,28 +101,29 @@ test('IPC Reservations handlers', async t => {
       assert.equal(res.total_price, 300);
     });
 
-    await t.test('Cancel handler: manualOverrideAmount stripped for non-Admin and honored for Admin', async () => {
+    await t.test('Cancel handler: active stays must use checkout regardless of role or override', async () => {
       const room2 = addRoom('IPC-CANCEL', 200);
       const resId1 = createReservation({ roomId: room2.id, name: 'User Cancel', checkIn: addDays(today, -2), checkOut: addDays(today, 2), totalPrice: 800, paidAmount: 800 });
       
       deps.session.currentUser = { id: 2, username: 'staff', role: 'User' };
       const cancel1 = await ipcMain.invoke('reservations:cancel', {}, { reservationId: resId1, actualDepartureDate: today, manualOverrideAmount: 50 });
-      assert.equal(cancel1.success, true);
+      assert.equal(cancel1.success, false);
+      assert.match(cancel1.error, /استخدم تسجيل الخروج/);
       const res1 = db.getReservationById(resId1);
-      assert.equal(res1.total_price, 400); // 2 nights at 200/night = 400
-      const payments1 = db.getReservationPayments(resId1);
-      const refund1 = payments1.find(p => p.amount < 0);
-      assert.equal(refund1.amount, -400);
+      assert.equal(res1.status, 'مؤكد');
+      assert.equal(res1.total_price, 800);
+      assert.equal(db.getReservationPayments(resId1).length, 1);
 
-      const resId2 = createReservation({ roomId: room2.id, name: 'Admin Cancel', checkIn: addDays(today, -2), checkOut: addDays(today, 2), totalPrice: 800, paidAmount: 800 });
+      const room3 = addRoom('IPC-CANCEL-ADMIN', 200);
+      const resId2 = createReservation({ roomId: room3.id, name: 'Admin Cancel', checkIn: addDays(today, -2), checkOut: addDays(today, 2), totalPrice: 800, paidAmount: 800 });
       deps.session.currentUser = { id: 1, username: 'admin', role: 'Admin' };
       const cancel2 = await ipcMain.invoke('reservations:cancel', {}, { reservationId: resId2, actualDepartureDate: today, manualOverrideAmount: 50 });
-      assert.equal(cancel2.success, true);
+      assert.equal(cancel2.success, false);
+      assert.match(cancel2.error, /استخدم تسجيل الخروج/);
       const res2 = db.getReservationById(resId2);
-      assert.equal(res2.total_price, 50); // Admin rule honors override
-      const payments2 = db.getReservationPayments(resId2);
-      const refund2 = payments2.find(p => p.amount < 0);
-      assert.equal(refund2.amount, -750);
+      assert.equal(res2.status, 'مؤكد');
+      assert.equal(res2.total_price, 800);
+      assert.equal(db.getReservationPayments(resId2).length, 1);
     });
   });
 });

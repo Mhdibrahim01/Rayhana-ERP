@@ -51,6 +51,45 @@ test('checkout settlement scenarios', async t => {
       assertDatabaseIntegrity(connection, 'checkout: zero paid deferred');
     });
 
+    await t.test('checkout is rejected before the reservation arrival date', () => {
+      const room = addRoom('CS-FUTURE-CHECKOUT', 180);
+      const reservationId = createReservation({
+        roomId: room.id,
+        name: 'Future Checkout Guard',
+        checkIn: addDays(today, 1),
+        checkOut: addDays(today, 3),
+        totalPrice: 360,
+        paidAmount: 180
+      });
+      assert.throws(() => appDb.computeCheckoutSettlement(reservationId), /استخدم إلغاء الحجز/);
+      assert.throws(() => appDb.checkoutReservation(reservationId, { settleMode: 'defer' }), /استخدم إلغاء الحجز/);
+      assert.equal(appDb.getReservationById(reservationId).status, 'مؤكد');
+      assert.equal(appDb.getReservationPayments(reservationId).length, 1);
+      assertDatabaseIntegrity(connection, 'checkout blocked before arrival');
+    });
+
+    await t.test('remaining balance can be collected after a completed checkout', () => {
+      const room = addRoom('CS-LATER-PAYMENT', 180);
+      const reservationId = createReservation({
+        roomId: room.id,
+        name: 'Pay After Checkout',
+        checkIn: today,
+        checkOut: addDays(today, 2),
+        totalPrice: 360,
+        paidAmount: 50
+      });
+
+      appDb.checkoutReservation(reservationId, { settleMode: 'defer' });
+      const payment = appDb.addPaymentToReservation({ reservationId, amount: 130, notes: 'سداد رصيد بعد تسجيل الخروج' });
+      const completed = appDb.getReservationById(reservationId);
+      assert.equal(completed.status, 'مكتمل');
+      assert.equal(payment.remainingBalance, 0);
+      assert.equal(completed.paid_amount, 180);
+      assert.equal(completed.payment_status, 'مدفوع بالكامل');
+      assert.equal(appDb.getReservationPayments(reservationId).reduce((sum, row) => sum + row.amount, 0), 180);
+      assertDatabaseIntegrity(connection, 'payment after checkout');
+    });
+
     await t.test('partial collection records only the collected amount and leaves the balance open', () => {
       const room = addRoom('CS-PARTIAL', 300);
       const reservationId = createReservation({
@@ -67,6 +106,79 @@ test('checkout settlement scenarios', async t => {
       assert.equal(appDb.getReservationById(reservationId).payment_status, 'مدفوع جزئياً');
       assert.equal(connection.queryAll('SELECT amount FROM payments WHERE reservation_id = ?', [reservationId]).reduce((sum, row) => sum + row.amount, 0), 200);
       assertDatabaseIntegrity(connection, 'checkout: partial collection');
+    });
+
+    await t.test('deposit is tracked separately and can cover part of the stay balance', () => {
+      const room = addRoom('CS-DEPOSIT-APPLY', 100);
+      const reservationId = createReservation({
+        roomId: room.id,
+        name: 'Deposit Apply',
+        checkIn: today,
+        checkOut: addDays(today, 2),
+        totalPrice: 200,
+        paidAmount: 0,
+        depositAmount: 40
+      });
+      const preview = appDb.computeCheckoutSettlement(reservationId);
+      assert.equal(preview.depositAvailable, 40);
+      assert.equal(appDb.getReservationPayments(reservationId).reduce((sum, row) => sum + row.amount, 0), 0);
+
+      const result = appDb.checkoutReservation(reservationId, {
+        settleMode: 'collect', collectAmount: 60, depositDisposition: 'apply'
+      });
+      const completed = appDb.getReservationById(reservationId);
+      assert.equal(result.depositApplied, 40);
+      assert.equal(result.depositRefunded, 0);
+      assert.equal(completed.deposit_ledger_balance, 0);
+      assert.equal(completed.paid_amount, 100);
+      assert.equal(completed.payment_status, 'مدفوع بالكامل');
+      assert.equal(appDb.getReservationPayments(reservationId).reduce((sum, row) => sum + row.amount, 0), 100);
+      assertDatabaseIntegrity(connection, 'checkout: deposit applied to stay balance');
+    });
+
+    await t.test('default checkout disposition refunds the held deposit and keeps it outside payment receipts', () => {
+      const room = addRoom('CS-DEPOSIT-REFUND', 100);
+      const reservationId = createReservation({
+        roomId: room.id,
+        name: 'Deposit Refund',
+        checkIn: today,
+        checkOut: addDays(today, 2),
+        totalPrice: 200,
+        paidAmount: 100,
+        depositAmount: 25
+      });
+      const result = appDb.checkoutReservation(reservationId, { settleMode: 'defer' });
+      assert.equal(result.depositRefunded, 25);
+      assert.equal(appDb.getReservationById(reservationId).deposit_ledger_balance, 0);
+      assert.equal(appDb.getReservationPayments(reservationId).reduce((sum, row) => sum + row.amount, 0), 100);
+      const movements = appDb.getReservationDepositMovements(reservationId);
+      assert.deepEqual(movements.map(row => row.movement_type), ['collected', 'refunded']);
+      assertDatabaseIntegrity(connection, 'checkout: deposit refunded separately');
+    });
+
+    await t.test('legacy deposit balance requires explicit reconciliation before it can be settled', () => {
+      const room = addRoom('CS-DEPOSIT-LEGACY', 100);
+      const reservationId = createReservation({
+        roomId: room.id,
+        name: 'Legacy Deposit',
+        checkIn: today,
+        checkOut: addDays(today, 2),
+        totalPrice: 200,
+        paidAmount: 100
+      });
+      connection.db.run('UPDATE reservations SET deposit_amount = 35 WHERE id = ?', [reservationId]);
+      const preview = appDb.computeCheckoutSettlement(reservationId);
+      assert.equal(preview.depositAvailable, 0);
+      assert.equal(preview.depositLegacyUnreconciled, true);
+      const collectedBeforeReconciliation = appDb.getShiftAuditReport(today).financials.depositActivity.collected;
+      assert.throws(() => appDb.reconcileLegacyDeposit({ reservationId, amount: 30 }), /يطابق مبلغ التأمين/);
+      appDb.reconcileLegacyDeposit({ reservationId, amount: 35, userId: 1 });
+      const movements = appDb.getReservationDepositMovements(reservationId);
+      assert.equal(movements[0].movement_type, 'reconciled');
+      assert.equal(appDb.getReservationById(reservationId).deposit_ledger_balance, 35);
+      assert.equal(appDb.getShiftAuditReport(today).financials.depositActivity.reconciled, 35);
+      assert.equal(appDb.getShiftAuditReport(today).financials.depositActivity.collected, collectedBeforeReconciliation);
+      assertDatabaseIntegrity(connection, 'checkout: historical deposit reconciled explicitly');
     });
 
     await t.test('an exact payment settles without inserting an extra ledger row', () => {

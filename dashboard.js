@@ -511,7 +511,7 @@
         document.body.appendChild(modal);
       }
 
-      let nightlyRate = Number(targetRes.price_per_night || 0);
+      let nightlyRate = Number(targetRes.custom_nightly_price || targetRes.price_per_night || 0);
       if (!nightlyRate && roomsCache && roomsCache.length > 0) {
         const rm = roomsCache.find(r => r.id === targetRes.room_id || r.room_number === targetRes.room_number);
         if (rm && rm.price_per_night) nightlyRate = Number(rm.price_per_night);
@@ -1337,9 +1337,12 @@
 
     overviewTableBody.innerHTML = recent.map(r => {
       const isConfirmed = r.status === 'مؤكد';
+      const hasStarted = r.check_in_date ? getLocalDateString() >= r.check_in_date : true;
+      const canCheckOut = isConfirmed && hasStarted;
+      const canCancel = isConfirmed && !hasStarted;
       const isContract = r.booking_type === 'عقد مفتوح';
       const total = parseFloat(r.total_price || 0);
-      const paid = parseFloat(r.paid_amount || 0);
+      const paid = parseFloat((r.status === 'ملغي جزئي' && r.payment_status === 'مدفوع جزئياً' ? r.ledger_paid_amount : r.paid_amount) || 0);
       const rawRemaining = total - paid;
       const isCredit = rawRemaining < -0.005;
       const remaining = isContract ? rawRemaining : Math.max(0, rawRemaining);
@@ -1389,15 +1392,15 @@
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                   </button>
                 ` : ''}
-                <button type="button" class="btn-action-icon" data-action="checkout" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #ffffff; color: #334155; border: 1.5px solid #cbd5e1; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="تسجيل مغادرة وتسليم الغرفة">
+                ${canCheckOut ? `<button type="button" class="btn-action-icon" data-action="checkout" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #ffffff; color: #334155; border: 1.5px solid #cbd5e1; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="تسجيل مغادرة وتسليم الغرفة">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                </button>
+                </button>` : ''}
                 <button type="button" class="btn-action-icon" data-action="whatsapp" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #f0fdf4; color: #16a34a; border: 1.5px solid #86efac; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="مراسلة النزيل عبر واتساب">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
                 </button>
-                <button type="button" class="btn-action-icon" data-action="cancel" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="إلغاء الحجز">
+                ${canCancel ? `<button type="button" class="btn-action-icon" data-action="cancel" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="إلغاء الحجز">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
+                </button>` : ''}
               ` : ''}
             </div>
           </td>
@@ -2269,13 +2272,18 @@
     // once to avoid hundreds of costly individual DOM reflows (layout thrashing).
     const rowsHtml = filtered.map(r => {
       const isConfirmed = r.status === 'مؤكد';
+      const hasStarted = r.check_in_date ? getLocalDateString() >= r.check_in_date : true;
+      const canCheckOut = isConfirmed && hasStarted;
+      const canCancel = isConfirmed && !hasStarted;
       const isContract = r.booking_type === 'عقد مفتوح';
       const total = parseFloat(r.total_price || 0);
-      const paid = parseFloat(r.paid_amount || 0);
-      const deposit = parseFloat(r.deposit_amount || 0);
+      const paid = parseFloat((r.status === 'ملغي جزئي' && r.payment_status === 'مدفوع جزئياً' ? r.ledger_paid_amount : r.paid_amount) || 0);
+      const deposit = parseFloat(r.deposit_ledger_balance || 0);
+      const legacyDeposit = Number(r.deposit_legacy_unreconciled || 0) === 1 ? parseFloat(r.deposit_amount || 0) : 0;
       const rawRemaining = total - paid;
       const isCredit = rawRemaining < -0.005;
       const remaining = isContract ? rawRemaining : Math.max(0, rawRemaining);
+      const canCollectBalance = isConfirmed || r.status === 'ملغي جزئي' || (r.status === 'مكتمل' && remaining > 0.005);
       const fmtTotal = total.toLocaleString();
       const fmtPaid = paid.toLocaleString();
       const fmtRem = remaining.toLocaleString();
@@ -2314,7 +2322,8 @@
             ${parseFloat(r.discount_amount || 0) > 0 ? `<div style="font-size: 0.70rem; color: #b91c1c; font-weight: 700; line-height: 1.2; margin-top: 2px;">خصم: ${parseFloat(r.discount_amount).toLocaleString()} ريال ${r.discount_reason ? `(${escapeHtml(r.discount_reason)})` : ''}</div>` : ''}
             <div style="font-size: 0.74rem; color: #059669; font-weight: 600; line-height: 1.2; margin-top: 2px;">مدفوع: ${fmtPaid}</div>
             ${isCredit ? `<div style="font-size: 0.72rem; color: #2563eb; font-weight: 800; line-height: 1.2; margin-top: 2px;">رصيد دائن: ${Math.abs(rawRemaining).toLocaleString()} ريال</div>` : (remaining > 0 ? `<div style="font-size: 0.72rem; color: #dc2626; font-weight: 700; line-height: 1.2; margin-top: 2px;">متبقي: ${fmtRem}</div>` : '')}
-            ${deposit > 0 ? `<div style="font-size: 0.70rem; color: #4338ca; line-height: 1.2; margin-top: 2px;">تأمين: ${fmtDep}</div>` : ''}
+            ${deposit > 0 ? `<div style="font-size: 0.70rem; color: #4338ca; line-height: 1.2; margin-top: 2px;">تأمين مسجل: ${fmtDep}</div>` : ''}
+            ${legacyDeposit > 0 ? `<div style="font-size: 0.70rem; color: #9a3412; line-height: 1.2; margin-top: 2px;">تأمين قديم للمراجعة: ${legacyDeposit.toLocaleString()}</div>` : ''}
           </td>
           <td style="font-size: 0.82rem; white-space: nowrap;">
             <span class="badge" style="background: rgba(0,0,0,0.04); color: #334155; border: 1px solid #cbd5e1; font-weight: 600;">${escapeHtml(r.payment_method || 'نقداً')}</span>
@@ -2329,7 +2338,7 @@
               <button type="button" class="btn-action-icon" data-action="invoice" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #f0fdf4; color: #166534; border: 1.5px solid #bbf7d0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="طباعة سند الاستلام والإقامة (فاتورة)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
               </button>
-              ${isConfirmed && (remaining > 0 || isContract) ? `
+              ${canCollectBalance && (remaining > 0 || (isConfirmed && isContract)) ? `
                 <button type="button" class="btn-action-icon btn-pay" data-action="add-payment" data-id="${r.id}" onclick="event.stopPropagation(); window.openAddPaymentModal && window.openAddPaymentModal(${r.id});" style="width: 30px; height: 30px; padding: 0; background: #a67c52; color: #ffffff; border: none; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; box-shadow: 0 2px 8px rgba(166, 124, 82, 0.35);" title="تسجيل دفعة سداد جديدة">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
                 </button>
@@ -2340,15 +2349,15 @@
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                   </button>
                 ` : ''}
-                <button type="button" class="btn-action-icon" data-action="checkout" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #ffffff; color: #334155; border: 1.5px solid #cbd5e1; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="تسجيل مغادرة وتسليم الغرفة">
+                ${canCheckOut ? `<button type="button" class="btn-action-icon" data-action="checkout" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #ffffff; color: #334155; border: 1.5px solid #cbd5e1; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="تسجيل مغادرة وتسليم الغرفة">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                </button>
+                </button>` : ''}
                 <button type="button" class="btn-action-icon" data-action="whatsapp" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #f0fdf4; color: #16a34a; border: 1.5px solid #86efac; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="مراسلة النزيل عبر واتساب">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
                 </button>
-                <button type="button" class="btn-action-icon" data-action="cancel" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="إلغاء الحجز">
+                ${canCancel ? `<button type="button" class="btn-action-icon" data-action="cancel" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="إلغاء الحجز">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
+                </button>` : ''}
               ` : ''}
             </div>
           </td>
@@ -2690,9 +2699,6 @@
                 ` : ''}
                 <button type="button" class="btn-room-action" data-action="invoice" data-id="${activeRes.id}" style="border: none; border-radius: 8px; padding: 7px 12px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: #1a4332; color: #ffffff;">
                   <span>فاتورة 🖨️</span>
-                </button>
-                <button type="button" class="btn-room-action" data-action="cancel" data-id="${activeRes.id}" aria-label="إلغاء الحجز" title="إلغاء الحجز" style="border: 1px solid #fecaca; border-radius: 8px; padding: 7px 12px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: #fef2f2; color: #b91c1c;">
-                  <span>إلغاء الحجز ✕</span>
                 </button>
               ` : ''}
 
@@ -3641,6 +3647,11 @@
   const btnPayFullRemaining = document.getElementById('btn-pay-full-remaining');
 
   let currentPayingReservation = null;
+  const getReservationPaidForPayments = (reservation) => {
+    const useLedgerBalance = reservation?.status === 'ملغي جزئي' && reservation?.payment_status === 'مدفوع جزئياً';
+    const amount = useLedgerBalance ? reservation.ledger_paid_amount : reservation?.paid_amount;
+    return Math.round((parseFloat(amount || 0) + Number.EPSILON) * 100) / 100;
+  };
 
   window.openAddPaymentModal = async function openAddPaymentModal(reservationId) {
     const modal = document.getElementById('add-payment-modal');
@@ -3677,7 +3688,7 @@
     currentPayingReservation = res;
     const isContract = res.booking_type === 'عقد مفتوح';
     const total = Math.round((parseFloat(res.total_price || 0) + Number.EPSILON) * 100) / 100;
-    const paid = Math.round((parseFloat(res.paid_amount || 0) + Number.EPSILON) * 100) / 100;
+    const paid = getReservationPaidForPayments(res);
     const rawRemaining = Math.round((total - paid + Number.EPSILON) * 100) / 100;
     const remaining = isContract ? rawRemaining : Math.max(0, rawRemaining);
 
@@ -3751,7 +3762,7 @@
     btnPayFullRemaining.addEventListener('click', () => {
       if (!currentPayingReservation) return;
       const total = Math.round((parseFloat(currentPayingReservation.total_price || 0) + Number.EPSILON) * 100) / 100;
-      const paid = Math.round((parseFloat(currentPayingReservation.paid_amount || 0) + Number.EPSILON) * 100) / 100;
+      const paid = getReservationPaidForPayments(currentPayingReservation);
       const isContract = currentPayingReservation.booking_type === 'عقد مفتوح';
       const rawRemaining = Math.round((total - paid + Number.EPSILON) * 100) / 100;
       const remaining = isContract ? Math.max(0, rawRemaining) : Math.max(0, rawRemaining);
@@ -3780,7 +3791,7 @@
 
       if (currentPayingReservation && currentPayingReservation.booking_type !== 'عقد مفتوح') {
         const total = Math.round((parseFloat(currentPayingReservation.total_price || 0) + Number.EPSILON) * 100) / 100;
-        const paid = Math.round((parseFloat(currentPayingReservation.paid_amount || 0) + Number.EPSILON) * 100) / 100;
+        const paid = getReservationPaidForPayments(currentPayingReservation);
         const remaining = Math.max(0, Math.round((total - paid + Number.EPSILON) * 100) / 100);
         if (newAmount - remaining > 0.005) {
           showToast(`المبلغ المدخل (${newAmount.toLocaleString()} ريال) يتجاوز الرصيد المتبقي المستحق (${remaining.toLocaleString()} ريال).`, 'error');
@@ -3862,6 +3873,14 @@
   const settleRefundAmount = document.getElementById('settle-refund-amount');
   const settleRefundAmountInput = document.getElementById('settle-refund-amount-input');
   const settleRefundMethodSelect = document.getElementById('settle-refund-method-select');
+  const settleDepositSection = document.getElementById('settle-deposit-section');
+  const settleDepositHeld = document.getElementById('settle-deposit-held');
+  const settleDepositDisposition = document.getElementById('settle-deposit-disposition');
+  const settleDepositRetainFields = document.getElementById('settle-deposit-retain-fields');
+  const settleDepositRetainAmount = document.getElementById('settle-deposit-retain-amount');
+  const settleDepositRetainReason = document.getElementById('settle-deposit-retain-reason');
+  const settleDepositLegacyWarning = document.getElementById('settle-deposit-legacy-warning');
+  const btnReconcileLegacyDeposit = document.getElementById('btn-reconcile-legacy-deposit');
   const btnCloseSettleModal = document.getElementById('btn-close-settle-modal');
   const btnCancelSettle = document.getElementById('btn-cancel-settle');
   const btnCheckoutWithoutSettle = document.getElementById('btn-checkout-without-settle');
@@ -3870,6 +3889,18 @@
   let currentSettlingReservation = null;
   // Last settlement preview fetched from the backend (non-contract bookings only)
   let currentSettlementPreview = null;
+  let currentDepositAvailable = 0;
+  let currentDepositLegacyUnreconciled = false;
+
+  function getDepositCheckoutPayload() {
+    const disposition = settleDepositDisposition ? settleDepositDisposition.value : 'refund';
+    return {
+      depositDisposition: disposition,
+      depositRetainAmount: disposition === 'retain' ? (parseFloat(settleDepositRetainAmount?.value || 0) || 0) : 0,
+      depositRetainReason: disposition === 'retain' ? (settleDepositRetainReason?.value || '').trim() : '',
+      depositRefundMethod: settleRefundMethodSelect ? settleRefundMethodSelect.value : 'نقداً'
+    };
+  }
 
   // -------------------------------------------------------------------------
   // updateSettleCalculations: render the modal's balance section from the
@@ -3892,7 +3923,10 @@
       paidSoFar  = Math.round((parseFloat(currentSettlingReservation.paid_amount || 0) + Number.EPSILON) * 100) / 100;
     }
 
-    const netBalance = Math.round((finalTotal - paidSoFar + Number.EPSILON) * 100) / 100;
+    const beforeDepositBalance = Math.round((finalTotal - paidSoFar + Number.EPSILON) * 100) / 100;
+    const requestedDepositApply = settleDepositDisposition?.value === 'apply'
+      ? Math.max(0, Math.min(currentDepositAvailable, beforeDepositBalance)) : 0;
+    const netBalance = Math.round((beforeDepositBalance - requestedDepositApply + Number.EPSILON) * 100) / 100;
 
     // Discount hint (for open-contract only; non-contract discount is in the preview)
     if (isContract) {
@@ -3967,6 +4001,8 @@
     const todayStr = getLocalDateString();
     const isContract = res.booking_type === 'عقد مفتوح';
     const paidSoFar = Math.round((parseFloat(res.paid_amount || 0) + Number.EPSILON) * 100) / 100;
+    currentDepositAvailable = Math.max(0, parseFloat(res.deposit_ledger_balance || 0) || 0);
+    currentDepositLegacyUnreconciled = Number(res.deposit_legacy_unreconciled || 0) === 1;
 
     // Show/hide discount section:
     // - Non-contract: Admin only (discount lowers the backend-computed charge)
@@ -3990,6 +4026,8 @@
         if (previewRes && previewRes.success && previewRes.data) {
           currentSettlementPreview = previewRes.data;
           const s = currentSettlementPreview;
+          currentDepositAvailable = Math.max(0, Number(s.depositAvailable || 0));
+          currentDepositLegacyUnreconciled = Boolean(s.depositLegacyUnreconciled);
           const nightsLabel = s.actualNights === 1 ? 'ليلة' : 'ليالٍ';
           const rateNote = res.custom_nightly_price ? ' - سعر خاص' : '';
           if (settleNightsCount) settleNightsCount.textContent = `${s.actualNights} ${nightsLabel} (بسعر ${s.effectiveNightlyRate.toLocaleString()} ريال/ليلة${rateNote})`;
@@ -4057,6 +4095,28 @@
       }
     }
 
+    if (settleDepositSection) {
+      const showDeposit = currentDepositAvailable > 0 || currentDepositLegacyUnreconciled;
+      settleDepositSection.style.display = showDeposit ? 'block' : 'none';
+      if (settleDepositHeld) settleDepositHeld.textContent = `${currentDepositAvailable.toFixed(2)} ريال`;
+      if (settleDepositDisposition) settleDepositDisposition.disabled = currentDepositAvailable <= 0;
+      if (settleDepositLegacyWarning) {
+        settleDepositLegacyWarning.style.display = currentDepositLegacyUnreconciled ? 'block' : 'none';
+        if (currentDepositLegacyUnreconciled) {
+          const oldAmount = Number(res.deposit_amount || 0).toLocaleString();
+          settleDepositLegacyWarning.textContent = `يوجد رصيد قديم بقيمة ${oldAmount} ريال بلا سند حركة؛ لن يرده النظام تلقائياً قبل مراجعته.`;
+        }
+      }
+      if (btnReconcileLegacyDeposit) {
+        const activeRole = localStorage.getItem('currentUserRole') || (currentUser ? currentUser.role : null);
+        btnReconcileLegacyDeposit.style.display = currentDepositLegacyUnreconciled && activeRole === 'Admin' ? 'inline-block' : 'none';
+      }
+      if (settleDepositDisposition) settleDepositDisposition.value = 'refund';
+      if (settleDepositRetainFields) settleDepositRetainFields.style.display = 'none';
+      if (settleDepositRetainAmount) settleDepositRetainAmount.value = '';
+      if (settleDepositRetainReason) settleDepositRetainReason.value = '';
+    }
+
     updateSettleCalculations();
 
     if (openContractSettleModalEl) {
@@ -4084,6 +4144,40 @@
   if (openContractSettleModalEl) {
     openContractSettleModalEl.addEventListener('click', (e) => {
       if (e.target === openContractSettleModalEl) closeContractSettleModal();
+    });
+  }
+
+  if (settleDepositDisposition) {
+    settleDepositDisposition.addEventListener('change', () => {
+      const retaining = settleDepositDisposition.value === 'retain';
+      if (settleDepositRetainFields) settleDepositRetainFields.style.display = retaining ? 'grid' : 'none';
+      updateSettleCalculations();
+    });
+  }
+  if (btnReconcileLegacyDeposit) {
+    btnReconcileLegacyDeposit.addEventListener('click', async () => {
+      if (!currentSettlingReservation || !currentDepositLegacyUnreconciled) return;
+      const amount = Math.round((parseFloat(currentSettlingReservation.deposit_amount || 0) + Number.EPSILON) * 100) / 100;
+      const confirmed = await showConfirmDialog({
+        title: 'مطابقة تأمين تاريخي',
+        message: `هل راجعت سجل الحجز وتؤكد أن مبلغ ${amount.toLocaleString()} ريال تم استلامه وما زال محفوظاً كتأمين؟ ستُسجل المطابقة باسمك ولا تعني تحصيل مبلغ جديد.`,
+        confirmText: 'نعم، تم التحقق',
+        cancelText: 'تراجع',
+        isDanger: true
+      });
+      if (!confirmed) return;
+      const result = await window.api.reconcileLegacyDeposit({
+        reservationId: currentSettlingReservation.id,
+        amount,
+        paymentMethod: currentSettlingReservation.payment_method || 'نقداً'
+      });
+      if (!result || !result.success) {
+        showToast(result?.error || 'تعذرت مطابقة التأمين التاريخي.', 'error');
+        return;
+      }
+      closeContractSettleModal();
+      showToast('تمت مطابقة التأمين التاريخي. أعد فتح تسجيل المغادرة لإتمام التسوية.', 'success');
+      await Promise.all([loadReservationsData(), loadOverviewData()]);
     });
   }
 
@@ -4157,7 +4251,8 @@
       try {
         const payload = isContract
           ? { finalTotalPrice: finalTotal, settleAmount: 0, discountAmount: discAmount, discountReason: discReason, notes: 'تسجيل مغادرة بدون تحصيل (آجل)' }
-          : { settleMode: 'defer', discountAmount: discAmount, discountReason: discReason };
+          : { settleMode: 'defer', discountAmount: discAmount, discountReason: discReason, ...getDepositCheckoutPayload() };
+        if (isContract) Object.assign(payload, getDepositCheckoutPayload());
         const res = await window.api.checkoutReservation(resId, payload);
         if (res.success) {
           showToast(`تم تسجيل مغادرة الحجز #${resId} بنجاح وترحيل الحساب.`, 'success');
@@ -4183,6 +4278,13 @@
       const discAmount = settleDiscountInput ? parseFloat(settleDiscountInput.value) || 0 : 0;
       const discReason = settleDiscountReasonInput ? settleDiscountReasonInput.value.trim() : '';
 
+      const depositPayload = getDepositCheckoutPayload();
+      if (depositPayload.depositDisposition === 'retain' && depositPayload.depositRetainAmount > 0 && !depositPayload.depositRetainReason) {
+        showToast('يرجى كتابة سبب الاحتفاظ بالتأمين.', 'error');
+        if (settleDepositRetainReason) settleDepositRetainReason.focus();
+        return;
+      }
+
       // Validate discount reason for non-contract (backend also checks, but give early feedback)
       if (!isContract && discAmount > 0 && !discReason) {
         showToast('يرجى إدخال سبب الخصم عند تطبيق خصم على المغادرة.', 'error');
@@ -4192,7 +4294,9 @@
 
       // Determine whether this is a collection or refund based on balance state
       const paidSoFar = parseFloat(currentSettlingReservation.paid_amount || 0);
-      const netBalance = finalTotal - paidSoFar;
+      const requestedDepositApply = depositPayload.depositDisposition === 'apply'
+        ? Math.max(0, Math.min(currentDepositAvailable, finalTotal - paidSoFar)) : 0;
+      const netBalance = finalTotal - paidSoFar - requestedDepositApply;
       const isRefund = netBalance < -0.005;
 
       let payload;
@@ -4200,7 +4304,7 @@
         // Open-contract path: legacy shim
         const payNow = parseFloat(settlePayNowInput ? settlePayNowInput.value : 0) || 0;
         const method = settlePaymentMethodSelect ? settlePaymentMethodSelect.value : 'نقداً';
-        payload = { finalTotalPrice: finalTotal, settleAmount: payNow, paymentMethod: method, discountAmount: discAmount, discountReason: discReason, notes: 'سداد تصفية حساب مغادرة' };
+        payload = { finalTotalPrice: finalTotal, settleAmount: payNow, paymentMethod: method, discountAmount: discAmount, discountReason: discReason, notes: 'سداد تصفية حساب مغادرة', ...depositPayload };
       } else if (isRefund) {
         // Refund path
         const rawRefund = parseFloat(settleRefundAmountInput ? settleRefundAmountInput.value : 0) || 0;
@@ -4209,12 +4313,12 @@
           showToast('يرجى إدخال مبلغ الاسترداد.', 'error');
           return;
         }
-        payload = { settleMode: 'refund', refundAmount: rawRefund, paymentMethod: refundMethod, discountAmount: discAmount, discountReason: discReason };
+        payload = { settleMode: 'refund', refundAmount: rawRefund, paymentMethod: refundMethod, discountAmount: discAmount, discountReason: discReason, ...depositPayload };
       } else {
         // Collect now path
         const payNow = parseFloat(settlePayNowInput ? settlePayNowInput.value : 0) || 0;
         const method = settlePaymentMethodSelect ? settlePaymentMethodSelect.value : 'نقداً';
-        payload = { settleMode: payNow > 0 ? 'collect' : 'defer', collectAmount: payNow, paymentMethod: method, discountAmount: discAmount, discountReason: discReason };
+        payload = { settleMode: payNow > 0 ? 'collect' : 'defer', collectAmount: payNow, paymentMethod: method, discountAmount: discAmount, discountReason: discReason, ...depositPayload };
       }
 
       try {
@@ -4857,7 +4961,13 @@
       const isContract = inv.booking_type === 'عقد مفتوح';
       const total = parseFloat(inv.total_price || 0);
       const paid = parseFloat(inv.paid_amount || 0);
-      const deposit = parseFloat(inv.deposit_amount || 0);
+      const deposit = parseFloat(inv.deposit_ledger_balance ?? inv.deposit_amount ?? 0);
+      const legacyDeposit = Number(inv.deposit_legacy_unreconciled || 0) === 1;
+      let invoiceDepositMovements = [];
+      try {
+        const depositRes = await window.api.getReservationDepositMovements(targetId);
+        if (depositRes?.success && Array.isArray(depositRes.data)) invoiceDepositMovements = depositRes.data;
+      } catch (_) { /* invoice can still render if the optional history query fails */ }
       const rawRemaining = total - paid;
       const isCredit = rawRemaining < -0.005;
       const remaining = isContract ? rawRemaining : Math.max(0, rawRemaining);
@@ -5005,8 +5115,8 @@
               ${deposit > 0 ? `
                 <tr style="border-bottom: 1px solid #e2e8f0; background: #fdf4ff;">
                   <td style="padding: 10px 14px;">
-                    <strong>مبلغ تأمين مسترد (Refundable Deposit)</strong>
-                    <div style="font-size: 0.75rem; color: #64748b;">تأمين مسترد عند تسليم الوحدة وفحص المحتويات</div>
+                    <strong>رصيد التأمين المسجل (Deposit Balance)</strong>
+                    <div style="font-size: 0.75rem; color: #64748b;">${legacyDeposit ? 'قيمة تاريخية بلا سند حركة، وتحتاج مراجعة قبل ردها' : 'مبلغ محفوظ للتأمين ويتطلب تسوية عند المغادرة'}</div>
                   </td>
                   <td style="padding: 10px 14px; text-align: center;">-</td>
                   <td style="padding: 10px 14px; text-align: center;">-</td>
@@ -5054,6 +5164,18 @@
               </div>
             </div>
           </div>
+          ${invoiceDepositMovements.length ? `
+            <div style="margin-top:18px; padding-top:12px; border-top:1px solid #ddd6fe;">
+              <h4 style="font-size:.9rem; font-weight:800; color:#5b21b6; margin-bottom:8px;">سجل حركات التأمين</h4>
+              <table style="width:100%; border-collapse:collapse; font-size:.78rem;">
+                <thead><tr style="background:#f5f3ff;"><th style="padding:6px; text-align:right;">التاريخ</th><th style="padding:6px; text-align:center;">الحركة</th><th style="padding:6px; text-align:center;">المبلغ</th><th style="padding:6px; text-align:center;">الطريقة</th><th style="padding:6px; text-align:right;">السبب / الموظف</th></tr></thead>
+                <tbody>${invoiceDepositMovements.map(m => {
+                  const labels = { collected: 'استلام', reconciled: 'مطابقة رصيد قديم', refunded: 'رد', applied: 'تسوية على الإقامة', retained: 'احتفاظ' };
+                  return `<tr style="border-bottom:1px solid #ede9fe;"><td style="padding:6px;">${escapeHtml(String(m.movement_date || '').slice(0, 16))}</td><td style="padding:6px; text-align:center;">${labels[m.movement_type] || escapeHtml(m.movement_type)}</td><td style="padding:6px; text-align:center;">${Number(m.amount || 0).toLocaleString()} ريال</td><td style="padding:6px; text-align:center;">${escapeHtml(m.payment_method || 'نقداً')}</td><td style="padding:6px;">${escapeHtml(m.reason || '')}${m.staff_username ? ` - ${escapeHtml(m.staff_username)}` : ''}</td></tr>`;
+                }).join('')}</tbody>
+              </table>
+            </div>
+          ` : ''}
         </div>
       `;
 
@@ -5184,7 +5306,7 @@
                 <tbody>
                   ${breakdown.map((r, idx) => {
                     const price = parseFloat(r.total_price || 0);
-                    const paid = parseFloat(r.paid_amount || 0);
+      const paid = parseFloat(r.paid_amount || 0);
                     const collected = parseFloat(r.amount_collected || 0);
                     const remaining = Math.max(0, price - paid);
                     const checkOutDisplay = (r.check_out_date === 'مفتوح' || !r.check_out_date) 
@@ -5382,6 +5504,7 @@
       const mov = rep.movements || {};
       const rm = rep.rooms || {};
       const txs = rep.transactions || [];
+      const depositTxs = rep.depositMovements || [];
       const printTime = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
       const isMultiDay = Boolean(rep.isRange || (rep.startDate && rep.endDate && rep.startDate !== rep.endDate));
       const periodLabel = formatArabicDateRange(rep.startDate, rep.endDate);
@@ -5428,6 +5551,14 @@
             <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px; text-align: center;">
               <div style="font-size: 0.78rem; color: #b45309; font-weight: 700;">مبالغ لم تحصّل بعد</div>
               <div style="font-size: 1.25rem; font-weight: 900; color: #92400e; margin-top: 4px;">${parseFloat(fin.outstandingTotal || 0).toLocaleString()} <span style="font-size: 0.75rem;">ريال</span></div>
+            </div>
+          </div>
+
+          <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 16px; margin: -10px 0 24px; font-size: 0.84rem; color: #334155;">
+            <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+              <span>صافي كاش التأمين: <strong style="color: ${Number(fin.netCashDeposit || 0) < 0 ? '#dc2626' : '#047857'};">${Number(fin.netCashDeposit || 0) > 0 ? '+' : ''}${parseFloat(fin.netCashDeposit || 0).toLocaleString()} ريال</strong></span>
+              <span style="color: #64748b;">(${parseFloat(fin.depositCashCollected || 0).toLocaleString()} مستلم - ${parseFloat(fin.depositCashRefunded || 0).toLocaleString()} مردود${Number(fin.depositCashRetained || 0) ? ` - ${parseFloat(fin.depositCashRetained).toLocaleString()} محتفَظ به ومدرج ضمن المقبوضات` : ''})</span>
+              <span>إجمالي النقد المتوقع بالخزينة: <strong style="color: #0f172a;">${parseFloat(fin.expectedCashInDrawer || 0).toLocaleString()} ريال</strong> <span style="color: #64748b;">(كاش المقبوضات + صافي كاش التأمين)</span></span>
             </div>
           </div>
 
@@ -5515,7 +5646,7 @@
                   <th style="padding: 8px 10px; text-align: right;">الغرفة</th>
                   <th style="padding: 8px 10px; text-align: center;">طريقة الدفع</th>
                   <th style="padding: 8px 10px; text-align: center;">المدفوع</th>
-                  <th style="padding: 8px 10px; text-align: center;">التأمين</th>
+                  <th style="padding: 8px 10px; text-align: center;">رصيد التأمين</th>
                   <th style="padding: 8px 10px; text-align: center;">حالة السداد</th>
                 </tr>
               </thead>
@@ -5527,10 +5658,26 @@
                     <td style="padding: 8px 10px;">غرفة ${escapeHtml(t.room_number)}</td>
                     <td style="padding: 8px 10px; text-align: center;">${escapeHtml(t.payment_method || 'نقداً')}</td>
                     <td style="padding: 8px 10px; text-align: center; font-weight: 700; color: #059669;">${parseFloat(t.paid_amount || 0).toLocaleString()} ريال</td>
-                    <td style="padding: 8px 10px; text-align: center; color: #701a75;">${parseFloat(t.deposit_amount || 0).toLocaleString()} ريال</td>
+                    <td style="padding: 8px 10px; text-align: center; color: #701a75;">${parseFloat(t.deposit_ledger_balance || 0).toLocaleString()} ريال</td>
                     <td style="padding: 8px 10px; text-align: center;">${getPaymentStatusBadge(t.payment_status)}</td>
                   </tr>
                 `).join('')}
+              </tbody>
+            </table>
+          `}
+
+          <h4 style="font-size: 0.95rem; font-weight: 800; color: #5b21b6; margin: 8px 0 10px;">حركات التأمين المسجلة خلال الفترة (لا تدخل ضمن المقبوضات)</h4>
+          ${depositTxs.length === 0 ? `
+            <div style="padding: 12px; background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 8px; color: #6b7280; font-size: .82rem; margin-bottom: 22px;">لا توجد حركات تأمين مسجلة خلال هذه الفترة.</div>
+          ` : `
+            <table style="width:100%; border-collapse:collapse; margin-bottom:22px; font-size:.8rem;">
+              <thead><tr style="background:#f5f3ff; border-bottom:2px solid #ddd6fe;">
+                <th style="padding:7px; text-align:right;">التاريخ</th><th style="padding:7px; text-align:right;">الحجز / النزيل</th><th style="padding:7px; text-align:center;">الحركة</th><th style="padding:7px; text-align:center;">المبلغ</th><th style="padding:7px; text-align:center;">الطريقة</th><th style="padding:7px; text-align:right;">السبب / الموظف</th>
+              </tr></thead><tbody>
+                ${depositTxs.map(d => {
+                  const labels = { collected: 'استلام', reconciled: 'مطابقة رصيد قديم', refunded: 'رد', applied: 'تسوية على الإقامة', retained: 'احتفاظ' };
+                  return `<tr style="border-bottom:1px solid #ede9fe;"><td style="padding:7px; font-family:monospace;">${escapeHtml(String(d.movement_date || '').slice(0, 16))}</td><td style="padding:7px;">#${d.reservation_id} - ${escapeHtml(d.guest_name)} / غرفة ${escapeHtml(d.room_number)}</td><td style="padding:7px; text-align:center;">${labels[d.movement_type] || escapeHtml(d.movement_type)}</td><td style="padding:7px; text-align:center; font-weight:800;">${Number(d.amount || 0).toLocaleString()} ريال</td><td style="padding:7px; text-align:center;">${escapeHtml(d.payment_method || 'نقداً')}</td><td style="padding:7px;">${escapeHtml(d.reason || '')}${d.staff_username ? ` - ${escapeHtml(d.staff_username)}` : ''}</td></tr>`;
+                }).join('')}
               </tbody>
             </table>
           `}
@@ -6547,6 +6694,10 @@
 
       const todayStr = getLocalDateString();
       const hasStarted = targetRes && targetRes.check_in_date ? (todayStr >= targetRes.check_in_date) : true;
+      if (hasStarted) {
+        showToast('الإقامة بدأت بالفعل. استخدم تسجيل الخروج لتصفية الحساب.', 'error');
+        return;
+      }
 
       let cancelPayload = { reservationId: id };
 
@@ -6560,12 +6711,6 @@
           isDanger: true
         });
         if (!confirmed) return;
-      } else {
-        // Mid-stay cancellation: show mid-stay cancellation modal with editable departure date & admin override
-        const modalResult = await showMidStayCancelModal(targetRes || { id, check_in_date: todayStr });
-        if (!modalResult || !modalResult.confirmed) return;
-        cancelPayload.actualDepartureDate = modalResult.actualDepartureDate;
-        cancelPayload.manualOverrideAmount = modalResult.manualOverrideAmount;
       }
 
       try {
