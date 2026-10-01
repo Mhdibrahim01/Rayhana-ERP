@@ -503,6 +503,9 @@ function computeCheckoutSettlement(reservationId, {
   let appliedDiscount = null;
 
   if (!isOpenContract) {
+    if (!Number.isFinite(effectiveNightlyRate) || effectiveNightlyRate <= 0) {
+      throw new Error('تعذر حساب التسوية: سعر الليلة غير صالح (يجب أن يكون أكبر من الصفر).');
+    }
     const d1 = new Date(res.check_in_date + 'T00:00:00');
     const d2 = new Date(todayStr + 'T00:00:00');
     const diffDays = Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
@@ -676,6 +679,10 @@ function checkoutReservation(reservationId, {
     : roundMoney(res.discount_amount || 0);
   // Stored rate only — finalTotalPrice from renderer is ignored for non-contract.
   const effectiveNightlyRate = roundMoney(res.custom_nightly_price || res.price_per_night || 0);
+
+  if (!Number.isFinite(effectiveNightlyRate) || effectiveNightlyRate <= 0) {
+    throw new Error('تعذر إتمام التسوية: سعر الليلة غير صالح (يجب أن يكون أكبر من الصفر).');
+  }
 
   // Discount validation: require a non-empty reason when discount > 0
   if (requestedDiscount > 0) {

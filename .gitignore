@@ -5,3 +5,4 @@ guest.csv
 seed-checkout-tests-runtime.js
 seed-checkout-tests.js
 scratch/
+.test-output/
