@@ -14,6 +14,7 @@ const RESERVATION_LIST_SQL = `
     r.check_out_date,
     r.total_price,
     r.paid_amount,
+    COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.reservation_id = r.id), r.paid_amount) AS ledger_paid_amount,
     r.deposit_amount,
     r.payment_method,
     r.payment_status,
@@ -485,6 +486,9 @@ function computeCheckoutSettlement(reservationId, {
 
   const isOpenContract = res.booking_type === 'عقد مفتوح';
   const todayStr = getLocalDateString();
+  if (todayStr < res.check_in_date) {
+    throw new Error('لم تبدأ الإقامة بعد. استخدم إلغاء الحجز بدلاً من تسجيل الخروج.');
+  }
 
   // Effective nightly rate: stored custom rate, else room default.
   // No renderer-supplied rate override is accepted.
@@ -586,6 +590,10 @@ function checkoutReservation(reservationId, {
   // Safety net: never close an already-closed reservation
   if (res.status === 'مكتمل' || res.status === 'ملغي' || res.status === 'ملغي جزئي') {
     throw new Error('الحجز مغلق بالفعل ولا يمكن تسجيل مغادرة جديدة له.');
+  }
+
+  if (getLocalDateString() < res.check_in_date) {
+    throw new Error('لم تبدأ الإقامة بعد. استخدم إلغاء الحجز بدلاً من تسجيل الخروج.');
   }
 
   const isOpenContract = res.booking_type === 'عقد مفتوح';
@@ -1085,6 +1093,8 @@ function cancelReservation(reservationId, actualDepartureDate = null, manualOver
 
   const res = queryOne(`
     SELECT r.id, r.room_id, r.check_in_date, r.check_out_date, r.total_price, r.paid_amount,
+           r.status,
+           r.custom_nightly_price,
            rm.price_per_night
     FROM reservations r
     LEFT JOIN rooms rm ON r.room_id = rm.id
@@ -1093,10 +1103,16 @@ function cancelReservation(reservationId, actualDepartureDate = null, manualOver
   if (!res) throw new Error('الحجز غير موجود.');
 
   const today = getLocalDateString();
-  const effectiveDeparture = (actualDepartureDate && typeof actualDepartureDate === 'string' && actualDepartureDate.trim() !== '')
-    ? actualDepartureDate.trim()
-    : today;
-  const hasStarted = effectiveDeparture >= res.check_in_date;
+  if (['مكتمل', 'ملغي', 'ملغي جزئي'].includes(res.status)) {
+    throw new Error('الحجز مغلق بالفعل ولا يمكن إلغاؤه.');
+  }
+  // Cancellation is only for stays that have not started. Once arrival day
+  // begins, use the checkout settlement flow so the stay keeps one lifecycle.
+  const hasStarted = today >= res.check_in_date;
+  if (hasStarted) {
+    throw new Error('الإقامة بدأت بالفعل. استخدم تسجيل الخروج لتصفية الحساب بدلاً من إلغاء الحجز.');
+  }
+  const effectiveDeparture = today;
   const paidAmount = roundMoney(res.paid_amount || 0);
 
   let proRatedCharge = 0;
@@ -1154,7 +1170,7 @@ function cancelReservation(reservationId, actualDepartureDate = null, manualOver
       const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
       daysStayed = Math.max(1, diffDays);
 
-      const nightlyRate = roundMoney(res.price_per_night || 0);
+      const nightlyRate = roundMoney(res.custom_nightly_price || res.price_per_night || 0);
       const calculatedProRated = roundMoney(daysStayed * nightlyRate);
 
       let finalCharge = calculatedProRated;
@@ -1188,9 +1204,11 @@ function cancelReservation(reservationId, actualDepartureDate = null, manualOver
             checked_out_at = datetime('now')
         WHERE id = ?
       `);
-      // paid_amount is set to finalCharge (the net amount kept) because the refund
-      // has been physically returned to the guest and recorded as a negative ledger entry below.
-      stmt1.run([finalCharge, finalCharge, newPaymentStatus, effectiveDeparture, originalCalculated, targetId]);
+      // Preserve the amount actually received when a balance remains so it can be
+      // collected later. When a refund is due, paid_amount reflects the net amount
+      // kept after the negative payment is recorded below.
+      const settledPaidAmount = refundDue > 0 ? finalCharge : paidAmount;
+      stmt1.run([finalCharge, settledPaidAmount, newPaymentStatus, effectiveDeparture, originalCalculated, targetId]);
       stmt1.free();
 
       // Record the refund as a negative payment in the ledger so that all revenue
@@ -1250,7 +1268,7 @@ function cancelReservation(reservationId, actualDepartureDate = null, manualOver
 }
 
 /**
- * Add subsequent payment to an active reservation with atomic transaction and audit trail.
+ * Add a subsequent payment to a reservation with an atomic transaction and audit trail.
  * - Validates positive finite amount.
  * - Prevents overpayment beyond remaining balance for regular/monthly bookings.
  * - Allows negative balance (credit) for Open Contracts ('عقد مفتوح').
@@ -1269,7 +1287,12 @@ function addPaymentToReservation({ reservationId, amount, paymentMethod = 'نق�
     throw new Error('يرجى إدخال مبلغ سداد صحيح وموجب أكبر من الصفر.');
   }
 
-  const res = queryOne("SELECT id, total_price, paid_amount, status, booking_type FROM reservations WHERE id = ?", [targetId]);
+  const res = queryOne(`
+    SELECT r.id, r.total_price, r.paid_amount, r.status, r.booking_type,
+           (SELECT SUM(p.amount) FROM payments p WHERE p.reservation_id = r.id) AS ledger_paid_amount
+    FROM reservations r
+    WHERE r.id = ?
+  `, [targetId]);
   if (!res) {
     throw new Error('الحجز غير موجود.');
   }
@@ -1278,7 +1301,8 @@ function addPaymentToReservation({ reservationId, amount, paymentMethod = 'نق�
     throw new Error('لا يمكن تسجيل دفعات لحجز ملغي.');
   }
 
-  const currentPaid = roundMoney(res.paid_amount || 0);
+  const ledgerPaid = res.status === 'ملغي جزئي' ? Number(res.ledger_paid_amount) : NaN;
+  const currentPaid = roundMoney(Number.isFinite(ledgerPaid) ? ledgerPaid : (res.paid_amount || 0));
   const totalPrice = roundMoney(res.total_price || 0);
   const isContract = res.booking_type === 'عقد مفتوح';
 

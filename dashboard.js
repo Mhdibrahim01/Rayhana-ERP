@@ -511,7 +511,7 @@
         document.body.appendChild(modal);
       }
 
-      let nightlyRate = Number(targetRes.price_per_night || 0);
+      let nightlyRate = Number(targetRes.custom_nightly_price || targetRes.price_per_night || 0);
       if (!nightlyRate && roomsCache && roomsCache.length > 0) {
         const rm = roomsCache.find(r => r.id === targetRes.room_id || r.room_number === targetRes.room_number);
         if (rm && rm.price_per_night) nightlyRate = Number(rm.price_per_night);
@@ -1337,9 +1337,12 @@
 
     overviewTableBody.innerHTML = recent.map(r => {
       const isConfirmed = r.status === 'مؤكد';
+      const hasStarted = r.check_in_date ? getLocalDateString() >= r.check_in_date : true;
+      const canCheckOut = isConfirmed && hasStarted;
+      const canCancel = isConfirmed && !hasStarted;
       const isContract = r.booking_type === 'عقد مفتوح';
       const total = parseFloat(r.total_price || 0);
-      const paid = parseFloat(r.paid_amount || 0);
+      const paid = parseFloat((r.status === 'ملغي جزئي' && r.payment_status === 'مدفوع جزئياً' ? r.ledger_paid_amount : r.paid_amount) || 0);
       const rawRemaining = total - paid;
       const isCredit = rawRemaining < -0.005;
       const remaining = isContract ? rawRemaining : Math.max(0, rawRemaining);
@@ -1389,15 +1392,15 @@
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                   </button>
                 ` : ''}
-                <button type="button" class="btn-action-icon" data-action="checkout" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #ffffff; color: #334155; border: 1.5px solid #cbd5e1; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="تسجيل مغادرة وتسليم الغرفة">
+                ${canCheckOut ? `<button type="button" class="btn-action-icon" data-action="checkout" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #ffffff; color: #334155; border: 1.5px solid #cbd5e1; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="تسجيل مغادرة وتسليم الغرفة">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                </button>
+                </button>` : ''}
                 <button type="button" class="btn-action-icon" data-action="whatsapp" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #f0fdf4; color: #16a34a; border: 1.5px solid #86efac; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="مراسلة النزيل عبر واتساب">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
                 </button>
-                <button type="button" class="btn-action-icon" data-action="cancel" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="إلغاء الحجز">
+                ${canCancel ? `<button type="button" class="btn-action-icon" data-action="cancel" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="إلغاء الحجز">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
+                </button>` : ''}
               ` : ''}
             </div>
           </td>
@@ -2269,13 +2272,17 @@
     // once to avoid hundreds of costly individual DOM reflows (layout thrashing).
     const rowsHtml = filtered.map(r => {
       const isConfirmed = r.status === 'مؤكد';
+      const hasStarted = r.check_in_date ? getLocalDateString() >= r.check_in_date : true;
+      const canCheckOut = isConfirmed && hasStarted;
+      const canCancel = isConfirmed && !hasStarted;
       const isContract = r.booking_type === 'عقد مفتوح';
       const total = parseFloat(r.total_price || 0);
-      const paid = parseFloat(r.paid_amount || 0);
+      const paid = parseFloat((r.status === 'ملغي جزئي' && r.payment_status === 'مدفوع جزئياً' ? r.ledger_paid_amount : r.paid_amount) || 0);
       const deposit = parseFloat(r.deposit_amount || 0);
       const rawRemaining = total - paid;
       const isCredit = rawRemaining < -0.005;
       const remaining = isContract ? rawRemaining : Math.max(0, rawRemaining);
+      const canCollectBalance = isConfirmed || r.status === 'ملغي جزئي' || (r.status === 'مكتمل' && remaining > 0.005);
       const fmtTotal = total.toLocaleString();
       const fmtPaid = paid.toLocaleString();
       const fmtRem = remaining.toLocaleString();
@@ -2329,7 +2336,7 @@
               <button type="button" class="btn-action-icon" data-action="invoice" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #f0fdf4; color: #166534; border: 1.5px solid #bbf7d0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="طباعة سند الاستلام والإقامة (فاتورة)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
               </button>
-              ${isConfirmed && (remaining > 0 || isContract) ? `
+              ${canCollectBalance && (remaining > 0 || (isConfirmed && isContract)) ? `
                 <button type="button" class="btn-action-icon btn-pay" data-action="add-payment" data-id="${r.id}" onclick="event.stopPropagation(); window.openAddPaymentModal && window.openAddPaymentModal(${r.id});" style="width: 30px; height: 30px; padding: 0; background: #a67c52; color: #ffffff; border: none; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; box-shadow: 0 2px 8px rgba(166, 124, 82, 0.35);" title="تسجيل دفعة سداد جديدة">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
                 </button>
@@ -2340,15 +2347,15 @@
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                   </button>
                 ` : ''}
-                <button type="button" class="btn-action-icon" data-action="checkout" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #ffffff; color: #334155; border: 1.5px solid #cbd5e1; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="تسجيل مغادرة وتسليم الغرفة">
+                ${canCheckOut ? `<button type="button" class="btn-action-icon" data-action="checkout" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #ffffff; color: #334155; border: 1.5px solid #cbd5e1; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="تسجيل مغادرة وتسليم الغرفة">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                </button>
+                </button>` : ''}
                 <button type="button" class="btn-action-icon" data-action="whatsapp" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #f0fdf4; color: #16a34a; border: 1.5px solid #86efac; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="مراسلة النزيل عبر واتساب">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
                 </button>
-                <button type="button" class="btn-action-icon" data-action="cancel" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="إلغاء الحجز">
+                ${canCancel ? `<button type="button" class="btn-action-icon" data-action="cancel" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="إلغاء الحجز">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
+                </button>` : ''}
               ` : ''}
             </div>
           </td>
@@ -2690,9 +2697,6 @@
                 ` : ''}
                 <button type="button" class="btn-room-action" data-action="invoice" data-id="${activeRes.id}" style="border: none; border-radius: 8px; padding: 7px 12px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: #1a4332; color: #ffffff;">
                   <span>فاتورة 🖨️</span>
-                </button>
-                <button type="button" class="btn-room-action" data-action="cancel" data-id="${activeRes.id}" aria-label="إلغاء الحجز" title="إلغاء الحجز" style="border: 1px solid #fecaca; border-radius: 8px; padding: 7px 12px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: #fef2f2; color: #b91c1c;">
-                  <span>إلغاء الحجز ✕</span>
                 </button>
               ` : ''}
 
@@ -3641,6 +3645,11 @@
   const btnPayFullRemaining = document.getElementById('btn-pay-full-remaining');
 
   let currentPayingReservation = null;
+  const getReservationPaidForPayments = (reservation) => {
+    const useLedgerBalance = reservation?.status === 'ملغي جزئي' && reservation?.payment_status === 'مدفوع جزئياً';
+    const amount = useLedgerBalance ? reservation.ledger_paid_amount : reservation?.paid_amount;
+    return Math.round((parseFloat(amount || 0) + Number.EPSILON) * 100) / 100;
+  };
 
   window.openAddPaymentModal = async function openAddPaymentModal(reservationId) {
     const modal = document.getElementById('add-payment-modal');
@@ -3677,7 +3686,7 @@
     currentPayingReservation = res;
     const isContract = res.booking_type === 'عقد مفتوح';
     const total = Math.round((parseFloat(res.total_price || 0) + Number.EPSILON) * 100) / 100;
-    const paid = Math.round((parseFloat(res.paid_amount || 0) + Number.EPSILON) * 100) / 100;
+    const paid = getReservationPaidForPayments(res);
     const rawRemaining = Math.round((total - paid + Number.EPSILON) * 100) / 100;
     const remaining = isContract ? rawRemaining : Math.max(0, rawRemaining);
 
@@ -3751,7 +3760,7 @@
     btnPayFullRemaining.addEventListener('click', () => {
       if (!currentPayingReservation) return;
       const total = Math.round((parseFloat(currentPayingReservation.total_price || 0) + Number.EPSILON) * 100) / 100;
-      const paid = Math.round((parseFloat(currentPayingReservation.paid_amount || 0) + Number.EPSILON) * 100) / 100;
+      const paid = getReservationPaidForPayments(currentPayingReservation);
       const isContract = currentPayingReservation.booking_type === 'عقد مفتوح';
       const rawRemaining = Math.round((total - paid + Number.EPSILON) * 100) / 100;
       const remaining = isContract ? Math.max(0, rawRemaining) : Math.max(0, rawRemaining);
@@ -3780,7 +3789,7 @@
 
       if (currentPayingReservation && currentPayingReservation.booking_type !== 'عقد مفتوح') {
         const total = Math.round((parseFloat(currentPayingReservation.total_price || 0) + Number.EPSILON) * 100) / 100;
-        const paid = Math.round((parseFloat(currentPayingReservation.paid_amount || 0) + Number.EPSILON) * 100) / 100;
+        const paid = getReservationPaidForPayments(currentPayingReservation);
         const remaining = Math.max(0, Math.round((total - paid + Number.EPSILON) * 100) / 100);
         if (newAmount - remaining > 0.005) {
           showToast(`المبلغ المدخل (${newAmount.toLocaleString()} ريال) يتجاوز الرصيد المتبقي المستحق (${remaining.toLocaleString()} ريال).`, 'error');
@@ -5184,7 +5193,7 @@
                 <tbody>
                   ${breakdown.map((r, idx) => {
                     const price = parseFloat(r.total_price || 0);
-                    const paid = parseFloat(r.paid_amount || 0);
+      const paid = parseFloat(r.paid_amount || 0);
                     const collected = parseFloat(r.amount_collected || 0);
                     const remaining = Math.max(0, price - paid);
                     const checkOutDisplay = (r.check_out_date === 'مفتوح' || !r.check_out_date) 
@@ -6547,6 +6556,10 @@
 
       const todayStr = getLocalDateString();
       const hasStarted = targetRes && targetRes.check_in_date ? (todayStr >= targetRes.check_in_date) : true;
+      if (hasStarted) {
+        showToast('الإقامة بدأت بالفعل. استخدم تسجيل الخروج لتصفية الحساب.', 'error');
+        return;
+      }
 
       let cancelPayload = { reservationId: id };
 
@@ -6560,12 +6573,6 @@
           isDanger: true
         });
         if (!confirmed) return;
-      } else {
-        // Mid-stay cancellation: show mid-stay cancellation modal with editable departure date & admin override
-        const modalResult = await showMidStayCancelModal(targetRes || { id, check_in_date: todayStr });
-        if (!modalResult || !modalResult.confirmed) return;
-        cancelPayload.actualDepartureDate = modalResult.actualDepartureDate;
-        cancelPayload.manualOverrideAmount = modalResult.manualOverrideAmount;
       }
 
       try {

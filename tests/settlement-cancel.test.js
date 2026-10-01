@@ -89,15 +89,16 @@ test('checkout settlement and cancellation essentials', async t => {
       assert.equal(refund.notes, `استرداد كامل - إلغاء قبل الوصول #${id}`);
     });
 
-    await t.test('mid-stay cancellation stores the refund, settled payment status, and prorated total', () => {
+    await t.test('early checkout stores the refund and marks the final stay as settled', () => {
       const room = addRoom('SC-CANCEL-MID', 200);
       const id = createReservation({ roomId: room.id, name: 'Cancel Mid Stay', checkIn: addDays(today, -3), checkOut: addDays(today, 5), totalPrice: 1600, paidAmount: 800 });
-      appDb.cancelReservation(id, today);
+      appDb.checkoutReservation(id, { settleMode: 'refund', refundAmount: 200 });
       const reservation = appDb.getReservationById(id);
       const refund = appDb.getReservationPayments(id).at(-1);
       assert.equal(refund.amount, -200);
       assert.equal(reservation.payment_status, 'مدفوع بالكامل');
       assert.equal(reservation.total_price, 600);
+      assert.equal(reservation.status, 'مكتمل');
     });
   });
 });

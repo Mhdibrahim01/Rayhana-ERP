@@ -11,7 +11,7 @@ test('revenue and dashboard reports include completed, active, and refunded ledg
     let partialRoom;
     let completedRoom;
 
-    await t.test('seed a mid-stay cancellation with a negative refund row', () => {
+    await t.test('seed an early checkout with a negative refund row', () => {
       partialRoom = addRoom('RP-REFUND', 200);
       const id = createReservation({
         roomId: partialRoom.id,
@@ -21,7 +21,7 @@ test('revenue and dashboard reports include completed, active, and refunded ledg
         totalPrice: 1600,
         paidAmount: 800
       });
-      db.cancelReservation(id, today);
+      db.checkoutReservation(id, { settleMode: 'refund', refundAmount: 200 });
       assert.equal(connection.queryAll('SELECT amount FROM payments WHERE reservation_id = ? ORDER BY id DESC LIMIT 1', [id])[0].amount, -200);
       assertDatabaseIntegrity(connection, 'report seed: partial refund');
     });

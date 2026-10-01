@@ -51,6 +51,45 @@ test('checkout settlement scenarios', async t => {
       assertDatabaseIntegrity(connection, 'checkout: zero paid deferred');
     });
 
+    await t.test('checkout is rejected before the reservation arrival date', () => {
+      const room = addRoom('CS-FUTURE-CHECKOUT', 180);
+      const reservationId = createReservation({
+        roomId: room.id,
+        name: 'Future Checkout Guard',
+        checkIn: addDays(today, 1),
+        checkOut: addDays(today, 3),
+        totalPrice: 360,
+        paidAmount: 180
+      });
+      assert.throws(() => appDb.computeCheckoutSettlement(reservationId), /استخدم إلغاء الحجز/);
+      assert.throws(() => appDb.checkoutReservation(reservationId, { settleMode: 'defer' }), /استخدم إلغاء الحجز/);
+      assert.equal(appDb.getReservationById(reservationId).status, 'مؤكد');
+      assert.equal(appDb.getReservationPayments(reservationId).length, 1);
+      assertDatabaseIntegrity(connection, 'checkout blocked before arrival');
+    });
+
+    await t.test('remaining balance can be collected after a completed checkout', () => {
+      const room = addRoom('CS-LATER-PAYMENT', 180);
+      const reservationId = createReservation({
+        roomId: room.id,
+        name: 'Pay After Checkout',
+        checkIn: today,
+        checkOut: addDays(today, 2),
+        totalPrice: 360,
+        paidAmount: 50
+      });
+
+      appDb.checkoutReservation(reservationId, { settleMode: 'defer' });
+      const payment = appDb.addPaymentToReservation({ reservationId, amount: 130, notes: 'سداد رصيد بعد تسجيل الخروج' });
+      const completed = appDb.getReservationById(reservationId);
+      assert.equal(completed.status, 'مكتمل');
+      assert.equal(payment.remainingBalance, 0);
+      assert.equal(completed.paid_amount, 180);
+      assert.equal(completed.payment_status, 'مدفوع بالكامل');
+      assert.equal(appDb.getReservationPayments(reservationId).reduce((sum, row) => sum + row.amount, 0), 180);
+      assertDatabaseIntegrity(connection, 'payment after checkout');
+    });
+
     await t.test('partial collection records only the collected amount and leaves the balance open', () => {
       const room = addRoom('CS-PARTIAL', 300);
       const reservationId = createReservation({
