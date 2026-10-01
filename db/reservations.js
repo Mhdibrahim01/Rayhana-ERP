@@ -5,6 +5,67 @@
 
 const { db, queryOne, queryAll, saveToFile, roundMoney, getLocalDateString } = require('./connection');
 
+function getDepositLedger(reservationId) {
+  const row = queryOne(`
+    SELECT COUNT(*) AS movement_count,
+      COALESCE(SUM(CASE WHEN movement_type IN ('collected', 'reconciled') THEN amount ELSE -amount END), 0) AS balance
+    FROM deposit_movements WHERE reservation_id = ?
+  `, [reservationId]);
+  return {
+    movementCount: Number(row?.movement_count || 0),
+    balance: roundMoney(Math.max(0, Number(row?.balance || 0)))
+  };
+}
+
+function recordDepositMovement({ reservationId, type, amount, paymentMethod = 'نقداً', userId = null, reason = null }) {
+  const value = roundMoney(amount);
+  if (!['collected', 'reconciled', 'refunded', 'applied', 'retained'].includes(type)) throw new Error('نوع حركة التأمين غير صالح.');
+  if (!Number.isFinite(value) || value <= 0) throw new Error('مبلغ حركة التأمين يجب أن يكون أكبر من الصفر.');
+  const current = getDepositLedger(reservationId).balance;
+  if (!['collected', 'reconciled'].includes(type) && value - current > 0.005) {
+    throw new Error(`حركة التأمين (${value} ريال) تتجاوز الرصيد المسجل (${current} ريال).`);
+  }
+  const stmt = db.prepare(`
+    INSERT INTO deposit_movements (reservation_id, movement_type, amount, payment_method, movement_date, user_id, reason)
+    VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
+  `);
+  stmt.run([reservationId, type, value, paymentMethod || 'نقداً', userId ? parseInt(userId, 10) : null, reason || null]);
+  stmt.free();
+  const nextBalance = roundMoney(current + (['collected', 'reconciled'].includes(type) ? value : -value));
+  const upd = db.prepare('UPDATE reservations SET deposit_amount = ? WHERE id = ?');
+  upd.run([nextBalance, reservationId]);
+  upd.free();
+  return nextBalance;
+}
+
+function reconcileLegacyDeposit({ reservationId, amount, paymentMethod = 'نقداً', userId = null }) {
+  const targetId = parseInt(reservationId, 10);
+  if (!targetId) throw new Error('معرف الحجز غير صالح.');
+  const reservation = queryOne('SELECT deposit_amount FROM reservations WHERE id = ?', [targetId]);
+  if (!reservation) throw new Error('الحجز غير موجود.');
+  const ledger = getDepositLedger(targetId);
+  if (ledger.movementCount > 0) throw new Error('للحجز سجل تأمين بالفعل ولا يحتاج إلى مطابقة تاريخية.');
+  const recordedAmount = roundMoney(reservation.deposit_amount || 0);
+  const confirmedAmount = roundMoney(amount);
+  if (recordedAmount <= 0 || Math.abs(recordedAmount - confirmedAmount) > 0.005) {
+    throw new Error('المبلغ المؤكد يجب أن يطابق مبلغ التأمين التاريخي المسجل بالحجز.');
+  }
+  db.run('BEGIN TRANSACTION;');
+  try {
+    recordDepositMovement({
+      reservationId: targetId, type: 'reconciled', amount: confirmedAmount,
+      paymentMethod, userId,
+      reason: 'مطابقة رصيد تأمين تاريخي بموافقة المدير'
+    });
+    db.run('COMMIT;');
+  } catch (err) {
+    try { db.run('ROLLBACK;'); } catch (_) {}
+    throw err;
+  }
+  saveToFile();
+  return { success: true, reconciledAmount: confirmedAmount };
+}
+
 const RESERVATION_LIST_SQL = `
   SELECT
     r.id,
@@ -16,6 +77,8 @@ const RESERVATION_LIST_SQL = `
     r.paid_amount,
     COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.reservation_id = r.id), r.paid_amount) AS ledger_paid_amount,
     r.deposit_amount,
+    COALESCE((SELECT SUM(CASE WHEN dm.movement_type IN ('collected', 'reconciled') THEN dm.amount ELSE -dm.amount END) FROM deposit_movements dm WHERE dm.reservation_id = r.id), 0) AS deposit_ledger_balance,
+    CASE WHEN NOT EXISTS (SELECT 1 FROM deposit_movements dm WHERE dm.reservation_id = r.id) AND r.deposit_amount > 0 THEN 1 ELSE 0 END AS deposit_legacy_unreconciled,
     r.payment_method,
     r.payment_status,
     r.status,
@@ -117,6 +180,8 @@ function getReservationById(reservationId) {
       r.total_price, 
       r.paid_amount,
       r.deposit_amount,
+      COALESCE((SELECT SUM(CASE WHEN dm.movement_type IN ('collected', 'reconciled') THEN dm.amount ELSE -dm.amount END) FROM deposit_movements dm WHERE dm.reservation_id = r.id), 0) AS deposit_ledger_balance,
+      CASE WHEN NOT EXISTS (SELECT 1 FROM deposit_movements dm WHERE dm.reservation_id = r.id) AND r.deposit_amount > 0 THEN 1 ELSE 0 END AS deposit_legacy_unreconciled,
       r.payment_method,
       r.payment_status,
       r.status, 
@@ -212,6 +277,9 @@ function createReservation({
 
   if (paid < 0) {
     throw new Error('المبلغ المدفوع لا يمكن أن يكون سالباً.');
+  }
+  if (!Number.isFinite(deposit) || deposit < 0) {
+    throw new Error('مبلغ التأمين يجب أن يكون صفراً أو أكبر.');
   }
 
   if (normBookingType === 'عقد مفتوح') {
@@ -387,6 +455,18 @@ function createReservation({
       payStmt.free();
     }
 
+    // The entered deposit is money received now, tracked separately from accommodation payments.
+    if (deposit > 0) {
+      recordDepositMovement({
+        reservationId: newReservationId,
+        type: 'collected',
+        amount: deposit,
+        paymentMethod: method,
+        userId,
+        reason: `استلام تأمين عند إنشاء الحجز #${newReservationId}`
+      });
+    }
+
     // Dynamic Room Status Evaluation:
     // Only mark room as 'مشغولة' if CURRENT_DATE >= check_in_date AND CURRENT_DATE < effectiveNewCheckout.
     // If check_in_date is in the future, mark as 'محجوزة' (unless it is already occupied today by another guest).
@@ -471,7 +551,7 @@ function computeCheckoutSettlement(reservationId, {
   if (!targetId || isNaN(targetId)) throw new Error('معرف الحجز غير صالح.');
 
   const res = queryOne(`
-    SELECT r.id, r.booking_type, r.check_in_date, r.check_out_date, r.total_price, r.paid_amount,
+    SELECT r.id, r.booking_type, r.check_in_date, r.check_out_date, r.total_price, r.paid_amount, r.deposit_amount,
            r.custom_nightly_price, r.discount_amount, r.discount_reason, r.status,
            rm.price_per_night
     FROM reservations r
@@ -527,6 +607,8 @@ function computeCheckoutSettlement(reservationId, {
   }
 
   const paidAmount = roundMoney(res.paid_amount || 0);
+  const depositLedger = getDepositLedger(targetId);
+  const depositAvailable = depositLedger.balance;
   const difference = isOpenContract ? null : roundMoney(netCharge - paidAmount);
 
   return {
@@ -540,6 +622,8 @@ function computeCheckoutSettlement(reservationId, {
     discountApplied: appliedDiscount,
     netCharge,
     paidAmount,
+    depositAvailable,
+    depositLegacyUnreconciled: !depositLedger.movementCount && roundMoney(res.deposit_amount || 0) > 0,
     // difference > 0 → guest owes money
     // difference < 0 → guest overpaid (refund due)
     // difference = 0 → settled
@@ -568,6 +652,10 @@ function checkoutReservation(reservationId, {
   discountAmount,
   discountReason,
   customNightlyPrice,
+  depositDisposition = 'refund',
+  depositRetainAmount = 0,
+  depositRetainReason = '',
+  depositRefundMethod = 'نقداً',
   // Legacy shim: the open-contract settle modal still passes these
   finalTotalPrice,
   settleAmount,
@@ -577,7 +665,7 @@ function checkoutReservation(reservationId, {
   if (!targetId || isNaN(targetId)) throw new Error('معرف الحجز غير صالح.');
 
   const res = queryOne(`
-    SELECT r.id, r.room_id, r.total_price, r.paid_amount, r.payment_status, r.booking_type,
+    SELECT r.id, r.room_id, r.total_price, r.paid_amount, r.deposit_amount, r.payment_status, r.booking_type,
            r.check_in_date, r.check_out_date, r.original_calculated_charge, r.status,
            r.custom_nightly_price, r.discount_amount, r.discount_reason,
            rm.price_per_night
@@ -628,6 +716,30 @@ function checkoutReservation(reservationId, {
         ps.run([openReceiptNumber, targetId, openAddPay, paymentMethod || 'نقداً', userId ? parseInt(userId, 10) : null, notes || 'سداد تصفية حساب مغادرة']);
         ps.free();
       }
+
+      const openDepositHeld = getDepositLedger(targetId).balance;
+      if (!['refund', 'apply', 'retain'].includes(depositDisposition)) throw new Error('طريقة تسوية التأمين غير معروفة.');
+      if (depositDisposition === 'retain' && Number(depositRetainAmount) > 0 && !String(depositRetainReason || '').trim()) {
+        throw new Error('يرجى إدخال سبب الاحتفاظ بالتأمين.');
+      }
+      const openDepositApplied = depositDisposition === 'apply'
+        ? roundMoney(Math.min(openDepositHeld, Math.max(0, openFinalTotal - openNewPaid))) : 0;
+      const requestedOpenRetain = depositDisposition === 'retain' ? Number(depositRetainAmount || 0) : 0;
+      const openDepositRetained = roundMoney(requestedOpenRetain);
+      if (!Number.isFinite(requestedOpenRetain) || openDepositRetained < 0 || openDepositRetained - openDepositHeld > 0.005) {
+        throw new Error(`المبلغ المحتفظ به يجب ألا يتجاوز التأمين المسجل (${openDepositHeld} ريال).`);
+      }
+      const openDepositRefunded = roundMoney(openDepositHeld - openDepositApplied - openDepositRetained);
+      if (openDepositApplied > 0) {
+        openNewPaid = roundMoney(openNewPaid + openDepositApplied);
+        recordDepositMovement({ reservationId: targetId, type: 'applied', amount: openDepositApplied, paymentMethod: depositRefundMethod, userId, reason: `تسوية من التأمين على الإقامة #${targetId}` });
+        const applyReceipt = generateReceiptNumber(targetId);
+        const applyStmt = db.prepare(`INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes) VALUES (?, ?, ?, 'من التأمين', datetime('now', 'localtime'), ?, ?)`);
+        applyStmt.run([applyReceipt, targetId, openDepositApplied, userId ? parseInt(userId, 10) : null, `تسوية من التأمين #${targetId}`]);
+        applyStmt.free();
+      }
+      if (openDepositRetained > 0) recordDepositMovement({ reservationId: targetId, type: 'retained', amount: openDepositRetained, paymentMethod: depositRefundMethod, userId, reason: String(depositRetainReason || '').trim() });
+      if (openDepositRefunded > 0) recordDepositMovement({ reservationId: targetId, type: 'refunded', amount: openDepositRefunded, paymentMethod: depositRefundMethod, userId, reason: `رد التأمين عند تسجيل المغادرة #${targetId}` });
 
       let openStatus = res.payment_status;
       if (openNewPaid > openFinalTotal + 0.005) openStatus = 'رصيد دائن';
@@ -718,7 +830,24 @@ function checkoutReservation(reservationId, {
   const finalTotal = Math.max(0, roundMoney(baseCharge - effectiveDiscount));
 
   const currentPaid = roundMoney(res.paid_amount || 0);
-  const difference = roundMoney(finalTotal - currentPaid);
+  const depositLedger = getDepositLedger(targetId);
+  const depositHeld = depositLedger.balance;
+  if (!['refund', 'apply', 'retain'].includes(depositDisposition)) {
+    throw new Error('طريقة تسوية التأمين غير معروفة.');
+  }
+  if (depositDisposition === 'retain' && Number(depositRetainAmount) > 0 && !String(depositRetainReason || '').trim()) {
+    throw new Error('يرجى إدخال سبب الاحتفاظ بالتأمين.');
+  }
+  const depositApplied = depositDisposition === 'apply'
+    ? roundMoney(Math.min(depositHeld, Math.max(0, finalTotal - currentPaid))) : 0;
+  const requestedRetain = depositDisposition === 'retain' ? Number(depositRetainAmount || 0) : 0;
+  const depositRetained = roundMoney(requestedRetain);
+  if (!Number.isFinite(requestedRetain) || depositRetained < 0 || depositRetained - depositHeld > 0.005) {
+    throw new Error(`المبلغ المحتفظ به يجب ألا يتجاوز التأمين المسجل (${depositHeld} ريال).`);
+  }
+  const depositRefunded = roundMoney(depositHeld - depositApplied - depositRetained);
+  const adjustedCurrentPaid = roundMoney(currentPaid + depositApplied);
+  const difference = roundMoney(finalTotal - adjustedCurrentPaid);
 
   // Resolve settleMode from either new or legacy fields
   // Legacy: settleAmount >= 0 means 'collect now' if > 0 else 'defer'
@@ -740,15 +869,15 @@ function checkoutReservation(reservationId, {
   }
 
   // Safety net: if paid > net and mode is not refund, block the close
-  if (currentPaid > finalTotal + 0.005 && resolvedMode !== 'refund') {
+  if (adjustedCurrentPaid > finalTotal + 0.005 && resolvedMode !== 'refund') {
     throw new Error(
-      `المبلغ المدفوع (${currentPaid} ريال) يتجاوز الرسوم الصافية المستحقة (${finalTotal} ريال). ` +
+      `المبلغ المدفوع (${adjustedCurrentPaid} ريال) يتجاوز الرسوم الصافية المستحقة (${finalTotal} ريال). ` +
       'يجب اختيار "استرداد" لإتمام تسجيل المغادرة.'
     );
   }
 
   // Safety net: if amount due and mode is not collect or defer, block
-  if (finalTotal > currentPaid + 0.005 && resolvedMode !== 'collect' && resolvedMode !== 'defer') {
+  if (finalTotal > adjustedCurrentPaid + 0.005 && resolvedMode !== 'collect' && resolvedMode !== 'defer') {
     throw new Error('يوجد مبلغ مستحق. يرجى اختيار "تحصيل الآن" أو "تأجيل (آجل)".');
   }
 
@@ -758,7 +887,7 @@ function checkoutReservation(reservationId, {
     ? null
     : roundMoney(res.total_price || 0);
 
-  let newPaid = currentPaid;
+  let newPaid = adjustedCurrentPaid;
   let collectionReceiptNumber = null;
   let refundReceiptNumber = null;
   let newPaymentStatus;
@@ -768,18 +897,47 @@ function checkoutReservation(reservationId, {
     const effMethod = paymentMethod || 'نقداً';
     const actingUser = userId ? parseInt(userId, 10) : null;
 
+    if (depositApplied > 0) {
+      recordDepositMovement({
+        reservationId: targetId, type: 'applied', amount: depositApplied,
+        paymentMethod: depositRefundMethod, userId: actingUser,
+        reason: `تسوية من التأمين على الإقامة #${targetId}`
+      });
+      const applyReceipt = generateReceiptNumber(targetId);
+      const applyStmt = db.prepare(`
+        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
+        VALUES (?, ?, ?, 'من التأمين', datetime('now', 'localtime'), ?, ?)
+      `);
+      applyStmt.run([applyReceipt, targetId, depositApplied, actingUser, `تسوية من التأمين #${targetId}`]);
+      applyStmt.free();
+    }
+    if (depositRetained > 0) {
+      recordDepositMovement({
+        reservationId: targetId, type: 'retained', amount: depositRetained,
+        paymentMethod: depositRefundMethod, userId: actingUser,
+        reason: String(depositRetainReason || '').trim()
+      });
+    }
+    if (depositRefunded > 0) {
+      recordDepositMovement({
+        reservationId: targetId, type: 'refunded', amount: depositRefunded,
+        paymentMethod: depositRefundMethod, userId: actingUser,
+        reason: `رد التأمين عند تسجيل المغادرة #${targetId}`
+      });
+    }
+
     if (resolvedMode === 'collect') {
       // Positive payment row: collectAmount must be > 0 and <= amount due
       const rawCollect = collectAmount !== undefined ? roundMoney(collectAmount)
         : (settleAmount !== undefined ? roundMoney(settleAmount) : 0);
-      const amountDue = roundMoney(Math.max(0, finalTotal - currentPaid));
+      const amountDue = roundMoney(Math.max(0, finalTotal - adjustedCurrentPaid));
       if (rawCollect <= 0) {
         throw new Error('مبلغ التحصيل يجب أن يكون أكبر من الصفر.');
       }
       if (roundMoney(rawCollect - amountDue) > 0.005) {
         throw new Error(`مبلغ التحصيل (${rawCollect} ريال) يتجاوز المبلغ المستحق (${amountDue} ريال).`);
       }
-      newPaid = roundMoney(currentPaid + rawCollect);
+      newPaid = roundMoney(adjustedCurrentPaid + rawCollect);
       collectionReceiptNumber = generateReceiptNumber(targetId);
       const ps = db.prepare(`
         INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
@@ -799,12 +957,12 @@ function checkoutReservation(reservationId, {
 
     } else if (resolvedMode === 'defer') {
       // No new payment row — debt stays on account
-      newPaid = currentPaid;
-      if (finalTotal === 0 && currentPaid === 0) {
+      newPaid = adjustedCurrentPaid;
+      if (finalTotal === 0 && adjustedCurrentPaid === 0) {
         newPaymentStatus = 'مدفوع بالكامل';
-      } else if (currentPaid >= finalTotal - 0.005) {
+      } else if (adjustedCurrentPaid >= finalTotal - 0.005) {
         newPaymentStatus = 'مدفوع بالكامل';
-      } else if (currentPaid > 0) {
+      } else if (adjustedCurrentPaid > 0) {
         newPaymentStatus = 'مدفوع جزئياً';
       } else {
         newPaymentStatus = 'غير مدفوع';
@@ -813,7 +971,7 @@ function checkoutReservation(reservationId, {
     } else if (resolvedMode === 'refund') {
       // Negative payment row — exact mechanism of cancelReservation mid-stay.
       // refundAmount must equal exactly paid - net (roundMoney both sides).
-      const exactRefundDue = roundMoney(Math.max(0, currentPaid - finalTotal));
+      const exactRefundDue = roundMoney(Math.max(0, adjustedCurrentPaid - finalTotal));
       const rawRefund = refundAmount !== undefined
         ? roundMoney(refundAmount)
         : exactRefundDue;
@@ -834,7 +992,7 @@ function checkoutReservation(reservationId, {
       ps.run([refundReceiptNumber, targetId, -rawRefund, effMethod, actingUser,
         `استرداد - تسوية مغادرة #${targetId}`]);
       ps.free();
-      newPaid = roundMoney(currentPaid - rawRefund);
+      newPaid = roundMoney(adjustedCurrentPaid - rawRefund);
       // After refund paid_amount == finalTotal → fully settled
       newPaymentStatus = 'مدفوع بالكامل';
 
@@ -897,6 +1055,9 @@ function checkoutReservation(reservationId, {
     settleMode: resolvedMode,
     collectionReceiptNumber,
     refundReceiptNumber,
+    depositApplied,
+    depositRefunded,
+    depositRetained,
     difference
   };
 }
@@ -1114,6 +1275,8 @@ function cancelReservation(reservationId, actualDepartureDate = null, manualOver
   }
   const effectiveDeparture = today;
   const paidAmount = roundMoney(res.paid_amount || 0);
+  const depositLedger = getDepositLedger(targetId);
+  let depositRefunded = 0;
 
   let proRatedCharge = 0;
   let refundDue = 0;
@@ -1161,6 +1324,16 @@ function cancelReservation(reservationId, actualDepartureDate = null, manualOver
           'استرداد كامل - إلغاء قبل الوصول #' + targetId
         ]);
         refundStmt.free();
+      }
+      // Refund only deposits whose receipt is proven in the deposit ledger.
+      // Historical deposit_amount values without movements need manual reconciliation.
+      depositRefunded = depositLedger.balance;
+      if (depositRefunded > 0) {
+        recordDepositMovement({
+          reservationId: targetId, type: 'refunded', amount: depositRefunded,
+          paymentMethod: 'نقداً', userId,
+          reason: `رد التأمين عند إلغاء الحجز قبل الوصول #${targetId}`
+        });
       }
     } else {
       // Mid-stay cancellation: calculate pro-rated charge using authoritative room.price_per_night
@@ -1263,6 +1436,7 @@ function cancelReservation(reservationId, actualDepartureDate = null, manualOver
     stillOwed, 
     daysStayed,
     hasStarted,
+    depositRefunded,
     isOverridden: originalCalculated !== null
   };
 }
@@ -1424,6 +1598,19 @@ function getReservationPayments(reservationId) {
   return queryAll(sql, [targetId]);
 }
 
+function getReservationDepositMovements(reservationId) {
+  const targetId = parseInt(reservationId, 10);
+  if (!targetId || isNaN(targetId)) return [];
+  return queryAll(`
+    SELECT dm.id, dm.reservation_id, dm.movement_type, dm.amount, dm.payment_method,
+      dm.movement_date, dm.user_id, dm.reason, u.username AS staff_username
+    FROM deposit_movements dm
+    LEFT JOIN users u ON u.id = dm.user_id
+    WHERE dm.reservation_id = ?
+    ORDER BY dm.id ASC
+  `, [targetId]);
+}
+
 /**
  * Query detailed receipt details by receipt number or payment id
  */
@@ -1525,7 +1712,6 @@ function updateReservationReceipt({
   reservationId,
   totalPrice,
   paidAmount,
-  depositAmount,
   paymentMethod,
   guestName,
   guestPhone,
@@ -1546,7 +1732,6 @@ function updateReservationReceipt({
 
   const total = roundMoney(totalPrice);
   const paid = roundMoney(paidAmount);
-  const deposit = roundMoney(depositAmount || 0);
   const isContract = res.booking_type === 'عقد مفتوح';
 
   const normDiscountAmount = (discountAmount !== undefined && discountAmount !== null && discountAmount !== '')
@@ -1613,7 +1798,6 @@ function updateReservationReceipt({
       UPDATE reservations 
       SET total_price = ?, 
           paid_amount = ?, 
-          deposit_amount = ?, 
           payment_method = ?, 
           payment_status = ?,
           discount_amount = CASE WHEN ? IS NOT NULL THEN ? ELSE discount_amount END,
@@ -1624,7 +1808,6 @@ function updateReservationReceipt({
     updateResStmt.run([
       total, 
       paid, 
-      deposit, 
       method, 
       paymentStatus, 
       normDiscountAmount,
@@ -1688,6 +1871,8 @@ module.exports = {
   cancelReservation,
   addPaymentToReservation,
   getReservationPayments,
+  getReservationDepositMovements,
+  reconcileLegacyDeposit,
   getPaymentReceipt,
   bulkImportReservations,
   updateReservationReceipt

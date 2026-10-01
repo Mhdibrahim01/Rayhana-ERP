@@ -159,6 +159,7 @@ function getShiftAuditReport(startDate, endDate) {
     LEFT JOIN users u ON p.user_id = u.id
     WHERE DATE(p.payment_date) BETWEEN DATE(?) AND DATE(?)
       AND r.status != 'ملغي'
+      AND p.payment_method != 'من التأمين'
     ORDER BY p.id DESC
   `, [dateFrom, dateTo]);
 
@@ -190,7 +191,9 @@ function getShiftAuditReport(startDate, endDate) {
   // 2. Reservations active, created, checked-in, or checked-out in date range
   // Range overlap: check_in_date <= dateTo AND (check_out_date >= dateFrom OR check_out_date IS NULL OR check_out_date = 'مفتوح' OR check_out_date = '')
   const reservationsInRange = queryAll(`
-    SELECT r.*, g.name AS guest_name, rm.room_number, rm.type AS room_type
+    SELECT r.*, g.name AS guest_name, rm.room_number, rm.type AS room_type,
+      COALESCE((SELECT SUM(CASE WHEN dm.movement_type IN ('collected', 'reconciled') THEN dm.amount ELSE -dm.amount END) FROM deposit_movements dm WHERE dm.reservation_id = r.id), 0) AS deposit_ledger_balance,
+      CASE WHEN NOT EXISTS (SELECT 1 FROM deposit_movements dm WHERE dm.reservation_id = r.id) AND r.deposit_amount > 0 THEN 1 ELSE 0 END AS deposit_legacy_unreconciled
     FROM reservations r
     JOIN guests g ON r.guest_id = g.id
     JOIN rooms rm ON r.room_id = rm.id
@@ -204,20 +207,34 @@ function getShiftAuditReport(startDate, endDate) {
     ORDER BY r.id DESC
   `, [dateFrom, dateTo, dateFrom, dateTo, dateFrom, dateTo, dateTo, dateFrom]);
 
-  let depositTotal = 0;
   let expectedTotal = 0;
   let outstandingTotal = 0;
   for (const r of reservationsInRange) {
-    depositTotal += roundMoney(r.deposit_amount || 0);
     if (r.status === 'ملغي') continue;
     const price = roundMoney(r.total_price || 0);
     const paid = roundMoney(r.paid_amount || 0);
     expectedTotal += price;
     outstandingTotal += Math.max(0, roundMoney(price - paid));
   }
-  depositTotal = roundMoney(depositTotal);
   expectedTotal = roundMoney(expectedTotal);
   outstandingTotal = roundMoney(outstandingTotal);
+
+  const depositMovements = queryAll(`
+    SELECT dm.id, dm.reservation_id, dm.movement_type, dm.amount, dm.payment_method,
+      dm.movement_date, dm.reason, g.name AS guest_name, rm.room_number,
+      u.username AS staff_username
+    FROM deposit_movements dm
+    JOIN reservations r ON r.id = dm.reservation_id
+    JOIN guests g ON g.id = r.guest_id
+    JOIN rooms rm ON rm.id = r.room_id
+    LEFT JOIN users u ON u.id = dm.user_id
+    WHERE DATE(dm.movement_date) BETWEEN DATE(?) AND DATE(?)
+    ORDER BY dm.id DESC
+  `, [dateFrom, dateTo]);
+  const depositActivity = { collected: 0, refunded: 0, applied: 0, retained: 0 };
+  for (const movement of depositMovements) {
+    depositActivity[movement.movement_type] = roundMoney((depositActivity[movement.movement_type] || 0) + Number(movement.amount || 0));
+  }
 
   // 3. Movements (Check-ins & Check-outs in range)
   const checkinsInRange = queryOne(`
@@ -306,7 +323,8 @@ function getShiftAuditReport(startDate, endDate) {
       cashTotal,
       cardTotal,
       transferTotal,
-      depositTotal,
+      depositTotal: roundMoney(depositActivity.collected - depositActivity.refunded),
+      depositActivity,
       expectedTotal,
       outstandingTotal
     },
@@ -330,6 +348,7 @@ function getShiftAuditReport(startDate, endDate) {
     },
     dailyBreakdown,
     payments: paymentsInRange,
+    depositMovements,
     transactions: reservationsInRange
   };
 }

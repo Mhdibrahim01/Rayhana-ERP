@@ -2278,7 +2278,8 @@
       const isContract = r.booking_type === 'عقد مفتوح';
       const total = parseFloat(r.total_price || 0);
       const paid = parseFloat((r.status === 'ملغي جزئي' && r.payment_status === 'مدفوع جزئياً' ? r.ledger_paid_amount : r.paid_amount) || 0);
-      const deposit = parseFloat(r.deposit_amount || 0);
+      const deposit = parseFloat(r.deposit_ledger_balance || 0);
+      const legacyDeposit = Number(r.deposit_legacy_unreconciled || 0) === 1 ? parseFloat(r.deposit_amount || 0) : 0;
       const rawRemaining = total - paid;
       const isCredit = rawRemaining < -0.005;
       const remaining = isContract ? rawRemaining : Math.max(0, rawRemaining);
@@ -2321,7 +2322,8 @@
             ${parseFloat(r.discount_amount || 0) > 0 ? `<div style="font-size: 0.70rem; color: #b91c1c; font-weight: 700; line-height: 1.2; margin-top: 2px;">خصم: ${parseFloat(r.discount_amount).toLocaleString()} ريال ${r.discount_reason ? `(${escapeHtml(r.discount_reason)})` : ''}</div>` : ''}
             <div style="font-size: 0.74rem; color: #059669; font-weight: 600; line-height: 1.2; margin-top: 2px;">مدفوع: ${fmtPaid}</div>
             ${isCredit ? `<div style="font-size: 0.72rem; color: #2563eb; font-weight: 800; line-height: 1.2; margin-top: 2px;">رصيد دائن: ${Math.abs(rawRemaining).toLocaleString()} ريال</div>` : (remaining > 0 ? `<div style="font-size: 0.72rem; color: #dc2626; font-weight: 700; line-height: 1.2; margin-top: 2px;">متبقي: ${fmtRem}</div>` : '')}
-            ${deposit > 0 ? `<div style="font-size: 0.70rem; color: #4338ca; line-height: 1.2; margin-top: 2px;">تأمين: ${fmtDep}</div>` : ''}
+            ${deposit > 0 ? `<div style="font-size: 0.70rem; color: #4338ca; line-height: 1.2; margin-top: 2px;">تأمين مسجل: ${fmtDep}</div>` : ''}
+            ${legacyDeposit > 0 ? `<div style="font-size: 0.70rem; color: #9a3412; line-height: 1.2; margin-top: 2px;">تأمين قديم للمراجعة: ${legacyDeposit.toLocaleString()}</div>` : ''}
           </td>
           <td style="font-size: 0.82rem; white-space: nowrap;">
             <span class="badge" style="background: rgba(0,0,0,0.04); color: #334155; border: 1px solid #cbd5e1; font-weight: 600;">${escapeHtml(r.payment_method || 'نقداً')}</span>
@@ -3871,6 +3873,14 @@
   const settleRefundAmount = document.getElementById('settle-refund-amount');
   const settleRefundAmountInput = document.getElementById('settle-refund-amount-input');
   const settleRefundMethodSelect = document.getElementById('settle-refund-method-select');
+  const settleDepositSection = document.getElementById('settle-deposit-section');
+  const settleDepositHeld = document.getElementById('settle-deposit-held');
+  const settleDepositDisposition = document.getElementById('settle-deposit-disposition');
+  const settleDepositRetainFields = document.getElementById('settle-deposit-retain-fields');
+  const settleDepositRetainAmount = document.getElementById('settle-deposit-retain-amount');
+  const settleDepositRetainReason = document.getElementById('settle-deposit-retain-reason');
+  const settleDepositLegacyWarning = document.getElementById('settle-deposit-legacy-warning');
+  const btnReconcileLegacyDeposit = document.getElementById('btn-reconcile-legacy-deposit');
   const btnCloseSettleModal = document.getElementById('btn-close-settle-modal');
   const btnCancelSettle = document.getElementById('btn-cancel-settle');
   const btnCheckoutWithoutSettle = document.getElementById('btn-checkout-without-settle');
@@ -3879,6 +3889,18 @@
   let currentSettlingReservation = null;
   // Last settlement preview fetched from the backend (non-contract bookings only)
   let currentSettlementPreview = null;
+  let currentDepositAvailable = 0;
+  let currentDepositLegacyUnreconciled = false;
+
+  function getDepositCheckoutPayload() {
+    const disposition = settleDepositDisposition ? settleDepositDisposition.value : 'refund';
+    return {
+      depositDisposition: disposition,
+      depositRetainAmount: disposition === 'retain' ? (parseFloat(settleDepositRetainAmount?.value || 0) || 0) : 0,
+      depositRetainReason: disposition === 'retain' ? (settleDepositRetainReason?.value || '').trim() : '',
+      depositRefundMethod: settleRefundMethodSelect ? settleRefundMethodSelect.value : 'نقداً'
+    };
+  }
 
   // -------------------------------------------------------------------------
   // updateSettleCalculations: render the modal's balance section from the
@@ -3901,7 +3923,10 @@
       paidSoFar  = Math.round((parseFloat(currentSettlingReservation.paid_amount || 0) + Number.EPSILON) * 100) / 100;
     }
 
-    const netBalance = Math.round((finalTotal - paidSoFar + Number.EPSILON) * 100) / 100;
+    const beforeDepositBalance = Math.round((finalTotal - paidSoFar + Number.EPSILON) * 100) / 100;
+    const requestedDepositApply = settleDepositDisposition?.value === 'apply'
+      ? Math.max(0, Math.min(currentDepositAvailable, beforeDepositBalance)) : 0;
+    const netBalance = Math.round((beforeDepositBalance - requestedDepositApply + Number.EPSILON) * 100) / 100;
 
     // Discount hint (for open-contract only; non-contract discount is in the preview)
     if (isContract) {
@@ -3976,6 +4001,8 @@
     const todayStr = getLocalDateString();
     const isContract = res.booking_type === 'عقد مفتوح';
     const paidSoFar = Math.round((parseFloat(res.paid_amount || 0) + Number.EPSILON) * 100) / 100;
+    currentDepositAvailable = Math.max(0, parseFloat(res.deposit_ledger_balance || 0) || 0);
+    currentDepositLegacyUnreconciled = Number(res.deposit_legacy_unreconciled || 0) === 1;
 
     // Show/hide discount section:
     // - Non-contract: Admin only (discount lowers the backend-computed charge)
@@ -3999,6 +4026,8 @@
         if (previewRes && previewRes.success && previewRes.data) {
           currentSettlementPreview = previewRes.data;
           const s = currentSettlementPreview;
+          currentDepositAvailable = Math.max(0, Number(s.depositAvailable || 0));
+          currentDepositLegacyUnreconciled = Boolean(s.depositLegacyUnreconciled);
           const nightsLabel = s.actualNights === 1 ? 'ليلة' : 'ليالٍ';
           const rateNote = res.custom_nightly_price ? ' - سعر خاص' : '';
           if (settleNightsCount) settleNightsCount.textContent = `${s.actualNights} ${nightsLabel} (بسعر ${s.effectiveNightlyRate.toLocaleString()} ريال/ليلة${rateNote})`;
@@ -4066,6 +4095,28 @@
       }
     }
 
+    if (settleDepositSection) {
+      const showDeposit = currentDepositAvailable > 0 || currentDepositLegacyUnreconciled;
+      settleDepositSection.style.display = showDeposit ? 'block' : 'none';
+      if (settleDepositHeld) settleDepositHeld.textContent = `${currentDepositAvailable.toFixed(2)} ريال`;
+      if (settleDepositDisposition) settleDepositDisposition.disabled = currentDepositAvailable <= 0;
+      if (settleDepositLegacyWarning) {
+        settleDepositLegacyWarning.style.display = currentDepositLegacyUnreconciled ? 'block' : 'none';
+        if (currentDepositLegacyUnreconciled) {
+          const oldAmount = Number(res.deposit_amount || 0).toLocaleString();
+          settleDepositLegacyWarning.textContent = `يوجد رصيد قديم بقيمة ${oldAmount} ريال بلا سند حركة؛ لن يرده النظام تلقائياً قبل مراجعته.`;
+        }
+      }
+      if (btnReconcileLegacyDeposit) {
+        const activeRole = localStorage.getItem('currentUserRole') || (currentUser ? currentUser.role : null);
+        btnReconcileLegacyDeposit.style.display = currentDepositLegacyUnreconciled && activeRole === 'Admin' ? 'inline-block' : 'none';
+      }
+      if (settleDepositDisposition) settleDepositDisposition.value = 'refund';
+      if (settleDepositRetainFields) settleDepositRetainFields.style.display = 'none';
+      if (settleDepositRetainAmount) settleDepositRetainAmount.value = '';
+      if (settleDepositRetainReason) settleDepositRetainReason.value = '';
+    }
+
     updateSettleCalculations();
 
     if (openContractSettleModalEl) {
@@ -4093,6 +4144,40 @@
   if (openContractSettleModalEl) {
     openContractSettleModalEl.addEventListener('click', (e) => {
       if (e.target === openContractSettleModalEl) closeContractSettleModal();
+    });
+  }
+
+  if (settleDepositDisposition) {
+    settleDepositDisposition.addEventListener('change', () => {
+      const retaining = settleDepositDisposition.value === 'retain';
+      if (settleDepositRetainFields) settleDepositRetainFields.style.display = retaining ? 'grid' : 'none';
+      updateSettleCalculations();
+    });
+  }
+  if (btnReconcileLegacyDeposit) {
+    btnReconcileLegacyDeposit.addEventListener('click', async () => {
+      if (!currentSettlingReservation || !currentDepositLegacyUnreconciled) return;
+      const amount = Math.round((parseFloat(currentSettlingReservation.deposit_amount || 0) + Number.EPSILON) * 100) / 100;
+      const confirmed = await showConfirmDialog({
+        title: 'مطابقة تأمين تاريخي',
+        message: `هل راجعت سجل الحجز وتؤكد أن مبلغ ${amount.toLocaleString()} ريال تم استلامه وما زال محفوظاً كتأمين؟ ستُسجل المطابقة باسمك ولا تعني تحصيل مبلغ جديد.`,
+        confirmText: 'نعم، تم التحقق',
+        cancelText: 'تراجع',
+        isDanger: true
+      });
+      if (!confirmed) return;
+      const result = await window.api.reconcileLegacyDeposit({
+        reservationId: currentSettlingReservation.id,
+        amount,
+        paymentMethod: currentSettlingReservation.payment_method || 'نقداً'
+      });
+      if (!result || !result.success) {
+        showToast(result?.error || 'تعذرت مطابقة التأمين التاريخي.', 'error');
+        return;
+      }
+      closeContractSettleModal();
+      showToast('تمت مطابقة التأمين التاريخي. أعد فتح تسجيل المغادرة لإتمام التسوية.', 'success');
+      await Promise.all([loadReservationsData(), loadOverviewData()]);
     });
   }
 
@@ -4166,7 +4251,8 @@
       try {
         const payload = isContract
           ? { finalTotalPrice: finalTotal, settleAmount: 0, discountAmount: discAmount, discountReason: discReason, notes: 'تسجيل مغادرة بدون تحصيل (آجل)' }
-          : { settleMode: 'defer', discountAmount: discAmount, discountReason: discReason };
+          : { settleMode: 'defer', discountAmount: discAmount, discountReason: discReason, ...getDepositCheckoutPayload() };
+        if (isContract) Object.assign(payload, getDepositCheckoutPayload());
         const res = await window.api.checkoutReservation(resId, payload);
         if (res.success) {
           showToast(`تم تسجيل مغادرة الحجز #${resId} بنجاح وترحيل الحساب.`, 'success');
@@ -4192,6 +4278,13 @@
       const discAmount = settleDiscountInput ? parseFloat(settleDiscountInput.value) || 0 : 0;
       const discReason = settleDiscountReasonInput ? settleDiscountReasonInput.value.trim() : '';
 
+      const depositPayload = getDepositCheckoutPayload();
+      if (depositPayload.depositDisposition === 'retain' && depositPayload.depositRetainAmount > 0 && !depositPayload.depositRetainReason) {
+        showToast('يرجى كتابة سبب الاحتفاظ بالتأمين.', 'error');
+        if (settleDepositRetainReason) settleDepositRetainReason.focus();
+        return;
+      }
+
       // Validate discount reason for non-contract (backend also checks, but give early feedback)
       if (!isContract && discAmount > 0 && !discReason) {
         showToast('يرجى إدخال سبب الخصم عند تطبيق خصم على المغادرة.', 'error');
@@ -4201,7 +4294,9 @@
 
       // Determine whether this is a collection or refund based on balance state
       const paidSoFar = parseFloat(currentSettlingReservation.paid_amount || 0);
-      const netBalance = finalTotal - paidSoFar;
+      const requestedDepositApply = depositPayload.depositDisposition === 'apply'
+        ? Math.max(0, Math.min(currentDepositAvailable, finalTotal - paidSoFar)) : 0;
+      const netBalance = finalTotal - paidSoFar - requestedDepositApply;
       const isRefund = netBalance < -0.005;
 
       let payload;
@@ -4209,7 +4304,7 @@
         // Open-contract path: legacy shim
         const payNow = parseFloat(settlePayNowInput ? settlePayNowInput.value : 0) || 0;
         const method = settlePaymentMethodSelect ? settlePaymentMethodSelect.value : 'نقداً';
-        payload = { finalTotalPrice: finalTotal, settleAmount: payNow, paymentMethod: method, discountAmount: discAmount, discountReason: discReason, notes: 'سداد تصفية حساب مغادرة' };
+        payload = { finalTotalPrice: finalTotal, settleAmount: payNow, paymentMethod: method, discountAmount: discAmount, discountReason: discReason, notes: 'سداد تصفية حساب مغادرة', ...depositPayload };
       } else if (isRefund) {
         // Refund path
         const rawRefund = parseFloat(settleRefundAmountInput ? settleRefundAmountInput.value : 0) || 0;
@@ -4218,12 +4313,12 @@
           showToast('يرجى إدخال مبلغ الاسترداد.', 'error');
           return;
         }
-        payload = { settleMode: 'refund', refundAmount: rawRefund, paymentMethod: refundMethod, discountAmount: discAmount, discountReason: discReason };
+        payload = { settleMode: 'refund', refundAmount: rawRefund, paymentMethod: refundMethod, discountAmount: discAmount, discountReason: discReason, ...depositPayload };
       } else {
         // Collect now path
         const payNow = parseFloat(settlePayNowInput ? settlePayNowInput.value : 0) || 0;
         const method = settlePaymentMethodSelect ? settlePaymentMethodSelect.value : 'نقداً';
-        payload = { settleMode: payNow > 0 ? 'collect' : 'defer', collectAmount: payNow, paymentMethod: method, discountAmount: discAmount, discountReason: discReason };
+        payload = { settleMode: payNow > 0 ? 'collect' : 'defer', collectAmount: payNow, paymentMethod: method, discountAmount: discAmount, discountReason: discReason, ...depositPayload };
       }
 
       try {
@@ -4866,7 +4961,13 @@
       const isContract = inv.booking_type === 'عقد مفتوح';
       const total = parseFloat(inv.total_price || 0);
       const paid = parseFloat(inv.paid_amount || 0);
-      const deposit = parseFloat(inv.deposit_amount || 0);
+      const deposit = parseFloat(inv.deposit_ledger_balance ?? inv.deposit_amount ?? 0);
+      const legacyDeposit = Number(inv.deposit_legacy_unreconciled || 0) === 1;
+      let invoiceDepositMovements = [];
+      try {
+        const depositRes = await window.api.getReservationDepositMovements(targetId);
+        if (depositRes?.success && Array.isArray(depositRes.data)) invoiceDepositMovements = depositRes.data;
+      } catch (_) { /* invoice can still render if the optional history query fails */ }
       const rawRemaining = total - paid;
       const isCredit = rawRemaining < -0.005;
       const remaining = isContract ? rawRemaining : Math.max(0, rawRemaining);
@@ -5014,8 +5115,8 @@
               ${deposit > 0 ? `
                 <tr style="border-bottom: 1px solid #e2e8f0; background: #fdf4ff;">
                   <td style="padding: 10px 14px;">
-                    <strong>مبلغ تأمين مسترد (Refundable Deposit)</strong>
-                    <div style="font-size: 0.75rem; color: #64748b;">تأمين مسترد عند تسليم الوحدة وفحص المحتويات</div>
+                    <strong>رصيد التأمين المسجل (Deposit Balance)</strong>
+                    <div style="font-size: 0.75rem; color: #64748b;">${legacyDeposit ? 'قيمة تاريخية بلا سند حركة، وتحتاج مراجعة قبل ردها' : 'مبلغ محفوظ للتأمين ويتطلب تسوية عند المغادرة'}</div>
                   </td>
                   <td style="padding: 10px 14px; text-align: center;">-</td>
                   <td style="padding: 10px 14px; text-align: center;">-</td>
@@ -5063,6 +5164,18 @@
               </div>
             </div>
           </div>
+          ${invoiceDepositMovements.length ? `
+            <div style="margin-top:18px; padding-top:12px; border-top:1px solid #ddd6fe;">
+              <h4 style="font-size:.9rem; font-weight:800; color:#5b21b6; margin-bottom:8px;">سجل حركات التأمين</h4>
+              <table style="width:100%; border-collapse:collapse; font-size:.78rem;">
+                <thead><tr style="background:#f5f3ff;"><th style="padding:6px; text-align:right;">التاريخ</th><th style="padding:6px; text-align:center;">الحركة</th><th style="padding:6px; text-align:center;">المبلغ</th><th style="padding:6px; text-align:center;">الطريقة</th><th style="padding:6px; text-align:right;">السبب / الموظف</th></tr></thead>
+                <tbody>${invoiceDepositMovements.map(m => {
+                  const labels = { collected: 'استلام', reconciled: 'مطابقة رصيد قديم', refunded: 'رد', applied: 'تسوية على الإقامة', retained: 'احتفاظ' };
+                  return `<tr style="border-bottom:1px solid #ede9fe;"><td style="padding:6px;">${escapeHtml(String(m.movement_date || '').slice(0, 16))}</td><td style="padding:6px; text-align:center;">${labels[m.movement_type] || escapeHtml(m.movement_type)}</td><td style="padding:6px; text-align:center;">${Number(m.amount || 0).toLocaleString()} ريال</td><td style="padding:6px; text-align:center;">${escapeHtml(m.payment_method || 'نقداً')}</td><td style="padding:6px;">${escapeHtml(m.reason || '')}${m.staff_username ? ` - ${escapeHtml(m.staff_username)}` : ''}</td></tr>`;
+                }).join('')}</tbody>
+              </table>
+            </div>
+          ` : ''}
         </div>
       `;
 
@@ -5391,6 +5504,7 @@
       const mov = rep.movements || {};
       const rm = rep.rooms || {};
       const txs = rep.transactions || [];
+      const depositTxs = rep.depositMovements || [];
       const printTime = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
       const isMultiDay = Boolean(rep.isRange || (rep.startDate && rep.endDate && rep.startDate !== rep.endDate));
       const periodLabel = formatArabicDateRange(rep.startDate, rep.endDate);
@@ -5524,7 +5638,7 @@
                   <th style="padding: 8px 10px; text-align: right;">الغرفة</th>
                   <th style="padding: 8px 10px; text-align: center;">طريقة الدفع</th>
                   <th style="padding: 8px 10px; text-align: center;">المدفوع</th>
-                  <th style="padding: 8px 10px; text-align: center;">التأمين</th>
+                  <th style="padding: 8px 10px; text-align: center;">رصيد التأمين</th>
                   <th style="padding: 8px 10px; text-align: center;">حالة السداد</th>
                 </tr>
               </thead>
@@ -5536,10 +5650,26 @@
                     <td style="padding: 8px 10px;">غرفة ${escapeHtml(t.room_number)}</td>
                     <td style="padding: 8px 10px; text-align: center;">${escapeHtml(t.payment_method || 'نقداً')}</td>
                     <td style="padding: 8px 10px; text-align: center; font-weight: 700; color: #059669;">${parseFloat(t.paid_amount || 0).toLocaleString()} ريال</td>
-                    <td style="padding: 8px 10px; text-align: center; color: #701a75;">${parseFloat(t.deposit_amount || 0).toLocaleString()} ريال</td>
+                    <td style="padding: 8px 10px; text-align: center; color: #701a75;">${parseFloat(t.deposit_ledger_balance || 0).toLocaleString()} ريال</td>
                     <td style="padding: 8px 10px; text-align: center;">${getPaymentStatusBadge(t.payment_status)}</td>
                   </tr>
                 `).join('')}
+              </tbody>
+            </table>
+          `}
+
+          <h4 style="font-size: 0.95rem; font-weight: 800; color: #5b21b6; margin: 8px 0 10px;">حركات التأمين المسجلة خلال الفترة (لا تدخل ضمن المقبوضات)</h4>
+          ${depositTxs.length === 0 ? `
+            <div style="padding: 12px; background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 8px; color: #6b7280; font-size: .82rem; margin-bottom: 22px;">لا توجد حركات تأمين مسجلة خلال هذه الفترة.</div>
+          ` : `
+            <table style="width:100%; border-collapse:collapse; margin-bottom:22px; font-size:.8rem;">
+              <thead><tr style="background:#f5f3ff; border-bottom:2px solid #ddd6fe;">
+                <th style="padding:7px; text-align:right;">التاريخ</th><th style="padding:7px; text-align:right;">الحجز / النزيل</th><th style="padding:7px; text-align:center;">الحركة</th><th style="padding:7px; text-align:center;">المبلغ</th><th style="padding:7px; text-align:center;">الطريقة</th><th style="padding:7px; text-align:right;">السبب / الموظف</th>
+              </tr></thead><tbody>
+                ${depositTxs.map(d => {
+                  const labels = { collected: 'استلام', reconciled: 'مطابقة رصيد قديم', refunded: 'رد', applied: 'تسوية على الإقامة', retained: 'احتفاظ' };
+                  return `<tr style="border-bottom:1px solid #ede9fe;"><td style="padding:7px; font-family:monospace;">${escapeHtml(String(d.movement_date || '').slice(0, 16))}</td><td style="padding:7px;">#${d.reservation_id} - ${escapeHtml(d.guest_name)} / غرفة ${escapeHtml(d.room_number)}</td><td style="padding:7px; text-align:center;">${labels[d.movement_type] || escapeHtml(d.movement_type)}</td><td style="padding:7px; text-align:center; font-weight:800;">${Number(d.amount || 0).toLocaleString()} ريال</td><td style="padding:7px; text-align:center;">${escapeHtml(d.payment_method || 'نقداً')}</td><td style="padding:7px;">${escapeHtml(d.reason || '')}${d.staff_username ? ` - ${escapeHtml(d.staff_username)}` : ''}</td></tr>`;
+                }).join('')}
               </tbody>
             </table>
           `}

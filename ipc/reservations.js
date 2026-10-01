@@ -309,6 +309,29 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
     }
   });
 
+  ipcMain.handle('deposits:get-by-reservation', async (event, reservationId) => {
+    try {
+      const movements = db.getReservationDepositMovements(reservationId);
+      return { success: true, data: movements };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('deposits:reconcile-legacy', async (event, data = {}) => {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
+      return { success: false, error: 'مطابقة التأمينات التاريخية متاحة لمدير النظام فقط.' };
+    }
+    try {
+      return db.reconcileLegacyDeposit({
+        ...data,
+        userId: session.currentUser.id
+      });
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('payments:get-receipt', async (event, receiptIdentifier) => {
     try {
       const receipt = db.getPaymentReceipt(receiptIdentifier);

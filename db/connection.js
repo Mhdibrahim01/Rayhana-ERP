@@ -164,6 +164,22 @@ async function init(dbPath) {
       CREATE INDEX IF NOT EXISTS idx_payments_reservation_id ON payments(reservation_id);
       CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(payment_date);
 
+      -- سجل مستقل لحركات التأمين؛ لا يمثل رصيد التأمين إيراد إقامة أو تحصيلاً يومياً.
+      CREATE TABLE IF NOT EXISTS deposit_movements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        reservation_id INTEGER NOT NULL,
+        movement_type TEXT NOT NULL CHECK (movement_type IN ('collected', 'reconciled', 'refunded', 'applied', 'retained')),
+        amount REAL NOT NULL CHECK (amount > 0),
+        payment_method TEXT NOT NULL DEFAULT 'نقداً',
+        movement_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        user_id INTEGER,
+        reason TEXT,
+        FOREIGN KEY(reservation_id) REFERENCES reservations(id),
+        FOREIGN KEY(user_id) REFERENCES users(id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_deposit_movements_reservation ON deposit_movements(reservation_id, id);
+      CREATE INDEX IF NOT EXISTS idx_deposit_movements_date ON deposit_movements(movement_date);
+
       -- جدول تتبع نشاط الموظفين (EmployeeLogs)
       CREATE TABLE IF NOT EXISTS EmployeeLogs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
