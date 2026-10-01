@@ -2603,6 +2603,24 @@
         ? activeReservations[0] || futureReservation
         : null;
 
+      const renderReservationPaymentSummary = reservation => {
+        if (!reservation) return '';
+        const total = Math.max(0, Number(reservation.total_price || 0));
+        const paid = Math.max(0, Number(reservation.paid_amount || 0));
+        const remaining = Math.max(0, total - paid);
+        const ledgerDeposit = Number(reservation.deposit_ledger_balance || 0);
+        const legacyDeposit = Number(reservation.deposit_legacy_unreconciled || 0) === 1
+          ? Number(reservation.deposit_amount || 0) : 0;
+        const deposit = Math.max(0, ledgerDeposit || legacyDeposit);
+        return `
+          <div style="display:flex; flex-wrap:wrap; gap:5px 12px; margin-top:6px; font-size:0.72rem; line-height:1.5;">
+            <span style="color:#047857;">مدفوع: <strong>${paid.toLocaleString()} ريال</strong></span>
+            <span style="color:${remaining > 0 ? '#dc2626' : '#64748b'};">متبقي: <strong>${remaining.toLocaleString()} ريال</strong></span>
+            ${deposit > 0 ? `<span style="color:#7c3aed;">التأمين: <strong>${deposit.toLocaleString()} ريال</strong></span>` : ''}
+          </div>
+        `;
+      };
+
       const checkOutDateVal = (activeRes && activeRes.check_out_date) || room.check_out_date;
       const hasCheckOut = checkOutDateVal && String(checkOutDateVal).trim() !== '';
 
@@ -2641,6 +2659,7 @@
                     ? `المغادرة: <strong style="color: #0f172a;">${escapeHtml(checkOutDateVal)}</strong>` 
                     : `<span style="color: #0284c7; font-weight: 700;">المغادرة: عقد مفتوح (بدون تاريخ)</span>`}
                 </div>
+                ${renderReservationPaymentSummary(activeRes)}
               </div>
             ` : ''}
 
@@ -2651,6 +2670,7 @@
                   <span style="font-size: 0.72rem; color: #2563eb; font-weight: 800;">قادم اليوم #${nextActiveRes.id}</span>
                 </div>
                 ${renderOverdueBadge(nextActiveRes)}
+                ${renderReservationPaymentSummary(nextActiveRes)}
               </div>
             ` : ''}
 
@@ -2670,6 +2690,7 @@
                 <div style="font-size: 0.74rem; color: #475569; margin-top: 4px;">
                   الوصول: <strong style="color: #1e3a8a;">${escapeHtml(cardReservation.check_in_date)}</strong> | ${cardReservation.check_out_date ? `المغادرة: <strong>${escapeHtml(cardReservation.check_out_date)}</strong>` : 'المغادرة: <strong style="color: #0284c7;">عقد مفتوح (بدون تاريخ)</strong>'}
                 </div>
+                ${renderReservationPaymentSummary(cardReservation)}
               </div>
               `;
             })() : ''}

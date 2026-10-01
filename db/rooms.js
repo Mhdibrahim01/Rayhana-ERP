@@ -142,7 +142,10 @@ function getActiveReservations(roomId = null, currentDate) {
   const params = roomId === null || roomId === undefined ? [today] : [today, roomId];
   return queryAll(`
     SELECT r.id, r.room_id, r.guest_id, r.check_in_date, r.check_out_date,
-           r.total_price, r.paid_amount, r.payment_status, r.status, r.booking_type,
+           r.total_price, r.paid_amount, r.deposit_amount,
+           COALESCE((SELECT SUM(CASE WHEN dm.movement_type IN ('collected', 'reconciled') THEN dm.amount ELSE -dm.amount END) FROM deposit_movements dm WHERE dm.reservation_id = r.id), 0) AS deposit_ledger_balance,
+           CASE WHEN NOT EXISTS (SELECT 1 FROM deposit_movements dm WHERE dm.reservation_id = r.id) AND r.deposit_amount > 0 THEN 1 ELSE 0 END AS deposit_legacy_unreconciled,
+           r.payment_status, r.status, r.booking_type,
            r.custom_nightly_price, r.discount_amount, r.created_at,
            g.name AS guest_name, g.phone AS guest_phone, g.id_number AS guest_id_number
     FROM reservations r
