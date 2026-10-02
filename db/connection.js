@@ -143,6 +143,7 @@ async function init(dbPath) {
         custom_nightly_price REAL,
         discount_amount REAL DEFAULT 0,
         discount_reason TEXT,
+        late_checkout_fee REAL DEFAULT 0,
         original_calculated_charge REAL,
         checked_out_at DATETIME,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -209,6 +210,7 @@ async function init(dbPath) {
     try { db.run("ALTER TABLE reservations ADD COLUMN custom_nightly_price REAL"); } catch (e) {}
     try { db.run("ALTER TABLE reservations ADD COLUMN discount_amount REAL DEFAULT 0"); } catch (e) {}
     try { db.run("ALTER TABLE reservations ADD COLUMN discount_reason TEXT"); } catch (e) {}
+    try { db.run("ALTER TABLE reservations ADD COLUMN late_checkout_fee REAL DEFAULT 0"); } catch (e) {}
     try { db.run("ALTER TABLE reservations ADD COLUMN checked_out_at DATETIME"); } catch (e) {}
     try { db.run("ALTER TABLE reservations ADD COLUMN original_calculated_charge REAL"); } catch (e) {}
 

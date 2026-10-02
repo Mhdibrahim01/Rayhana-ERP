@@ -818,7 +818,8 @@
       return;
     }
 
-    const minimumDate = addDaysToLocalDateString(checkInInput.value, 1);
+    const isDayUse = bookingTypeSelect && bookingTypeSelect.value === 'استخدام يومي';
+    const minimumDate = isDayUse ? checkInInput.value : addDaysToLocalDateString(checkInInput.value, 1);
     if (!minimumDate) return;
     checkOutInput.min = minimumDate;
     if (checkOutInput.value && checkOutInput.value < minimumDate) {
@@ -831,7 +832,11 @@
     const checkOutStar = document.getElementById('check-out-required-star');
     const checkOutHint = document.getElementById('check-out-open-hint');
     const checkOutMinimumHint = document.getElementById('check-out-minimum-hint');
+    const checkOutDayUseHint = document.getElementById('check-out-day-use-hint');
     const priceHint = document.getElementById('total-price-open-hint');
+    const bookingRateLabel = document.getElementById('booking-rate-label');
+    if (bookingRateLabel) bookingRateLabel.textContent = bType === 'استخدام يومي' ? 'سعر الاستخدام اليومي (ريال) *' : 'سعر الليلة للحجز (ريال) *';
+    if (checkOutDayUseHint) checkOutDayUseHint.style.display = 'none';
 
     if (bType === 'عقد مفتوح') {
       if (checkOutInput) {
@@ -878,6 +883,19 @@
         paidAmountInput.value = totalPriceInput.value;
       }
       updateRemainingBalance();
+    } else if (bType === 'استخدام يومي') {
+      if (checkOutInput) {
+        checkOutInput.disabled = false;
+        checkOutInput.setAttribute('required', 'required');
+        if (checkInInput && checkInInput.value) checkOutInput.value = checkInInput.value;
+      }
+      if (checkOutStar) checkOutStar.style.display = 'inline';
+      if (checkOutHint) checkOutHint.style.display = 'none';
+      if (checkOutMinimumHint) checkOutMinimumHint.style.display = 'none';
+      if (checkOutDayUseHint) checkOutDayUseHint.style.display = 'block';
+      if (totalPriceInput) totalPriceInput.setAttribute('required', 'required');
+      if (priceHint) priceHint.style.display = 'none';
+      calculatePrice(false);
     } else {
       // Normal booking ('عادي')
       if (checkOutInput) {
@@ -887,6 +905,7 @@
       if (checkOutStar) checkOutStar.style.display = 'inline';
       if (checkOutHint) checkOutHint.style.display = 'none';
       if (checkOutMinimumHint) checkOutMinimumHint.style.display = 'block';
+      if (checkOutDayUseHint) checkOutDayUseHint.style.display = 'none';
       if (totalPriceInput) {
         totalPriceInput.setAttribute('required', 'required');
       }
@@ -1033,10 +1052,14 @@
 
   // When dates change, update paid amount if user hasn't explicitly customized a partial amount
   checkInInput.addEventListener('change', () => {
+    if (bookingTypeSelect && bookingTypeSelect.value === 'استخدام يومي') checkOutInput.value = checkInInput.value;
     updateMinimumCheckoutDate();
     calculatePrice(!isPaidAmountCustomized);
   });
   checkOutInput.addEventListener('change', () => {
+    if (bookingTypeSelect && bookingTypeSelect.value === 'استخدام يومي' && checkInInput.value && checkOutInput.value !== checkInInput.value) {
+      checkOutInput.value = checkInInput.value;
+    }
     calculatePrice(!isPaidAmountCustomized);
   });
 
@@ -1095,6 +1118,8 @@
       return `<span class="badge" style="background: rgba(14, 165, 233, 0.12); color: #0284c7; border: 1px solid rgba(14, 165, 233, 0.3); font-size: 0.72rem; font-weight: 800; padding: 2px 7px;">عقد مفتوح 📋</span>`;
     } else if (type === 'حجز شهري') {
       return `<span class="badge" style="background: rgba(168, 85, 247, 0.12); color: #9333ea; border: 1px solid rgba(168, 85, 247, 0.3); font-size: 0.72rem; font-weight: 800; padding: 2px 7px;">حجز شهري 📅</span>`;
+    } else if (type === 'استخدام يومي') {
+      return `<span class="badge" style="background: rgba(16, 185, 129, 0.12); color: #047857; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; font-weight: 800; padding: 2px 7px;">استخدام يومي ☀️</span>`;
     }
     return '';
   }
@@ -1851,6 +1876,11 @@
       if (checkOutDate && checkOutDate <= checkInDate) {
         if (checkOutInput) { checkOutInput.focus(); highlightField(checkOutInput); }
         return { valid: false, error: 'يجب أن تكون المغادرة في اليوم التالي للوصول على الأقل (ليلة واحدة).' };
+      }
+    } else if (bookingType === 'استخدام يومي') {
+      if (!checkOutDate || checkOutDate !== checkInDate) {
+        if (checkOutInput) { checkOutInput.focus(); highlightField(checkOutInput); }
+        return { valid: false, error: 'حجز الاستخدام اليومي يتطلب أن يكون تاريخ المغادرة هو نفس تاريخ الوصول.' };
       }
     } else {
       if (!checkOutDate) {
@@ -3876,6 +3906,8 @@
   const settleCheckinDate = document.getElementById('settle-checkin-date');
   const settleCheckoutDate = document.getElementById('settle-checkout-date');
   const settleNightsCount = document.getElementById('settle-nights-count');
+  const settleNightsLabel = document.getElementById('settle-nights-label');
+  const settleRateCalculationHint = document.getElementById('settle-rate-calculation-hint');
   const settleTotalPriceDisplay = document.getElementById('settle-total-price-display');
   const settlePaidAmountDisplay = document.getElementById('settle-paid-amount-display');
   const settleBalanceBox = document.getElementById('settle-balance-box');
@@ -3887,6 +3919,8 @@
   const settleDiscountReasonInput = document.getElementById('settle-discount-reason-input');
   const settleBreakdownHint = document.getElementById('settle-breakdown-hint');
   const settleFinalTotalInput = document.getElementById('settle-final-total-input');
+  const settleLateCheckoutSection = document.getElementById('settle-late-checkout-section');
+  const settleLateCheckoutFeeInput = document.getElementById('settle-late-checkout-fee');
   const settlePaymentSection = document.getElementById('settle-payment-section');
   const settlePayNowInput = document.getElementById('settle-pay-now-input');
   const settlePaymentMethodSelect = document.getElementById('settle-payment-method-select');
@@ -4033,6 +4067,10 @@
     if (settleDiscountSection) settleDiscountSection.style.display = isAdmin ? 'block' : 'none';
 
     if (settleReservationId) settleReservationId.value = res.id;
+    if (settleLateCheckoutSection) settleLateCheckoutSection.style.display = !isContract && isReservationOverdue(res) ? 'block' : 'none';
+    if (settleLateCheckoutFeeInput) settleLateCheckoutFeeInput.value = '0';
+    if (settleNightsLabel) settleNightsLabel.textContent = res.booking_type === 'استخدام يومي' ? 'وحدات الاستخدام:' : 'عدد الليالي المقضاة:';
+    if (settleRateCalculationHint) settleRateCalculationHint.textContent = res.booking_type === 'استخدام يومي' ? '(أيام الاستخدام × سعر اليوم)' : '(الليالي × سعر الليلة)';
     if (settleGuestName) settleGuestName.textContent = res.guest_name || 'نزيل';
     const contractTypeLabel = isContract ? `عقد #${res.id}` : `حجز #${res.id}`;
     if (settleRoomInfo) settleRoomInfo.textContent = `غرفة ${res.room_number || '-'} (${contractTypeLabel})`;
@@ -4049,9 +4087,11 @@
           const s = currentSettlementPreview;
           currentDepositAvailable = Math.max(0, Number(s.depositAvailable || 0));
           currentDepositLegacyUnreconciled = Boolean(s.depositLegacyUnreconciled);
-          const nightsLabel = s.actualNights === 1 ? 'ليلة' : 'ليالٍ';
+          const isDayUse = res.booking_type === 'استخدام يومي';
+          const nightsLabel = isDayUse ? 'يوم استخدام' : (s.actualNights === 1 ? 'ليلة' : 'ليالٍ');
+          const rateUnit = isDayUse ? 'ريال/يوم' : 'ريال/ليلة';
           const rateNote = res.custom_nightly_price ? ' - سعر خاص' : '';
-          if (settleNightsCount) settleNightsCount.textContent = `${s.actualNights} ${nightsLabel} (بسعر ${s.effectiveNightlyRate.toLocaleString()} ريال/ليلة${rateNote})`;
+          if (settleNightsCount) settleNightsCount.textContent = `${s.actualNights} ${nightsLabel} (بسعر ${s.effectiveNightlyRate.toLocaleString()} ${rateUnit}${rateNote})`;
           if (settleTotalPriceDisplay) settleTotalPriceDisplay.textContent = `${s.baseCharge.toFixed(2)} ريال`;
           if (settleFinalTotalInput) settleFinalTotalInput.value = s.netCharge.toFixed(2);
           // Pre-fill discount fields from stored discount (Admin only — section is already hidden for non-Admin)
@@ -4156,6 +4196,7 @@
     if (openContractSettleForm) openContractSettleForm.reset();
     if (settleDiscountInput) settleDiscountInput.value = '0';
     if (settleDiscountReasonInput) settleDiscountReasonInput.value = '';
+    if (settleLateCheckoutFeeInput) settleLateCheckoutFeeInput.value = '0';
     currentSettlingReservation = null;
     currentSettlementPreview = null;
   }
@@ -4172,6 +4213,24 @@
     settleDepositDisposition.addEventListener('change', () => {
       const retaining = settleDepositDisposition.value === 'retain';
       if (settleDepositRetainFields) settleDepositRetainFields.style.display = retaining ? 'grid' : 'none';
+      updateSettleCalculations();
+    });
+  }
+  if (settleLateCheckoutFeeInput) {
+    settleLateCheckoutFeeInput.addEventListener('input', async () => {
+      if (!currentSettlingReservation || currentSettlingReservation.booking_type === 'عقد مفتوح') return;
+      const fee = Math.max(0, parseFloat(settleLateCheckoutFeeInput.value) || 0);
+      const disc = Math.max(0, parseFloat(settleDiscountInput?.value || 0) || 0);
+      const reason = settleDiscountReasonInput?.value.trim() || '';
+      const result = await window.api.checkoutPreview(currentSettlingReservation.id, {
+        discountAmount: disc,
+        discountReason: reason,
+        lateCheckoutFee: fee
+      });
+      if (result?.success && result.data) {
+        currentSettlementPreview = result.data;
+        if (settleFinalTotalInput) settleFinalTotalInput.value = result.data.netCharge.toFixed(2);
+      }
       updateSettleCalculations();
     });
   }
@@ -4214,7 +4273,8 @@
         try {
           const previewRes = await window.api.checkoutPreview(currentSettlingReservation.id, {
             discountAmount: discVal,
-            discountReason: discReason
+            discountReason: discReason,
+            lateCheckoutFee: Math.max(0, parseFloat(settleLateCheckoutFeeInput?.value || 0) || 0)
           });
           if (previewRes && previewRes.success && previewRes.data) {
             currentSettlementPreview = previewRes.data;
@@ -4272,7 +4332,7 @@
       try {
         const payload = isContract
           ? { finalTotalPrice: finalTotal, settleAmount: 0, discountAmount: discAmount, discountReason: discReason, notes: 'تسجيل مغادرة بدون تحصيل (آجل)' }
-          : { settleMode: 'defer', discountAmount: discAmount, discountReason: discReason, ...getDepositCheckoutPayload() };
+          : { settleMode: 'defer', discountAmount: discAmount, discountReason: discReason, lateCheckoutFee: Math.max(0, parseFloat(settleLateCheckoutFeeInput?.value || 0) || 0), ...getDepositCheckoutPayload() };
         if (isContract) Object.assign(payload, getDepositCheckoutPayload());
         const res = await window.api.checkoutReservation(resId, payload);
         if (res.success) {
@@ -4334,12 +4394,12 @@
           showToast('يرجى إدخال مبلغ الاسترداد.', 'error');
           return;
         }
-        payload = { settleMode: 'refund', refundAmount: rawRefund, paymentMethod: refundMethod, discountAmount: discAmount, discountReason: discReason, ...depositPayload };
+        payload = { settleMode: 'refund', refundAmount: rawRefund, paymentMethod: refundMethod, discountAmount: discAmount, discountReason: discReason, lateCheckoutFee: Math.max(0, parseFloat(settleLateCheckoutFeeInput?.value || 0) || 0), ...depositPayload };
       } else {
         // Collect now path
         const payNow = parseFloat(settlePayNowInput ? settlePayNowInput.value : 0) || 0;
         const method = settlePaymentMethodSelect ? settlePaymentMethodSelect.value : 'نقداً';
-        payload = { settleMode: payNow > 0 ? 'collect' : 'defer', collectAmount: payNow, paymentMethod: method, discountAmount: discAmount, discountReason: discReason, ...depositPayload };
+        payload = { settleMode: payNow > 0 ? 'collect' : 'defer', collectAmount: payNow, paymentMethod: method, discountAmount: discAmount, discountReason: discReason, lateCheckoutFee: Math.max(0, parseFloat(settleLateCheckoutFeeInput?.value || 0) || 0), ...depositPayload };
       }
 
       try {
@@ -5017,7 +5077,7 @@
       const d1 = inv.check_in_date ? new Date(inv.check_in_date) : null;
       const d2 = inv.check_out_date ? new Date(inv.check_out_date) : null;
       const nights = (d1 && d2 && d2 > d1) ? Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24))) : (isContract ? '-' : 1);
-      const stayDurationText = isContract ? 'عقد مفتوح (غير محدد)' : `${nights} ${nights === 1 ? 'ليلة' : 'ليالٍ'}`;
+      const stayDurationText = isContract ? 'عقد مفتوح (غير محدد)' : (inv.booking_type === 'استخدام يومي' ? 'يوم استخدام' : `${nights} ${nights === 1 ? 'ليلة' : 'ليالٍ'}`);
       const checkOutDisplay = inv.check_out_date ? `${escapeHtml(inv.check_out_date)} (${stayDurationText})` : 'مفتوح (غير محدد)';
 
       const effectiveNightlyRate = parseFloat(inv.custom_nightly_price || inv.price_per_night || 0);
@@ -5097,7 +5157,7 @@
             <thead>
               <tr style="background: #1e1b4b; color: white;">
                 <th style="padding: 10px 14px; text-align: right; border-radius: 0 6px 0 0;">الوصف والخدمة</th>
-                <th style="padding: 10px 14px; text-align: center;">سعر الليلة</th>
+                <th style="padding: 10px 14px; text-align: center;">سعر الليلة / اليوم</th>
                 <th style="padding: 10px 14px; text-align: center;">المدة</th>
                 <th style="padding: 10px 14px; text-align: left; border-radius: 6px 0 0 0;">المجموع</th>
               </tr>
@@ -5121,6 +5181,14 @@
                   <td style="padding: 10px 14px; text-align: center;">-</td>
                   <td style="padding: 10px 14px; text-align: center;">-</td>
                   <td style="padding: 10px 14px; text-align: left; font-weight: 800; color: #b91c1c;">- ${discount.toFixed(2)} ريال</td>
+                </tr>
+              ` : ''}
+              ${parseFloat(inv.late_checkout_fee || 0) > 0 ? `
+                <tr style="border-bottom: 1px solid #e2e8f0; background: #fff7ed;">
+                  <td style="padding: 10px 14px;"><strong style="color: #9a3412;">مبلغ إضافي لتأخير المغادرة</strong><div style="font-size: 0.75rem; color: #9a3412;">تم اعتماده يدويًا عند التسوية</div></td>
+                  <td style="padding: 10px 14px; text-align: center;">-</td>
+                  <td style="padding: 10px 14px; text-align: center;">-</td>
+                  <td style="padding: 10px 14px; text-align: left; font-weight: 800; color: #9a3412;">${parseFloat(inv.late_checkout_fee).toFixed(2)} ريال</td>
                 </tr>
               ` : ''}
               ${hasCancellationAdjustment ? `
