@@ -106,6 +106,10 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
       if (checkOutDate && checkOutDate <= checkInDate) {
         return { valid: false, error: 'يجب أن تكون المغادرة في اليوم التالي للوصول على الأقل (ليلة واحدة).' };
       }
+    } else if (bookingType === 'استخدام يومي') {
+      if (checkOutDate !== checkInDate) {
+        return { valid: false, error: 'حجز الاستخدام اليومي يتطلب أن يكون تاريخ المغادرة هو نفس تاريخ الوصول.' };
+      }
     } else {
       if (!checkOutDate) {
         return { valid: false, error: 'تاريخ المغادرة مطلوب.' };

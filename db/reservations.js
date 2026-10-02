@@ -86,6 +86,7 @@ const RESERVATION_LIST_SQL = `
     r.custom_nightly_price,
     r.discount_amount,
     r.discount_reason,
+    r.late_checkout_fee,
     r.original_calculated_charge,
     r.checked_out_at,
     r.created_at,
@@ -189,6 +190,7 @@ function getReservationById(reservationId) {
       r.custom_nightly_price,
       r.discount_amount,
       r.discount_reason,
+      r.late_checkout_fee,
       r.original_calculated_charge,
       r.checked_out_at,
       r.created_at,
@@ -331,11 +333,13 @@ function createReservation({
       throw new Error(`المبلغ المدفوع (${paid} ريال) لا يمكن أن يتجاوز إجمالي قيمة الحجز (${total} ريال).`);
     }
   } else {
-    // Regular Booking (عادي)
+    // Regular and same-day use bookings both charge at least one daily unit.
     if (!checkInDate || !computedCheckOutDate) {
       throw new Error('تاريخ الوصول وتاريخ المغادرة مطلوبان.');
     }
-    if (computedCheckOutDate <= checkInDate) {
+    const isDayUse = normBookingType === 'استخدام يومي';
+    if (isDayUse ? computedCheckOutDate !== checkInDate : computedCheckOutDate <= checkInDate) {
+      if (isDayUse) throw new Error('حجز الاستخدام اليومي يتطلب أن يكون تاريخ المغادرة هو نفس تاريخ الوصول.');
       throw new Error('تاريخ المغادرة يجب أن يكون بعد تاريخ الوصول بشكل محدد.');
     }
     total = roundMoney(totalPrice);
@@ -352,7 +356,11 @@ function createReservation({
 
   // Overlap & Collision Check: Prevent double-booking for the same room.
   // Decision: Open-ended contracts block the room until closed (effective checkout = '9999-12-31').
-  const effectiveNewCheckout = (normBookingType === 'عقد مفتوح' && !computedCheckOutDate) ? '9999-12-31' : computedCheckOutDate;
+  let effectiveNewCheckout = (normBookingType === 'عقد مفتوح' && !computedCheckOutDate) ? '9999-12-31' : computedCheckOutDate;
+  if (normBookingType === 'استخدام يومي') {
+    const [year, month, day] = checkInDate.split('-').map(Number);
+    effectiveNewCheckout = getLocalDateString(new Date(year, month - 1, day + 1));
+  }
   const conflict = queryOne(`
     SELECT r.id, r.check_in_date, r.check_out_date, r.booking_type, g.name AS guest_name
     FROM reservations r
@@ -360,7 +368,11 @@ function createReservation({
     WHERE r.room_id = ? 
       AND r.status = 'مؤكد'
       AND r.check_in_date < ? 
-      AND COALESCE(NULLIF(r.check_out_date, ''), '9999-12-31') > ?
+      AND CASE
+        WHEN r.booking_type = 'استخدام يومي' AND r.check_out_date = r.check_in_date
+          THEN date(r.check_in_date, '+1 day')
+        ELSE COALESCE(NULLIF(r.check_out_date, ''), '9999-12-31')
+      END > ?
     LIMIT 1
   `, [parsedRoomId, effectiveNewCheckout, checkInDate]);
 
@@ -545,7 +557,8 @@ function calculateCheckoutDiscount(discountAmount, actualNights, checkInDate, bo
  */
 function computeCheckoutSettlement(reservationId, {
   discountAmount,
-  discountReason
+  discountReason,
+  lateCheckoutFee = 0
 } = {}) {
   const targetId = parseInt(reservationId, 10);
   if (!targetId || isNaN(targetId)) throw new Error('معرف الحجز غير صالح.');
@@ -606,10 +619,15 @@ function computeCheckoutSettlement(reservationId, {
     netCharge = Math.max(0, roundMoney(baseCharge - appliedDiscount));
   }
 
+  const normalizedLateCheckoutFee = roundMoney(lateCheckoutFee);
+  if (!Number.isFinite(normalizedLateCheckoutFee) || normalizedLateCheckoutFee < 0) {
+    throw new Error('مبلغ تأخير المغادرة يجب أن يكون صفراً أو أكبر.');
+  }
+
   const paidAmount = roundMoney(res.paid_amount || 0);
   const depositLedger = getDepositLedger(targetId);
   const depositAvailable = depositLedger.balance;
-  const difference = isOpenContract ? null : roundMoney(netCharge - paidAmount);
+  const difference = isOpenContract ? null : roundMoney(netCharge + normalizedLateCheckoutFee - paidAmount);
 
   return {
     reservationId: targetId,
@@ -620,7 +638,9 @@ function computeCheckoutSettlement(reservationId, {
     effectiveNightlyRate,
     baseCharge,
     discountApplied: appliedDiscount,
-    netCharge,
+    netCharge: netCharge === null ? null : roundMoney(netCharge + normalizedLateCheckoutFee),
+    accommodationNetCharge: netCharge,
+    lateCheckoutFee: normalizedLateCheckoutFee,
     paidAmount,
     depositAvailable,
     depositLegacyUnreconciled: !depositLedger.movementCount && roundMoney(res.deposit_amount || 0) > 0,
@@ -651,6 +671,7 @@ function checkoutReservation(reservationId, {
   userId = null,
   discountAmount,
   discountReason,
+  lateCheckoutFee = 0,
   customNightlyPrice,
   depositDisposition = 'refund',
   depositRetainAmount = 0,
@@ -834,7 +855,12 @@ function checkoutReservation(reservationId, {
     baseCharge,
     normDiscountAmount === null
   );
-  const finalTotal = Math.max(0, roundMoney(baseCharge - effectiveDiscount));
+  const accommodationNetTotal = Math.max(0, roundMoney(baseCharge - effectiveDiscount));
+  const normalizedLateCheckoutFee = roundMoney(lateCheckoutFee);
+  if (!Number.isFinite(normalizedLateCheckoutFee) || normalizedLateCheckoutFee < 0) {
+    throw new Error('مبلغ تأخير المغادرة يجب أن يكون صفراً أو أكبر.');
+  }
+  const finalTotal = roundMoney(accommodationNetTotal + normalizedLateCheckoutFee);
 
   const currentPaid = roundMoney(res.paid_amount || 0);
   const depositLedger = getDepositLedger(targetId);
@@ -959,7 +985,9 @@ function checkoutReservation(reservationId, {
         VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
       `);
       ps.run([collectionReceiptNumber, targetId, rawCollect, effMethod, actingUser,
-        `تحصيل عند المغادرة #${targetId}`]);
+        normalizedLateCheckoutFee > 0
+          ? `تحصيل عند المغادرة #${targetId} (يشمل مبلغ تأخير ${normalizedLateCheckoutFee} ريال)`
+          : `تحصيل عند المغادرة #${targetId}`]);
       ps.free();
       // Status
       if (newPaid >= finalTotal - 0.005) {
@@ -1031,6 +1059,7 @@ function checkoutReservation(reservationId, {
           payment_method = CASE WHEN ? IS NOT NULL THEN ? ELSE payment_method END,
           discount_amount = CASE WHEN ? IS NOT NULL THEN ? ELSE discount_amount END,
           discount_reason = CASE WHEN ? IS NOT NULL THEN ? ELSE discount_reason END,
+          late_checkout_fee = ?,
           original_calculated_charge = CASE WHEN original_calculated_charge IS NULL THEN ? ELSE original_calculated_charge END,
           checked_out_at = datetime('now')
       WHERE id = ? AND status != 'مكتمل'
@@ -1043,6 +1072,7 @@ function checkoutReservation(reservationId, {
       updateMethod, updateMethod,
       effectiveDiscountForWrite, effectiveDiscountForWrite,
       effectiveReasonForWrite,   effectiveReasonForWrite,
+      normalizedLateCheckoutFee,
       originalChargeToWrite,
       targetId
     ]);
@@ -1063,6 +1093,7 @@ function checkoutReservation(reservationId, {
   return {
     success: true,
     finalTotal,
+    lateCheckoutFee: normalizedLateCheckoutFee,
     actualNights,
     baseCharge,
     discountApplied: effectiveDiscount,
