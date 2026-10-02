@@ -2555,6 +2555,21 @@
     }
   }
 
+  /**
+     * Current session role, read from the same source the other RBAC checks in this file
+     * use. Presentation only — the main process is the security boundary.
+     *
+     * Needed here, and not the .admin-only class that applyRbacUi uses, because the rooms
+     * grid is rebuilt via innerHTML on every loadRoomsData() (search, filter, checkout,
+     * refresh) while applyRbacUi only runs once at login. A class-only button would be
+     * re-inserted visible for a non-Admin on the next render. Static controls elsewhere
+     * (e.g. #btn-toggle-add-room) can and do use the class.
+     */
+    function isCurrentUserAdmin() {
+    const role = localStorage.getItem('currentUserRole') || (currentUser ? currentUser.role : null);
+    return role === 'Admin';
+  }
+
   function renderRoomsGrid() {
     const searchTerm = currentRoomSearch.trim().toLowerCase();
     const today = getLocalDateString();
@@ -2769,7 +2784,7 @@
           </div>
 
           <!-- Seamless Acrylic Footer -->
-          <div class="room-card-footer">
+                    <div class="room-card-footer">
             <div class="room-card-footer-status">
               ${room.status !== 'مشغولة' && room.status !== 'محجوزة' ? `
                 <select class="room-status-select" data-room-id="${room.id}" style="width: auto; padding: 4px 8px; font-size: 0.8rem; font-weight: 700; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; color: #0f172a;">
@@ -2778,9 +2793,16 @@
                 </select>
               ` : ''}
             </div>
-            <button type="button" class="btn-room-action" data-action="edit-room" data-room-id="${room.id}" style="background: #ffffff; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: 700; font-size: 0.78rem; padding: 5px 12px; cursor: pointer; transition: all 0.15s;" title="تعديل تفاصيل الغرفة (الرقم، النوع، السعر)">
-              <span>تعديل ✏️</span>
-            </button>
+            <!-- Editing a room changes its nightly price, so the main process refuses it for
+                             anyone but an Admin (ipc/rooms.js). Gated with an inline role check,
+                             not the .admin-only class: this markup is rebuilt on every grid render,
+                             whereas applyRbacUi only runs at login. The status <select> above stays
+                             visible for every role — marking a room cleaning is front-desk work and
+                             is allowed over IPC. -->
+                        ${isCurrentUserAdmin() ? `
+                        <button type="button" class="btn-room-action" data-action="edit-room" data-room-id="${room.id}" style="background: #ffffff; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: 700; font-size: 0.78rem; padding: 5px 12px; cursor: pointer; transition: all 0.15s;" title="تعديل تفاصيل الغرفة (الرقم، النوع، السعر)">
+                          <span>تعديل ✏️</span>
+                        </button>` : ''}
           </div>
         </div>
       `;
