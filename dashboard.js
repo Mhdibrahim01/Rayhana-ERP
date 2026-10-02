@@ -5211,6 +5211,28 @@
   // =========================================================================
   // OFFICIAL HOTEL TAX INVOICE & RECEIPT (FEATURE 1)
   // =========================================================================
+  function fitInvoicePreviewToViewport() {
+    if (!invoicePrintableArea || !invoiceModal || invoiceModal.style.display === 'none') return;
+    const invoiceCard = invoicePrintableArea.firstElementChild;
+    if (!invoiceCard) return;
+
+    // Keep the complete receipt visible in the preview. Printed/PDF receipts use
+    // the unscaled HTML, so this only adapts the on-screen modal to the window.
+    invoiceCard.style.zoom = '1';
+    const availableHeight = invoicePrintableArea.clientHeight;
+    const availableWidth = invoicePrintableArea.clientWidth;
+    if (!availableHeight || !availableWidth) return;
+
+    const scale = Math.min(
+      1,
+      availableHeight / invoiceCard.scrollHeight,
+      availableWidth / invoiceCard.scrollWidth
+    );
+    invoiceCard.style.zoom = String(scale);
+  }
+
+  window.addEventListener('resize', fitInvoicePreviewToViewport);
+
   async function openInvoiceModal(reservationId) {
     const targetId = parseInt(reservationId, 10);
     if (!targetId || isNaN(targetId)) {
@@ -5295,6 +5317,14 @@
       const effectiveNightlyRate = parseFloat(inv.custom_nightly_price || inv.price_per_night || 0);
       const discount = parseFloat(inv.discount_amount || 0);
       const discountReasonText = inv.discount_reason ? ` (${escapeHtml(inv.discount_reason)})` : '';
+      const lateFee = parseFloat(inv.late_checkout_fee || 0);
+
+      // "تعديل السند" rewrites the reservation total and paid amount. The main process
+      // already refuses a non-Admin at the IPC boundary (ipc/reservations.js), and that
+      // remains the real security boundary — this only avoids showing a button whose
+      // action is guaranteed to fail.
+      const activeInvoiceRole = localStorage.getItem('currentUserRole') || (currentUser ? currentUser.role : null);
+      if (btnEditInvoice) btnEditInvoice.style.display = activeInvoiceRole === 'Admin' ? '' : 'none';
       const hasCancellationAdjustment = (inv.status === 'ملغي جزئي' || inv.status === 'ملغي جزئياً') && inv.original_calculated_charge != null;
       // Under the contract policy the invoice bills the BOOKED nights, so the
       // subtotal must use those. Otherwise it would show 1 night x rate and
@@ -5375,8 +5405,17 @@
           </div>
 
           <!-- Items Table -->
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 0.88rem;">
-            <thead>
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 0.88rem; table-layout: fixed; word-break: break-word;">
+          <colgroup>
+          <!-- Fixed widths so the amount column can never be pushed out of view by
+          a long room description. Without table-layout:fixed the first column
+          expands to fit its text and the total column is clipped off the card. -->
+          <col style="width: 52%;">
+          <col style="width: 15%;">
+          <col style="width: 13%;">
+          <col style="width: 20%;">
+          </colgroup>
+          <thead>
               <tr style="background: #1e1b4b; color: white;">
                 <th style="padding: 10px 14px; text-align: right; border-radius: 0 6px 0 0;">الوصف والخدمة</th>
                 <th style="padding: 10px 14px; text-align: center;">سعر الليلة / اليوم</th>
@@ -5405,12 +5444,12 @@
                   <td style="padding: 10px 14px; text-align: left; font-weight: 800; color: #b91c1c;">- ${discount.toFixed(2)} ريال</td>
                 </tr>
               ` : ''}
-              ${parseFloat(inv.late_checkout_fee || 0) > 0 ? `
+              ${lateFee > 0 ? `
                 <tr style="border-bottom: 1px solid #e2e8f0; background: #fff7ed;">
                   <td style="padding: 10px 14px;"><strong style="color: #9a3412;">مبلغ إضافي لتأخير المغادرة</strong><div style="font-size: 0.75rem; color: #9a3412;">تم اعتماده يدويًا عند التسوية</div></td>
                   <td style="padding: 10px 14px; text-align: center;">-</td>
                   <td style="padding: 10px 14px; text-align: center;">-</td>
-                  <td style="padding: 10px 14px; text-align: left; font-weight: 800; color: #9a3412;">${parseFloat(inv.late_checkout_fee).toFixed(2)} ريال</td>
+                  <td style="padding: 10px 14px; text-align: left; font-weight: 800; color: #9a3412; white-space: nowrap;">+ ${lateFee.toFixed(2)} ريال</td>
                 </tr>
               ` : ''}
               ${hasCancellationAdjustment ? `
@@ -5493,6 +5532,7 @@
 
       if (invoiceModal) {
         invoiceModal.style.display = 'flex';
+        requestAnimationFrame(fitInvoicePreviewToViewport);
       }
     } catch (err) {
       console.error('Invoice error:', err);
