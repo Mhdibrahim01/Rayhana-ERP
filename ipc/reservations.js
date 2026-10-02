@@ -4,8 +4,23 @@
  */
 
 module.exports = function registerReservationsIpc(ipcMain, { db, session, helpers }) {
+  // Every handler in this file requires a signed-in session. Previously only
+  // reservations:extend checked this, so an unauthenticated caller could list every
+  // reservation, read the invoice and settlement figures, read the payment and deposit
+  // ledgers, and - worst - settle a booking through reservations:checkout, which
+  // rewrites total_price and paid_amount. There is no global wrapper in this codebase,
+  // so each handler opts in; the comment in tests/ipc-policy-coverage.test.js tracks
+  // that expectation.
+  function requireSession() {
+    return session.currentUser
+      ? null
+      : { success: false, error: 'غير مصرح: يرجى تسجيل الدخول أولاً.' };
+  }
+
   // 5. Reservations
   ipcMain.handle('reservations:get-all', async () => {
+    const denied = requireSession();
+    if (denied) return denied;
     try {
       const list = db.getAllReservations();
       return { success: true, data: list };
@@ -15,6 +30,8 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
   });
 
   ipcMain.handle('reservations:get-page', async (event, params = {}) => {
+    const denied = requireSession();
+    if (denied) return denied;
     try {
       const result = db.getReservationsPage(params);
       return { success: true, data: result };
@@ -123,6 +140,8 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
   }
 
   ipcMain.handle('reservations:create', async (event, data) => {
+    const denied = requireSession();
+    if (denied) return denied;
     try {
       const validation = validateReservationData(data, helpers.getLocalDateString);
       if (!validation.valid) {
@@ -150,6 +169,8 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
   });
 
   ipcMain.handle('reservations:checkout', async (event, arg1, arg2) => {
+    const denied = requireSession();
+    if (denied) return denied;
     try {
       let id = arg1;
       let options = arg2 || {};
@@ -210,6 +231,8 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
   // Returns the same figures checkoutReservation will use, so the modal
   // can show an authoritative breakdown before the receptionist commits.
   ipcMain.handle('reservations:checkout-preview', async (event, arg1, arg2) => {
+    const denied = requireSession();
+    if (denied) return denied;
     try {
       let id = arg1;
       let options = arg2 || {};
@@ -254,6 +277,8 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
   });
 
   ipcMain.handle('reservations:cancel', async (event, arg1, arg2, arg3) => {
+    const denied = requireSession();
+    if (denied) return denied;
     try {
       let reservationId = arg1;
       let actualDepartureDate = arg2;
@@ -282,6 +307,8 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
 
   // Subsequent Payment IPC Handler (تسجيل سداد دفعة جديدة للحجز مع تدقيق الحسابات وسند القبض)
   const handleAddPayment = async (event, data) => {
+    const denied = requireSession();
+    if (denied) return denied;
     try {
       const { reservationId, newAmount, amount, paymentMethod, userId, notes } = data || {};
       const targetId = parseInt(reservationId, 10);
@@ -315,6 +342,8 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
 
   // Payments Ledger History & Receipt Handlers
   ipcMain.handle('payments:get-by-reservation', async (event, reservationId) => {
+    const denied = requireSession();
+    if (denied) return denied;
     try {
       const payments = db.getReservationPayments(reservationId);
       return { success: true, data: payments };
@@ -324,6 +353,8 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
   });
 
   ipcMain.handle('deposits:get-by-reservation', async (event, reservationId) => {
+    const denied = requireSession();
+    if (denied) return denied;
     try {
       const movements = db.getReservationDepositMovements(reservationId);
       return { success: true, data: movements };
@@ -336,6 +367,8 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
     if (!session.currentUser || session.currentUser.role !== 'Admin') {
       return { success: false, error: 'مطابقة التأمينات التاريخية متاحة لمدير النظام فقط.' };
     }
+    const denied = requireSession();
+    if (denied) return denied;
     try {
       return db.reconcileLegacyDeposit({
         ...data,
@@ -347,6 +380,8 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
   });
 
   ipcMain.handle('payments:get-receipt', async (event, receiptIdentifier) => {
+    const denied = requireSession();
+    if (denied) return denied;
     try {
       const receipt = db.getPaymentReceipt(receiptIdentifier);
       if (!receipt) {
@@ -361,6 +396,8 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
   // Today's Check-outs (مغادرات اليوم) IPC Handler
   // Queries Reservations joining Guests and Rooms, filtering strictly where check_out_date = today
   ipcMain.handle('reservations:get-today-checkouts', async (event, customDate) => {
+    const denied = requireSession();
+    if (denied) return denied;
     try {
       helpers.updateAutomatedRoomStatuses();
       const today = customDate || helpers.getLocalDateString();
@@ -373,6 +410,8 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
   });
 
   ipcMain.handle('excel:import-reservations', async (event, reservationsList) => {
+    const denied = requireSession();
+    if (denied) return denied;
     try {
       const result = db.bulkImportReservations(reservationsList);
       return { success: true, data: result };
@@ -383,6 +422,8 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
 
   // 9. Invoice Data Fetching & Updating
   ipcMain.handle('reservations:get-invoice-data', async (event, reservationId) => {
+    const denied = requireSession();
+    if (denied) return denied;
     try {
       const data = db.getReservationById(reservationId);
       if (!data) return { success: false, error: 'لم يتم العثور على بيانات الحجز.' };
@@ -393,6 +434,8 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
   });
 
   ipcMain.handle('reservations:update-receipt', async (event, updateData) => {
+    const denied = requireSession();
+    if (denied) return denied;
     try {
       // Editing a receipt rewrites total_price, paid_amount and the guest details on an
       // existing reservation, and it can create exactly the total_price divergence that
