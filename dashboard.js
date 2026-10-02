@@ -4538,8 +4538,16 @@
         return;
       }
 
-      // Validate discount reason for non-contract (backend also checks, but give early feedback)
-      if (!isContract && discAmount > 0 && !discReason) {
+      // Discount reason: required only for a discount introduced HERE. A discount
+      // already stored on the reservation was accepted at booking time without one,
+      // and the modal pre-fills that amount, so demanding a reason for it would block
+      // a checkout the receptionist never changed. Mirrors the backend rule.
+      const storedDiscount = Math.round(
+        ((parseFloat(currentSettlingReservation?.discount_amount) || 0) + Number.EPSILON) * 100
+      ) / 100;
+      const isNewCheckoutDiscount = !isContract && discAmount > 0
+        && Math.abs(discAmount - storedDiscount) > 0.005;
+      if (isNewCheckoutDiscount && !discReason) {
         showToast('يرجى إدخال سبب الخصم عند تطبيق خصم على المغادرة.', 'error');
         if (settleDiscountReasonInput) settleDiscountReasonInput.focus();
         return;

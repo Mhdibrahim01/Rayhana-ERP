@@ -394,6 +394,13 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
 
   ipcMain.handle('reservations:update-receipt', async (event, updateData) => {
     try {
+      // Editing a receipt rewrites total_price, paid_amount and the guest details on an
+      // existing reservation, and it can create exactly the total_price divergence that
+      // the monthly contract guard later refuses. That is an Admin decision, so it is
+      // gated here on the session role, which is read in the main process only.
+      if (!session.currentUser || session.currentUser.role !== 'Admin') {
+        return { success: false, error: 'Access Denied: Admin privileges required.' };
+      }
       const res = db.updateReservationReceipt(updateData);
       return res;
     } catch (err) {
