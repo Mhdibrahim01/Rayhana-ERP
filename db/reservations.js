@@ -88,6 +88,9 @@ const RESERVATION_LIST_SQL = `
     r.discount_reason,
     r.late_checkout_fee,
     r.original_calculated_charge,
+    r.checkout_policy,
+    r.checkout_policy_reason,
+    r.booked_check_out_date,
     r.checked_out_at,
     r.created_at,
     strftime('%H:%M', r.created_at, 'localtime') AS booking_time,
@@ -192,6 +195,9 @@ function getReservationById(reservationId) {
       r.discount_reason,
       r.late_checkout_fee,
       r.original_calculated_charge,
+      r.checkout_policy,
+      r.checkout_policy_reason,
+      r.booked_check_out_date,
       r.checked_out_at,
       r.created_at,
       strftime('%H:%M', r.created_at, 'localtime') AS booking_time,
@@ -516,6 +522,69 @@ function createReservation({
   }
 }
 
+/**
+ * Whole nights between two ISO dates. Returns 0 when either date is missing/unparseable
+ * or the end is not strictly after the start. UTC-based so it is immune to the local
+ * timezone and daylight-saving shifts.
+ */
+function countNights(startDate, endDate) {
+  const start = String(startDate || '').trim();
+  const end = String(endDate || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) return 0;
+  const [sy, sm, sd] = start.split('-').map(Number);
+  const [ey, em, ed] = end.split('-').map(Number);
+  const startUtc = Date.UTC(sy, sm - 1, sd);
+  const endUtc = Date.UTC(ey, em - 1, ed);
+  if (!Number.isFinite(startUtc) || !Number.isFinite(endUtc) || endUtc <= startUtc) return 0;
+  return Math.round((endUtc - startUtc) / 86400000);
+}
+
+/**
+ * Is this a MONTHLY booking being checked out before its stored departure date?
+ * The stored check_out_date must be a real date (never '' / 'مفتوح'), and the actual
+ * departure date must fall strictly before it. Everything else keeps today's behaviour.
+ */
+function isMonthlyEarlyCheckout(res, departureDate) {
+  if (!res || res.booking_type !== 'حجز شهري') return false;
+  const booked = String(res.check_out_date || '').trim();
+  if (!booked || booked === 'مفتوح' || !/^\d{4}-\d{2}-\d{2}$/.test(booked)) return false;
+  return String(departureDate || '') < booked;
+}
+
+/**
+ * Single source of truth for the monthly contract value.
+ *
+ *   contractValue = max(0, bookedNights x storedRate - storedDiscountInFull)
+ *
+ * bookedNights come from the STORED check_in_date / check_out_date pair (so extensions
+ * are included), never from total_price or any renderer-supplied value. The stored
+ * discount is applied in FULL — deliberately NOT prorated, unlike the actual-nights
+ * path which goes through calculateCheckoutDiscount().
+ */
+function computeContractValue(res) {
+  const storedRate = roundMoney(
+    (res.custom_nightly_price !== null && res.custom_nightly_price !== undefined && res.custom_nightly_price !== '')
+      ? res.custom_nightly_price
+      : (res.price_per_night || 0)
+  );
+  if (!Number.isFinite(storedRate) || storedRate <= 0) {
+    throw new Error('تعذر حساب قيمة العقد: سعر الليلة غير صالح (يجب أن يكون أكبر من الصفر).');
+  }
+  const bookedNights = countNights(res.check_in_date, res.check_out_date);
+  if (!bookedNights) {
+    throw new Error('تعذر حساب قيمة العقد: تواريخ الإقامة غير صالحة.');
+  }
+  const base = roundMoney(bookedNights * storedRate);
+  const fullDiscount = Math.max(0, roundMoney(res.discount_amount || 0));
+  return {
+    bookedNights,
+    storedRate,
+    baseCharge: base,
+    discountAppliedInFull: fullDiscount,
+    contractValue: Math.max(0, roundMoney(base - fullDiscount))
+  };
+}
+
 function calculateCheckoutDiscount(discountAmount, actualNights, checkInDate, bookedCheckOutDate, baseCharge, prorate) {
   const normalizedDiscount = Math.max(0, roundMoney(discountAmount || 0));
   if (!normalizedDiscount || !baseCharge) return 0;
@@ -619,6 +688,19 @@ function computeCheckoutSettlement(reservationId, {
     netCharge = Math.max(0, roundMoney(baseCharge - appliedDiscount));
   }
 
+  // Monthly early checkout: report BOTH candidate values so the modal can show them.
+  // Nothing is decided here — the preview only describes the reservation.
+  const monthlyEarly = !isOpenContract && isMonthlyEarlyCheckout(res, todayStr);
+  let contractValue = null;
+  let contractValueMismatch = false;
+  let bookedNights = null;
+  if (monthlyEarly) {
+    const contract = computeContractValue(res);
+    contractValue = contract.contractValue;
+    bookedNights = contract.bookedNights;
+    contractValueMismatch = Math.abs(roundMoney(contract.contractValue - roundMoney(res.total_price || 0))) > 0.005;
+  }
+
   const normalizedLateCheckoutFee = roundMoney(lateCheckoutFee);
   if (!Number.isFinite(normalizedLateCheckoutFee) || normalizedLateCheckoutFee < 0) {
     throw new Error('مبلغ تأخير المغادرة يجب أن يكون صفراً أو أكبر.');
@@ -641,6 +723,14 @@ function computeCheckoutSettlement(reservationId, {
     netCharge: netCharge === null ? null : roundMoney(netCharge + normalizedLateCheckoutFee),
     accommodationNetCharge: netCharge,
     lateCheckoutFee: normalizedLateCheckoutFee,
+    // Monthly early-checkout policy inputs. The caller (main process) supplies
+    // canChoosePolicy from the session role; the DB layer never sees a role.
+    isMonthlyEarlyCheckout: monthlyEarly,
+    bookedCheckOutDate: monthlyEarly ? res.check_out_date : null,
+    bookedNights,
+    contractValue,
+    contractValueMismatch,
+    actualValue: netCharge,
     paidAmount,
     depositAvailable,
     depositLegacyUnreconciled: !depositLedger.movementCount && roundMoney(res.deposit_amount || 0) > 0,
@@ -663,6 +753,10 @@ function checkoutReservation(reservationId, {
   //   discountAmount: checkout discount (Admin only – IPC strips for non-Admin)
   //   discountReason: required when discount > 0
   //   customNightlyPrice: override nightly rate (optional)
+  //   checkoutPolicy:     'contract' (default) | 'actual' — monthly early checkouts only.
+  //                      The IPC layer strips this for non-Admin callers, so 'actual'
+  //                      is only reachable by an Admin session.
+  //   checkoutPolicyReason: mandatory non-empty reason when policy is 'actual'
   //   userId:         acting user id
   settleMode,
   collectAmount,
@@ -671,6 +765,8 @@ function checkoutReservation(reservationId, {
   userId = null,
   discountAmount,
   discountReason,
+  checkoutPolicy,
+  checkoutPolicyReason,
   lateCheckoutFee = 0,
   customNightlyPrice,
   depositDisposition = 'refund',
@@ -689,6 +785,7 @@ function checkoutReservation(reservationId, {
     SELECT r.id, r.room_id, r.total_price, r.paid_amount, r.deposit_amount, r.payment_status, r.booking_type,
            r.check_in_date, r.check_out_date, r.original_calculated_charge, r.status,
            r.custom_nightly_price, r.discount_amount, r.discount_reason,
+           r.checkout_policy, r.checkout_policy_reason, r.booked_check_out_date,
            rm.price_per_night
     FROM reservations r
     LEFT JOIN rooms rm ON r.room_id = rm.id
@@ -821,6 +918,9 @@ function checkoutReservation(reservationId, {
     ? Math.max(0, roundMoney(discountAmount))
     : null;
   const normDiscountReason = discountReason !== undefined ? (discountReason || '').trim() : null;
+  // Policy reason applies only to a monthly early checkout; it is independent of any
+  // explicit checkout discount.
+  const normPolicyReason = checkoutPolicyReason !== undefined ? String(checkoutPolicyReason || '').trim() : null;
 
   const requestedDiscount = normDiscountAmount !== null
     ? normDiscountAmount
@@ -846,20 +946,80 @@ function checkoutReservation(reservationId, {
   const d2 = new Date(todayStr + 'T00:00:00');
   const diffDays = Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
   const actualNights = Math.max(1, diffDays);
-  const baseCharge = roundMoney(actualNights * effectiveNightlyRate);
-  const effectiveDiscount = calculateCheckoutDiscount(
+  const actualBaseCharge = roundMoney(actualNights * effectiveNightlyRate);
+  const actualDiscount = calculateCheckoutDiscount(
     requestedDiscount,
     actualNights,
     res.check_in_date,
     res.check_out_date,
-    baseCharge,
+    actualBaseCharge,
     normDiscountAmount === null
   );
-  const accommodationNetTotal = Math.max(0, roundMoney(baseCharge - effectiveDiscount));
+  const actualAccommodationNet = Math.max(0, roundMoney(actualBaseCharge - actualDiscount));
+
+  // -------------------------------------------------------------------------
+  // MONTHLY EARLY CHECKOUT: default to the FULL CONTRACT VALUE.
+  //
+  // 'contract' -> charge bookedNights x stored rate minus the stored discount in
+  //              FULL (no proration). Unused nights are NOT refunded.
+  // 'actual'   -> the Admin-only exception, which is today's actual-nights maths.
+  //
+  // The policy is decided HERE, in the backend, from the stored booking type and
+  // the departing date. A policy/reason sent by the renderer is only honoured when
+  // the IPC layer has already verified the caller is an Admin; a non-Admin caller
+  // arrives here with the fields stripped, so 'actual' is unreachable for them.
+  // -------------------------------------------------------------------------
+  const monthlyEarly = isMonthlyEarlyCheckout(res, todayStr);
+  let appliedPolicy = null;
+  let policyReasonForWrite = null;
+  let bookedCheckOutForWrite = null;
+  let baseCharge;
+  let effectiveDiscount;
+  let accommodationNetTotal;
+
+  if (monthlyEarly) {
+    const requested = String(checkoutPolicy || '').trim();
+    if (requested && !['contract', 'actual'].includes(requested)) {
+      throw new Error('سياسة المغادرة غير معروفة.');
+    }
+    appliedPolicy = requested === 'actual' ? 'actual' : 'contract';
+    policyReasonForWrite = normPolicyReason !== null ? normPolicyReason : null;
+
+    if (appliedPolicy === 'actual') {
+      if (!policyReasonForWrite) {
+        throw new Error('يرجى إدخال سبب احتساب الليالي الفعلية بدل قيمة العقد.');
+      }
+      baseCharge = actualBaseCharge;
+      effectiveDiscount = actualDiscount;
+      accommodationNetTotal = actualAccommodationNet;
+    } else {
+      const contract = computeContractValue(res);
+      const storedTotal = roundMoney(res.total_price || 0);
+      // Guard: the contract value must agree with what the reservation was sold for.
+      // On divergence the default path is blocked and only the Admin exception remains.
+      if (Math.abs(roundMoney(contract.contractValue - storedTotal)) > 0.005) {
+        throw new Error(
+          `قيمة العقد المحسوبة (${contract.contractValue} ريال) لا تطابق الإجمالي المخزن (${storedTotal} ريال). ` +
+          'يرجى مراجعة بيانات الحجز، أو اختيار احتساب الليالي الفعلية من قبل مدير النظام.'
+        );
+      }
+      baseCharge = contract.baseCharge;
+      effectiveDiscount = contract.discountAppliedInFull;
+      accommodationNetTotal = contract.contractValue;
+      bookedCheckOutForWrite = res.check_out_date;
+    }
+  } else {
+    baseCharge = actualBaseCharge;
+    effectiveDiscount = actualDiscount;
+    accommodationNetTotal = actualAccommodationNet;
+  }
+
   const normalizedLateCheckoutFee = roundMoney(lateCheckoutFee);
   if (!Number.isFinite(normalizedLateCheckoutFee) || normalizedLateCheckoutFee < 0) {
     throw new Error('مبلغ تأخير المغادرة يجب أن يكون صفراً أو أكبر.');
   }
+  // finalTotal = accommodation net + late fee. Unchanged by the policy branch:
+  // the late fee is orthogonal and applies identically under both policies.
   const finalTotal = roundMoney(accommodationNetTotal + normalizedLateCheckoutFee);
 
   const currentPaid = roundMoney(res.paid_amount || 0);
@@ -1061,6 +1221,9 @@ function checkoutReservation(reservationId, {
           discount_reason = CASE WHEN ? IS NOT NULL THEN ? ELSE discount_reason END,
           late_checkout_fee = ?,
           original_calculated_charge = CASE WHEN original_calculated_charge IS NULL THEN ? ELSE original_calculated_charge END,
+          checkout_policy = ?,
+          checkout_policy_reason = ?,
+          booked_check_out_date = ?,
           checked_out_at = datetime('now')
       WHERE id = ? AND status != 'مكتمل'
     `);
@@ -1074,6 +1237,9 @@ function checkoutReservation(reservationId, {
       effectiveReasonForWrite,   effectiveReasonForWrite,
       normalizedLateCheckoutFee,
       originalChargeToWrite,
+      appliedPolicy,
+      policyReasonForWrite,
+      bookedCheckOutForWrite,
       targetId
     ]);
     stmt1.free();
@@ -1097,6 +1263,10 @@ function checkoutReservation(reservationId, {
     actualNights,
     baseCharge,
     discountApplied: effectiveDiscount,
+    isMonthlyEarlyCheckout: monthlyEarly,
+    checkoutPolicy: appliedPolicy,
+    checkoutPolicyReason: policyReasonForWrite,
+    bookedCheckOutDate: bookedCheckOutForWrite,
     paidAmount: newPaid,
     settleMode: resolvedMode,
     collectionReceiptNumber,
@@ -1912,6 +2082,9 @@ module.exports = {
   generateReceiptNumber,
   createReservation,
   computeCheckoutSettlement,
+  isMonthlyEarlyCheckout,
+  computeContractValue,
+  countNights,
   checkoutReservation,
   extendReservation,
   cancelReservation,
