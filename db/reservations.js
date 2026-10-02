@@ -1900,7 +1900,7 @@ function bulkImportReservations(reservationsList) {
     const roomNumber = String(r.room_number || r['رقم الغرفة'] || r['الغرفة'] || '').trim();
     const checkIn = String(r.check_in_date || r['تاريخ الوصول'] || r['الوصول'] || '').trim();
     const checkOut = String(r.check_out_date || r['تاريخ المغادرة'] || r['المغادرة'] || '').trim();
-    const price = parseFloat(r.total_price || r['السعر الإجمالي'] || r['المبلغ'] || r['الإجمالي']) || 0;
+    const price = roundMoney(parseFloat(r.total_price || r['السعر الإجمالي'] || r['المبلغ'] || r['الإجمالي']) || 0);
 
     if (!guestName || !checkIn || !checkOut) {
       skipped++;

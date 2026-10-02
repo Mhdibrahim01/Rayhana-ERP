@@ -3,7 +3,7 @@
  * Guests Management, Directory & Search Module
  */
 
-const { db, queryOne, queryAll, saveToFile } = require('./connection');
+const { db, queryOne, queryAll, saveToFile, roundMoney } = require('./connection');
 
 /**
  * Guest Functions
@@ -25,7 +25,7 @@ function getAllGuests() {
     GROUP BY g.id
     ORDER BY g.id DESC
   `;
-  return queryAll(sql);
+  return queryAll(sql).map((g) => ({ ...g, total_spent: roundMoney(g.total_spent || 0) }));
 }
 
 /**
@@ -85,7 +85,10 @@ function getGuestsPaginated({ page = 1, limit = 50, search = '', banFilter = 'al
     LIMIT ? OFFSET ?
   `;
   queryParams.push(l, offset);
-  const rows = queryAll(dataSql, queryParams);
+  const rows = queryAll(dataSql, queryParams).map((g) => ({
+    ...g,
+    total_spent: roundMoney(g.total_spent || 0)
+  }));
 
   return {
     data: rows,

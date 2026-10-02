@@ -347,11 +347,18 @@ async function init(dbPath) {
 /**
  * Safe currency rounding helper to prevent IEEE-754 floating-point drift.
  * Rounds to 2 decimal places using Number.EPSILON.
+ *
+ * Negative zero is normalised to positive zero: Math.round can return -0 for a tiny
+ * negative input such as -0.001, and that would render as "-0.00" on an invoice.
+ * Only the sign of a value that rounds to exactly zero is changed — a real negative
+ * amount such as a -1850.00 refund keeps its sign. Never clamp negatives to zero:
+ * refund rows and signed deposit adjustments are stored negative on purpose.
  */
 function roundMoney(val) {
   const num = Number(val);
   if (!Number.isFinite(num)) return 0.0;
-  return Math.round((num + Number.EPSILON) * 100) / 100;
+  const rounded = Math.round((num + Number.EPSILON) * 100) / 100;
+  return rounded === 0 ? 0 : rounded;
 }
 
 /**
