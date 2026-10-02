@@ -104,7 +104,7 @@ function getDashboardStats() {
 
   const totalReservations = queryOne("SELECT COUNT(*) AS c FROM reservations")?.c || 0;
   const activeReservations = queryOne("SELECT COUNT(*) AS c FROM reservations WHERE status = 'مؤكد'")?.c || 0;
-  const totalRevenue = queryOne("SELECT SUM(total_price) AS sum FROM reservations WHERE status != 'ملغي'")?.sum || 0;
+  const totalRevenue = roundMoney(queryOne("SELECT SUM(total_price) AS sum FROM reservations WHERE status != 'ملغي'")?.sum || 0);
   const totalGuests = queryOne("SELECT COUNT(*) AS c FROM guests")?.c || 0;
 
   return {
