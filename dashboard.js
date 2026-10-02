@@ -3917,6 +3917,12 @@
   const settleDiscountSection = document.getElementById('settle-discount-section');
   const settleDiscountInput = document.getElementById('settle-discount-input');
   const settleDiscountReasonInput = document.getElementById('settle-discount-reason-input');
+  const settlePolicySection = document.getElementById('settle-policy-section');
+  const settlePolicySummary = document.getElementById('settle-policy-summary');
+  const settlePolicyContract = document.getElementById('settle-policy-contract');
+  const settlePolicyActual = document.getElementById('settle-policy-actual');
+  const settlePolicyReasonWrap = document.getElementById('settle-policy-reason-wrap');
+  const settlePolicyReasonInput = document.getElementById('settle-policy-reason-input');
   const settleBreakdownHint = document.getElementById('settle-breakdown-hint');
   const settleFinalTotalInput = document.getElementById('settle-final-total-input');
   const settleLateCheckoutSection = document.getElementById('settle-late-checkout-section');
@@ -3946,6 +3952,96 @@
   let currentSettlementPreview = null;
   let currentDepositAvailable = 0;
   let currentDepositLegacyUnreconciled = false;
+  // Monthly early-checkout policy state, driven entirely by the backend preview.
+  // canChoosePolicy comes from the main process (session role); it is never
+  // inferred from anything the renderer itself knows.
+  let settlePolicyState = { applicable: false, canChoose: false, mismatch: false, bookedNights: null, contractValue: null, actualValue: null, bookedCheckOutDate: null };
+
+  /** The policy currently selected in the modal, validated against what is allowed. */
+  function getSelectedCheckoutPolicy() {
+    if (!settlePolicyState.applicable) return undefined;
+    if (!settlePolicyState.canChoose) return undefined;
+    const picked = settlePolicyActual && settlePolicyActual.checked ? 'actual' : 'contract';
+    // A non-Admin can never select 'actual', whatever the radio state says.
+    return picked === 'actual' ? 'actual' : 'contract';
+  }
+
+  function getSelectedCheckoutPolicyReason() {
+    if (getSelectedCheckoutPolicy() !== 'actual') return undefined;
+    return settlePolicyReasonInput ? settlePolicyReasonInput.value.trim() : '';
+  }
+
+  /**
+   * The policy fields to send with a checkout. Only ever populated when the backend
+   * preview said the case applies AND this session may choose, so a renderer cannot
+   * request the Admin exception by itself. Both are stripped again in the main process.
+   */
+  function getCheckoutPolicyPayload() {
+    const policy = getSelectedCheckoutPolicy();
+    if (!policy) return {};
+    return { checkoutPolicy: policy, checkoutPolicyReason: getSelectedCheckoutPolicyReason() };
+  }
+
+  /** Reset the modal's policy controls whenever a new settlement preview loads. */
+  function resetCheckoutPolicyControls() {
+    if (settlePolicyContract) settlePolicyContract.checked = true;
+    if (settlePolicyActual) settlePolicyActual.checked = false;
+    if (settlePolicyReasonInput) settlePolicyReasonInput.value = '';
+    if (settlePolicyReasonWrap) settlePolicyReasonWrap.style.display = 'none';
+    if (settlePolicySection) settlePolicySection.style.display = 'none';
+  }
+
+  /**
+   * The value the modal must charge. A monthly early checkout defaults to the
+   * contract value; the Admin may switch to actual-nights, which re-fetches the
+   * preview so every figure comes from the backend rather than being recomputed here.
+   */
+  function getSettlementChargeTotal() {
+    const isContract = currentSettlingReservation && currentSettlingReservation.booking_type === 'عقد مفتوح';
+    if (!isContract && currentSettlementPreview) {
+      const useActual = getSelectedCheckoutPolicy() === 'actual';
+      const value = useActual ? currentSettlementPreview.actualValue : (settlePolicyState.applicable ? settlePolicyState.contractValue : null);
+      const total = value !== null && value !== undefined ? value : currentSettlementPreview.netCharge;
+      return Math.round((parseFloat(total) + Number.EPSILON) * 100) / 100;
+    }
+    return Math.round((parseFloat(settleFinalTotalInput ? settleFinalTotalInput.value : 0) + Number.EPSILON) * 100) / 100;
+  }
+
+  /** Draw the Admin-only monthly early-checkout policy block. */
+  function renderCheckoutPolicySection() {
+    if (!settlePolicySection) return;
+    if (!settlePolicyState.applicable) {
+      settlePolicySection.style.display = 'none';
+      return;
+    }
+    settlePolicySection.style.display = 'block';
+
+    const contract = Number(settlePolicyState.contractValue || 0).toFixed(2);
+    const actual = Number(settlePolicyState.actualValue || 0).toFixed(2);
+    const nightsWord = settlePolicyState.bookedNights === 1 ? 'ليلة' : 'ليالٍ';
+
+    const lines = [
+      `تاريخ المغادرة الأصلي المحجوز: ${settlePolicyState.bookedCheckOutDate || '-'}`,
+      `قيمة العقد (${settlePolicyState.bookedNights} ${nightsWord} محجوزة): ${contract} ريال`,
+      `قيمة الليالي الفعلية: ${actual} ريال`
+    ];
+    if (settlePolicyState.mismatch) {
+      lines.push('⚠ قيمة العقد لا تطابق الإجمالي المخزن لهذا الحجز. سيُطلب مراجعة بيانات الحجز قبل الإتمام. استخدم استثناء الليالي الفعلية للمتابعة.');
+    }
+    if (!settlePolicyState.canChoose) {
+      lines.push('يُحتسب تلقائياً بقيمة العقد.');
+    }
+    if (settlePolicySummary) {
+      settlePolicySummary.innerHTML = lines
+        .map((line, index) => {
+          const safe = escapeHtml(line);
+          const style = (index === 0 || (settlePolicyState.mismatch && index === 3))
+            ? ' style="color:#b91c1c; font-weight:700;"' : '';
+          return `<div${style}>${safe}</div>`;
+        })
+        .join('');
+    }
+  }
 
   function getDepositCheckoutPayload() {
     const disposition = settleDepositDisposition ? settleDepositDisposition.value : 'refund';
@@ -3969,8 +4065,11 @@
 
     let finalTotal, paidSoFar;
     if (!isContract && currentSettlementPreview) {
-      // Non-contract: use authoritative backend values
-      finalTotal = currentSettlementPreview.netCharge;
+      // Non-contract: use authoritative backend values. For a monthly early checkout
+      // this is the CONTRACT value unless an Admin selected the actual-nights
+      // exception — netCharge alone is the actual-nights figure and would offer a
+      // large bogus refund on a fully-paid monthly booking.
+      finalTotal = getSettlementChargeTotal();
       paidSoFar  = currentSettlementPreview.paidAmount;
     } else {
       // Open-contract (or fallback before preview arrives): use live field
@@ -4087,18 +4186,51 @@
           const s = currentSettlementPreview;
           currentDepositAvailable = Math.max(0, Number(s.depositAvailable || 0));
           currentDepositLegacyUnreconciled = Boolean(s.depositLegacyUnreconciled);
+
+          // Monthly early-checkout policy. Everything here comes from the backend
+          // preview; canChoosePolicy is decided in the main process from the session.
+          settlePolicyState = {
+            applicable: Boolean(s.isMonthlyEarlyCheckout),
+            canChoose: Boolean(s.canChoosePolicy),
+            mismatch: Boolean(s.contractValueMismatch),
+            bookedNights: s.bookedNights ?? null,
+            contractValue: s.contractValue ?? null,
+            actualValue: s.actualValue ?? null,
+            bookedCheckOutDate: s.bookedCheckOutDate ?? null
+          };
+          resetCheckoutPolicyControls();
+          renderCheckoutPolicySection();
+
           const isDayUse = res.booking_type === 'استخدام يومي';
           const nightsLabel = isDayUse ? 'يوم استخدام' : (s.actualNights === 1 ? 'ليلة' : 'ليالٍ');
           const rateUnit = isDayUse ? 'ريال/يوم' : 'ريال/ليلة';
           const rateNote = res.custom_nightly_price ? ' - سعر خاص' : '';
-          if (settleNightsCount) settleNightsCount.textContent = `${s.actualNights} ${nightsLabel} (بسعر ${s.effectiveNightlyRate.toLocaleString()} ${rateUnit}${rateNote})`;
-          if (settleTotalPriceDisplay) settleTotalPriceDisplay.textContent = `${s.baseCharge.toFixed(2)} ريال`;
+          if (settleNightsCount) {
+            if (settlePolicyState.applicable) {
+              // Show the contract basis, not just the elapsed nights, so the
+              // receptionist can see WHY the full value is being charged.
+              const nightsWord = settlePolicyState.bookedNights === 1 ? 'ليلة' : 'ليالٍ';
+              settleNightsCount.textContent =
+                `${s.actualNights} ${nightsLabel} فعلية من ${settlePolicyState.bookedNights} ${nightsWord} محجوزة ` +
+                `(بسعر ${s.effectiveNightlyRate.toLocaleString()} ${rateUnit}${rateNote})`;
+            } else {
+              settleNightsCount.textContent = `${s.actualNights} ${nightsLabel} (بسعر ${s.effectiveNightlyRate.toLocaleString()} ${rateUnit}${rateNote})`;
+            }
+          }
+          if (settleTotalPriceDisplay) {
+            // Under the contract policy the chargeable base is the full booked value.
+            const baseShown = settlePolicyState.applicable ? settlePolicyState.contractValue : s.baseCharge;
+            settleTotalPriceDisplay.textContent = `${Number(baseShown).toFixed(2)} ريال`;
+          }
           if (settleFinalTotalInput) settleFinalTotalInput.value = s.netCharge.toFixed(2);
           // Pre-fill discount fields from stored discount (Admin only — section is already hidden for non-Admin)
           if (settleDiscountInput) settleDiscountInput.value = (s.discountApplied || 0) > 0 ? (s.discountApplied).toFixed(2) : '0';
           if (settleDiscountReasonInput) settleDiscountReasonInput.value = res.discount_reason || '';
         } else {
-          // Fallback: compute from cache
+          // Fallback: compute from cache. No authoritative preview, so the policy
+          // state stays inert and the modal behaves exactly as it did before.
+          settlePolicyState = { applicable: false, canChoose: false, mismatch: false, bookedNights: null, contractValue: null, actualValue: null, bookedCheckOutDate: null };
+          resetCheckoutPolicyControls();
           const room = roomsCache.find(rm => rm.id === res.room_id);
           const pricePerNight = parseFloat(res.custom_nightly_price || res.price_per_night || (room ? room.price_per_night : 0)) || 0;
           const [y1, m1, d1] = (res.check_in_date || todayStr).split('-').map(Number);
@@ -4261,27 +4393,63 @@
     });
   }
 
+  // Admin-only monthly early-checkout policy. Changing it re-fetches the preview so
+  // the charged total always comes from the backend, never from local arithmetic.
+  function refreshSettlementPreview() {
+    if (!currentSettlingReservation) return;
+    const discVal = Math.max(0, parseFloat(settleDiscountInput ? settleDiscountInput.value : 0) || 0);
+    const discReason = settleDiscountReasonInput ? settleDiscountReasonInput.value.trim() : '';
+    return window.api.checkoutPreview(currentSettlingReservation.id, {
+      discountAmount: discVal,
+      discountReason: discReason,
+      lateCheckoutFee: Math.max(0, parseFloat(settleLateCheckoutFeeInput?.value || 0) || 0),
+      checkoutPolicy: getSelectedCheckoutPolicy(),
+      checkoutPolicyReason: getSelectedCheckoutPolicyReason()
+    }).then(previewRes => {
+      if (previewRes && previewRes.success && previewRes.data) {
+        currentSettlementPreview = previewRes.data;
+        settlePolicyState = {
+          applicable: Boolean(previewRes.data.isMonthlyEarlyCheckout),
+          canChoose: Boolean(previewRes.data.canChoosePolicy),
+          mismatch: Boolean(previewRes.data.contractValueMismatch),
+          bookedNights: previewRes.data.bookedNights ?? null,
+          contractValue: previewRes.data.contractValue ?? null,
+          actualValue: previewRes.data.actualValue ?? null,
+          bookedCheckOutDate: previewRes.data.bookedCheckOutDate ?? null
+        };
+        renderCheckoutPolicySection();
+      }
+    }).catch(() => { /* silent — updateSettleCalculations will use the stale preview */ });
+  }
+
+  function onCheckoutPolicyChanged() {
+    if (!settlePolicyState.applicable || !settlePolicyState.canChoose) return;
+    if (settlePolicyReasonWrap) {
+      settlePolicyReasonWrap.style.display = settlePolicyActual && settlePolicyActual.checked ? 'block' : 'none';
+    }
+    if (currentSettlingReservation && currentSettlingReservation.booking_type === 'عقد مفتوح') return;
+    refreshSettlementPreview().then(() => updateSettleCalculations());
+  }
+  if (settlePolicyContract) settlePolicyContract.addEventListener('change', onCheckoutPolicyChanged);
+  if (settlePolicyActual) settlePolicyActual.addEventListener('change', onCheckoutPolicyChanged);
+
   // Admin-only: when discount changes, re-fetch preview so the net total updates
   if (settleDiscountInput) {
     settleDiscountInput.addEventListener('input', async () => {
       if (!currentSettlingReservation) return;
       const isContract = currentSettlingReservation.booking_type === 'عقد مفتوح';
       if (!isContract) {
-        // Re-fetch preview with updated discount
-        const discVal = Math.max(0, parseFloat(settleDiscountInput.value) || 0);
-        const discReason = settleDiscountReasonInput ? settleDiscountReasonInput.value.trim() : '';
-        try {
-          const previewRes = await window.api.checkoutPreview(currentSettlingReservation.id, {
-            discountAmount: discVal,
-            discountReason: discReason,
-            lateCheckoutFee: Math.max(0, parseFloat(settleLateCheckoutFeeInput?.value || 0) || 0)
-          });
-          if (previewRes && previewRes.success && previewRes.data) {
-            currentSettlementPreview = previewRes.data;
-            if (settleFinalTotalInput) settleFinalTotalInput.value = previewRes.data.netCharge.toFixed(2);
-            if (settleTotalPriceDisplay) settleTotalPriceDisplay.textContent = `${previewRes.data.baseCharge.toFixed(2)} ريال`;
-          }
-        } catch (e) { /* silent — updateSettleCalculations will use stale preview */ }
+        // Re-fetch preview with updated discount. refreshSettlementPreview also carries
+        // the selected policy, so a monthly early checkout keeps charging its
+        // contract value while the discount is edited.
+        await refreshSettlementPreview();
+        if (settleFinalTotalInput && currentSettlementPreview) {
+          settleFinalTotalInput.value = currentSettlementPreview.netCharge.toFixed(2);
+        }
+        if (settleTotalPriceDisplay) {
+          const baseShown = settlePolicyState.applicable ? settlePolicyState.contractValue : currentSettlementPreview.baseCharge;
+          settleTotalPriceDisplay.textContent = `${Number(baseShown).toFixed(2)} ريال`;
+        }
         updateSettleCalculations();
       } else {
         // Open-contract: compute locally
@@ -4332,7 +4500,7 @@
       try {
         const payload = isContract
           ? { finalTotalPrice: finalTotal, settleAmount: 0, discountAmount: discAmount, discountReason: discReason, notes: 'تسجيل مغادرة بدون تحصيل (آجل)' }
-          : { settleMode: 'defer', discountAmount: discAmount, discountReason: discReason, lateCheckoutFee: Math.max(0, parseFloat(settleLateCheckoutFeeInput?.value || 0) || 0), ...getDepositCheckoutPayload() };
+          : { settleMode: 'defer', discountAmount: discAmount, discountReason: discReason, lateCheckoutFee: Math.max(0, parseFloat(settleLateCheckoutFeeInput?.value || 0) || 0), ...getCheckoutPolicyPayload(), ...getDepositCheckoutPayload() };
         if (isContract) Object.assign(payload, getDepositCheckoutPayload());
         const res = await window.api.checkoutReservation(resId, payload);
         if (res.success) {
@@ -4355,7 +4523,11 @@
       if (!currentSettlingReservation) return;
       const resId = currentSettlingReservation.id;
       const isContract = currentSettlingReservation.booking_type === 'عقد مفتوح';
-      const finalTotal = parseFloat(settleFinalTotalInput ? settleFinalTotalInput.value : 0) || 0;
+      // For a monthly early checkout the chargeable total follows the selected policy,
+      // NOT settleFinalTotalInput (which mirrors the actual-nights preview figure).
+      const finalTotal = isContract
+        ? (parseFloat(settleFinalTotalInput ? settleFinalTotalInput.value : 0) || 0)
+        : getSettlementChargeTotal();
       const discAmount = settleDiscountInput ? parseFloat(settleDiscountInput.value) || 0 : 0;
       const discReason = settleDiscountReasonInput ? settleDiscountReasonInput.value.trim() : '';
 
@@ -4370,6 +4542,14 @@
       if (!isContract && discAmount > 0 && !discReason) {
         showToast('يرجى إدخال سبب الخصم عند تطبيق خصم على المغادرة.', 'error');
         if (settleDiscountReasonInput) settleDiscountReasonInput.focus();
+        return;
+      }
+
+      // Monthly early checkout: an Admin 'actual' selection requires a reason.
+      const policyPayload = getCheckoutPolicyPayload();
+      if (policyPayload.checkoutPolicy === 'actual' && !policyPayload.checkoutPolicyReason) {
+        showToast('يرجى إدخال سبب اختيار احتساب الليالي الفعلية بدل قيمة العقد.', 'error');
+        if (settlePolicyReasonInput) settlePolicyReasonInput.focus();
         return;
       }
 
@@ -4394,12 +4574,12 @@
           showToast('يرجى إدخال مبلغ الاسترداد.', 'error');
           return;
         }
-        payload = { settleMode: 'refund', refundAmount: rawRefund, paymentMethod: refundMethod, discountAmount: discAmount, discountReason: discReason, lateCheckoutFee: Math.max(0, parseFloat(settleLateCheckoutFeeInput?.value || 0) || 0), ...depositPayload };
+        payload = { settleMode: 'refund', refundAmount: rawRefund, paymentMethod: refundMethod, discountAmount: discAmount, discountReason: discReason, lateCheckoutFee: Math.max(0, parseFloat(settleLateCheckoutFeeInput?.value || 0) || 0), ...policyPayload, ...depositPayload };
       } else {
         // Collect now path
         const payNow = parseFloat(settlePayNowInput ? settlePayNowInput.value : 0) || 0;
         const method = settlePaymentMethodSelect ? settlePaymentMethodSelect.value : 'نقداً';
-        payload = { settleMode: payNow > 0 ? 'collect' : 'defer', collectAmount: payNow, paymentMethod: method, discountAmount: discAmount, discountReason: discReason, lateCheckoutFee: Math.max(0, parseFloat(settleLateCheckoutFeeInput?.value || 0) || 0), ...depositPayload };
+        payload = { settleMode: payNow > 0 ? 'collect' : 'defer', collectAmount: payNow, paymentMethod: method, discountAmount: discAmount, discountReason: discReason, lateCheckoutFee: Math.max(0, parseFloat(settleLateCheckoutFeeInput?.value || 0) || 0), ...policyPayload, ...depositPayload };
       }
 
       try {
@@ -5078,13 +5258,44 @@
       const d2 = inv.check_out_date ? new Date(inv.check_out_date) : null;
       const nights = (d1 && d2 && d2 > d1) ? Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24))) : (isContract ? '-' : 1);
       const stayDurationText = isContract ? 'عقد مفتوح (غير محدد)' : (inv.booking_type === 'استخدام يومي' ? 'يوم استخدام' : `${nights} ${nights === 1 ? 'ليلة' : 'ليالٍ'}`);
-      const checkOutDisplay = inv.check_out_date ? `${escapeHtml(inv.check_out_date)} (${stayDurationText})` : 'مفتوح (غير محدد)';
+
+      // Monthly early checkout recorded under the contract policy: the invoice must
+      // show the BOOKED nights and departure date, not the elapsed ones, and note
+      // the early departure. Legacy rows have no checkout_policy and render as before.
+      const isContractPolicy = inv.checkout_policy === 'contract';
+      const isActualPolicy = inv.checkout_policy === 'actual';
+      let bookedNights = null;
+      let checkOutDisplay;
+      if (isContractPolicy && inv.booked_check_out_date) {
+        const b1 = inv.check_in_date ? new Date(inv.check_in_date) : null;
+        const b2 = new Date(inv.booked_check_out_date);
+        if (b1 && b2 > b1) bookedNights = Math.max(1, Math.round((b2 - b1) / (1000 * 60 * 60 * 24)));
+        const bookedWord = bookedNights === 1 ? 'ليلة' : 'ليالٍ';
+        checkOutDisplay = `${escapeHtml(inv.check_out_date)} (غادر مبكراً — ${bookedNights} ${bookedWord} محجوزة حتى ${escapeHtml(inv.booked_check_out_date)})`;
+      } else {
+        checkOutDisplay = inv.check_out_date ? `${escapeHtml(inv.check_out_date)} (${stayDurationText})` : 'مفتوح (غير محدد)';
+      }
+
+      const policyNote = isContractPolicy
+        ? 'تم الاحتساب بقيمة العقد الكاملة (لا يشمل استرداد الليالي غير المستخدمة).'
+        : (isActualPolicy
+          ? `تم الاحتساب بالليالي الفعلية بناء على استثناء معتمد: ${escapeHtml(inv.checkout_policy_reason || 'بدون سبب مذكور')}`
+          : '');
 
       const effectiveNightlyRate = parseFloat(inv.custom_nightly_price || inv.price_per_night || 0);
       const discount = parseFloat(inv.discount_amount || 0);
       const discountReasonText = inv.discount_reason ? ` (${escapeHtml(inv.discount_reason)})` : '';
       const hasCancellationAdjustment = (inv.status === 'ملغي جزئي' || inv.status === 'ملغي جزئياً') && inv.original_calculated_charge != null;
-      const baseSubtotal = (typeof nights === 'number' && nights > 0) ? (nights * effectiveNightlyRate) : (total + discount);
+      // Under the contract policy the invoice bills the BOOKED nights, so the
+      // subtotal must use those. Otherwise it would show 1 night x rate and
+      // contradict the stored contract total.
+      const invoiceNights = (isContractPolicy && bookedNights) ? bookedNights : nights;
+      const invoiceDurationText = (isContractPolicy && bookedNights)
+        ? `${bookedNights} ${bookedNights === 1 ? 'ليلة' : 'ليالٍ'} (قيمة العقد)`
+        : stayDurationText;
+      const baseSubtotal = (typeof invoiceNights === 'number' && invoiceNights > 0)
+        ? (invoiceNights * effectiveNightlyRate)
+        : (total + discount);
 
       const invoiceYear = (inv.created_at ? new Date(inv.created_at) : new Date()).getFullYear() || new Date().getFullYear();
       const invoiceNum = `SND-${invoiceYear}-${String(inv.id).padStart(5, '0')}`;
@@ -5148,6 +5359,7 @@
                 <div><strong>وقت الحجز:</strong> <span style="font-family: monospace;">${escapeHtml(inv.booking_time || '-')}</span></div>
                 <div><strong>تاريخ المغادرة:</strong> ${checkOutDisplay}</div>
                 ${inv.checkout_time ? `<div><strong>وقت المغادرة:</strong> <span style="font-family: monospace;">${escapeHtml(inv.checkout_time)}</span></div>` : ''}
+                ${policyNote ? `<div style="margin-top:6px; padding:6px 8px; border-radius:6px; background:#eef2ff; color:#3730a3; font-size:0.8rem; font-weight:700;">${policyNote}</div>` : ''}
               </div>
             </div>
           </div>
@@ -5169,7 +5381,7 @@
                   <div style="font-size: 0.78rem; color: #64748b;">نوع الوحدة: ${escapeHtml(inv.room_type || 'عادية')} ${inv.custom_nightly_price ? '<span style="color:#166534; font-weight:700;">(سعر خاص معتمد)</span>' : ''}</div>
                 </td>
                 <td style="padding: 12px 14px; text-align: center;">${effectiveNightlyRate.toLocaleString()} ريال</td>
-                <td style="padding: 12px 14px; text-align: center; font-weight: 700;">${stayDurationText}</td>
+                <td style="padding: 12px 14px; text-align: center; font-weight: 700;">${invoiceDurationText}</td>
                 <td style="padding: 12px 14px; text-align: left; font-weight: 800; color: #1e1b4b;">${baseSubtotal.toLocaleString()} ريال</td>
               </tr>
               ${discount > 0 ? `

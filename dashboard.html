@@ -2139,6 +2139,34 @@
           <button type="button" id="btn-reconcile-legacy-deposit" style="display:none; margin-top:8px; padding:6px 10px; border:1px solid #fdba74; border-radius:7px; background:#fff7ed; color:#9a3412; font-weight:700; cursor:pointer;">تأكيد مطابقة الرصيد التاريخي كمدير</button>
         </div>
 
+        <!-- Monthly early-checkout policy (Admin only, shown by JS when applicable) -->
+        <div id="settle-policy-section" style="display:none; margin-bottom:12px; padding:11px 12px; border:1px solid #c7d2fe; border-radius:10px; background:#eef2ff;">
+          <div style="font-size:.82rem; font-weight:800; color:#3730a3; margin-bottom:3px;">
+            حجز شهري وغادر مبكراً <span style="color:#b91c1c; font-size:0.7rem;">(مدير النظام فقط)</span>
+          </div>
+          <div id="settle-policy-summary" style="font-size:.76rem; color:#4338ca; margin-bottom:8px; line-height:1.6;"></div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <label style="display:flex; align-items:flex-start; gap:7px; font-size:.8rem; color:#1e1b4b; cursor:pointer;">
+              <input type="radio" name="settle-checkout-policy" id="settle-policy-contract" value="contract" checked style="margin-top:3px;">
+              <span>
+                <strong>قيمة العقد</strong> — الافتراضي
+                <div style="font-size:.72rem; color:#475569;">تُحتسب قيمة الليالي المحجوزة كاملة. الليالي غير المستخدمة لا تُسترد.</div>
+              </span>
+            </label>
+            <label style="display:flex; align-items:flex-start; gap:7px; font-size:.8rem; color:#1e1b4b; cursor:pointer;">
+              <input type="radio" name="settle-checkout-policy" id="settle-policy-actual" value="actual" style="margin-top:3px;">
+              <span>
+                <strong>الليالي الفعلية</strong> — استثناء
+                <div style="font-size:.72rem; color:#475569;">تُحتسب الليالي التي أقامها النزيل فعلياً فقط، ويشترط تسجيل السبب.</div>
+              </span>
+            </label>
+          </div>
+          <div id="settle-policy-reason-wrap" style="display:none; margin-top:8px;">
+            <label for="settle-policy-reason-input" style="font-weight:700; font-size:0.8rem; color:#3730a3; margin-bottom:4px; display:block;">سبب اختيار الليالي الفعلية <span style="color:#b91c1c;">*</span></label>
+            <input type="text" id="settle-policy-reason-input" placeholder="مثال: طلب النزيل إنهاء الحجز مبكراً" class="form-control" style="font-size:0.82rem;">
+          </div>
+        </div>
+
         <!-- Discount at Checkout (Admin only – hidden for non-Admin by JS) -->
         <div id="settle-discount-section" style="display: none; margin-bottom: 12px;">
           <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
