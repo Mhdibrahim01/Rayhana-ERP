@@ -62,7 +62,7 @@ test('revenue and dashboard reports include completed, active, and refunded ledg
       assertDatabaseIntegrity(connection, 'report seed: active and future');
     });
 
-    await t.test('monthly revenue nets partial refunds and excludes fully cancelled stays', () => {
+    await t.test('monthly revenue nets partial refunds and includes cancelled stay payments', () => {
       const month = today.slice(0, 7);
       const monthly = db.getMonthlyRevenue().find(row => row.month === month);
       assert.ok(monthly, `Expected monthly data for ${month}`);
