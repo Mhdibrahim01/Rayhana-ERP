@@ -384,6 +384,85 @@ test('monthly early checkout: helpers and the invoice projection', async t => {
       assert.equal(appDb.computeCheckoutSettlement(id, {}).contractValue, contract.contractValue);
     });
 
+    await t.test('a stored custom rate of 0 falls back to the room rate, not an error', () => {
+      // createReservation accepts customNightlyPrice: 0, and the Extend Stay modal used
+      // to submit exactly that. The contract path used to treat 0 as a real rate, which
+      // threw in BOTH the preview and the checkout and left the row impossible to settle.
+      // The Extend Stay modal stored this by submitting a 0 rate on an existing
+      // booking, so reproduce it the same way: create normally, then store 0.
+      // The room rate is 200 and the booking carries no custom rate, so once the
+      // stored 0 falls back to the room rate the contract value is 30 x 200 = 6000
+      // and total_price must match it for the default path to be allowed.
+      const id = createEarlyMonthly(appDb, { paid: 0, roomPrice: 200, tag: 'ZERORATE' });
+      connection.getDb().run('UPDATE reservations SET custom_nightly_price = 0, total_price = 6000 WHERE id = ?', [id]);
+      const row = connection.queryOne(
+        `SELECT r.check_in_date, r.check_out_date, r.custom_nightly_price, rm.price_per_night, r.discount_amount
+         FROM reservations r JOIN rooms rm ON rm.id = r.room_id
+         WHERE r.id = ?`,
+        [id]
+      );
+      assert.equal(row.custom_nightly_price, 0, 'the reservation really does store a 0 rate');
+
+      const contract = appDb.computeContractValue(row);
+      assert.equal(contract.storedRate, row.price_per_night, 'falls back to the room rate');
+      assert.equal(contract.contractValue, 30 * row.price_per_night);
+
+      // The preview must load, or the receptionist can never open the modal.
+      const preview = appDb.computeCheckoutSettlement(id, {});
+      assert.equal(preview.isMonthlyEarlyCheckout, true);
+      assert.equal(preview.contractValue, contract.contractValue);
+      assert.equal(preview.actualValue, 10 * row.price_per_night);
+
+      // And the checkout must complete under the default contract policy.
+      const result = appDb.checkoutReservation(id, { settleMode: 'defer' });
+      assert.equal(result.success, true);
+      assert.equal(result.checkoutPolicy, 'contract');
+      assert.equal(result.finalTotal, contract.contractValue);
+      assertDatabaseIntegrity(connection, 'zero custom rate falls back to the room rate');
+    });
+
+    await t.test('a room whose own rate is 0 is still refused', () => {
+      // The remaining guard: with no custom rate AND no room rate there is no
+      // defensible contract value, so the helper must still throw.
+      assert.throws(
+        () => appDb.computeContractValue({ check_in_date: '2026-01-01', check_out_date: '2026-01-31', custom_nightly_price: 0, price_per_night: 0, discount_amount: 0 }),
+        /سعر الليلة غير صالح/
+      );
+    });
+
+    await t.test('extending with a zero nightly rate is rejected instead of stored', () => {
+      const today = appDb.getLocalDateString();
+      const room = addRoom('MC-EXTZERO', 200);
+      const id = appDb.createReservation({
+        guestName: 'Extend Zero',
+        guestPhone: '0500000801',
+        guestIdNumber: '1000000801',
+        roomId: room.id,
+        checkInDate: today,
+        bookingType: 'حجز شهري',
+        customNightlyPrice: 150,
+        totalPrice: 4500,
+        paidAmount: 0
+      }).reservationId;
+      const bookedOut = connection.queryOne('SELECT check_out_date FROM reservations WHERE id = ?', [id]).check_out_date;
+
+      // This is what the Extend Stay modal sent when its rate box was left at 0.
+      assert.throws(
+        () => appDb.extendReservation({ reservationId: id, newCheckOutDate: addDays(bookedOut, 15), customNightlyPrice: 0 }),
+        /سعر الليلة يجب أن يكون أكبر من الصفر/
+      );
+
+      // Nothing may have moved: the booking keeps its rate, total and dates.
+      const after = connection.queryOne(
+        'SELECT check_out_date, total_price, custom_nightly_price, status FROM reservations WHERE id = ?',
+        [id]
+      );
+      assert.equal(after.custom_nightly_price, 150, 'the 0 must not overwrite the stored rate');
+      assert.equal(after.total_price, 4500, 'the extra nights must not be billed at 0');
+      assert.equal(after.check_out_date, bookedOut, 'the extension must not have applied');
+      assert.equal(after.status, 'مؤكد');
+    });
+
     await t.test('a zero stored rate is refused by the contract-value helper', () => {
       assert.throws(
         () => appDb.computeContractValue({ check_in_date: '2026-01-01', check_out_date: '2026-01-31', custom_nightly_price: null, price_per_night: 0, discount_amount: 0 }),

@@ -4868,7 +4868,9 @@
         const res = await window.api.extendReservation({
           reservationId: currentExtendingReservation.id,
           newCheckOutDate: newDate,
-          customNightlyPrice: !isNaN(nightlyRate) && nightlyRate >= 0 ? nightlyRate : undefined,
+          // Treat a blank/zero rate box as "use the stored rate" rather than
+          // submitting 0, which the backend rejects as a missing value.
+          customNightlyPrice: !isNaN(nightlyRate) && nightlyRate > 0 ? nightlyRate : undefined,
           discountAmount: discount,
           additionalCost: currentCalcAdditionalCost,
           settleAmount: settle,
