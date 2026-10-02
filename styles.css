@@ -2208,6 +2208,9 @@ body.login-body {
   body.printing-invoice #invoice-modal > div {
     max-width: 100% !important;
     width: 100% !important;
+    max-height: none !important;
+    display: block !important;
+    overflow: visible !important;
     box-shadow: none !important;
     border: none !important;
     margin: 0 !important;
@@ -2237,8 +2240,16 @@ body.login-body {
   #shift-audit-content {
     padding: 0 !important;
     margin: 0 !important;
+    min-height: 0 !important;
+    min-width: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
     display: block !important;
     background: white !important;
     color: #0f172a !important;
+  }
+
+  #invoice-printable-area > div {
+    zoom: 1 !important;
   }
 }

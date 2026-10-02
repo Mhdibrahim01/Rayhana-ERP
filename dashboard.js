@@ -5211,6 +5211,28 @@
   // =========================================================================
   // OFFICIAL HOTEL TAX INVOICE & RECEIPT (FEATURE 1)
   // =========================================================================
+  function fitInvoicePreviewToViewport() {
+    if (!invoicePrintableArea || !invoiceModal || invoiceModal.style.display === 'none') return;
+    const invoiceCard = invoicePrintableArea.firstElementChild;
+    if (!invoiceCard) return;
+
+    // Keep the complete receipt visible in the preview. Printed/PDF receipts use
+    // the unscaled HTML, so this only adapts the on-screen modal to the window.
+    invoiceCard.style.zoom = '1';
+    const availableHeight = invoicePrintableArea.clientHeight;
+    const availableWidth = invoicePrintableArea.clientWidth;
+    if (!availableHeight || !availableWidth) return;
+
+    const scale = Math.min(
+      1,
+      availableHeight / invoiceCard.scrollHeight,
+      availableWidth / invoiceCard.scrollWidth
+    );
+    invoiceCard.style.zoom = String(scale);
+  }
+
+  window.addEventListener('resize', fitInvoicePreviewToViewport);
+
   async function openInvoiceModal(reservationId) {
     const targetId = parseInt(reservationId, 10);
     if (!targetId || isNaN(targetId)) {
@@ -5510,6 +5532,7 @@
 
       if (invoiceModal) {
         invoiceModal.style.display = 'flex';
+        requestAnimationFrame(fitInvoicePreviewToViewport);
       }
     } catch (err) {
       console.error('Invoice error:', err);
