@@ -317,11 +317,23 @@ function createReservation({
     const effectiveRate = normCustomNightlyPrice !== null ? normCustomNightlyPrice : roomRow.price_per_night;
     const baseTotal = roundMoney(effectiveRate * 30);
     total = Math.max(0, roundMoney(baseTotal - normDiscountAmount));
-    if (totalPrice !== undefined && totalPrice !== null && !isNaN(parseFloat(totalPrice))) {
+
+    // A monthly booking has an authoritative total: booked nights x rate - discount.
+    // A caller-supplied total used to silently replace it, which is how total_price
+    // drifted away from the stored dates and rate and later tripped the
+    // contract-value guard at checkout. Accept a supplied total only when it agrees.
+    if (totalPrice !== undefined && totalPrice !== null && totalPrice !== '' && !isNaN(parseFloat(totalPrice))) {
       const passedTotal = roundMoney(totalPrice);
-      if (passedTotal >= 0) {
-        total = passedTotal;
+      if (passedTotal < 0) {
+        throw new Error('قيمة الحجز لا يمكن أن تكون سالبة.');
       }
+      if (Math.abs(passedTotal - total) > 0.005) {
+        throw new Error(
+          `قيمة الحجز المُدخلة (${passedTotal} ريال) لا تطابق القيمة المحسوبة من الليالي والسعر والخصم (${total} ريال). ` +
+          'يرجى مراجعة البيانات المدخلة.'
+        );
+      }
+      total = passedTotal;
     }
 
     if (!computedCheckOutDate) {
