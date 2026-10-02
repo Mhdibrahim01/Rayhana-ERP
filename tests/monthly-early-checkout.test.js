@@ -716,7 +716,15 @@ test('monthly early checkout: the IPC layer enforces the Admin-only exception', 
         paidAmount: 0
       });
       assert.equal(res.success, false);
-      assert.match(res.error, /Access Denied/);
+      // Either refusal is correct: the session guard now runs before the Admin check,
+      // so a logged-out caller is turned away with the login message rather than
+      // "Access Denied". What matters is that it is refused and nothing is written.
+      assert.match(res.error, /Access Denied|تسجيل الدخول/);
+
+      const row = connection.queryOne(
+        'SELECT total_price, paid_amount FROM reservations WHERE id = ?', [created.reservationId]);
+      assert.equal(row.total_price, 400, 'the stored total must be untouched');
+      assert.equal(row.paid_amount, 200, 'the stored paid amount must be untouched');
     });
   });
 });
