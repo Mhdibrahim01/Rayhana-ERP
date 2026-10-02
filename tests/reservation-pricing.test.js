@@ -32,6 +32,60 @@ test('reservation creation stores custom rates and applies monthly discounts', a
       assertDatabaseIntegrity(connection, 'monthly custom rate and discount');
     });
 
+    await t.test('a supplied monthly total that disagrees with the computed one is rejected', () => {
+      // 30 nights x 150 less a 300 discount = 4200. The caller used to be able to
+      // store any number, which is how total_price drifted away from the stored
+      // dates and rate and later tripped the contract-value guard at checkout.
+      const room = addRoom('PR-DRIFT', 200);
+      assert.throws(
+        () => appDb.createReservation({
+          guestName: 'Monthly Drift',
+          guestPhone: '0500000310',
+          guestIdNumber: '1000000310',
+          roomId: room.id,
+          checkInDate: today,
+          bookingType: 'حجز شهري',
+          customNightlyPrice: 150,
+          discountAmount: 300,
+          discountReason: 'خصم اختبار',
+          totalPrice: 9999
+        }),
+        /لا تطابق القيمة المحسوبة/
+      );
+
+      // Each remaining case uses its own room: the overlap guard correctly refuses
+      // two confirmed bookings in the same room for the same dates.
+      // A total that agrees with the computed value is still accepted.
+      const ok = appDb.createReservation({
+        guestName: 'Monthly Agreed',
+        guestPhone: '0500000311',
+        guestIdNumber: '1000000311',
+        roomId: addRoom('PR-DRIFT-OK', 200).id,
+        checkInDate: today,
+        bookingType: 'حجز شهري',
+        customNightlyPrice: 150,
+        discountAmount: 300,
+        discountReason: 'خصم اختبار',
+        totalPrice: 4200
+      });
+      assert.equal(appDb.getReservationById(ok.reservationId).total_price, 4200);
+
+      // Omitting the total entirely still lets the backend compute it.
+      const auto = appDb.createReservation({
+        guestName: 'Monthly Auto',
+        guestPhone: '0500000312',
+        guestIdNumber: '1000000312',
+        roomId: addRoom('PR-DRIFT-AUTO', 200).id,
+        checkInDate: today,
+        bookingType: 'حجز شهري',
+        customNightlyPrice: 150,
+        discountAmount: 300,
+        discountReason: 'خصم اختبار'
+      });
+      assert.equal(appDb.getReservationById(auto.reservationId).total_price, 4200);
+      assertDatabaseIntegrity(connection, 'monthly total must match the computed value');
+    });
+
     await t.test('regular booking persists an explicit custom rate and discount metadata', () => {
       const room = addRoom('PR-REGULAR', 200);
       const created = appDb.createReservation({
