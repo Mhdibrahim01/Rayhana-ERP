@@ -4,6 +4,12 @@
  */
 
 module.exports = function registerGuestsIpc(ipcMain, { db, session }) {
+  function requireSession() {
+    return session.currentUser
+      ? null
+      : { success: false, error: 'غير مصرح: يرجى تسجيل الدخول أولاً.' };
+  }
+
   function validateGuestData(data) {
     if (!data || typeof data !== 'object') {
       return { valid: false, error: 'بيانات النزيل غير صالحة.' };
@@ -33,6 +39,9 @@ module.exports = function registerGuestsIpc(ipcMain, { db, session }) {
 
   // 6. Guests & Customers (Server-Side Pagination)
   ipcMain.handle('guests:get-all', async (event, params = {}) => {
+    const authError = requireSession();
+    if (authError) return authError;
+
     try {
       if (params && (params.page !== undefined || params.limit !== undefined || params.search !== undefined || params.banFilter !== undefined)) {
         const result = db.getGuestsPaginated(params);
@@ -54,6 +63,9 @@ module.exports = function registerGuestsIpc(ipcMain, { db, session }) {
   });
 
   ipcMain.handle('guests:get-paginated', async (event, params = {}) => {
+    const authError = requireSession();
+    if (authError) return authError;
+
     try {
       const result = db.getGuestsPaginated(params);
       return { 
@@ -114,6 +126,9 @@ module.exports = function registerGuestsIpc(ipcMain, { db, session }) {
 
   // Search Returning Guest for Auto-fill (by phone number or ID number)
   const handleSearchGuest = async (event, queryData) => {
+    const authError = requireSession();
+    if (authError) return authError;
+
     try {
       let guest = null;
       if (typeof queryData === 'string') {
@@ -160,6 +175,9 @@ module.exports = function registerGuestsIpc(ipcMain, { db, session }) {
 
   // 7. Excel & CSV Bulk Import
   const handleImportGuests = async (event, guestsList) => {
+    const authError = requireSession();
+    if (authError) return authError;
+
     try {
       if (!Array.isArray(guestsList) || guestsList.length === 0) {
         return { success: false, message: 'مصفوفة بيانات النزلاء فارغة أو غير صالحة.' };
