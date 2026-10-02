@@ -23,6 +23,13 @@ const ROOM_DEFINITIONS = [
   ['217', 'مزدوجة كلاسيكية (Classic Double)', 250], ['218', 'جناح ملكي (Royal Suite)', 1200],
   ['219', 'غرفة أعمال (Business)', 520], ['220', 'غرفة ثلاثية (Triple)', 500],
   ['221', 'مزدوجة ديلوكس (Double Deluxe)', 450], ['222', 'جناح صغير (Junior Suite)', 680],
+  // 400-406 are reserved for the monthly early-checkout policy scenarios (SC-30..34).
+  // 400-404 stay OPEN for manual testing; 405-406 hold the already-settled invoice rows,
+  // so they never overlap the open ones.
+  ['400', 'شقة شهرية (Monthly 1BR)', 150], ['401', 'شقة شهرية (Monthly 2BR)', 180],
+  ['402', 'شقة شهرية (Monthly Studio)', 130], ['403', 'شقة شهرية مفروشة شهرياً', 200],
+  ['404', 'شقة شهرية عائلية', 250], ['405', 'شقة شهرية (مغادرة مبكرة)', 150],
+  ['406', 'شقة شهرية (استثناء مدير)', 150],
   ...Array.from({ length: 20 }, (_, i) => [String(300 + i), `وحدة تاريخية ${i + 1} (Archive)`, 240 + (i % 5) * 90])
 ];
 
@@ -347,6 +354,76 @@ async function seed(outputPath, today, includeFutureCases) {
   entries.find(row => row.scenario === '24').deposit = appDb.getReservationById(cancelledDeposit.id).deposit_ledger_balance;
   entries.find(row => row.scenario === '24').expected += ' (تأمين 15 ريال مردود)';
 
+  // 30–34: monthly early-checkout policy (see db/reservations.js computeContractValue).
+  // Every case below is a REAL 'حجز شهري' booking left open at checkout time so the
+  // modal can be driven by hand, plus two already-settled rows for the invoice.
+  const MONTHLY_RATE = 150;
+  const MONTHLY_TOTAL = MONTHLY_RATE * 30; // 4500 = the contract value
+
+  // SC-30: fully paid, leaving 10 days in. Contract default => nothing owed, no refund.
+  const p30 = addScenario('30', 'SC-30 Policy: fully paid monthly early exit', '400', -10, 20,
+    { total: MONTHLY_TOTAL, paid: MONTHLY_TOTAL, method: 'نقداً', bookingType: 'حجز شهري', rate: MONTHLY_RATE },
+    'مدفوع بالكامل: يعرض "مُسوّى" — لا تحصيل ولا استرداد (قيمة العقد 4500)');
+  sqlRun('UPDATE reservations SET check_in_date = ?, check_out_date = ? WHERE id = ?', [addDays(today, -10), addDays(today, 20), p30.id]);
+
+  // SC-31: partly paid. Contract default => the remaining 2500 is an amount due.
+  addScenario('31', 'SC-31 Policy: partly paid monthly early exit', '401', -10, 20,
+    { total: MONTHLY_TOTAL, paid: 2000, method: 'بطاقة / مدى', bookingType: 'حجز شهري', rate: MONTHLY_RATE },
+    'تحصيل أو تأجيل 2500 ريال (قيمة العقد) — تحصيل 1000 و2500 معاً كدليل على تجاوز المبلغ');
+
+  // SC-32: overpaid. Contract default => only the 500 excess is refundable.
+  // createReservation refuses paid > total, so the extra payment is booked directly in
+  // the ledger the way an adjusted or legacy row would look.
+  const p32 = addScenario('32', 'SC-32 Policy: overpaid monthly early exit', '402', -10, 20,
+    { total: MONTHLY_TOTAL, paid: MONTHLY_TOTAL, method: 'تحويل بنكي', bookingType: 'حجز شهري', rate: MONTHLY_RATE },
+    'مدفوع 500 زيادة: الاسترداد المعروض يجب أن يكون 500 فقط (فائض فوق قيمة العقد)');
+  sqlRun('UPDATE reservations SET paid_amount = ? WHERE id = ?', [MONTHLY_TOTAL + 500, p32.id]);
+  sqlRun(
+    `INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, notes)
+     VALUES (?, ?, 500, 'تحويل بنكي', datetime('now', 'localtime'), 'دفعة زائدة عن قيمة العقد')`,
+    [`REC-2026-0032-${p32.id}`, p32.id]
+  );
+  entries.find(row => row.scenario === '32').paid = MONTHLY_TOTAL + 500;
+
+  // SC-33: a stored discount that is NOT prorated under the contract policy.
+  // 30 x 150 = 4500 less a 600 contract discount = 3900.
+  const p33 = addScenario('33', 'SC-33 Policy: monthly discount is not prorated', '403', -10, 20,
+    { total: MONTHLY_TOTAL - 600, paid: MONTHLY_TOTAL - 600, method: 'نقداً', bookingType: 'حجز شهري', rate: MONTHLY_RATE, discount: 600 },
+    'قيمة العقد 3900 (خصم 600 كامل). استثناء "الليالي الفعلية" يعطي 1300 بعد prorate');
+  sqlRun('UPDATE reservations SET discount_reason = ? WHERE id = ?', ['خصم تعاقد سنوي', p33.id]);
+
+  // SC-34: total_price deliberately disagrees with the computed contract value, so the
+  // default path must be rejected with the Arabic review error and only the Admin
+  // 'actual' exception can proceed. Mirrors a legacy / edited-receipt row.
+  const p34 = addScenario('34', 'SC-34 Policy: contract value mismatch needs review', '404', -10, 20,
+    { total: 3200, paid: 3200, method: 'نقداً', bookingType: 'حجز شهري', rate: MONTHLY_RATE },
+    'تحذير عدم تطابق: قيمة العقد 4500 ≠ المخزن 3200 — يُرفض "قيمة العقد" ويُقبل استثناء المدير');
+  sqlRun('UPDATE reservations SET total_price = 3200 WHERE id = ?', [p34.id]);
+
+  // Two already-settled rows so the INVOICE can be inspected for both policies.
+  // Both start 10 days ago and were booked 30 nights, so settling them today is an
+  // EARLY checkout and the policy actually applies. check_out_date is then rewritten
+  // to the settlement date so they read as completed history.
+  const invContract = addScenario('30I', 'SC-30I Settled under the contract policy', '405', -10, 20,
+    { total: MONTHLY_TOTAL, paid: MONTHLY_TOTAL, method: 'نقداً', bookingType: 'حجز شهري', rate: MONTHLY_RATE },
+    'فاتورة تُظهر الليالي المحجوزة وتاريخ المغادرة الأصلي');
+  const settledContract = appDb.checkoutReservation(invContract.id, { settleMode: 'defer' });
+  entries.find(row => row.scenario === '30I').expected =
+    `مكتمل بقيمة العقد ${settledContract.finalTotal} ريال — الفاتورة تعرض الليالي المحجوزة`;
+  setReservationStatus(invContract.id, 'مكتمل', addDays(today, -10));
+
+  const invActual = addScenario('34I', 'SC-34I Settled under the Admin actual exception', '406', -10, 20,
+    { total: MONTHLY_TOTAL, paid: 0, method: 'نقداً', bookingType: 'حجز شهري', rate: MONTHLY_RATE },
+    'فاتورة تُظهر الليالي الفعلية وسبب الاستثناء');
+  const settledActual = appDb.checkoutReservation(invActual.id, {
+    settleMode: 'defer',
+    checkoutPolicy: 'actual',
+    checkoutPolicyReason: 'إنهاء مبكر بناء على طلب النزيل'
+  });
+  entries.find(row => row.scenario === '34I').expected =
+    `مكتمل بالليالي الفعلية ${settledActual.finalTotal} ريال مع تسجيل سبب الاستثناء`;
+  setReservationStatus(invActual.id, 'مكتمل', addDays(today, -10));
+
   // Keep exactly 60 invented guests, including all scenario guests.
   const names = ['سارة النور', 'Omar Cedar', 'ليان الغيم', 'Mira Harbor', 'زياد الورد', 'Nour Atlas', 'هيا السحاب', 'Rami Palm', 'تالا البحر', 'Adam Oasis'];
   let generatedGuest = 1;
@@ -417,9 +494,14 @@ async function seed(outputPath, today, includeFutureCases) {
 }
 
 function checkIntegrity(expectedStatuses) {
+  // Retained deposit is booked as a positive payment row (compensation revenue) but is
+  // deliberately NOT added to reservations.paid_amount, which tracks guest payments only.
+  // Exclude those rows so this check stays "guest paid == guest ledger".
   const paymentMismatches = sqlAll(`
     SELECT r.id, r.paid_amount, COALESCE(SUM(p.amount), 0) AS payment_sum
-    FROM reservations r LEFT JOIN payments p ON p.reservation_id = r.id
+    FROM reservations r LEFT JOIN payments p
+      ON p.reservation_id = r.id
+      AND COALESCE(p.notes, '') <> 'إيراد تعويض/احتفاظ من التأمين'
     GROUP BY r.id
     HAVING ABS(COALESCE(r.paid_amount, 0) - COALESCE(SUM(p.amount), 0)) > 0.005
   `);
