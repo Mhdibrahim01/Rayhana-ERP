@@ -213,6 +213,11 @@ async function init(dbPath) {
     try { db.run("ALTER TABLE reservations ADD COLUMN late_checkout_fee REAL DEFAULT 0"); } catch (e) {}
     try { db.run("ALTER TABLE reservations ADD COLUMN checked_out_at DATETIME"); } catch (e) {}
     try { db.run("ALTER TABLE reservations ADD COLUMN original_calculated_charge REAL"); } catch (e) {}
+    // Monthly early-checkout policy audit trail. All nullable with no default so
+    // pre-existing (legacy) rows stay NULL and keep their original behaviour.
+    try { db.run("ALTER TABLE reservations ADD COLUMN checkout_policy TEXT"); } catch (e) {}
+    try { db.run("ALTER TABLE reservations ADD COLUMN checkout_policy_reason TEXT"); } catch (e) {}
+    try { db.run("ALTER TABLE reservations ADD COLUMN booked_check_out_date TEXT"); } catch (e) {}
 
     // Backfill historical payments from reservations if payments table is empty
     try {

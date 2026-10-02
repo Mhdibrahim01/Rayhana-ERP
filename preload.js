@@ -35,6 +35,9 @@ contextBridge.exposeInMainWorld('api', {
   getReservationsPage: (params) => ipcRenderer.invoke('reservations:get-page', params),
   getTodayCheckouts: (date) => ipcRenderer.invoke('reservations:get-today-checkouts', date),
   createReservation: (reservationData) => ipcRenderer.invoke('reservations:create', reservationData),
+  // options is a single object and may carry `checkoutPolicy` ('contract' | 'actual')
+  // plus `checkoutPolicyReason`. Both are stripped by the main process for non-Admin
+  // sessions, so the renderer cannot grant itself the 'actual' exception.
   checkoutReservation: (reservationId, options) => ipcRenderer.invoke('reservations:checkout', reservationId, options),
   checkoutPreview: (reservationId, options) => ipcRenderer.invoke('reservations:checkout-preview', reservationId, options),
   extendReservation: (data) => ipcRenderer.invoke('reservations:extend', data),
