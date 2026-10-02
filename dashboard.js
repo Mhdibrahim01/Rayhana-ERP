@@ -4245,8 +4245,17 @@
             settleTotalPriceDisplay.textContent = `${Number(baseShown).toFixed(2)} ريال`;
           }
           if (settleFinalTotalInput) settleFinalTotalInput.value = s.netCharge.toFixed(2);
-          // Pre-fill discount fields from stored discount (Admin only — section is already hidden for non-Admin)
-          if (settleDiscountInput) settleDiscountInput.value = (s.discountApplied || 0) > 0 ? (s.discountApplied).toFixed(2) : '0';
+          // Pre-fill the discount with the amount STORED on the reservation, not
+          // s.discountApplied. That field is the PRORATED discount for the actual-nights
+          // path (500 over 30 nights -> 16.67), so prefilling it made an untouched
+          // checkout submit a number far from the stored one, which the DB reads as "a
+          // new discount was added at checkout" and then demands a reason for - even
+          // though the receptionist changed nothing and the booking's discount reason
+          // is optional. The stored amount is what will be compared on submit.
+          if (settleDiscountInput) {
+            const storedDiscount = Number(res.discount_amount || 0);
+            settleDiscountInput.value = storedDiscount > 0 ? storedDiscount.toFixed(2) : '0';
+          }
           if (settleDiscountReasonInput) settleDiscountReasonInput.value = res.discount_reason || '';
         } else {
           // Fallback: compute from cache. No authoritative preview, so the policy
