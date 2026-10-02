@@ -562,11 +562,12 @@ function isMonthlyEarlyCheckout(res, departureDate) {
  * path which goes through calculateCheckoutDiscount().
  */
 function computeContractValue(res) {
-  const storedRate = roundMoney(
-    (res.custom_nightly_price !== null && res.custom_nightly_price !== undefined && res.custom_nightly_price !== '')
-      ? res.custom_nightly_price
-      : (res.price_per_night || 0)
-  );
+  // Must resolve the rate exactly like the actual-nights path (see the three
+  // `custom_nightly_price || price_per_night` sites in this file): a stored 0 means
+  // "no custom rate", so it falls back to the room rate. Treating 0 as a real rate
+  // here used to throw, which froze BOTH the preview and the checkout of a monthly
+  // booking and left it impossible to settle.
+  const storedRate = roundMoney(res.custom_nightly_price || res.price_per_night || 0);
   if (!Number.isFinite(storedRate) || storedRate <= 0) {
     throw new Error('تعذر حساب قيمة العقد: سعر الليلة غير صالح (يجب أن يكون أكبر من الصفر).');
   }
@@ -1343,6 +1344,14 @@ function extendReservation({
 
   if (normCustomNightlyPrice < 0) {
     throw new Error('سعر الليلة لا يمكن أن يكون سالباً.');
+  }
+  // A zero nightly rate is not a free stay — it is a missing value. The Extend Stay
+  // modal submits 0 when its rate box is left at zero, and that used to be stored as
+  // a real rate: the extra nights were billed at 0 AND the reservation was left with
+  // custom_nightly_price = 0, which froze its later checkout. Refuse it here, where
+  // the mistake enters, instead of papering over it downstream.
+  if (normCustomNightlyPrice <= 0) {
+    throw new Error('سعر الليلة يجب أن يكون أكبر من الصفر. اترك الحقل فارغاً لاستخدام سعر الغرفة.');
   }
 
   const normDiscountAmount = (discountAmount !== undefined && discountAmount !== null && discountAmount !== '' && !isNaN(Number(discountAmount)))
