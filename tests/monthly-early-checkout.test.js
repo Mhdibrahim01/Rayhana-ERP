@@ -13,6 +13,8 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const { addDays, addRoom } = require('./helpers/fixtures');
 const { assertDatabaseIntegrity, withSafeDatabase } = require('./helpers/safe-temp-db');
+const { FakeIpcMain, createFakeDeps } = require('./helpers/fake-ipc');
+const { registerReservationsIpc } = require('../ipc/index');
 
 /**
  * Create a monthly booking that started 10 days ago and is booked for 30 nights,
@@ -414,6 +416,142 @@ test('monthly early checkout: helpers and the invoice projection', async t => {
       assert.ok('checkout_policy' in listed, 'column present on the list projection');
       assert.ok('booked_check_out_date' in listed);
       assert.ok('checkout_policy_reason' in listed);
+    });
+  });
+});
+
+test('monthly early checkout: the IPC layer enforces the Admin-only exception', async t => {
+  await withSafeDatabase(async (appDb, connection) => {
+    const ipcMain = new FakeIpcMain();
+    const deps = createFakeDeps();
+    registerReservationsIpc(ipcMain, deps);
+
+    const admin = { id: 1, username: 'admin', role: 'Admin' };
+    const receptionist = { id: 2, username: 'staff', role: 'User' };
+
+    await t.test('a non-Admin asking for actual is silently given the contract value', async () => {
+      deps.session.currentUser = receptionist;
+      const id = createEarlyMonthly(appDb, { paid: 1000, tag: 'IPCUSER' });
+
+      const res = await ipcMain.invoke('reservations:checkout', {}, {
+        reservationId: id,
+        settleMode: 'defer',
+        // A malicious/incorrect renderer claims the Admin exception, with a reason.
+        checkoutPolicy: 'actual',
+        checkoutPolicyReason: 'سبب من الواجهة'
+      });
+
+      assert.equal(res.success, true);
+      assert.equal(res.canChoosePolicy, false, 'the session is not an Admin');
+      assert.equal(res.checkoutPolicy, 'contract', "the renderer's 'actual' claim is ignored");
+      assert.equal(res.finalTotal, 4500, 'charged the contract value, not 1500');
+
+      const row = readRow(connection, id);
+      assert.equal(row.checkout_policy, 'contract');
+      assert.equal(row.checkout_policy_reason, null, 'the renderer reason is not stored');
+      assertDatabaseIntegrity(connection, 'non-Admin policy claim ignored');
+    });
+
+    await t.test('an Admin may select actual with a reason over IPC', async () => {
+      deps.session.currentUser = admin;
+      const id = createEarlyMonthly(appDb, { paid: 1000, tag: 'IPCADMIN' });
+
+      const res = await ipcMain.invoke('reservations:checkout', {}, {
+        reservationId: id,
+        settleMode: 'defer',
+        checkoutPolicy: 'actual',
+        checkoutPolicyReason: 'استثناء معتمد من الإدارة'
+      });
+
+      assert.equal(res.success, true);
+      assert.equal(res.canChoosePolicy, true);
+      assert.equal(res.checkoutPolicy, 'actual');
+      assert.equal(res.finalTotal, 1500, 'the Admin exception applies the actual-nights value');
+      const row = readRow(connection, id);
+      assert.equal(row.checkout_policy, 'actual');
+      assert.equal(row.checkout_policy_reason, 'استثناء معتمد من الإدارة');
+      assertDatabaseIntegrity(connection, 'admin policy exception over ipc');
+    });
+
+    await t.test('an Admin selecting actual without a reason is rejected over IPC', async () => {
+      deps.session.currentUser = admin;
+      const id = createEarlyMonthly(appDb, { paid: 1000, tag: 'IPCNORSN' });
+
+      const res = await ipcMain.invoke('reservations:checkout', {}, {
+        reservationId: id,
+        settleMode: 'defer',
+        checkoutPolicy: 'actual',
+        checkoutPolicyReason: '  '
+      });
+
+      assert.equal(res.success, false);
+      assert.match(res.error, /يرجى إدخال سبب احتساب الليالي الفعلية/);
+      assert.equal(readRow(connection, id).status, 'مؤكد', 'the reservation stays open');
+    });
+
+    await t.test('the preview reports both values and tells the modal who may choose', async () => {
+      deps.session.currentUser = receptionist;
+      const id = createEarlyMonthly(appDb, { paid: 0, tag: 'IPCPREV' });
+
+      const asUser = await ipcMain.invoke('reservations:checkout-preview', {}, id, {});
+      assert.equal(asUser.success, true);
+      assert.equal(asUser.data.isMonthlyEarlyCheckout, true);
+      assert.equal(asUser.data.contractValue, 4500);
+      assert.equal(asUser.data.actualValue, 1500);
+      assert.equal(asUser.data.bookedNights, 30);
+      assert.equal(asUser.data.canChoosePolicy, false, 'no policy choice for a receptionist');
+
+      deps.session.currentUser = admin;
+      const asAdmin = await ipcMain.invoke('reservations:checkout-preview', {}, id, {});
+      assert.equal(asAdmin.data.canChoosePolicy, true, 'an Admin may choose');
+      assert.equal(asAdmin.data.contractValue, asUser.data.contractValue, 'values are role-independent');
+    });
+
+    await t.test('a non-Admin preview claiming actual does not change the returned figures', async () => {
+      deps.session.currentUser = receptionist;
+      const id = createEarlyMonthly(appDb, { paid: 0, tag: 'IPCPREV2' });
+
+      const res = await ipcMain.invoke('reservations:checkout-preview', {}, {
+        reservationId: id,
+        checkoutPolicy: 'actual',
+        checkoutPolicyReason: 'سبب من الواجهة'
+      });
+
+      assert.equal(res.success, true);
+      assert.equal(res.data.canChoosePolicy, false);
+      assert.equal(res.data.contractValue, 4500, 'the contract value is still reported for display');
+    });
+
+    await t.test('a daily booking is unaffected end-to-end over IPC', async () => {
+      deps.session.currentUser = receptionist;
+      const today = appDb.getLocalDateString();
+      const room = addRoom('IPC-DAILY', 200);
+      // 2 nights booked, checking out after 1: the stay bills 1 x 200 = 200,
+      // so pay 200 to settle exactly.
+      const created = appDb.createReservation({
+        guestName: 'IPC Daily',
+        guestPhone: '0500000701',
+        guestIdNumber: '1000000701',
+        roomId: room.id,
+        checkInDate: addDays(today, -1),
+        checkOutDate: addDays(today, 1),
+        totalPrice: 400,
+        paidAmount: 200,
+        bookingType: 'عادي'
+      });
+
+      const res = await ipcMain.invoke('reservations:checkout', {}, {
+        reservationId: created.reservationId,
+        settleMode: 'defer',
+        // Even a non-Admin sending 'actual' must not change a daily booking.
+        checkoutPolicy: 'actual',
+        checkoutPolicyReason: 'سبب'
+      });
+
+      assert.equal(res.success, true);
+      assert.equal(res.checkoutPolicy, null, 'no policy recorded for a daily booking');
+      assert.equal(res.finalTotal, 200, 'still billed on actual nights, as before');
+      assertDatabaseIntegrity(connection, 'daily booking unaffected over ipc');
     });
   });
 });

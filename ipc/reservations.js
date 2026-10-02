@@ -169,6 +169,10 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
 
       if (!isAdmin) {
         options = { ...options, discountAmount: undefined, discountReason: undefined };
+        // Monthly early-checkout policy is decided in the backend, but only an Admin may
+        // pick the 'actual' exception. Strip it for everyone else so a renderer claim
+        // can never reach the settlement — the default 'contract' policy applies instead.
+        options = { ...options, checkoutPolicy: undefined, checkoutPolicyReason: undefined };
       }
 
       // Never accept a renderer-supplied rate. Only Admin may override an
@@ -194,7 +198,9 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
       }
 
       const result = db.checkoutReservation(id, { ...options, userId: activeUserId });
-      return result;
+      // Surface whether the policy was actually applied, plus whether this session was
+      // even allowed to choose it. Mirrors the preview so the modal can report honestly.
+      return { ...result, isAdmin, canChoosePolicy: isAdmin };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -217,11 +223,15 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
       const isAdmin = session.currentUser && session.currentUser.role === 'Admin';
       if (!isAdmin) {
         options = { ...options, discountAmount: undefined, discountReason: undefined };
+        // Same rule as checkout: only an Admin may preview the 'actual' exception.
+        options = { ...options, checkoutPolicy: undefined, checkoutPolicyReason: undefined };
       }
       options = { ...options, customNightlyPrice: undefined };
 
       const data = db.computeCheckoutSettlement(id, options);
-      return { success: true, data };
+      // canChoosePolicy is derived HERE, in the main process, from the session role only.
+      // The DB layer never sees or trusts a role claim.
+      return { success: true, data: { ...data, canChoosePolicy: isAdmin } };
     } catch (err) {
       return { success: false, error: err.message };
     }
