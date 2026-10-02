@@ -61,9 +61,11 @@ function addRoom({ room_number, type, price_per_night, status = 'متاحة' }) 
   if (existing) {
     throw new Error(`الغرفة رقم "${room_number}" مسجلة مسبقاً.`);
   }
-
+  // roundMoney keeps the nightly rate at 2dp. This price feeds every derived figure
+  // for a booking, so a raw parseFloat would let 33.333 propagate into contracts,
+  // checkouts and invoices.
   const stmt = db.prepare("INSERT INTO rooms (room_number, type, price_per_night, status) VALUES (?, ?, ?, ?)");
-  stmt.run([room_number.trim(), type.trim(), parseFloat(price_per_night) || 0.0, status]);
+  stmt.run([room_number.trim(), type.trim(), roundMoney(parseFloat(price_per_night) || 0.0), status]);
   stmt.free();
   saveToFile();
 
@@ -103,9 +105,10 @@ function updateRoom({ id, room_number, type, price_per_night, status = 'متاح
     }
     finalStatus = 'مشغولة';
   }
-
+  // roundMoney keeps the nightly rate at 2dp here too: editing a room changes the
+  // price every future booking is charged at.
   const stmt = db.prepare("UPDATE rooms SET room_number = ?, type = ?, price_per_night = ?, status = ? WHERE id = ?");
-  stmt.run([cleanNum, type.trim(), parseFloat(price_per_night) || 0.0, finalStatus, targetId]);
+  stmt.run([cleanNum, type.trim(), roundMoney(parseFloat(price_per_night) || 0.0), finalStatus, targetId]);
   stmt.free();
   saveToFile();
 
