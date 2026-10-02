@@ -195,6 +195,9 @@ async function init(dbPath) {
       );
     `);
 
+    // Enable foreign key enforcement (SQLite has it OFF by default)
+    db.run("PRAGMA foreign_keys = ON;");
+
     // Safe column migrations for existing databases
     try { db.run("ALTER TABLE reservations ADD COLUMN paid_amount REAL DEFAULT 0"); } catch (e) {}
     try { db.run("ALTER TABLE reservations ADD COLUMN deposit_amount REAL DEFAULT 0"); } catch (e) {}

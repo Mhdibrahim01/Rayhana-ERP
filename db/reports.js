@@ -65,9 +65,7 @@ function getMonthlyRevenue() {
         strftime('%Y-%m', p.payment_date) AS month,
         SUM(p.amount) AS collected
       FROM payments p
-      JOIN reservations r ON p.reservation_id = r.id
-      WHERE r.status != 'ملغي'
-        AND p.payment_date IS NOT NULL
+      WHERE p.payment_date IS NOT NULL
         AND p.payment_date != ''
       GROUP BY month
     ),

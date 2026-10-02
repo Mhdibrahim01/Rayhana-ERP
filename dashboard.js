@@ -6672,8 +6672,11 @@
         }
         const preview = previewRes.data;
 
-        // Use the simple confirm only when the account is exactly settled (difference ≈ 0)
-        if (preview.isSettled) {
+        // A settled room charge can still have a deposit to disposition. Show
+        // the settlement modal whenever a recorded or legacy deposit exists.
+        const hasDepositToSettle = Number(preview.depositAvailable || 0) > 0.005
+          || Boolean(preview.depositLegacyUnreconciled);
+        if (preview.isSettled && !hasDepositToSettle) {
           const confirmed = await showConfirmDialog({
             title: 'تسجيل خروج النزيل',
             message: `هل أنت متأكد من تسجيل خروج النزيل للحجز #${id}؟\nالمبلغ مسدد بالكامل (${preview.netCharge.toLocaleString()} ريال).\nسيتم إكمال الحجز وتحويل الغرفة تلقائياً لوضع "تنظيف".`,
@@ -6696,7 +6699,7 @@
             }
           }
         } else {
-          // Amount due or refund due — open the settle modal
+          // Amount due, refund due, or a deposit to settle — open the settle modal
           openContractSettleModal(resData || { id, booking_type: 'عادي', check_in_date: preview.checkInDate, paid_amount: preview.paidAmount });
         }
       } catch (err) {
