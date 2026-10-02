@@ -632,5 +632,91 @@ test('monthly early checkout: the IPC layer enforces the Admin-only exception', 
       assert.equal(res.finalTotal, 200, 'still billed on actual nights, as before');
       assertDatabaseIntegrity(connection, 'daily booking unaffected over ipc');
     });
+
+    await t.test('editing a receipt is refused for a non-Admin session', async () => {
+      deps.session.currentUser = receptionist;
+      const today = appDb.getLocalDateString();
+      const room = addRoom('IPC-RECEIPT', 200);
+      const created = appDb.createReservation({
+        guestName: 'Receipt Target',
+        guestPhone: '0500000901',
+        guestIdNumber: '1000000901',
+        roomId: room.id,
+        checkInDate: addDays(today, -1),
+        checkOutDate: addDays(today, 1),
+        totalPrice: 400,
+        paidAmount: 200
+      });
+
+      // A receptionist must not be able to rewrite the total or the paid amount.
+      const res = await ipcMain.invoke('reservations:update-receipt', {}, {
+        reservationId: created.reservationId,
+        totalPrice: 1,
+        paidAmount: 1
+      });
+      assert.equal(res.success, false);
+      assert.match(res.error, /Access Denied/);
+
+      const row = connection.queryOne(
+        'SELECT total_price, paid_amount FROM reservations WHERE id = ?',
+        [created.reservationId]
+      );
+      assert.equal(row.total_price, 400, 'the stored total must be untouched');
+      assert.equal(row.paid_amount, 200, 'the stored paid amount must be untouched');
+    });
+
+    await t.test('an Admin may still edit a receipt', async () => {
+      deps.session.currentUser = admin;
+      const today = appDb.getLocalDateString();
+      const room = addRoom('IPC-RECEIPT-OK', 200);
+      const created = appDb.createReservation({
+        guestName: 'Receipt Admin',
+        guestPhone: '0500000902',
+        guestIdNumber: '1000000902',
+        roomId: room.id,
+        checkInDate: addDays(today, -1),
+        checkOutDate: addDays(today, 1),
+        totalPrice: 400,
+        paidAmount: 200
+      });
+
+      const res = await ipcMain.invoke('reservations:update-receipt', {}, {
+        reservationId: created.reservationId,
+        totalPrice: 400,
+        paidAmount: 400,
+        paymentMethod: 'نقداً'
+      });
+      assert.equal(res.success, true);
+      const row = connection.queryOne(
+        'SELECT total_price, paid_amount FROM reservations WHERE id = ?',
+        [created.reservationId]
+      );
+      assert.equal(row.paid_amount, 400, 'the Admin edit is applied');
+      assertDatabaseIntegrity(connection, 'admin may edit a receipt');
+    });
+
+    await t.test('a logged-out session cannot edit a receipt either', async () => {
+      deps.session.currentUser = null;
+      const today = appDb.getLocalDateString();
+      const room = addRoom('IPC-RECEIPT-NONE', 200);
+      const created = appDb.createReservation({
+        guestName: 'Receipt Anonymous',
+        guestPhone: '0500000903',
+        guestIdNumber: '1000000903',
+        roomId: room.id,
+        checkInDate: addDays(today, -1),
+        checkOutDate: addDays(today, 1),
+        totalPrice: 400,
+        paidAmount: 200
+      });
+
+      const res = await ipcMain.invoke('reservations:update-receipt', {}, {
+        reservationId: created.reservationId,
+        totalPrice: 1,
+        paidAmount: 0
+      });
+      assert.equal(res.success, false);
+      assert.match(res.error, /Access Denied/);
+    });
   });
 });
