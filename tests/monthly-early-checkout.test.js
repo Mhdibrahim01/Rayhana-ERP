@@ -720,3 +720,128 @@ test('monthly early checkout: the IPC layer enforces the Admin-only exception', 
     });
   });
 });
+
+test('checkout discount: only a discount introduced at checkout needs a reason', async t => {
+  await withSafeDatabase(async (appDb, connection) => {
+    const today = appDb.getLocalDateString();
+
+    await t.test('a stored discount with no reason does not block the checkout', () => {
+      // The booking form marks the discount reason optional (dashboard.html), and the
+      // modal pre-fills that stored amount into the checkout discount box. Requiring a
+      // reason here blocked a checkout the receptionist never changed.
+      const room = addRoom('DC-STORED', 200);
+      const id = appDb.createReservation({
+        guestName: 'Stored Discount',
+        guestPhone: '0500001001',
+        guestIdNumber: '1000001001',
+        roomId: room.id,
+        checkInDate: addDays(today, -2),
+        checkOutDate: addDays(today, 0),
+        totalPrice: 400,
+        paidAmount: 120,
+        discountAmount: 30,
+        discountReason: ''
+      }).reservationId;
+
+      const result = appDb.checkoutReservation(id, {
+        settleMode: 'collect',
+        collectAmount: 250,
+        discountAmount: 30   // unchanged from the stored value
+      });
+      assert.equal(result.success, true, 'an unchanged stored discount must not need a reason');
+      assert.equal(result.discountApplied, 30);
+      assertDatabaseIntegrity(connection, 'stored discount needs no reason');
+    });
+
+    await t.test('a NEW discount added at checkout still requires a reason', () => {
+      const room = addRoom('DC-NEW', 200);
+      const id = appDb.createReservation({
+        guestName: 'New Discount',
+        guestPhone: '0500001002',
+        guestIdNumber: '1000001002',
+        roomId: room.id,
+        checkInDate: addDays(today, -2),
+        checkOutDate: addDays(today, 0),
+        totalPrice: 400,
+        paidAmount: 0,
+        discountAmount: 0,
+        discountReason: ''
+      }).reservationId;
+
+      assert.throws(
+        () => appDb.checkoutReservation(id, { settleMode: 'defer', discountAmount: 50 }),
+        /يرجى إدخال سبب الخصم/
+      );
+      assert.equal(
+        connection.queryOne('SELECT status FROM reservations WHERE id = ?', [id]).status,
+        'مؤكد',
+        'the reservation must stay open'
+      );
+    });
+
+    await t.test('a new discount WITH a reason is accepted', () => {
+      const room = addRoom('DC-NEW-OK', 200);
+      const id = appDb.createReservation({
+        guestName: 'New Discount OK',
+        guestPhone: '0500001003',
+        guestIdNumber: '1000001003',
+        roomId: room.id,
+        checkInDate: addDays(today, -2),
+        checkOutDate: addDays(today, 0),
+        totalPrice: 400,
+        paidAmount: 0
+      }).reservationId;
+
+      const result = appDb.checkoutReservation(id, {
+        settleMode: 'defer',
+        discountAmount: 50,
+        discountReason: 'تسوية مع Dereham' // any non-empty reason
+      });
+      assert.equal(result.success, true);
+      assert.equal(result.discountApplied, 50);
+      assertDatabaseIntegrity(connection, 'new discount with a reason');
+    });
+
+    await t.test('an INCREASE over the stored discount counts as new and needs a reason', () => {
+      const room = addRoom('DC-RAISED', 200);
+      const id = appDb.createReservation({
+        guestName: 'Raised Discount',
+        guestPhone: '0500001004',
+        guestIdNumber: '1000001004',
+        roomId: room.id,
+        checkInDate: addDays(today, -2),
+        checkOutDate: addDays(today, 0),
+        totalPrice: 400,
+        paidAmount: 0,
+        discountAmount: 30,
+        discountReason: 'خصم عند الحجز'
+      }).reservationId;
+
+      // Same amount -> no reason needed.
+      assert.equal(
+        appDb.checkoutReservation(id, { settleMode: 'defer', discountAmount: 30 }).success,
+        true,
+        're-sending the stored amount needs no reason'
+      );
+
+      // Raised above the stored amount -> a new discount, so a reason is required.
+      const room2 = addRoom('DC-RAISED2', 200);
+      const id2 = appDb.createReservation({
+        guestName: 'Raised Discount 2',
+        guestPhone: '0500001005',
+        guestIdNumber: '1000001005',
+        roomId: room2.id,
+        checkInDate: addDays(today, -2),
+        checkOutDate: addDays(today, 0),
+        totalPrice: 400,
+        paidAmount: 0,
+        discountAmount: 30,
+        discountReason: 'خصم عند الحجز'
+      }).reservationId;
+      assert.throws(
+        () => appDb.checkoutReservation(id2, { settleMode: 'defer', discountAmount: 80 }),
+        /يرجى إدخال سبب الخصم/
+      );
+    });
+  });
+});

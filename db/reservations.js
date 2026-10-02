@@ -945,12 +945,15 @@ function checkoutReservation(reservationId, {
     throw new Error('تعذر إتمام التسوية: سعر الليلة غير صالح (يجب أن يكون أكبر من الصفر).');
   }
 
-  // Discount validation: require a non-empty reason when discount > 0
-  if (requestedDiscount > 0) {
-    const reason = normDiscountReason !== null ? normDiscountReason : (res.discount_reason || '').trim();
-    if (!reason) {
-      throw new Error('يرجى إدخال سبب الخصم عند تطبيق خصم على المغادرة.');
-    }
+  // Discount validation: a reason is required only for a discount introduced AT
+  // checkout. A discount already stored on the reservation keeps whatever reason it
+  // was created with — that field is optional at booking time, so requiring a reason
+  // here made an unrelated stored discount block an otherwise valid checkout.
+  const storedDiscountAtBooking = roundMoney(res.discount_amount || 0);
+  const isNewCheckoutDiscount = normDiscountAmount !== null && normDiscountAmount > 0
+    && Math.abs(normDiscountAmount - storedDiscountAtBooking) > 0.005;
+  if (isNewCheckoutDiscount && !normDiscountReason) {
+    throw new Error('يرجى إدخال سبب الخصم عند تطبيق خصم على المغادرة.');
   }
 
   // Compute net charge from actual stay (backend-authoritative)
