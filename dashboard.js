@@ -3272,9 +3272,12 @@
       const guestName = btn.dataset.name || 'النزيل';
       const isCurrentlyBanned = btn.dataset.banned === '1';
 
-      const activeRole = localStorage.getItem('currentUserRole') || (currentUser ? currentUser.role : 'User');
-      if (activeRole !== 'Admin') {
-        showToast('عذراً: هذا الإجراء مخصص لمدير النظام فقط.', 'error');
+      // No role check here. Banning is available to any signed-in user and the main
+      // process (ipc/guests.js) requires only a session. This renderer guard used to
+      // reject non-Admins with "هذا الإجراء مخصص لمدير النظام فقط", which blocked the
+      // click before it ever reached the IPC layer.
+      if (!currentUser) {
+        showToast('يرجى تسجيل الدخول أولاً.', 'error');
         return;
       }
 
