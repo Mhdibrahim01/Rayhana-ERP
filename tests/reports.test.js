@@ -21,7 +21,7 @@ test('revenue and dashboard reports include completed, active, and refunded ledg
         totalPrice: 1600,
         paidAmount: 800
       });
-      db.checkoutReservation(id, { settleMode: 'refund', refundAmount: 200 });
+      const r = db.checkoutReservation(id, { settleMode: 'refund', refundAmount: 200, checkoutPolicy: 'actual', checkoutPolicyReason: 'test' }); console.log('Partial Room Checkout Result:', r);
       assert.equal(connection.queryAll('SELECT amount FROM payments WHERE reservation_id = ? ORDER BY id DESC LIMIT 1', [id])[0].amount, -200);
       assertDatabaseIntegrity(connection, 'report seed: partial refund');
     });
@@ -36,7 +36,7 @@ test('revenue and dashboard reports include completed, active, and refunded ledg
         totalPrice: 900,
         paidAmount: 300
       });
-      db.checkoutReservation(completedId);
+      db.checkoutReservation(completedId, { checkoutPolicy: 'actual', checkoutPolicyReason: 'test' });
       assert.equal(db.getReservationById(completedId).status, 'مكتمل');
 
       const cancelledRoom = addRoom('RP-CANCELLED', 100);

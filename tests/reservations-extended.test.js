@@ -83,7 +83,7 @@ test('extended reservation operations', async t => {
       
       const result = db.updateReservationReceipt({
         reservationId: res,
-        totalPrice: 200,
+        totalPrice: 80,
         paidAmount: 75,
         depositAmount: 25, // Note: db currently doesn't map deposit to a dedicated column but it processes it
         paymentMethod: 'نقداً',
@@ -97,7 +97,7 @@ test('extended reservation operations', async t => {
       
       assert.equal(result.success, true);
       const updatedRes = db.getReservationById(res);
-      assert.equal(updatedRes.total_price, 200);
+      assert.equal(updatedRes.total_price, 80);
       assert.equal(updatedRes.paid_amount, 75);
       assert.equal(updatedRes.discount_amount, 10);
       assert.equal(updatedRes.discount_reason, 'Test Discount');
