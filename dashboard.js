@@ -4472,8 +4472,14 @@
 
   function onCheckoutPolicyChanged() {
     if (!settlePolicyState.applicable || !settlePolicyState.canChoose) return;
-    if (settlePolicyReasonWrap) {
+        if (settlePolicyReasonWrap) {
       settlePolicyReasonWrap.style.display = settlePolicyActual && settlePolicyActual.checked ? 'block' : 'none';
+    }
+    
+    // If the admin switched to Actual Nights, zero out the discount box so it doesn't confusingly display the original contract discount that is being canceled.
+    if (settlePolicyActual && settlePolicyActual.checked && settleDiscountInput) {
+      settleDiscountInput.value = '0';
+      if (settleDiscountReasonInput) settleDiscountReasonInput.value = '';
     }
     updateDiscountSectionVisibility();
     if (currentSettlingReservation && currentSettlingReservation.booking_type === 'عقد مفتوح') return;
