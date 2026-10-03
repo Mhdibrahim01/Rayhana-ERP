@@ -4292,8 +4292,7 @@
           const bookedNights = Number.isFinite(bookedEndUtc) && bookedEndUtc > checkInUtc
             ? Math.max(1, Math.round((bookedEndUtc - checkInUtc) / 86400000))
             : nights;
-          const discountRatio = nights < bookedNights ? nights / bookedNights : 1;
-          const appliedDiscount = Math.min(base, Math.round((existDisc * discountRatio + Number.EPSILON) * 100) / 100);
+          const appliedDiscount = nights < bookedNights ? 0 : Math.min(base, existDisc);
           const net = Math.max(0, Math.round((base - appliedDiscount + Number.EPSILON) * 100) / 100);
           if (settleNightsCount) settleNightsCount.textContent = `${nights} ${nights === 1 ? 'ليلة' : 'ليالٍ'} (بسعر ${pricePerNight.toLocaleString()} ريال/ليلة)`;
           if (settleTotalPriceDisplay) settleTotalPriceDisplay.textContent = `${base.toFixed(2)} ريال`;
