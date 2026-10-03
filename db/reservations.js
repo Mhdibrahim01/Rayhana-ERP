@@ -674,10 +674,10 @@ function computeCheckoutSettlement(reservationId, {
 
   // A stored reservation discount is allocated across the booked stay. An
   // explicit checkout discount is already for this settlement and is not prorated.
-  const hasExplicitDiscount = discountAmount !== undefined && discountAmount !== null && discountAmount !== '' && !isNaN(Number(discountAmount));
-  const normDiscount = hasExplicitDiscount
-    ? Math.max(0, roundMoney(discountAmount))
-    : roundMoney(res.discount_amount || 0);
+  const storedDisc = roundMoney(res.discount_amount || 0);
+  const explicitDisc = (discountAmount !== undefined && discountAmount !== null && discountAmount !== '' && !isNaN(Number(discountAmount))) ? Math.max(0, roundMoney(discountAmount)) : null;
+  const hasExplicitDiscount = explicitDisc !== null && Math.abs(explicitDisc - storedDisc) > 0.005;
+  const normDiscount = hasExplicitDiscount ? explicitDisc : storedDisc;
 
   let actualNights = null;
   let baseCharge = null;
@@ -930,9 +930,10 @@ function checkoutReservation(reservationId, {
   // Resolve discount and rate.
   // Rate: always from the stored reservation — no caller override accepted.
   // Discount: already stripped for non-Admin by the IPC layer.
-  const normDiscountAmount = (discountAmount !== undefined && discountAmount !== null && discountAmount !== '' && !isNaN(Number(discountAmount)))
-    ? Math.max(0, roundMoney(discountAmount))
-    : null;
+  const storedDiscountAtBooking = roundMoney(res.discount_amount || 0);
+  const rawProvidedDisc = (discountAmount !== undefined && discountAmount !== null && discountAmount !== '' && !isNaN(Number(discountAmount))) ? Math.max(0, roundMoney(discountAmount)) : null;
+  const hasExplicitDiscount = rawProvidedDisc !== null && Math.abs(rawProvidedDisc - storedDiscountAtBooking) > 0.005;
+  const normDiscountAmount = hasExplicitDiscount ? rawProvidedDisc : null;
   const normDiscountReason = discountReason !== undefined ? (discountReason || '').trim() : null;
   // Policy reason applies only to a monthly early checkout; it is independent of any
   // explicit checkout discount.
@@ -952,7 +953,6 @@ function checkoutReservation(reservationId, {
   // checkout. A discount already stored on the reservation keeps whatever reason it
   // was created with — that field is optional at booking time, so requiring a reason
   // here made an unrelated stored discount block an otherwise valid checkout.
-  const storedDiscountAtBooking = roundMoney(res.discount_amount || 0);
   if (requestedDiscount > 0 && !normDiscountReason) {
     throw new Error('سبب الخصم مطلوب ولا يمكن إتمام العملية بدونه.');
   }
