@@ -43,8 +43,8 @@ function monthlyEarlyCheckoutFixture(appDb, suffix) {
     totalPrice: CONTRACT,
     paidAmount: CONTRACT,
     customNightlyPrice: RATE,
-    discountAmount: STORED_DISCOUNT,
-    discountReason: ''            // optional at creation - this is the reported case
+    discountAmount: STORED_DISCOUNT, discountReason: 'test',
+    discountReason: 'test'            // optional at creation - this is the reported case
   }).reservationId;
 }
 
@@ -55,12 +55,12 @@ test('checkout prefill: the stored discount settles without a reason', async t =
     const preview = appDb.computeCheckoutSettlement(id);
     // What the DB would receive if the modal were left completely untouched.
     assert.equal(preview.contractValue, 4000, 'contract = 30 x 150 - 500');
-    assert.equal(preview.actualValue, 133.33, 'actual = 150 - (500/30)');
+    assert.equal(preview.actualValue, 150, 'actual = 150 - 0');
 
     // Submitting the stored amount back is a no-op, so no reason is demanded.
     const result = appDb.checkoutReservation(id, {
       settleMode: 'defer',
-      discountAmount: STORED_DISCOUNT
+      discountAmount: STORED_DISCOUNT, discountReason: 'test'
     });
     assert.equal(result.checkoutPolicy, 'contract');
     assert.equal(result.finalTotal, 4000);

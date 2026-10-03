@@ -64,7 +64,7 @@ test('reservation cancellation and refund ledger scenarios', async t => {
       });
 
       const settlement = db.computeCheckoutSettlement(reservationId);
-      const result = db.checkoutReservation(reservationId, { settleMode: 'defer' });
+      const result = db.checkoutReservation(reservationId, { settleMode: 'defer', checkoutPolicy: 'actual', checkoutPolicyReason: 'test' });
       const reservation = db.getReservationById(reservationId);
 
       assert.equal(settlement.effectiveNightlyRate, 150);
@@ -88,7 +88,7 @@ test('reservation cancellation and refund ledger scenarios', async t => {
         paidAmount: 50
       });
 
-      const result = db.checkoutReservation(reservationId, { settleMode: 'defer' });
+      const result = db.checkoutReservation(reservationId, { settleMode: 'defer', checkoutPolicy: 'actual', checkoutPolicyReason: 'test' });
       let reservation = db.getReservationById(reservationId);
       assert.equal(result.finalTotal, 180);
       assert.equal(result.settleMode, 'defer');
@@ -122,7 +122,7 @@ test('reservation cancellation and refund ledger scenarios', async t => {
         paidAmount: 180
       });
 
-      db.checkoutReservation(reservationId, { settleMode: 'defer' });
+      db.checkoutReservation(reservationId, { settleMode: 'defer', checkoutPolicy: 'actual', checkoutPolicyReason: 'test' });
       const reservation = db.getReservationById(reservationId);
       assert.equal(reservation.total_price, 180);
       assert.equal(reservation.paid_amount, 180);

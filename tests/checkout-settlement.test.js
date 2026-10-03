@@ -21,11 +21,11 @@ test('checkout settlement scenarios', async t => {
         paidAmount: 2000
       });
       const settlement = appDb.computeCheckoutSettlement(reservationId);
-      assert.equal(appDb.getReservationById(reservationId).custom_nightly_price, null);
+      assert.equal(appDb.getReservationById(reservationId, { checkoutPolicy: 'actual', checkoutPolicyReason: 'test' }).custom_nightly_price, null);
       assert.equal(settlement.effectiveNightlyRate, 2150);
       assert.equal(settlement.difference, 150);
       assert.equal(settlement.needsCollection, true);
-      const result = appDb.checkoutReservation(reservationId, { settleMode: 'collect', collectAmount: 150 });
+      const result = appDb.checkoutReservation(reservationId, { settleMode: 'collect', collectAmount: 150 , checkoutPolicy: 'actual', checkoutPolicyReason: 'test' });
       assert.equal(result.finalTotal, 2150);
       assert.equal(appDb.getReservationById(reservationId).paid_amount, 2150);
       assertDatabaseIntegrity(connection, 'checkout: 2000 paid and 150 collected');
@@ -41,10 +41,10 @@ test('checkout settlement scenarios', async t => {
         totalPrice: 200,
         paidAmount: 0
       });
-      const settlement = appDb.computeCheckoutSettlement(reservationId);
+      const settlement = appDb.computeCheckoutSettlement(reservationId, { checkoutPolicy: 'actual', checkoutPolicyReason: 'test' });
       assert.equal(settlement.paidAmount, 0);
       assert.equal(settlement.difference, 100);
-      const result = appDb.checkoutReservation(reservationId, { settleMode: 'defer' });
+      const result = appDb.checkoutReservation(reservationId, { settleMode: 'defer' , checkoutPolicy: 'actual', checkoutPolicyReason: 'test' });
       assert.equal(result.finalTotal, 100);
       assert.equal(appDb.getReservationById(reservationId).paid_amount, 0);
       assert.equal(appDb.getReservationById(reservationId).payment_status, 'غير مدفوع');
@@ -61,8 +61,8 @@ test('checkout settlement scenarios', async t => {
         totalPrice: 360,
         paidAmount: 180
       });
-      assert.throws(() => appDb.computeCheckoutSettlement(reservationId), /استخدم إلغاء الحجز/);
-      assert.throws(() => appDb.checkoutReservation(reservationId, { settleMode: 'defer' }), /استخدم إلغاء الحجز/);
+      assert.throws(() => appDb.computeCheckoutSettlement(reservationId, { checkoutPolicy: 'actual', checkoutPolicyReason: 'test' }), /استخدم إلغاء الحجز/);
+      assert.throws(() => appDb.checkoutReservation(reservationId, { settleMode: 'defer' , checkoutPolicy: 'actual', checkoutPolicyReason: 'test' }), /استخدم إلغاء الحجز/);
       assert.equal(appDb.getReservationById(reservationId).status, 'مؤكد');
       assert.equal(appDb.getReservationPayments(reservationId).length, 1);
       assertDatabaseIntegrity(connection, 'checkout blocked before arrival');
@@ -79,7 +79,7 @@ test('checkout settlement scenarios', async t => {
         paidAmount: 50
       });
 
-      appDb.checkoutReservation(reservationId, { settleMode: 'defer' });
+      appDb.checkoutReservation(reservationId, { settleMode: 'defer' , checkoutPolicy: 'actual', checkoutPolicyReason: 'test' });
       const payment = appDb.addPaymentToReservation({ reservationId, amount: 130, notes: 'سداد رصيد بعد تسجيل الخروج' });
       const completed = appDb.getReservationById(reservationId);
       assert.equal(completed.status, 'مكتمل');
@@ -100,7 +100,7 @@ test('checkout settlement scenarios', async t => {
         totalPrice: 1500,
         paidAmount: 100
       });
-      const result = appDb.checkoutReservation(reservationId, { settleMode: 'collect', collectAmount: 100 });
+      const result = appDb.checkoutReservation(reservationId, { settleMode: 'collect', collectAmount: 100 , checkoutPolicy: 'actual', checkoutPolicyReason: 'test' });
       assert.equal(result.finalTotal, 300);
       assert.equal(appDb.getReservationById(reservationId).paid_amount, 200);
       assert.equal(appDb.getReservationById(reservationId).payment_status, 'مدفوع جزئياً');
@@ -119,13 +119,13 @@ test('checkout settlement scenarios', async t => {
         paidAmount: 0,
         depositAmount: 40
       });
-      const preview = appDb.computeCheckoutSettlement(reservationId);
+      const preview = appDb.computeCheckoutSettlement(reservationId, { checkoutPolicy: 'actual', checkoutPolicyReason: 'test' });
       assert.equal(preview.depositAvailable, 40);
       assert.equal(appDb.getReservationPayments(reservationId).reduce((sum, row) => sum + row.amount, 0), 0);
 
       const result = appDb.checkoutReservation(reservationId, {
         settleMode: 'collect', collectAmount: 60, depositDisposition: 'apply'
-      });
+      , checkoutPolicy: 'actual', checkoutPolicyReason: 'test' });
       const completed = appDb.getReservationById(reservationId);
       assert.equal(result.depositApplied, 40);
       assert.equal(result.depositRefunded, 0);
@@ -147,7 +147,7 @@ test('checkout settlement scenarios', async t => {
         paidAmount: 100,
         depositAmount: 25
       });
-      const result = appDb.checkoutReservation(reservationId, { settleMode: 'defer' });
+      const result = appDb.checkoutReservation(reservationId, { settleMode: 'defer' , checkoutPolicy: 'actual', checkoutPolicyReason: 'test' });
       assert.equal(result.depositRefunded, 25);
       assert.equal(appDb.getReservationById(reservationId).deposit_ledger_balance, 0);
       assert.equal(appDb.getReservationPayments(reservationId).reduce((sum, row) => sum + row.amount, 0), 100);
@@ -167,7 +167,7 @@ test('checkout settlement scenarios', async t => {
         paidAmount: 100
       });
       connection.db.run('UPDATE reservations SET deposit_amount = 35 WHERE id = ?', [reservationId]);
-      const preview = appDb.computeCheckoutSettlement(reservationId);
+      const preview = appDb.computeCheckoutSettlement(reservationId, { checkoutPolicy: 'actual', checkoutPolicyReason: 'test' });
       assert.equal(preview.depositAvailable, 0);
       assert.equal(preview.depositLegacyUnreconciled, true);
       const collectedBeforeReconciliation = appDb.getShiftAuditReport(today).financials.depositActivity.collected;
@@ -192,8 +192,8 @@ test('checkout settlement scenarios', async t => {
         paidAmount: 250
       });
       const beforeCount = appDb.getReservationPayments(reservationId).length;
-      assert.equal(appDb.computeCheckoutSettlement(reservationId).isSettled, true);
-      const result = appDb.checkoutReservation(reservationId);
+      assert.equal(appDb.computeCheckoutSettlement(reservationId, { checkoutPolicy: 'actual', checkoutPolicyReason: 'test' }).isSettled, true);
+      const result = appDb.checkoutReservation(reservationId, { checkoutPolicy: 'actual', checkoutPolicyReason: 'test' });
       assert.equal(result.settleMode, 'defer');
       assert.equal(appDb.getReservationById(reservationId).status, 'مكتمل');
       assert.equal(appDb.getReservationPayments(reservationId).length, beforeCount);
@@ -210,14 +210,14 @@ test('checkout settlement scenarios', async t => {
         totalPrice: 1200,
         paidAmount: 250
       });
-      const settlement = appDb.computeCheckoutSettlement(reservationId, { discountAmount: 50, discountReason: 'خصم إداري للاختبار' });
+      const settlement = appDb.computeCheckoutSettlement(reservationId, { discountAmount: 50, discountReason: 'خصم إداري للاختبار' , checkoutPolicy: 'actual', checkoutPolicyReason: 'test' });
       assert.equal(settlement.netCharge, 250);
       assert.equal(settlement.discountApplied, 50);
       appDb.checkoutReservation(reservationId, {
         settleMode: 'defer',
         discountAmount: 50,
         discountReason: 'خصم إداري للاختبار'
-      });
+      , checkoutPolicy: 'actual', checkoutPolicyReason: 'test' });
       const completed = appDb.getReservationById(reservationId);
       assert.equal(completed.total_price, 250);
       assert.equal(completed.discount_amount, 50);
@@ -235,15 +235,15 @@ test('checkout settlement scenarios', async t => {
         totalPrice: 12900,
         paidAmount: 2300
       });
-      const settlement = appDb.computeCheckoutSettlement(reservationId);
+      const settlement = appDb.computeCheckoutSettlement(reservationId, { checkoutPolicy: 'actual', checkoutPolicyReason: 'test' });
       assert.equal(settlement.difference, -150);
       assert.equal(settlement.needsRefund, true);
       assert.throws(
-        () => appDb.checkoutReservation(reservationId, { settleMode: 'refund', refundAmount: 149 }),
+        () => appDb.checkoutReservation(reservationId, { settleMode: 'refund', refundAmount: 149 , checkoutPolicy: 'actual', checkoutPolicyReason: 'test' }),
         /يجب أن يساوي الفرق الفعلي المستحق/
       );
       assert.equal(appDb.getReservationById(reservationId).status, 'مؤكد');
-      const result = appDb.checkoutReservation(reservationId, { settleMode: 'refund', refundAmount: 150 });
+      const result = appDb.checkoutReservation(reservationId, { settleMode: 'refund', refundAmount: 150 , checkoutPolicy: 'actual', checkoutPolicyReason: 'test' });
       const refund = connection.queryAll('SELECT amount, notes FROM payments WHERE reservation_id = ? ORDER BY id DESC LIMIT 1', [reservationId])[0];
       assert.equal(result.finalTotal, 2150);
       assert.equal(refund.amount, -150);
@@ -264,7 +264,7 @@ test('checkout settlement scenarios', async t => {
       });
       for (const amount of [0, 201]) {
         assert.throws(
-          () => appDb.checkoutReservation(reservationId, { settleMode: 'collect', collectAmount: amount }),
+          () => appDb.checkoutReservation(reservationId, { settleMode: 'collect', collectAmount: amount , checkoutPolicy: 'actual', checkoutPolicyReason: 'test' }),
           amount === 0 ? /أكبر من الصفر/ : /يتجاوز المبلغ المستحق/
         );
         assert.equal(appDb.getReservationById(reservationId).status, 'مؤكد');
@@ -283,8 +283,8 @@ test('checkout settlement scenarios', async t => {
         totalPrice: 240,
         paidAmount: 120
       });
-      appDb.checkoutReservation(reservationId, { settleMode: 'defer' });
-      assert.throws(() => appDb.checkoutReservation(reservationId, { settleMode: 'defer' }), /مغلق بالفعل/);
+      appDb.checkoutReservation(reservationId, { settleMode: 'defer' , checkoutPolicy: 'actual', checkoutPolicyReason: 'test' });
+      assert.throws(() => appDb.checkoutReservation(reservationId, { settleMode: 'defer' , checkoutPolicy: 'actual', checkoutPolicyReason: 'test' }), /مغلق بالفعل/);
       assert.equal(appDb.getReservationById(reservationId).status, 'مكتمل');
       assertDatabaseIntegrity(connection, 'checkout: duplicate prevented');
     });
@@ -306,7 +306,7 @@ test('checkout settlement scenarios', async t => {
         BEGIN SELECT RAISE(ABORT, 'forced checkout rollback'); END;
       `);
       assert.throws(
-        () => appDb.checkoutReservation(reservationId, { settleMode: 'collect', collectAmount: 100 }),
+        () => appDb.checkoutReservation(reservationId, { settleMode: 'collect', collectAmount: 100 , checkoutPolicy: 'actual', checkoutPolicyReason: 'test' }),
         /forced checkout rollback/
       );
       assert.equal(appDb.getReservationById(reservationId).status, 'مؤكد');
@@ -328,7 +328,7 @@ test('checkout settlement scenarios', async t => {
         paidAmount: 0
       });
       assertDatabaseIntegrity(connection, 'checkout: zero-rate setup');
-      assert.throws(() => appDb.computeCheckoutSettlement(reservationId), /سعر الليلة/);
+      assert.throws(() => appDb.computeCheckoutSettlement(reservationId, { checkoutPolicy: 'actual', checkoutPolicyReason: 'test' }), /سعر الليلة/);
     });
   });
 });
