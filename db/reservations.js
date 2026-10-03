@@ -260,6 +260,9 @@ function createReservation({
     : (discount_amount !== undefined && discount_amount !== null && discount_amount !== '' ? discount_amount : 0);
   const normDiscountAmount = Math.max(0, roundMoney(rawDiscount));
   const normDiscountReason = (discountReason || discount_reason || '').trim();
+  if (normDiscountAmount > 0 && !normDiscountReason) {
+    throw new Error('سبب الخصم مطلوب ولا يمكن إتمام العملية بدونه.');
+  }
 
   if (!guestName || !guestName.trim()) {
     throw new Error('اسم النزيل مطلوب ولا يمكن تركه فارغاً.');
@@ -557,7 +560,7 @@ function countNights(startDate, endDate) {
  * departure date must fall strictly before it. Everything else keeps today's behaviour.
  */
 function isMonthlyEarlyCheckout(res, departureDate) {
-  if (!res || res.booking_type !== 'حجز شهري') return false;
+  if (!res || res.booking_type === 'عقد مفتوح') return false;
   const booked = String(res.check_out_date || '').trim();
   if (!booked || booked === 'مفتوح' || !/^\d{4}-\d{2}-\d{2}$/.test(booked)) return false;
   return String(departureDate || '') < booked;
@@ -611,7 +614,7 @@ function calculateCheckoutDiscount(discountAmount, actualNights, checkInDate, bo
     if (Number.isFinite(startUtc) && Number.isFinite(endUtc) && endUtc > startUtc) {
       const bookedNights = Math.max(1, Math.round((endUtc - startUtc) / 86400000));
       if (actualNights < bookedNights) {
-        appliedDiscount = roundMoney(normalizedDiscount * actualNights / bookedNights);
+        appliedDiscount = 0; // Strict Rate Reversion: Cancel discount completely
       }
     }
   }
@@ -950,10 +953,8 @@ function checkoutReservation(reservationId, {
   // was created with — that field is optional at booking time, so requiring a reason
   // here made an unrelated stored discount block an otherwise valid checkout.
   const storedDiscountAtBooking = roundMoney(res.discount_amount || 0);
-  const isNewCheckoutDiscount = normDiscountAmount !== null && normDiscountAmount > 0
-    && Math.abs(normDiscountAmount - storedDiscountAtBooking) > 0.005;
-  if (isNewCheckoutDiscount && !normDiscountReason) {
-    throw new Error('يرجى إدخال سبب الخصم عند تطبيق خصم على المغادرة.');
+  if (requestedDiscount > 0 && !normDiscountReason) {
+    throw new Error('سبب الخصم مطلوب ولا يمكن إتمام العملية بدونه.');
   }
 
   // Compute net charge from actual stay (backend-authoritative)
@@ -1965,7 +1966,7 @@ function updateReservationReceipt({
     throw new Error('معرف الحجز أو السند غير صالح.');
   }
 
-  const res = queryOne("SELECT id, guest_id, room_id, status, booking_type FROM reservations WHERE id = ?", [targetId]);
+  const res = queryOne("SELECT id, guest_id, room_id, status, booking_type, check_in_date, check_out_date FROM reservations WHERE id = ?", [targetId]);
   if (!res) {
     throw new Error('الحجز غير موجود.');
   }
@@ -1982,7 +1983,24 @@ function updateReservationReceipt({
     ? roundMoney(customNightlyPrice)
     : null;
 
+  if (normDiscountAmount > 0 && !normDiscountReason) {
+    throw new Error('سبب الخصم مطلوب ولا يمكن إتمام العملية بدونه.');
+  }
+
   if (!isContract) {
+    if (normCustomNightlyPrice !== null && res.check_in_date && res.check_out_date && res.check_out_date !== '—' && res.check_out_date !== 'ـ') {
+      const [sy, sm, sd] = res.check_in_date.slice(0, 10).split('-').map(Number);
+      const [ey, em, ed] = res.check_out_date.slice(0, 10).split('-').map(Number);
+      const sUtc = Date.UTC(sy, sm - 1, sd);
+      const eUtc = Date.UTC(ey, em - 1, ed);
+      if (eUtc > sUtc) {
+        const nights = Math.round((eUtc - sUtc) / 86400000);
+        const expectedTotal = roundMoney((nights * normCustomNightlyPrice) - (normDiscountAmount || 0));
+        if (Math.abs(expectedTotal - total) > 0.005) {
+           throw new Error(`السعر اليومي المخصص (${normCustomNightlyPrice}) يتناقض مع الإجمالي (${total}). الإجمالي المتوقع هو ${expectedTotal}.`);
+        }
+      }
+    }
     if (total < 0) {
       throw new Error('إجمالي قيمة الحجز لا يمكن أن يكون سالباً.');
     }
