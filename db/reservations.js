@@ -714,7 +714,12 @@ function computeCheckoutSettlement(reservationId, {
     const contract = computeContractValue(res);
     contractValue = contract.contractValue;
     bookedNights = contract.bookedNights;
-    contractValueMismatch = Math.abs(roundMoney(contract.contractValue - roundMoney(res.total_price || 0))) > 0.005;
+    const storedTotal = roundMoney(res.total_price || 0);
+      if (res.booking_type === 'حجز شهري') {
+        contractValueMismatch = Math.abs(roundMoney(contract.contractValue - storedTotal)) > 0.005;
+      } else {
+        contractValueMismatch = roundMoney(contract.contractValue) > storedTotal + 0.005;
+      }
   }
 
   const normalizedLateCheckoutFee = roundMoney(lateCheckoutFee);
@@ -1012,13 +1017,21 @@ function checkoutReservation(reservationId, {
     } else {
       const contract = computeContractValue(res);
       const storedTotal = roundMoney(res.total_price || 0);
-      // Guard: the contract value must agree with what the reservation was sold for.
-      // On divergence the default path is blocked and only the Admin exception remains.
-      if (Math.abs(roundMoney(contract.contractValue - storedTotal)) > 0.005) {
-        throw new Error(
-          `قيمة العقد المحسوبة (${contract.contractValue} ريال) لا تطابق الإجمالي المخزن (${storedTotal} ريال). ` +
-          'يرجى مراجعة بيانات الحجز، أو اختيار احتساب الليالي الفعلية من قبل مدير النظام.'
-        );
+      if (res.booking_type === 'حجز شهري') {
+        if (Math.abs(roundMoney(contract.contractValue - storedTotal)) > 0.005) {
+          throw new Error(
+            `قيمة العقد المحسوبة (${contract.contractValue} ريال) لا تطابق الإجمالي المخزن (${storedTotal} ريال). ` +
+            'يرجى مراجعة بيانات الحجز، أو اختيار احتساب الليالي الفعلية من قبل مدير النظام.'
+          );
+        }
+      } else {
+        const computed = roundMoney(contract.contractValue);
+        if (computed > storedTotal + 0.005) {
+          throw new Error(
+            `تنبيه: القيمة المحسوبة للعقد (${computed} ريال) أعلى من الإجمالي المخزن (${storedTotal} ريال). ` +
+            'الرجاء مراجعة الإجمالي أو استخدام الليالي الفعلية.'
+          );
+        }
       }
       baseCharge = contract.baseCharge;
       effectiveDiscount = contract.discountAppliedInFull;
