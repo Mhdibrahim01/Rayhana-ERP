@@ -4092,6 +4092,7 @@
       // exception — netCharge alone is the actual-nights figure and would offer a
       // large bogus refund on a fully-paid monthly booking.
       finalTotal = getSettlementChargeTotal();
+      if (settleFinalTotalInput) settleFinalTotalInput.value = finalTotal.toFixed(2);
       paidSoFar  = currentSettlementPreview.paidAmount;
     } else {
       // Open-contract (or fallback before preview arrives): use live field
