@@ -4080,6 +4080,26 @@
   // backend preview (currentSettlementPreview for non-contract) or from the
   // live fields for open-contract.
   // -------------------------------------------------------------------------
+  
+  function updateDiscountSectionVisibility() {
+    const settleDiscountSection = document.getElementById('settle-discount-section');
+    if (!settleDiscountSection) return;
+    const activeRole = localStorage.getItem('currentUserRole') || (currentUser ? currentUser.role : null);
+    const isAdmin = activeRole === 'Admin';
+    if (!isAdmin) {
+      settleDiscountSection.style.display = 'none';
+      return;
+    }
+    
+    const settlePolicyContract = document.getElementById('settle-policy-contract');
+    if (settlePolicyState && settlePolicyState.applicable && settlePolicyContract && settlePolicyContract.checked) {
+      // Hide for "Contract Value" because the contract is fixed and ignores checkout discounts
+      settleDiscountSection.style.display = 'none';
+    } else {
+      settleDiscountSection.style.display = 'block';
+    }
+  }
+
   function updateSettleCalculations() {
     if (!currentSettlingReservation) return;
 
@@ -4181,12 +4201,7 @@
     currentDepositAvailable = Math.max(0, parseFloat(res.deposit_ledger_balance || 0) || 0);
     currentDepositLegacyUnreconciled = Number(res.deposit_legacy_unreconciled || 0) === 1;
 
-    // Show/hide discount section:
-    // - Non-contract: Admin only (discount lowers the backend-computed charge)
-    // - Open-contract: always visible (same as before this change)
-    const activeRole = localStorage.getItem('currentUserRole') || (currentUser ? currentUser.role : null);
-    const isAdmin = activeRole === 'Admin';
-    if (settleDiscountSection) settleDiscountSection.style.display = isAdmin ? 'block' : 'none';
+    updateDiscountSectionVisibility();
 
     if (settleReservationId) settleReservationId.value = res.id;
     if (settleLateCheckoutSection) settleLateCheckoutSection.style.display = !isContract && isReservationOverdue(res) ? 'block' : 'none';
@@ -4223,6 +4238,7 @@
           };
           resetCheckoutPolicyControls();
           renderCheckoutPolicySection();
+          updateDiscountSectionVisibility();
 
           const isDayUse = res.booking_type === 'استخدام يومي';
           const nightsLabel = isDayUse ? 'يوم استخدام' : (s.actualNights === 1 ? 'ليلة' : 'ليالٍ');
@@ -4459,6 +4475,7 @@
     if (settlePolicyReasonWrap) {
       settlePolicyReasonWrap.style.display = settlePolicyActual && settlePolicyActual.checked ? 'block' : 'none';
     }
+    updateDiscountSectionVisibility();
     if (currentSettlingReservation && currentSettlingReservation.booking_type === 'عقد مفتوح') return;
     refreshSettlementPreview().then(() => updateSettleCalculations());
   }
