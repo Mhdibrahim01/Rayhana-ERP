@@ -767,7 +767,11 @@
                     <th>عدد الإقامات السابقة</th>
                     <th>إجمالي المدفوعات</th>
                     <th>تاريخ أول تسجيل</th>
-                    <th class="admin-only" style="display: none;">الحالة</th>
+                    <!-- Status column. Previously admin-only, matching the ban button it
+                         described. Both are now available to any signed-in user, so the
+                         header must render for every role too - otherwise a receptionist
+                         sees the ban button with no column showing its result. -->
+                    <th>الحالة</th>
                     <th style="text-align: center;">إجراءات</th>
                   </tr>
                 </thead>

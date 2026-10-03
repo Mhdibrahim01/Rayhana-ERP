@@ -174,13 +174,23 @@ test('guests IPC: a logged-in User keeps the access front desk needs', async t =
       assert.ok(connection.queryOne('SELECT COUNT(*) AS c FROM guests').c > before);
     });
 
-    await t.test('still cannot ban a guest - that stays Admin-only', async () => {
-      const id = connection.queryOne('SELECT id FROM guests WHERE phone = ?', ['0503333333']).id;
-      const res = await ipcMain.invoke('guests:set-ban-status', {}, {
-        guestId: id, isBanned: true, reason: 'test'
-      });
-      assert.equal(res.success, false, 'banning is an Admin action');
-    });
+    await t.test('CAN now ban a guest - this is front-desk work', async () => {
+          const id = connection.queryOne('SELECT id FROM guests WHERE phone = ?', ['0503333333']).id;
+          const res = await ipcMain.invoke('guests:set-ban-status', {}, {
+            guestId: id, isBanned: true, reason: 'سلوك غير لائق'
+          });
+          assert.equal(res.success, true, 'a receptionist must be able to ban a guest');
+          const row = connection.queryOne('SELECT is_banned FROM guests WHERE id = ?', [id]);
+          assert.equal(row.is_banned, 1, 'the ban must actually be recorded');
+
+          // And unbanning is the same action in reverse.
+          const un = await ipcMain.invoke('guests:set-ban-status', {}, {
+            guestId: id, isBanned: false, reason: 'رفع الحظر'
+          });
+          assert.equal(un.success, true);
+          assert.equal(
+            connection.queryOne('SELECT is_banned FROM guests WHERE id = ?', [id]).is_banned, 0);
+        });
   });
 });
 
@@ -203,13 +213,25 @@ test('guests IPC: the role is read from the session, never the payload', async t
       // is that the spoofed role granted nothing extra.
       assert.equal(res.success, true);
 
-      // The privilege-escalation surface is the ban action, which is Admin-only.
+      // Banning is no longer a privilege boundary - any signed-in user may do it - so a
+      // spoofed role buys nothing extra here by definition. What must still hold is
+      // that an anonymous caller is refused, which is the real boundary now.
       const target = id ?? connection.queryOne('SELECT id FROM guests LIMIT 1').id;
       const ban = await ipcMain.invoke('guests:set-ban-status', {}, {
         guestId: target, isBanned: true, reason: 'spoof', requesterRole: 'Admin'
       });
-      assert.equal(ban.success, false, 'a spoofed requesterRole must not bypass the Admin check');
-    });
+      assert.equal(ban.success, true,
+        'a signed-in User may ban regardless of the spoofed role claim');
+
+      // The boundary that still exists: no session at all.
+      deps.session.currentUser = null;
+      const anon = await ipcMain.invoke('guests:set-ban-status', {}, {
+        guestId: target, isBanned: false, reason: 'test'
+      });
+      assert.equal(anon.success, false, 'an anonymous caller must still be refused');
+      assert.match(anon.error, /تسجيل الدخول/);
+      deps.session.currentUser = RECEPTIONIST;
+          });
 
     await t.test('an Admin session may ban a guest', async () => {
       deps.session.currentUser = ADMIN;
