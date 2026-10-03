@@ -3169,23 +3169,26 @@
           </td>
           <td style="font-weight: 800; color: var(--primary);">${totalSpent.toLocaleString()} ريال</td>
           <td style="font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(String(g.created_at || '').split(' ')[0])}</td>
-          ${isAdmin ? `
-            <td>
-              <span class="badge ${isBanned ? 'badge-cancelled' : 'badge-confirmed'}">
-                ${isBanned ? 'محظور' : 'نشط'}
-              </span>
-            </td>
-          ` : ''}
+          <!-- The ban-status column travels with the ban action: a receptionist who can now
+               ban a guest must be able to see whether that guest is currently banned.
+               Previously both were wrapped in the same isAdmin check. -->
+          <td>
+            <span class="badge ${isBanned ? 'badge-cancelled' : 'badge-confirmed'}">
+              ${isBanned ? 'محظور' : 'نشط'}
+            </span>
+          </td>
           <td style="text-align: center; white-space: nowrap;">
             <div style="display: inline-flex; align-items: center; gap: 6px; justify-content: center;">
               <button type="button" class="btn btn-secondary btn-sm" data-action="edit-guest" data-id="${g.id}" style="padding: 4px 10px; font-size: 0.78rem; font-weight: 700;">
                 تعديل ✏️
               </button>
-              ${isAdmin ? `
-                <button type="button" class="btn ${isBanned ? 'btn-secondary' : 'btn-danger'} btn-sm" data-action="toggle-ban-guest" data-id="${g.id}" data-name="${escapeHtml(g.name)}" data-banned="${isBanned ? '1' : '0'}" style="padding: 4px 10px; font-size: 0.78rem; font-weight: 700;">
-                  ${isBanned ? 'إلغاء الحظر' : 'حظر'}
-                </button>
-              ` : ''}
+              <!-- Banning is available to every signed-in user, matching the IPC gate in
+                   ipc/guests.js (session required, role not restricted). It was previously
+                   wrapped in an isAdmin check, hiding the button from reception while the
+                   backend would have allowed it anyway. -->
+              <button type="button" class="btn ${isBanned ? 'btn-secondary' : 'btn-danger'} btn-sm" data-action="toggle-ban-guest" data-id="${g.id}" data-name="${escapeHtml(g.name)}" data-banned="${isBanned ? '1' : '0'}" style="padding: 4px 10px; font-size: 0.78rem; font-weight: 700;">
+                              ${isBanned ? 'إلغاء الحظر' : 'حظر'}
+                            </button>
             </div>
           </td>
         </tr>
@@ -3269,9 +3272,12 @@
       const guestName = btn.dataset.name || 'النزيل';
       const isCurrentlyBanned = btn.dataset.banned === '1';
 
-      const activeRole = localStorage.getItem('currentUserRole') || (currentUser ? currentUser.role : 'User');
-      if (activeRole !== 'Admin') {
-        showToast('عذراً: هذا الإجراء مخصص لمدير النظام فقط.', 'error');
+      // No role check here. Banning is available to any signed-in user and the main
+      // process (ipc/guests.js) requires only a session. This renderer guard used to
+      // reject non-Admins with "هذا الإجراء مخصص لمدير النظام فقط", which blocked the
+      // click before it ever reached the IPC layer.
+      if (!currentUser) {
+        showToast('يرجى تسجيل الدخول أولاً.', 'error');
         return;
       }
 

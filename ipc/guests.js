@@ -150,8 +150,12 @@ module.exports = function registerGuestsIpc(ipcMain, { db, session }) {
   ipcMain.handle('search-guest', handleSearchGuest);
 
   ipcMain.handle('guests:set-ban-status', async (event, { guestId, isBanned, reason }) => {
-    if (!session.currentUser || session.currentUser.role !== 'Admin') {
-      return { success: false, error: 'غير مصرح: هذا الإجراء مخصص لمدير النظام فقط.' };
+    // Available to any signed-in session. Banning a guest stops further bookings, which
+    // is front-desk work: reception needs it when a guest is repeatedly problematic.
+    // Still requires a login - only the Admin restriction was lifted, not the session
+    // check. Unbanning is the same action with isBanned=false.
+    if (!session.currentUser) {
+      return { success: false, error: 'غير مصرح: يرجى تسجيل الدخول أولاً.' };
     }
     try {
       const result = db.setGuestBanStatus(guestId, isBanned, reason);
