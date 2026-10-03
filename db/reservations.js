@@ -953,8 +953,8 @@ function checkoutReservation(reservationId, {
   // checkout. A discount already stored on the reservation keeps whatever reason it
   // was created with — that field is optional at booking time, so requiring a reason
   // here made an unrelated stored discount block an otherwise valid checkout.
-  if (requestedDiscount > 0 && !normDiscountReason) {
-    throw new Error('سبب الخصم مطلوب ولا يمكن إتمام العملية بدونه.');
+  if (hasExplicitDiscount && !normDiscountReason) {
+    throw new Error('سبب الخصم مطلوب عند تعديله أو إضافته أثناء المغادرة.');
   }
 
   // Compute net charge from actual stay (backend-authoritative)
