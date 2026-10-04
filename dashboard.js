@@ -2186,6 +2186,8 @@
 
     // Bind State
     window.DashboardApp.Helpers.showPromptDialog = showPromptDialog;
+    window.DashboardApp.Helpers.sendReservationWhatsApp = sendReservationWhatsApp;
+    window.DashboardApp.Helpers.openInvoiceModal = openInvoiceModal;
     window.DashboardApp.State.currentUser = currentUser;
     // 1. Immediate UI state from localStorage cache
     const cachedRole = localStorage.getItem('currentUserRole');
