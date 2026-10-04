@@ -2198,6 +2198,7 @@
       const info = await window.api.getAppInfo();
       if (info && info.user) {
         currentUser = info.user;
+        window.DashboardApp.State.currentUser = info.user;
         userDisplayName.textContent = currentUser.username;
         userDisplayRole.textContent = currentUser.role === 'Admin' ? 'مدير نظام (Admin)' : 'مستخدم (User)';
         localStorage.setItem('currentUserRole', currentUser.role);
@@ -2211,6 +2212,7 @@
         }
       } else {
         currentUser = null;
+        window.DashboardApp.State.currentUser = null;
         applyRbacUi(null);
       }
       if (info && info.dbPath) {
@@ -2229,6 +2231,7 @@
       } catch (be) {}
     } catch (err) {
       currentUser = null;
+        window.DashboardApp.State.currentUser = null;
       applyRbacUi(null);
       console.warn('App info error:', err);
     }
