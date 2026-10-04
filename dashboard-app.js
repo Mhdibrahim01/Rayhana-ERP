@@ -173,6 +173,15 @@ window.DashboardApp = {
       .replace(/'/g, '&#039;');
   }
 
+  function roundMoney(val) {
+    const num = Number(val);
+    if (!Number.isFinite(num)) return 0.0;
+    const rounded = Math.round((num + Number.EPSILON) * 100) / 100;
+    return rounded === 0 ? 0 : rounded;
+  }
+
+  App.Helpers.roundMoney = roundMoney;
+  window.roundMoney = roundMoney;
   App.Helpers.getLocalDateString = getLocalDateString;
   App.Helpers.isReservationOverdue = isReservationOverdue;
   App.Helpers.renderOverdueBadge = renderOverdueBadge;

@@ -1586,9 +1586,9 @@ function cancelReservation(reservationId, actualDepartureDate = null, manualOver
   if (['مكتمل', 'ملغي', 'ملغي جزئي'].includes(res.status)) {
     throw new Error('الحجز مغلق بالفعل ولا يمكن إلغاؤه.');
   }
-  // Cancellation is only for stays that have not started. Once arrival day
-  // begins, use the checkout settlement flow so the stay keeps one lifecycle.
-  const hasStarted = today >= res.check_in_date;
+  // Cancellation / Void is allowed before arrival or on the arrival date (immediate void of walk-in/same-day booking).
+  // Once arrival day has passed (guest stayed overnight), use the checkout settlement flow so the stay keeps one lifecycle.
+  const hasStarted = today > res.check_in_date;
   if (hasStarted) {
     throw new Error('الإقامة بدأت بالفعل. استخدم تسجيل الخروج لتصفية الحساب بدلاً من إلغاء الحجز.');
   }
@@ -1606,7 +1606,7 @@ function cancelReservation(reservationId, actualDepartureDate = null, manualOver
   db.run("BEGIN TRANSACTION;");
   try {
     if (!hasStarted) {
-      // Pre-arrival cancellation: full refund of any deposit per confirmed business policy.
+      // Pre-arrival or same-day void cancellation: full refund of any deposit per confirmed business policy.
       // paid_amount is reset to 0 because the entire amount was physically returned to the guest
       // and that refund is recorded as a negative ledger entry below.
       refundDue = paidAmount;
@@ -1630,6 +1630,9 @@ function cancelReservation(reservationId, actualDepartureDate = null, manualOver
       // collect the refund method from the UI. Extend the function signature if needed.
       if (refundDue > 0) {
         const refundReceiptNumber = generateReceiptNumber(targetId);
+        const cancelNote = (today < res.check_in_date)
+          ? 'استرداد كامل - إلغاء قبل الوصول #' + targetId
+          : 'استرداد كامل - إبطال الحجز المباشر #' + targetId;
         const refundStmt = db.prepare(`
           INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
           VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
@@ -1640,7 +1643,7 @@ function cancelReservation(reservationId, actualDepartureDate = null, manualOver
           -refundDue,
           'نقداً',
           userId ? parseInt(userId, 10) : null,
-          'استرداد كامل - إلغاء قبل الوصول #' + targetId
+          cancelNote
         ]);
         refundStmt.free();
       }

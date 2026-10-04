@@ -125,7 +125,9 @@
         if (!reservation) return '';
         const total = Math.max(0, Number(reservation.total_price || 0));
         const paid = Math.max(0, Number(reservation.paid_amount || 0));
-        const remaining = Math.max(0, total - paid);
+        const rawRemaining = total - paid;
+        const isCredit = rawRemaining < -0.005;
+        const remaining = Math.max(0, rawRemaining);
         const ledgerDeposit = Number(reservation.deposit_ledger_balance || 0);
         const legacyDeposit = Number(reservation.deposit_legacy_unreconciled || 0) === 1
           ? Number(reservation.deposit_amount || 0) : 0;
@@ -133,7 +135,10 @@
         return `
           <div style="display:flex; flex-wrap:wrap; gap:5px 12px; margin-top:6px; font-size:0.72rem; line-height:1.5;">
             <span style="color:#047857;">مدفوع: <strong>${paid.toLocaleString()} ريال</strong></span>
-            <span style="color:${remaining > 0 ? '#dc2626' : '#64748b'};">متبقي: <strong>${remaining.toLocaleString()} ريال</strong></span>
+            ${isCredit
+              ? `<span style="color:#2563eb; font-weight:700;">له رصيد: <strong>${Math.abs(rawRemaining).toLocaleString()} ريال</strong></span>`
+              : `<span style="color:${remaining > 0 ? '#dc2626' : '#64748b'};">متبقي: <strong>${remaining.toLocaleString()} ريال</strong></span>`
+            }
             ${deposit > 0 ? `<span style="color:#7c3aed;">التأمين: <strong>${deposit.toLocaleString()} ريال</strong></span>` : ''}
           </div>
         `;
@@ -686,9 +691,11 @@
                 <tbody>
                   ${breakdown.map((r, idx) => {
                     const price = parseFloat(r.total_price || 0);
-      const paid = parseFloat(r.paid_amount || 0);
+                    const paid = parseFloat(r.paid_amount || 0);
                     const collected = parseFloat(r.amount_collected || 0);
-                    const remaining = Math.max(0, price - paid);
+                    const rawRemaining = price - paid;
+                    const isCredit = rawRemaining < -0.005;
+                    const remaining = Math.max(0, rawRemaining);
                     const checkOutDisplay = (r.check_out_date === 'مفتوح' || !r.check_out_date) 
                       ? '<span style="color: #0284c7; font-weight: 700;">مفتوح</span>' 
                       : App.Helpers.escapeHtml(r.check_out_date);
@@ -701,8 +708,8 @@
                         <td style="padding: 9px 12px; text-align: center; font-family: monospace; color: #334155;">${checkOutDisplay}</td>
                         <td style="padding: 9px 12px; text-align: left; font-weight: 700; color: #1e1b4b;">${price.toLocaleString()} ريال</td>
                         <td style="padding: 9px 12px; text-align: left; font-weight: 700; color: #059669;">${collected.toLocaleString()} ريال</td>
-                        <td style="padding: 9px 12px; text-align: left; font-weight: 700; color: ${remaining > 0 ? '#dc2626' : '#64748b'};">
-                          ${remaining > 0 ? `${remaining.toLocaleString()} ريال` : '0 ريال'}
+                        <td style="padding: 9px 12px; text-align: left; font-weight: 700; color: ${isCredit ? '#2563eb' : (remaining > 0 ? '#dc2626' : '#64748b')};">
+                          ${isCredit ? `له رصيد: ${Math.abs(rawRemaining).toLocaleString()} ريال` : (remaining > 0 ? `${remaining.toLocaleString()} ريال` : '0 ريال')}
                         </td>
                         <td style="padding: 9px 12px; text-align: center;">${App.Helpers.getReservationStatusBadge(r.status)}</td>
                         <td style="padding: 9px 12px; text-align: center;">${App.Helpers.getBookingTypeBadge(r.booking_type) || App.Helpers.escapeHtml(r.booking_type)}</td>

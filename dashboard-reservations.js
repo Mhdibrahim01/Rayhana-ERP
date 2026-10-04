@@ -149,6 +149,7 @@
   const btnSubmit = document.getElementById('btn-confirm-extend-stay');
   const resFilterTabs = document.querySelectorAll('#res-filter-tabs .filter-tab-btn');
   const ARABIC_MONTHS = App.Helpers.ARABIC_MONTHS;
+  function roundMoney(val) { return App.Helpers.roundMoney(val); }
   function getLocalDateString(d) { return App.Helpers.getLocalDateString(d); }
   function isReservationOverdue(res) { return App.Helpers.isReservationOverdue(res); }
   function renderOverdueBadge(isOverdue) { return App.Helpers.renderOverdueBadge(isOverdue); }
@@ -301,7 +302,7 @@
         const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
         const days = Math.max(1, diffDays);
 
-        const autoCharge = Math.round(days * nightlyRate * 100) / 100;
+        const autoCharge = roundMoney(days * nightlyRate);
         if (daysEl) daysEl.textContent = `${days} ليلة`;
         if (autoChargeEl) autoChargeEl.textContent = `${autoCharge.toLocaleString()} ريال`;
 
@@ -309,15 +310,15 @@
         if (isAdmin && overrideInput && overrideInput.value.trim() !== '') {
           const num = Number(overrideInput.value);
           if (!isNaN(num)) {
-            finalCharge = Math.max(0, Math.round(num * 100) / 100);
+            finalCharge = Math.max(0, roundMoney(num));
           }
         }
 
         if (finalTotalEl) finalTotalEl.textContent = `${finalCharge.toLocaleString()} ريال`;
 
         const paid = Number(targetRes.paid_amount || 0);
-        const refund = Math.max(0, Math.round((paid - finalCharge) * 100) / 100);
-        const owed = Math.max(0, Math.round((finalCharge - paid) * 100) / 100);
+        const refund = Math.max(0, roundMoney(paid - finalCharge));
+        const owed = Math.max(0, roundMoney(finalCharge - paid));
 
         if (outcomeEl) {
           if (refund > 0) {
@@ -362,7 +363,7 @@
         if (isAdmin && overrideInput && overrideInput.value.trim() !== '') {
           const num = Number(overrideInput.value);
           if (!isNaN(num)) {
-            overrideVal = Math.max(0, Math.round(num * 100) / 100);
+            overrideVal = Math.max(0, roundMoney(num));
           }
         }
 
@@ -1384,8 +1385,8 @@
     // once to avoid hundreds of costly individual DOM reflows (layout thrashing).
     const rowsHtml = filtered.map(r => {
       const isConfirmed = r.status === 'مؤكد';
-      const hasStarted = r.check_in_date ? getLocalDateString() >= r.check_in_date : true;
-      const canCheckOut = isConfirmed && hasStarted;
+      const hasStarted = r.check_in_date ? getLocalDateString() > r.check_in_date : false;
+      const canCheckOut = isConfirmed && (getLocalDateString() >= r.check_in_date);
       const canCancel = isConfirmed && !hasStarted;
       const isContract = r.booking_type === 'عقد مفتوح';
       const total = parseFloat(r.total_price || 0);
@@ -1467,7 +1468,7 @@
                 <button type="button" class="btn-action-icon" data-action="whatsapp" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #f0fdf4; color: #16a34a; border: 1.5px solid #86efac; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="مراسلة النزيل عبر واتساب">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
                 </button>
-                ${canCancel ? `<button type="button" class="btn-action-icon" data-action="cancel" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="إلغاء الحجز">
+                ${canCancel ? `<button type="button" class="btn-action-icon" data-action="cancel" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="${r.check_in_date === getLocalDateString() ? 'إبطال / إلغاء الحجز المباشر' : 'إلغاء الحجز'}">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>` : ''}
               ` : ''}
@@ -1629,7 +1630,7 @@
   const getReservationPaidForPayments = (reservation) => {
     const useLedgerBalance = reservation?.status === 'ملغي جزئي' && reservation?.payment_status === 'مدفوع جزئياً';
     const amount = useLedgerBalance ? reservation.ledger_paid_amount : reservation?.paid_amount;
-    return Math.round((parseFloat(amount || 0) + Number.EPSILON) * 100) / 100;
+    return roundMoney(amount || 0);
   };
 
   window.openAddPaymentModal = async function openAddPaymentModal(reservationId) {
@@ -1666,9 +1667,9 @@
 
     currentPayingReservation = res;
     const isContract = res.booking_type === 'عقد مفتوح';
-    const total = Math.round((parseFloat(res.total_price || 0) + Number.EPSILON) * 100) / 100;
+    const total = roundMoney(res.total_price || 0);
     const paid = getReservationPaidForPayments(res);
-    const rawRemaining = Math.round((total - paid + Number.EPSILON) * 100) / 100;
+    const rawRemaining = roundMoney(total - paid);
     const remaining = isContract ? rawRemaining : Math.max(0, rawRemaining);
 
     const inputResId = document.getElementById('payment-reservation-id');
@@ -1740,10 +1741,10 @@
   if (btnPayFullRemaining) {
     btnPayFullRemaining.addEventListener('click', () => {
       if (!currentPayingReservation) return;
-      const total = Math.round((parseFloat(currentPayingReservation.total_price || 0) + Number.EPSILON) * 100) / 100;
+      const total = roundMoney(currentPayingReservation.total_price || 0);
       const paid = getReservationPaidForPayments(currentPayingReservation);
       const isContract = currentPayingReservation.booking_type === 'عقد مفتوح';
-      const rawRemaining = Math.round((total - paid + Number.EPSILON) * 100) / 100;
+      const rawRemaining = roundMoney(total - paid);
       const remaining = isContract ? Math.max(0, rawRemaining) : Math.max(0, rawRemaining);
       if (paymentNewAmount && remaining > 0) {
         paymentNewAmount.value = remaining.toFixed(2);
@@ -1756,7 +1757,7 @@
     addPaymentForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const resId = parseInt(paymentReservationId.value, 10);
-      const newAmount = Math.round((parseFloat(paymentNewAmount.value) + Number.EPSILON) * 100) / 100;
+      const newAmount = roundMoney(paymentNewAmount.value);
       const method = paymentMethodSelectModal ? paymentMethodSelectModal.value : 'نقداً';
 
       if (!resId || isNaN(resId)) {
@@ -1769,9 +1770,9 @@
       }
 
       if (currentPayingReservation && currentPayingReservation.booking_type !== 'عقد مفتوح') {
-        const total = Math.round((parseFloat(currentPayingReservation.total_price || 0) + Number.EPSILON) * 100) / 100;
+        const total = roundMoney(currentPayingReservation.total_price || 0);
         const paid = getReservationPaidForPayments(currentPayingReservation);
-        const remaining = Math.max(0, Math.round((total - paid + Number.EPSILON) * 100) / 100);
+        const remaining = Math.max(0, roundMoney(total - paid));
         if (newAmount - remaining > 0.005) {
           showToast(`المبلغ المدخل (${newAmount.toLocaleString()} ريال) يتجاوز الرصيد المتبقي المستحق (${remaining.toLocaleString()} ريال).`, 'error');
           return;
@@ -1881,9 +1882,9 @@
       const useActual = getSelectedCheckoutPolicy() === 'actual';
       const value = useActual ? currentSettlementPreview.actualValue : (settlePolicyState.applicable ? settlePolicyState.contractValue : null);
       const total = value !== null && value !== undefined ? value : currentSettlementPreview.netCharge;
-      return Math.round((parseFloat(total) + Number.EPSILON) * 100) / 100;
+      return roundMoney(total);
     }
-    return Math.round((parseFloat(settleFinalTotalInput ? settleFinalTotalInput.value : 0) + Number.EPSILON) * 100) / 100;
+    return roundMoney(settleFinalTotalInput ? settleFinalTotalInput.value : 0);
   }
 
   /** Draw the Admin-only monthly early-checkout policy block. */
@@ -1973,14 +1974,14 @@
       paidSoFar  = currentSettlementPreview.paidAmount;
     } else {
       // Open-contract (or fallback before preview arrives): use live field
-      finalTotal = Math.round((parseFloat(settleFinalTotalInput ? settleFinalTotalInput.value : 0) + Number.EPSILON) * 100) / 100;
-      paidSoFar  = Math.round((parseFloat(currentSettlingReservation.paid_amount || 0) + Number.EPSILON) * 100) / 100;
+      finalTotal = roundMoney(settleFinalTotalInput ? settleFinalTotalInput.value : 0);
+      paidSoFar  = roundMoney(currentSettlingReservation.paid_amount || 0);
     }
 
-    const beforeDepositBalance = Math.round((finalTotal - paidSoFar + Number.EPSILON) * 100) / 100;
+    const beforeDepositBalance = roundMoney(finalTotal - paidSoFar);
     const requestedDepositApply = settleDepositDisposition?.value === 'apply'
       ? Math.max(0, Math.min(currentDepositAvailable, beforeDepositBalance)) : 0;
-    const netBalance = Math.round((beforeDepositBalance - requestedDepositApply + Number.EPSILON) * 100) / 100;
+    const netBalance = roundMoney(beforeDepositBalance - requestedDepositApply);
 
     // Discount hint (for open-contract only; non-contract discount is in the preview)
     if (isContract) {
@@ -2054,7 +2055,7 @@
 
     const todayStr = getLocalDateString();
     const isContract = res.booking_type === 'عقد مفتوح';
-    const paidSoFar = Math.round((parseFloat(res.paid_amount || 0) + Number.EPSILON) * 100) / 100;
+    const paidSoFar = roundMoney(res.paid_amount || 0);
     currentDepositAvailable = Math.max(0, parseFloat(res.deposit_ledger_balance || 0) || 0);
     currentDepositLegacyUnreconciled = Number(res.deposit_legacy_unreconciled || 0) === 1;
 
@@ -2141,8 +2142,8 @@
           const [y1, m1, d1] = (res.check_in_date || todayStr).split('-').map(Number);
           const [y2, m2, d2] = todayStr.split('-').map(Number);
           const nights = Math.max(1, Math.round((Date.UTC(y2, m2-1, d2) - Date.UTC(y1, m1-1, d1)) / 86400000));
-          const base = Math.round((nights * pricePerNight + Number.EPSILON) * 100) / 100;
-          const existDisc = Math.round((parseFloat(res.discount_amount || 0) + Number.EPSILON) * 100) / 100;
+          const base = roundMoney(nights * pricePerNight);
+          const existDisc = roundMoney(res.discount_amount || 0);
           const [bookedYear, bookedMonth, bookedDay] = (res.check_out_date || '').split('-').map(Number);
           const bookedEndUtc = Date.UTC(bookedYear, bookedMonth - 1, bookedDay);
           const checkInUtc = Date.UTC(y1, m1 - 1, d1);
@@ -2150,7 +2151,7 @@
             ? Math.max(1, Math.round((bookedEndUtc - checkInUtc) / 86400000))
             : nights;
           const appliedDiscount = nights < bookedNights ? 0 : Math.min(base, existDisc);
-          const net = Math.max(0, Math.round((base - appliedDiscount + Number.EPSILON) * 100) / 100);
+          const net = Math.max(0, roundMoney(base - appliedDiscount));
           if (settleNightsCount) settleNightsCount.textContent = `${nights} ${nights === 1 ? 'ليلة' : 'ليالٍ'} (بسعر ${pricePerNight.toLocaleString()} ريال/ليلة)`;
           if (settleTotalPriceDisplay) settleTotalPriceDisplay.textContent = `${base.toFixed(2)} ريال`;
           if (settleFinalTotalInput) settleFinalTotalInput.value = net.toFixed(2);
@@ -2168,8 +2169,8 @@
       const [y1, m1, d1] = (res.check_in_date || todayStr).split('-').map(Number);
       const [y2, m2, d2] = todayStr.split('-').map(Number);
       const nights = Math.max(1, Math.round((Date.UTC(y2, m2-1, d2) - Date.UTC(y1, m1-1, d1)) / 86400000));
-      const calculatedBase = Math.round((nights * pricePerNight + Number.EPSILON) * 100) / 100;
-      const existingDiscount = Math.round((parseFloat(res.discount_amount || 0) + Number.EPSILON) * 100) / 100;
+      const calculatedBase = roundMoney(nights * pricePerNight);
+      const existingDiscount = roundMoney(res.discount_amount || 0);
       const rateNote = res.custom_nightly_price ? ' - سعر خاص' : '';
       if (settleNightsCount) settleNightsCount.textContent = `${nights} ${nights === 1 ? 'ليلة' : 'ليالٍ'} (بسعر ${pricePerNight.toLocaleString()} ريال/ليلة${rateNote})`;
       if (settleTotalPriceDisplay) settleTotalPriceDisplay.textContent = `${calculatedBase.toFixed(2)} ريال`;
@@ -2274,7 +2275,7 @@
   if (btnReconcileLegacyDeposit) {
     btnReconcileLegacyDeposit.addEventListener('click', async () => {
       if (!currentSettlingReservation || !currentDepositLegacyUnreconciled) return;
-      const amount = Math.round((parseFloat(currentSettlingReservation.deposit_amount || 0) + Number.EPSILON) * 100) / 100;
+      const amount = roundMoney(currentSettlingReservation.deposit_amount || 0);
       const confirmed = await showConfirmDialog({
         title: 'مطابقة تأمين تاريخي',
         message: `هل راجعت سجل الحجز وتؤكد أن مبلغ ${amount.toLocaleString()} ريال تم استلامه وما زال محفوظاً كتأمين؟ ستُسجل المطابقة باسمك ولا تعني تحصيل مبلغ جديد.`,
@@ -2454,9 +2455,7 @@
       // already stored on the reservation was accepted at booking time without one,
       // and the modal pre-fills that amount, so demanding a reason for it would block
       // a checkout the receptionist never changed. Mirrors the backend rule.
-      const storedDiscount = Math.round(
-        ((parseFloat(currentSettlingReservation?.discount_amount) || 0) + Number.EPSILON) * 100
-      ) / 100;
+      const storedDiscount = roundMoney(currentSettlingReservation?.discount_amount || 0);
       const isNewCheckoutDiscount = !isContract && discAmount > 0
         && Math.abs(discAmount - storedDiscount) > 0.005;
       if (isNewCheckoutDiscount && !discReason) {
@@ -2538,7 +2537,7 @@
     }
 
     const discountAmount = Math.max(0, parseFloat(extendDiscountInput ? extendDiscountInput.value : 0) || 0);
-    const currentTotal = Math.round((parseFloat(currentExtendingReservation.total_price || 0) + Number.EPSILON) * 100) / 100;
+    const currentTotal = roundMoney(currentExtendingReservation.total_price || 0);
 
     if (!newDateStr || newDateStr <= oldDateStr) {
       currentCalcExtraNights = 0;
@@ -2561,9 +2560,9 @@
     const diffTime = dNew.getTime() - dOld.getTime();
     currentCalcExtraNights = Math.round(diffTime / (1000 * 60 * 60 * 24));
     
-    const baseCost = Math.round((currentCalcExtraNights * nightlyRate + Number.EPSILON) * 100) / 100;
-    currentCalcAdditionalCost = Math.max(0, Math.round((baseCost - discountAmount + Number.EPSILON) * 100) / 100);
-    currentCalcNewTotal = Math.round((currentTotal + currentCalcAdditionalCost + Number.EPSILON) * 100) / 100;
+    const baseCost = roundMoney(currentCalcExtraNights * nightlyRate);
+    currentCalcAdditionalCost = Math.max(0, roundMoney(baseCost - discountAmount));
+    currentCalcNewTotal = roundMoney(currentTotal + currentCalcAdditionalCost);
 
     const nightsLabel = currentCalcExtraNights === 1 ? 'ليلة واحدة' : (currentCalcExtraNights === 2 ? 'ليلتين' : `${currentCalcExtraNights} ليالٍ`);
     if (extendExtraNightsPreview) extendExtraNightsPreview.textContent = nightsLabel;
@@ -3047,25 +3046,28 @@
       }
 
       const todayStr = getLocalDateString();
-      const hasStarted = targetRes && targetRes.check_in_date ? (todayStr >= targetRes.check_in_date) : true;
+      const hasStarted = targetRes && targetRes.check_in_date ? (todayStr > targetRes.check_in_date) : false;
       if (hasStarted) {
-        showToast('الإقامة بدأت بالفعل. استخدم تسجيل الخروج لتصفية الحساب.', 'error');
+        showToast('الإقامة بدأت بالفعل في تاريخ سابق. استخدم تسجيل الخروج لتصفية الحساب.', 'error');
         return;
       }
 
       let cancelPayload = { reservationId: id };
 
-      if (!hasStarted) {
-        // Pre-arrival cancellation: keep it simple with standard confirm modal
-        const confirmed = await showConfirmDialog({
-          title: 'إلغاء حجز قبل الوصول',
-          message: `هل أنت متأكد من إلغاء الحجز #${id} للنزيل (${targetRes?.guest_name || 'نزيل'})؟\n(الحجز لم يبدأ بعد - سيتم إلغاء الحجز بالكامل وإعادة أي مبالغ مدفوعة مسبقاً للنزيل).`,
-          confirmText: 'نعم، إلغاء الحجز',
-          cancelText: 'تراجع',
-          isDanger: true
-        });
-        if (!confirmed) return;
-      }
+      const isSameDay = targetRes && targetRes.check_in_date === todayStr;
+      const dialogTitle = isSameDay ? 'إبطال / إلغاء حجز اليوم' : 'إلغاء حجز قبل الوصول';
+      const dialogMessage = isSameDay
+        ? `هل أنت متأكد من إلغاء / إبطال الحجز المباشر #${id} للنزيل (${targetRes?.guest_name || 'نزيل'})؟\n(سيتم إلغاء الحجز فوراً، وإعادة أي مبالغ مدفوعة للنزيل، وإعادة الغرفة لحالة "متاحة").`
+        : `هل أنت متأكد من إلغاء الحجز #${id} للنزيل (${targetRes?.guest_name || 'نزيل'})؟\n(الحجز لم يبدأ بعد - سيتم إلغاء الحجز بالكامل وإعادة أي مبالغ مدفوعة مسبقاً للنزيل).`;
+
+      const confirmed = await showConfirmDialog({
+        title: dialogTitle,
+        message: dialogMessage,
+        confirmText: isSameDay ? 'نعم، إبطال الحجز' : 'نعم، إلغاء الحجز',
+        cancelText: 'تراجع',
+        isDanger: true
+      });
+      if (!confirmed) return;
 
       try {
         const res = await window.api.cancelReservation(cancelPayload);
