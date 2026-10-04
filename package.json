@@ -79,6 +79,7 @@
       "dashboard-overview.js",
       "dashboard-logs.js",
       "dashboard-admin.js",
+      "dashboard-guests.js",
       "dashboard.js",
       "styles.css",
       "assets/**/*",
