@@ -78,6 +78,7 @@
       "dashboard-app.js",
       "dashboard-overview.js",
       "dashboard-logs.js",
+      "dashboard-admin.js",
       "dashboard.js",
       "styles.css",
       "assets/**/*",

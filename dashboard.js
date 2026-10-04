@@ -11,7 +11,6 @@
   let currentUser = null;
   let roomsCache = [];
   let guestsCache = [];
-  let usersCache = [];
   let currentReservationFilter = 'all';
   let reservationsTableRows = [];
   let reservationsTableTotal = 0;
@@ -48,6 +47,14 @@
   const topbarHeading = document.getElementById('topbar-heading');
   const topbarSubheading = document.getElementById('topbar-subheading');
 
+  const btnOpenFactoryReset = document.getElementById('btn-open-factory-reset');
+  const factoryResetModal = document.getElementById('factory-reset-modal');
+  const btnCloseFactoryReset = document.getElementById('btn-close-factory-reset');
+  const btnCancelFactoryReset = document.getElementById('btn-cancel-factory-reset');
+  const factoryResetForm = document.getElementById('factory-reset-form');
+  const factoryResetPasswordInput = document.getElementById('factory-reset-password');
+  const factoryResetErrorMsg = document.getElementById('factory-reset-error-msg');
+  const btnSubmitFactoryReset = document.getElementById('btn-submit-factory-reset');
   // Header Elements
   const userDisplayName = document.getElementById('user-display-name');
   const userDisplayRole = document.getElementById('user-display-role');
@@ -4443,249 +4450,7 @@
     });
   }
 
-  // =========================================================================
-  // VIEW 5: ADMIN PANEL & USER MANAGEMENT (RBAC)
-  // =========================================================================
-  async function loadAdminData() {
-    const activeRole = localStorage.getItem('currentUserRole') || (currentUser ? currentUser.role : null);
-    if (activeRole !== 'Admin') return;
-
-    try {
-      const res = await window.api.getAllUsers();
-      if (res.success) {
-        usersCache = res.data || [];
-        renderUsersTable();
-      } else {
-        showToast(res.error || 'تعذر تحميل المستخدمين.', 'error');
-      }
-    } catch (err) {
-      console.error('Load users error:', err);
-    }
-  }
-
-  function renderUsersTable() {
-    usersTableBody.innerHTML = usersCache.map(u => {
-      const isAdmin = u.role === 'Admin';
-      const isDefaultAdmin = u.username.toLowerCase() === 'admin';
-
-      return `
-        <tr>
-          <td style="font-family: monospace; font-weight: 700; color: var(--primary);">#${u.id}</td>
-          <td style="font-weight: 700; font-size: 0.9rem;">
-            ${escapeHtml(u.username)}
-            ${currentUser && u.id === currentUser.id ? ' <span style="font-size: 0.7rem; color: var(--success); font-weight: 600;">(أنت)</span>' : ''}
-          </td>
-          <td>
-            <span class="${isAdmin ? 'badge-role-admin' : 'badge-role-staff'}">
-              ${isAdmin ? 'مدير نظام (Admin)' : 'مستخدم (User)'}
-            </span>
-          </td>
-          <td style="font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(String(u.created_at || '').split(' ')[0])}</td>
-          <td style="text-align: center;">
-            ${!isDefaultAdmin && (!currentUser || u.id !== currentUser.id) ? `
-              <button class="btn btn-danger btn-sm" data-action="delete-user" data-id="${u.id}" data-username="${escapeHtml(u.username)}" title="حذف المستخدم">
-                حذف
-              </button>
-            ` : `<span style="font-size: 0.75rem; color: var(--text-light);">-</span>`}
-          </td>
-        </tr>
-      `;
-    }).join('');
-  }
-
-  // Add User Form (Admin Only)
-  addUserForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    const username = newUsernameInput.value.trim();
-    const password = newUserPasswordInput.value;
-    const role = newUserRoleSelect.value;
-
-    if (!username || !password) {
-      showToast('يرجى ملء اسم المستخدم وكلمة المرور.', 'error');
-      return;
-    }
-
-    const activeRole = localStorage.getItem('currentUserRole') || (currentUser ? currentUser.role : 'User');
-
-    try {
-      const res = await window.api.addUser({ username, password, role }, activeRole);
-      if (res.success) {
-        showToast(`تم إنشاء حساب "${username}" بصلاحية ${role} بنجاح!`, 'success');
-        addUserForm.reset();
-        await loadAdminData();
-      } else {
-        showToast(res.error || 'فشل إنشاء المستخدم.', 'error');
-      }
-    } catch (err) {
-      showToast(`خطأ: ${err.message}`, 'error');
-    }
-  });
-
-  // Update Admin Password Form
-  updatePasswordForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    const newPassword = currentAdminNewPasswordInput.value;
-    if (!newPassword || newPassword.length < 3) {
-      showToast('كلمة المرور يجب أن لا تقل عن 3 أحرف.', 'error');
-      return;
-    }
-
-    try {
-      const res = await window.api.updateUserPassword({
-        userId: currentUser ? currentUser.id : null,
-        newPassword
-      });
-
-      if (res.success) {
-        showToast('تم تحديث كلمة المرور الخاصة بك بنجاح!', 'success');
-        updatePasswordForm.reset();
-      } else {
-        showToast(res.error || 'فشل تحديث كلمة المرور.', 'error');
-      }
-    } catch (err) {
-      showToast(`خطأ: ${err.message}`, 'error');
-    }
-  });
-
-  btnRefreshUsers.addEventListener('click', loadAdminData);
-
-  // Delete User delegation (Admin Only)
-  usersTableBody.addEventListener('click', async (e) => {
-    const btn = e.target.closest('button[data-action="delete-user"]');
-    if (!btn) return;
-
-    const userId = btn.dataset.id;
-    const username = btn.dataset.username;
-    const activeRole = localStorage.getItem('currentUserRole') || (currentUser ? currentUser.role : 'User');
-
-    const confirmed = await showConfirmDialog({
-      title: 'حذف مستخدم من النظام',
-      message: `هل أنت متأكد من رغبتك في حذف المستخدم "${username}"؟\nلن يتمكن هذا المستخدم من تسجيل الدخول للنظام بعد الحذف.`,
-      confirmText: 'نعم، حذف المستخدم',
-      cancelText: 'إلغاء',
-      isDanger: true
-    });
-
-    if (confirmed) {
-      try {
-        const res = await window.api.deleteUser(userId, activeRole);
-        if (res.success) {
-          showToast(`تم حذف المستخدم "${username}" بنجاح.`, 'info');
-          await loadAdminData();
-        } else {
-          showToast(res.error || 'فشل حذف المستخدم.', 'error');
-        }
-      } catch (err) {
-        showToast(`خطأ: ${err.message}`, 'error');
-      }
-    }
-  });
-
-  // =========================================================================
-  // FACTORY RESET APP DATA (Requires Admin Role & Password Challenge)
-  // =========================================================================
-  const btnOpenFactoryReset = document.getElementById('btn-open-factory-reset');
-  const factoryResetModal = document.getElementById('factory-reset-modal');
-  const btnCloseFactoryReset = document.getElementById('btn-close-factory-reset');
-  const btnCancelFactoryReset = document.getElementById('btn-cancel-factory-reset');
-  const factoryResetForm = document.getElementById('factory-reset-form');
-  const factoryResetPasswordInput = document.getElementById('factory-reset-password');
-  const factoryResetErrorMsg = document.getElementById('factory-reset-error-msg');
-  const btnSubmitFactoryReset = document.getElementById('btn-submit-factory-reset');
-
-  function openFactoryResetModal() {
-    const activeRole = localStorage.getItem('currentUserRole') || (currentUser ? currentUser.role : null);
-    if (activeRole !== 'Admin') {
-      showToast('غير مصرح: تصفير بيانات التطبيق يتطلب صلاحيات مدير النظام (Admin).', 'error');
-      return;
-    }
-    if (factoryResetPasswordInput) factoryResetPasswordInput.value = '';
-    if (factoryResetErrorMsg) {
-      factoryResetErrorMsg.textContent = '';
-      factoryResetErrorMsg.style.display = 'none';
-    }
-    if (factoryResetModal) {
-      factoryResetModal.style.display = 'flex';
-      setTimeout(() => {
-        if (factoryResetPasswordInput) factoryResetPasswordInput.focus();
-      }, 100);
-    }
-  }
-
-  function closeFactoryResetModal() {
-    if (factoryResetModal) factoryResetModal.style.display = 'none';
-    if (factoryResetPasswordInput) factoryResetPasswordInput.value = '';
-    if (factoryResetErrorMsg) {
-      factoryResetErrorMsg.textContent = '';
-      factoryResetErrorMsg.style.display = 'none';
-    }
-  }
-
-  if (btnOpenFactoryReset) {
-    btnOpenFactoryReset.addEventListener('click', openFactoryResetModal);
-  }
-  if (btnCloseFactoryReset) {
-    btnCloseFactoryReset.addEventListener('click', closeFactoryResetModal);
-  }
-  if (btnCancelFactoryReset) {
-    btnCancelFactoryReset.addEventListener('click', closeFactoryResetModal);
-  }
-  if (factoryResetModal) {
-    factoryResetModal.addEventListener('click', (e) => {
-      if (e.target === factoryResetModal) closeFactoryResetModal();
-    });
-  }
-
-  if (factoryResetForm) {
-    factoryResetForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const pwd = factoryResetPasswordInput ? factoryResetPasswordInput.value : '';
-      if (!pwd) {
-        if (factoryResetErrorMsg) {
-          factoryResetErrorMsg.textContent = 'يرجى كتابة كلمة المرور لتأكيد تصفير البيانات.';
-          factoryResetErrorMsg.style.display = 'block';
-        }
-        return;
-      }
-
-      if (btnSubmitFactoryReset) {
-        btnSubmitFactoryReset.disabled = true;
-        btnSubmitFactoryReset.textContent = 'جاري تصفير البيانات...';
-      }
-
-      try {
-        const res = await window.api.factoryResetDatabase(pwd);
-        if (res && res.success) {
-          showToast(res.message || 'تم تصفير بيانات النظام بنجاح واستعادة تهيئة المصنع!', 'success');
-          closeFactoryResetModal();
-          setTimeout(() => {
-            window.location.reload();
-          }, 1200);
-        } else {
-          if (factoryResetErrorMsg) {
-            factoryResetErrorMsg.textContent = res?.error || 'فشلت عملية تصفير البيانات: تأكد من صحة كلمة المرور.';
-            factoryResetErrorMsg.style.display = 'block';
-          }
-          if (factoryResetPasswordInput) {
-            factoryResetPasswordInput.focus();
-            highlightField(factoryResetPasswordInput);
-          }
-        }
-      } catch (err) {
-        if (factoryResetErrorMsg) {
-          factoryResetErrorMsg.textContent = `خطأ: ${err.message}`;
-          factoryResetErrorMsg.style.display = 'block';
-        }
-      } finally {
-        if (btnSubmitFactoryReset) {
-          btnSubmitFactoryReset.disabled = false;
-          btnSubmitFactoryReset.textContent = 'تأكيد التصفير واستعادة المصنع ⚠️';
-        }
-      }
-    });
-  }
+  function loadAdminData() { return window.DashboardApp.Helpers.loadAdminData(); }
 
   // =========================================================================
   // OFFICIAL HOTEL TAX INVOICE & RECEIPT (FEATURE 1)
@@ -6635,6 +6400,25 @@
   // --- INITIALIZE APPLICATION ---
   async function init() {
 
+    // Phase 3 DOM Bindings
+    window.DashboardApp.DOM.usersTableBody = usersTableBody;
+    window.DashboardApp.DOM.addUserForm = addUserForm;
+    window.DashboardApp.DOM.newUsernameInput = newUsernameInput;
+    window.DashboardApp.DOM.newUserPasswordInput = newUserPasswordInput;
+    window.DashboardApp.DOM.newUserRoleSelect = newUserRoleSelect;
+    window.DashboardApp.DOM.updatePasswordForm = updatePasswordForm;
+    window.DashboardApp.DOM.currentAdminNewPasswordInput = currentAdminNewPasswordInput;
+    window.DashboardApp.DOM.btnRefreshUsers = btnRefreshUsers;
+    window.DashboardApp.DOM.btnOpenFactoryReset = btnOpenFactoryReset;
+    window.DashboardApp.DOM.factoryResetModal = factoryResetModal;
+    window.DashboardApp.DOM.btnCloseFactoryReset = btnCloseFactoryReset;
+    window.DashboardApp.DOM.btnCancelFactoryReset = btnCancelFactoryReset;
+    window.DashboardApp.DOM.factoryResetForm = factoryResetForm;
+    window.DashboardApp.DOM.factoryResetPasswordInput = factoryResetPasswordInput;
+    window.DashboardApp.DOM.factoryResetErrorMsg = factoryResetErrorMsg;
+    window.DashboardApp.DOM.btnSubmitFactoryReset = btnSubmitFactoryReset;
+
+
     // Phase 2 DOM Bindings
     window.DashboardApp.DOM.searchLogs = searchLogs;
     window.DashboardApp.DOM.logsCountBadge = logsCountBadge;
@@ -6660,12 +6444,16 @@
     window.DashboardApp.DOM.btnRefreshCheckouts = btnRefreshCheckouts;
     window.DashboardApp.DOM.todayCheckoutsFilters = todayCheckoutsFilters;
 
+    if (window.DashboardApp.Helpers.initAdmin) window.DashboardApp.Helpers.initAdmin();
     if (window.DashboardApp.Helpers.initOverview) window.DashboardApp.Helpers.initOverview();
     if (window.DashboardApp.Helpers.initLogs) window.DashboardApp.Helpers.initLogs();
 
     // [Spike] Test State write
     window.DashboardApp.State.testVar = 42;
     console.assert(window.DashboardApp.State.testVar === 42, "Spike testVar failed");
+    window.DashboardApp.Helpers.highlightField = highlightField;
+    window.DashboardApp.Helpers.showConfirmDialog = showConfirmDialog;
+
     // Bind State
     window.DashboardApp.State.currentUser = currentUser;
     // 1. Immediate UI state from localStorage cache
