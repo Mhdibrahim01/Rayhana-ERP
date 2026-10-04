@@ -566,25 +566,20 @@
       const remaining = isContract ? rawRemaining : Math.max(0, rawRemaining);
 
       // Compute total refunded from the payments ledger.
-      // Only rows whose notes start with 'استرداد - تسوية مغادرة' are checkout
-      // refunds. Cancel refunds ('استرداد كامل' / 'استرداد نقدي') are excluded
-      // so old invoices look exactly as before.
+      // Any payment row with a negative amount is a refund (checkout settlement refund,
+      // cancellation refund, or mid-stay partial cancellation refund).
       let refundedTotal = 0;
       try {
         const paymentsRes = await window.api.getReservationPayments(targetId);
         if (paymentsRes && paymentsRes.success && Array.isArray(paymentsRes.data)) {
           for (const p of paymentsRes.data) {
-            if (
-              parseFloat(p.amount) < 0 &&
-              typeof p.notes === 'string' &&
-              p.notes.startsWith('استرداد - تسوية مغادرة')
-            ) {
+            if (parseFloat(p.amount) < 0) {
               refundedTotal += Math.abs(parseFloat(p.amount));
             }
           }
         }
       } catch (_) { /* non-critical — invoice still renders without it */ }
-      refundedTotal = Math.round((refundedTotal + Number.EPSILON) * 100) / 100;
+      refundedTotal = roundMoney(refundedTotal);
 
       const d1 = inv.check_in_date ? new Date(inv.check_in_date) : null;
       const d2 = inv.check_out_date ? new Date(inv.check_out_date) : null;
@@ -982,6 +977,7 @@
       const fin = rep.financials || {};
       const mov = rep.movements || {};
       const rm = rep.rooms || {};
+      const payments = rep.payments || [];
       const txs = rep.transactions || [];
       const depositTxs = rep.depositMovements || [];
       const printTime = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
@@ -1108,13 +1104,61 @@
             </div>
           ` : ''}
 
-          <!-- Transactions Breakdown -->
+          <!-- Payments & Receipts Breakdown (Ledger) -->
           <h4 style="font-size: 0.95rem; font-weight: 800; color: #1e1b4b; margin-bottom: 10px;">
-            ${isMultiDay ? '5. سجل العمليات والتحصيلات في الفترة' : '4. سجل العمليات المالية والتحصيلات في هذا اليوم'}
+            ${isMultiDay ? '4. سجل سندات التحصيل والمردودات المالية في الفترة (حركة الخزينة والمدفوعات)' : '4. سجل سندات التحصيل والمردودات المالية في هذا اليوم (حركة الخزينة والمدفوعات)'}
+          </h4>
+          ${payments.length === 0 ? `
+            <div style="padding: 16px; text-align: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; color: #64748b; font-size: 0.85rem; margin-bottom: 24px;">
+              لا توجد سندات قبض أو استرداد مسجلة في هذه الفترة.
+            </div>
+          ` : `
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 0.82rem;">
+              <thead>
+                <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+                  <th style="padding: 8px 10px; text-align: right;">الوقت</th>
+                  <th style="padding: 8px 10px; text-align: right;">رقم السند</th>
+                  <th style="padding: 8px 10px; text-align: right;">الحجز / النزيل</th>
+                  <th style="padding: 8px 10px; text-align: right;">الغرفة</th>
+                  <th style="padding: 8px 10px; text-align: center;">نوع السند</th>
+                  <th style="padding: 8px 10px; text-align: center;">طريقة الدفع</th>
+                  <th style="padding: 8px 10px; text-align: center;">المبلغ</th>
+                  <th style="padding: 8px 10px; text-align: right;">البيان / الموظف</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${payments.map(p => {
+                  const amt = roundMoney(p.amount || 0);
+                  const isRefund = amt < -0.005;
+                  const amtColor = isRefund ? '#dc2626' : '#059669';
+                  const formattedAmt = isRefund ? `- ${Math.abs(amt).toLocaleString()} ريال` : `+ ${amt.toLocaleString()} ريال`;
+                  const typeBadge = isRefund
+                    ? '<span style="background: #fef2f2; color: #b91c1c; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 0.78rem;">استرداد / صرف</span>'
+                    : '<span style="background: #ecfdf5; color: #047857; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 0.78rem;">تحصيل / قبض</span>';
+                  return `
+                    <tr style="border-bottom: 1px solid #e2e8f0; ${isRefund ? 'background: #fffafa;' : ''}">
+                      <td style="padding: 8px 10px; font-family: monospace; color: #64748b;">${escapeHtml(String(p.payment_date || '').slice(0, 16))}</td>
+                      <td style="padding: 8px 10px; font-family: monospace; font-weight: 700; color: #4338ca;">${escapeHtml(p.receipt_number || ('#' + p.id))}</td>
+                      <td style="padding: 8px 10px; font-weight: 700;">#${p.reservation_id} - ${escapeHtml(p.guest_name || 'نزيل')}</td>
+                      <td style="padding: 8px 10px;">غرفة ${escapeHtml(p.room_number || '-')}</td>
+                      <td style="padding: 8px 10px; text-align: center;">${typeBadge}</td>
+                      <td style="padding: 8px 10px; text-align: center;">${escapeHtml(p.payment_method || 'نقداً')}</td>
+                      <td style="padding: 8px 10px; text-align: center; font-weight: 800; color: ${amtColor}; font-size: 0.88rem;">${formattedAmt}</td>
+                      <td style="padding: 8px 10px; font-size: 0.78rem; color: #475569;">${escapeHtml(p.notes || '-')}${p.staff_username ? ` <span style="color:#94a3b8;">(${escapeHtml(p.staff_username)})</span>` : ''}</td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          `}
+
+          <!-- Reservations Breakdown -->
+          <h4 style="font-size: 0.95rem; font-weight: 800; color: #1e1b4b; margin-bottom: 10px;">
+            ${isMultiDay ? '5. سجل حركة الحجوزات والإقامة في الفترة' : '5. سجل حركة الحجوزات والإقامة في هذا اليوم'}
           </h4>
           ${txs.length === 0 ? `
             <div style="padding: 16px; text-align: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; color: #64748b; font-size: 0.85rem; margin-bottom: 24px;">
-              لا توجد عمليات مسجلة في هذه الفترة.
+              لا توجد حجوزات مسجلة في هذه الفترة.
             </div>
           ` : `
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 0.82rem;">
@@ -2069,7 +2113,7 @@
     window.DashboardApp.DOM.roomsFilterTabs = document.querySelectorAll('#rooms-filter-tabs .filter-tab-btn');
     window.DashboardApp.DOM.roomsPaymentFilterTabs = document.querySelectorAll('#rooms-payment-filter-tabs .filter-tab-btn');
     window.DashboardApp.DOM.roomsPaymentFilterContainer = document.getElementById('rooms-payment-filter-tabs');
-    window.DashboardApp.DOM.searchRoomsInput = document.getElementById('search-rooms-input');
+    window.DashboardApp.DOM.searchRoomsInput = document.getElementById('search-rooms');
     window.DashboardApp.DOM.roomsBookingTypeTabs = document.querySelectorAll('#rooms-booking-type-tabs .filter-tab-btn');
     window.DashboardApp.DOM.roomsGridContainer = document.getElementById('rooms-grid-container');
     window.DashboardApp.DOM.btnToggleAddRoom = document.getElementById('btn-toggle-add-room');

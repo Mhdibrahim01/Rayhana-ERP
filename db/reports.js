@@ -146,6 +146,7 @@ function getShiftAuditReport(startDate, endDate) {
       p.payment_date,
       p.notes,
       r.id AS res_id,
+      r.status AS res_status,
       g.name AS guest_name,
       rm.room_number,
       rm.type AS room_type,
@@ -156,7 +157,6 @@ function getShiftAuditReport(startDate, endDate) {
     JOIN rooms rm ON r.room_id = rm.id
     LEFT JOIN users u ON p.user_id = u.id
     WHERE DATE(p.payment_date) BETWEEN DATE(?) AND DATE(?)
-      AND r.status != 'ملغي'
       AND p.payment_method != 'من التأمين'
     ORDER BY p.id DESC
   `, [dateFrom, dateTo]);
