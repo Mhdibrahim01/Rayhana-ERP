@@ -80,6 +80,7 @@
       "dashboard-logs.js",
       "dashboard-admin.js",
       "dashboard-guests.js",
+      "dashboard-rooms.js",
       "dashboard.js",
       "styles.css",
       "assets/**/*",
