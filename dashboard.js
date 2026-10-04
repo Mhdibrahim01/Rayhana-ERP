@@ -6643,6 +6643,7 @@
     window.DashboardApp.DOM.btnRefreshLogs = btnRefreshLogs;
 
 
+
     // Phase 1 DOM Bindings
     window.DashboardApp.DOM.statAvailableRooms = statAvailableRooms;
     window.DashboardApp.DOM.statOccupiedRooms = statOccupiedRooms;
@@ -6658,6 +6659,9 @@
     window.DashboardApp.DOM.todayCheckoutsEmpty = todayCheckoutsEmpty;
     window.DashboardApp.DOM.btnRefreshCheckouts = btnRefreshCheckouts;
     window.DashboardApp.DOM.todayCheckoutsFilters = todayCheckoutsFilters;
+
+    if (window.DashboardApp.Helpers.initOverview) window.DashboardApp.Helpers.initOverview();
+    if (window.DashboardApp.Helpers.initLogs) window.DashboardApp.Helpers.initLogs();
 
     // [Spike] Test State write
     window.DashboardApp.State.testVar = 42;

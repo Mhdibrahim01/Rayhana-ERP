@@ -81,8 +81,10 @@
     }).join('');
   }
 
-  App.DOM.searchLogs.addEventListener('input', renderLogsTable);
-  App.DOM.btnRefreshLogs.addEventListener('click', loadLogsData);
+  App.Helpers.initLogs = function() {
+    if (App.DOM.searchLogs) App.DOM.searchLogs.addEventListener('input', renderLogsTable);
+    if (App.DOM.btnRefreshLogs) App.DOM.btnRefreshLogs.addEventListener('click', loadLogsData);
+  };
 
 
   App.Helpers.loadLogsData = loadLogsData;
