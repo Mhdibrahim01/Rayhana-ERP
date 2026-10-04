@@ -151,6 +151,23 @@
   const ARABIC_MONTHS = App.Helpers.ARABIC_MONTHS;
   function roundMoney(val) { return App.Helpers.roundMoney(val); }
   function getLocalDateString(d) { return App.Helpers.getLocalDateString(d); }
+  function getHotelBusinessDate(d, cutoff) { return App.Helpers.getHotelBusinessDate(d, cutoff); }
+  function getDefaultBookingDates() {
+    const now = new Date();
+    if (now.getHours() < 6) {
+      return {
+        checkIn: getHotelBusinessDate(now),
+        checkOut: getLocalDateString(now)
+      };
+    }
+    const checkIn = getLocalDateString(now);
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return {
+      checkIn,
+      checkOut: getLocalDateString(tomorrow)
+    };
+  }
   function isReservationOverdue(res) { return App.Helpers.isReservationOverdue(res); }
   function renderOverdueBadge(isOverdue) { return App.Helpers.renderOverdueBadge(isOverdue); }
   function showToast(message, type = "info") { return App.Helpers.showToast(message, type); }
@@ -944,8 +961,8 @@
       return { valid: false, error: 'يرجى تحديد تاريخ الوصول.' };
     }
 
-    const todayStr = getLocalDateString(new Date());
-    if (checkInDate < todayStr) {
+    const minAllowedDate = getHotelBusinessDate(new Date());
+    if (checkInDate < minAllowedDate) {
       if (checkInInput) { checkInInput.focus(); highlightField(checkInInput); }
       return { valid: false, error: 'تاريخ الوصول لا يمكن أن يكون في الماضي (يجب أن يكون تاريخ اليوم أو تاريخاً مستقبلياً).' };
     }
@@ -1109,8 +1126,9 @@
         // form.reset() clears date inputs to empty (no default HTML value) —
         // always re-fill with today/tomorrow so the modal never opens empty
         // next time.
-        checkInInput.value = getLocalDateString(new Date());
-        checkOutInput.value = getLocalDateString(new Date(Date.now() + 86400000));
+        const defaultDates = getDefaultBookingDates();
+        checkInInput.value = defaultDates.checkIn;
+        checkOutInput.value = defaultDates.checkOut;
 
         // 2. Close booking modal
 
@@ -1160,8 +1178,9 @@
     if (roomDefaultRateBadge) roomDefaultRateBadge.textContent = '';
     if (priceCalculationBreakdown) priceCalculationBreakdown.style.display = 'none';
     resetAutofillBanner();
-    checkInInput.value = getLocalDateString(new Date());
-    checkOutInput.value = getLocalDateString(new Date(Date.now() + 86400000));
+    const defaultDates = getDefaultBookingDates();
+    checkInInput.value = defaultDates.checkIn;
+    checkOutInput.value = defaultDates.checkOut;
     if (depositAmountInput) depositAmountInput.value = '0';
     calculatePrice(true);
   });
@@ -1262,11 +1281,10 @@
 
   // Safety net: never open the modal with empty date fields, regardless
   // of what happened before this call.
-  if (!checkInInput.value) {
-    checkInInput.value = getLocalDateString(new Date());
-  }
-  if (!checkOutInput.value) {
-    checkOutInput.value = getLocalDateString(new Date(Date.now() + 86400000));
+  if (!checkInInput.value || !checkOutInput.value) {
+    const defaultDates = getDefaultBookingDates();
+    if (!checkInInput.value) checkInInput.value = defaultDates.checkIn;
+    if (!checkOutInput.value) checkOutInput.value = defaultDates.checkOut;
   }
 
   if (roomSelect && roomSelect.value) {
@@ -1385,7 +1403,9 @@
     // once to avoid hundreds of costly individual DOM reflows (layout thrashing).
     const rowsHtml = filtered.map(r => {
       const isConfirmed = r.status === 'مؤكد';
-      const hasStarted = r.check_in_date ? getLocalDateString() > r.check_in_date : false;
+      const hotelBizDate = getHotelBusinessDate();
+      const isArrivalDate = r.check_in_date ? (r.check_in_date >= getLocalDateString() || r.check_in_date === hotelBizDate) : false;
+      const hasStarted = r.check_in_date ? !isArrivalDate : false;
       const canCheckOut = isConfirmed && (getLocalDateString() >= r.check_in_date);
       const canCancel = isConfirmed && !hasStarted;
       const isContract = r.booking_type === 'عقد مفتوح';
@@ -3108,7 +3128,9 @@
       }
 
       const todayStr = getLocalDateString();
-      const hasStarted = targetRes && targetRes.check_in_date ? (todayStr > targetRes.check_in_date) : false;
+      const hotelBizDate = getHotelBusinessDate();
+      const isArrivalDate = targetRes && targetRes.check_in_date ? (targetRes.check_in_date >= todayStr || targetRes.check_in_date === hotelBizDate) : false;
+      const hasStarted = targetRes && targetRes.check_in_date ? !isArrivalDate : false;
       if (hasStarted) {
         showToast('الإقامة بدأت بالفعل في تاريخ سابق. استخدم تسجيل الخروج لتصفية الحساب.', 'error');
         return;
@@ -3116,7 +3138,7 @@
 
       let cancelPayload = { reservationId: id };
 
-      const isSameDay = targetRes && targetRes.check_in_date === todayStr;
+      const isSameDay = targetRes && (targetRes.check_in_date === todayStr || targetRes.check_in_date === hotelBizDate);
       const dialogTitle = isSameDay ? 'إبطال / إلغاء حجز اليوم' : 'إلغاء حجز قبل الوصول';
       const dialogMessage = isSameDay
         ? `هل أنت متأكد من إلغاء / إبطال الحجز المباشر #${id} للنزيل (${targetRes?.guest_name || 'نزيل'})؟\n(سيتم إلغاء الحجز فوراً، وإعادة أي مبالغ مدفوعة للنزيل، وإعادة الغرفة لحالة "متاحة").`

@@ -372,6 +372,22 @@ function getLocalDateString(d = new Date()) {
 }
 
 /**
+ * Get the current hotel business operational date (اليوم الفندقي التشغيلي).
+ * Standard hotel audit practice: between 00:00 midnight and early morning cutoff (default: 06:00 AM),
+ * guests arriving are checking in for the ongoing night (check-in date is yesterday, checkout today at 14:00).
+ * @param {Date} [d=new Date()]
+ * @param {number} [cutoffHour=6] - Hour before which the business date rolls back to previous day
+ * @returns {string} YYYY-MM-DD
+ */
+function getHotelBusinessDate(d = new Date(), cutoffHour = 6) {
+  const date = new Date(d);
+  if (date.getHours() < cutoffHour) {
+    date.setDate(date.getDate() - 1);
+  }
+  return getLocalDateString(date);
+}
+
+/**
  * Backup Database Copy to selected destination
  */
 function createBackupCopy(targetDestinationPath) {
@@ -472,6 +488,7 @@ module.exports = {
   init,
   roundMoney,
   getLocalDateString,
+  getHotelBusinessDate,
   createBackupCopy,
   restoreDatabaseFile,
   getDatabaseFilePath,

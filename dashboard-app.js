@@ -32,6 +32,14 @@ window.DashboardApp = {
     return `${year}-${month}-${day}`;
   }
 
+  function getHotelBusinessDate(d = new Date(), cutoffHour = 6) {
+    const date = new Date(d);
+    if (date.getHours() < cutoffHour) {
+      date.setDate(date.getDate() - 1);
+    }
+    return getLocalDateString(date);
+  }
+
   function isReservationOverdue(reservation) {
     if (!reservation || reservation.status !== 'مؤكد') return false;
     const checkOutDate = String(reservation.check_out_date || '').slice(0, 10);
@@ -183,6 +191,8 @@ window.DashboardApp = {
   App.Helpers.roundMoney = roundMoney;
   window.roundMoney = roundMoney;
   App.Helpers.getLocalDateString = getLocalDateString;
+  App.Helpers.getHotelBusinessDate = getHotelBusinessDate;
+  window.getHotelBusinessDate = getHotelBusinessDate;
   App.Helpers.isReservationOverdue = isReservationOverdue;
   App.Helpers.renderOverdueBadge = renderOverdueBadge;
   App.Helpers.showToast = showToast;
