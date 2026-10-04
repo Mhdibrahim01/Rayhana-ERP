@@ -494,14 +494,12 @@ async function seed(outputPath, today, includeFutureCases) {
 }
 
 function checkIntegrity(expectedStatuses) {
-  // Retained deposit is booked as a positive payment row (compensation revenue) but is
-  // deliberately NOT added to reservations.paid_amount, which tracks guest payments only.
-  // Exclude those rows so this check stays "guest paid == guest ledger".
+  // Retained deposit is strictly recorded in deposit_movements, so payments tracks
+  // guest stay payments only and paid_amount must match SUM(payments.amount).
   const paymentMismatches = sqlAll(`
     SELECT r.id, r.paid_amount, COALESCE(SUM(p.amount), 0) AS payment_sum
     FROM reservations r LEFT JOIN payments p
       ON p.reservation_id = r.id
-      AND COALESCE(p.notes, '') <> 'إيراد تعويض/احتفاظ من التأمين'
     GROUP BY r.id
     HAVING ABS(COALESCE(r.paid_amount, 0) - COALESCE(SUM(p.amount), 0)) > 0.005
   `);

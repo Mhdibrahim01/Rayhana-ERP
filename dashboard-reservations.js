@@ -1906,11 +1906,16 @@
       `قيمة الليالي الفعلية: ${actual} ريال`
     ];
     if (settlePolicyState.mismatch) {
-      lines.push('⚠ قيمة العقد لا تطابق الإجمالي المخزن لهذا الحجز. سيُطلب مراجعة بيانات الحجز قبل الإتمام. استخدم استثناء الليالي الفعلية للمتابعة.');
-    }
-    if (!settlePolicyState.canChoose) {
+      if (settlePolicyState.canChoose) {
+        lines.push('⚠ تنبيه: قيمة العقد لا تطابق الإجمالي المخزن للحجز. للمتابعة، يجب اختيار "الليالي الفعلية" وإدخال سبب الاستثناء.');
+      } else {
+        lines.push('⛔ تنبيه: قيمة العقد لا تطابق الإجمالي المخزن للحجز. لا يمكن للموظف إتمام تسجيل المغادرة، ويتطلب الحجز تدخل مدير النظام لاعتماد الليالي الفعلية.');
+      }
+    } else if (!settlePolicyState.canChoose) {
       lines.push('يُحتسب تلقائياً بقيمة العقد.');
     }
+    if (settlePolicyContract) settlePolicyContract.disabled = !settlePolicyState.canChoose;
+    if (settlePolicyActual) settlePolicyActual.disabled = !settlePolicyState.canChoose;
     if (settlePolicySummary) {
       settlePolicySummary.innerHTML = lines
         .map((line, index) => {
@@ -2006,6 +2011,53 @@
           settleBreakdownHint.style.color = '#64748b';
         }
       }
+    }
+
+    const isPolicyMismatchBlocked = Boolean(
+      settlePolicyState.applicable &&
+      settlePolicyState.mismatch &&
+      (!settlePolicyState.canChoose || (settlePolicyContract && settlePolicyContract.checked))
+    );
+
+    if (isPolicyMismatchBlocked) {
+      if (settleBalanceBox) {
+        settleBalanceBox.style.background = '#fff1f2';
+        settleBalanceBox.style.borderColor = '#fecaca';
+      }
+      if (settleBalanceLabel) {
+        settleBalanceLabel.textContent = 'حالة الحساب';
+        settleBalanceLabel.style.color = '#991b1b';
+      }
+      if (settleBalanceValue) {
+        settleBalanceValue.textContent = 'تعارض في بيانات العقد';
+        settleBalanceValue.style.color = '#b91c1c';
+        settleBalanceValue.style.fontSize = '1.05rem';
+      }
+      if (settleBalanceSub) {
+        settleBalanceSub.textContent = settlePolicyState.canChoose
+          ? '(يرجى اختيار "الليالي الفعلية" للمتابعة)'
+          : '(يتطلب تدخل واعتماد مدير النظام)';
+        settleBalanceSub.style.color = '#b91c1c';
+      }
+      if (settlePaymentSection) settlePaymentSection.style.display = 'none';
+      if (settleRefundBanner) settleRefundBanner.style.display = 'none';
+      if (settlePayNowInput) settlePayNowInput.value = '0.00';
+      if (settleRefundAmountInput) settleRefundAmountInput.value = '0.00';
+      if (btnConfirmSettleCheckout) {
+        btnConfirmSettleCheckout.disabled = true;
+        btnConfirmSettleCheckout.style.opacity = '0.65';
+        btnConfirmSettleCheckout.style.cursor = 'not-allowed';
+        btnConfirmSettleCheckout.textContent = settlePolicyState.canChoose
+          ? 'اختر الليالي الفعلية للمتابعة ⚠'
+          : 'يتطلب اعتماد مدير النظام ⚠';
+      }
+      return;
+    }
+
+    if (btnConfirmSettleCheckout) {
+      btnConfirmSettleCheckout.disabled = false;
+      btnConfirmSettleCheckout.style.opacity = '1';
+      btnConfirmSettleCheckout.style.cursor = 'pointer';
     }
 
     if (netBalance > 0.005) {
@@ -2469,6 +2521,16 @@
       if (policyPayload.checkoutPolicy === 'actual' && !policyPayload.checkoutPolicyReason) {
         showToast('يرجى إدخال سبب اختيار احتساب الليالي الفعلية بدل قيمة العقد.', 'error');
         if (settlePolicyReasonInput) settlePolicyReasonInput.focus();
+        return;
+      }
+
+      if (settlePolicyState.applicable && settlePolicyState.mismatch && policyPayload.checkoutPolicy !== 'actual') {
+        showToast(
+          settlePolicyState.canChoose
+            ? 'لا يمكن إتمام المغادرة بقيمة العقد لوجود تعارض في البيانات. يرجى اختيار احتساب الليالي الفعلية وتسجيل السبب.'
+            : 'لا يمكن إتمام المغادرة لوجود تعارض في بيانات العقد. يتطلب الإجراء تدخل مدير النظام لاعتماد الليالي الفعلية.',
+          'error'
+        );
         return;
       }
 
