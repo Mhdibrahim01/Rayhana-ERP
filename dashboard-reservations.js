@@ -2481,13 +2481,7 @@
       const isRefund = netBalance < -0.005;
 
       let payload;
-      if (isContract) {
-        // Open-contract path: legacy shim
-        const payNow = parseFloat(settlePayNowInput ? settlePayNowInput.value : 0) || 0;
-        const method = settlePaymentMethodSelect ? settlePaymentMethodSelect.value : 'نقداً';
-        payload = { finalTotalPrice: finalTotal, settleAmount: payNow, paymentMethod: method, discountAmount: discAmount, discountReason: discReason, notes: 'سداد تصفية حساب مغادرة', ...depositPayload };
-      } else if (isRefund) {
-        // Refund path
+      if (isRefund) {
         const rawRefund = parseFloat(settleRefundAmountInput ? settleRefundAmountInput.value : 0) || 0;
         const refundMethod = settleRefundMethodSelect ? settleRefundMethodSelect.value : 'نقداً';
         if (rawRefund <= 0) {
@@ -2495,11 +2489,12 @@
           return;
         }
         payload = { settleMode: 'refund', refundAmount: rawRefund, paymentMethod: refundMethod, discountAmount: discAmount, discountReason: discReason, lateCheckoutFee: Math.max(0, parseFloat(settleLateCheckoutFeeInput?.value || 0) || 0), ...policyPayload, ...depositPayload };
+        if (isContract) payload.finalTotalPrice = finalTotal;
       } else {
-        // Collect now path
         const payNow = parseFloat(settlePayNowInput ? settlePayNowInput.value : 0) || 0;
         const method = settlePaymentMethodSelect ? settlePaymentMethodSelect.value : 'نقداً';
         payload = { settleMode: payNow > 0 ? 'collect' : 'defer', collectAmount: payNow, paymentMethod: method, discountAmount: discAmount, discountReason: discReason, lateCheckoutFee: Math.max(0, parseFloat(settleLateCheckoutFeeInput?.value || 0) || 0), ...policyPayload, ...depositPayload };
+        if (isContract) payload.finalTotalPrice = finalTotal;
       }
 
       try {
