@@ -106,7 +106,7 @@ test('checkout prefill: the renderer prefills from the stored amount', () => {
   // must be filled from res.discount_amount, and must NOT be filled from
   // s.discountApplied (the prorated figure).
   const source = fs.readFileSync(
-    path.join(__dirname, '..', 'dashboard.js'), 'utf8');
+    path.join(__dirname, '..', 'dashboard-reservations.js'), 'utf8');
 
   const match = source.match(/if \(settleDiscountInput\) \{[\s\S]{0,320}?\n\s{10}\}/);
   assert.ok(match, 'the settleDiscountInput prefill block must exist');
