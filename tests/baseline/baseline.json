@@ -4,7 +4,8 @@
     "backupScheduler.js": 15,
     "check.js": 0,
     "dashboard-app.js": 11,
-    "dashboard.js": 116,
+    "dashboard-overview.js": 8,
+    "dashboard.js": 110,
     "db.js": 0,
     "db/connection.js": 15,
     "db/guests.js": 8,
@@ -13,6 +14,7 @@
     "db/reservations.js": 23,
     "db/rooms.js": 9,
     "db/users.js": 10,
+    "extract-phase1.js": 0,
     "guests.js": 5,
     "import-guests.js": 1,
     "ipc/auth.js": 1,
@@ -25,6 +27,7 @@
     "ipc/users.js": 3,
     "login.js": 1,
     "main.js": 13,
+    "map-deps.js": 0,
     "patch-pw-2.js": 0,
     "patch-pw.js": 0,
     "playwright.config.js": 0,
@@ -41,7 +44,8 @@
     "backupScheduler.js": 0,
     "check.js": 0,
     "dashboard-app.js": 0,
-    "dashboard.js": 70,
+    "dashboard-overview.js": 5,
+    "dashboard.js": 65,
     "db.js": 0,
     "db/connection.js": 0,
     "db/guests.js": 0,
@@ -50,6 +54,7 @@
     "db/reservations.js": 0,
     "db/rooms.js": 0,
     "db/users.js": 0,
+    "extract-phase1.js": 0,
     "guests.js": 0,
     "import-guests.js": 0,
     "ipc/auth.js": 0,
@@ -62,6 +67,7 @@
     "ipc/users.js": 0,
     "login.js": 1,
     "main.js": 0,
+    "map-deps.js": 0,
     "patch-pw-2.js": 0,
     "patch-pw.js": 0,
     "playwright.config.js": 0,
@@ -219,13 +225,17 @@
     "verifyUser"
   ],
   "inlineEventAttributeCounts": {
+    "dashboard-overview.js": {
+      "htmlAttributes": 0,
+      "templateAttributes": 1
+    },
     "dashboard.html": {
       "htmlAttributes": 6,
       "templateAttributes": 0
     },
     "dashboard.js": {
       "htmlAttributes": 0,
-      "templateAttributes": 2
+      "templateAttributes": 1
     },
     "index.html": {
       "htmlAttributes": 0,
@@ -282,6 +292,14 @@
     ],
     "isReservationOverdue": [
       "dashboard-app.js",
+      "dashboard.js"
+    ],
+    "loadOverviewData": [
+      "dashboard-overview.js",
+      "dashboard.js"
+    ],
+    "loadTodayCheckouts": [
+      "dashboard-overview.js",
       "dashboard.js"
     ],
     "renderOverdueBadge": [

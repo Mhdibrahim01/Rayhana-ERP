@@ -1,7 +1,12 @@
 window.DashboardApp = {
   State: {
     testVar: 0,
-    currentUser: null
+    currentUser: null,
+    monthlyRevenueChart: null,
+    roomStatusChart: null,
+    reservationsCache: [],
+    todayCheckoutsRows: [],
+    todayCheckoutsActiveFilter: "all"
   },
   DOM: {},
   Helpers: {}
