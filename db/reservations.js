@@ -3,7 +3,8 @@
  * Reservations Management, Payments Ledger & Check-in/out Module
  */
 
-const { db, queryOne, queryAll, saveToFile, roundMoney, getLocalDateString } = require('./connection');
+const connection = require('./connection');
+const { db, queryOne, queryAll, saveToFile, roundMoney, getLocalDateString } = connection;
 
 function getDepositLedger(reservationId) {
   const row = queryOne(`
@@ -507,7 +508,7 @@ function createReservation({
     let assignedRoomStatus = 'متاحة';
     const currentRoom = queryOne("SELECT status FROM rooms WHERE id = ?", [parsedRoomId]);
 
-    if (checkInDate <= todayStr && effectiveNewCheckout > todayStr) {
+    if (checkInDate <= todayStr && (effectiveNewCheckout >= todayStr || !effectiveNewCheckout)) {
       assignedRoomStatus = 'مشغولة';
     } else if (checkInDate > todayStr) {
       if (currentRoom && currentRoom.status === 'مشغولة') {
@@ -1585,7 +1586,9 @@ function cancelReservation(reservationId, actualDepartureDate = null, manualOver
   }
   // Cancellation / Void is allowed before arrival or on the arrival date (immediate void of walk-in/same-day booking).
   // Once arrival day has passed (guest stayed overnight), use the checkout settlement flow so the stay keeps one lifecycle.
-  const hasStarted = today > res.check_in_date;
+  const hotelBizDate = connection.getHotelBusinessDate ? connection.getHotelBusinessDate() : today;
+  const isArrivalDate = res.check_in_date >= today || res.check_in_date === hotelBizDate;
+  const hasStarted = !isArrivalDate;
   if (hasStarted) {
     throw new Error('الإقامة بدأت بالفعل. استخدم تسجيل الخروج لتصفية الحساب بدلاً من إلغاء الحجز.');
   }

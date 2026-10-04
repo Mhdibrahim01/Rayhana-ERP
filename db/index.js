@@ -16,6 +16,7 @@ module.exports = {
   init: connection.init,
   factoryReset: connection.factoryReset,
   getLocalDateString: connection.getLocalDateString,
+  getHotelBusinessDate: connection.getHotelBusinessDate,
   getDatabaseFilePath: connection.getDatabaseFilePath,
   createBackupCopy: connection.createBackupCopy,
   restoreDatabaseFile: connection.restoreDatabaseFile,
