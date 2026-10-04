@@ -614,6 +614,7 @@
   };
 
   App.Helpers.loadGuestsData = loadGuestsData;
+  App.Helpers.openEditGuestModal = openEditGuestModal;
   
 
 })(window.DashboardApp);
