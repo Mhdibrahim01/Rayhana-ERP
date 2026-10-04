@@ -75,6 +75,7 @@
       "login.html",
       "login.js",
       "dashboard.html",
+      "dashboard-app.js",
       "dashboard.js",
       "styles.css",
       "assets/**/*",
