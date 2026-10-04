@@ -158,10 +158,10 @@
   function escapeHtml(str) { return App.Helpers.escapeHtml(str); }
   function showConfirmDialog(opts) { return App.Helpers.showConfirmDialog(opts); }
   function showPromptDialog(opts) { return App.Helpers.showPromptDialog(opts); }
-  function openInvoiceModal(id) { return App.Helpers.openInvoiceModal(id); }
-  function openShiftAuditModal() { return App.Helpers.openShiftAuditModal(); }
-  function openDailyBackupModal() { return App.Helpers.openDailyBackupModal(); }
-  function sendReservationWhatsApp(id) { return App.Helpers.sendReservationWhatsApp(id); }
+  function openInvoiceModal(id) { return window.openInvoiceModal(id); }
+  function openShiftAuditModal() { return window.openShiftAuditModal(); }
+  function openDailyBackupModal() { return window.openDailyBackupModal(); }
+  function sendReservationWhatsApp(id) { return window.sendReservationWhatsApp(id); }
 
   let currentReservationFilter = 'all';
   let reservationsTableRows = [];

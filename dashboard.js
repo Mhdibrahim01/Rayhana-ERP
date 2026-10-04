@@ -2250,6 +2250,7 @@
   window.openDailyBackupModal = openDailyBackupModal;
   window.showConfirmDialog = showConfirmDialog;
   window.showPromptDialog = showPromptDialog;
+  window.sendReservationWhatsApp = sendReservationWhatsApp;
 
   init();
 
