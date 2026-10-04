@@ -354,6 +354,8 @@ async function init(dbPath) {
  * amount such as a -1850.00 refund keeps its sign. Never clamp negatives to zero:
  * refund rows and signed deposit adjustments are stored negative on purpose.
  */
+const CURRENCY_TOLERANCE = 0.005;
+
 function roundMoney(val) {
   const num = Number(val);
   if (!Number.isFinite(num)) return 0.0;
@@ -486,6 +488,7 @@ module.exports = {
   queryAll,
   queryOne,
   init,
+  CURRENCY_TOLERANCE,
   roundMoney,
   getLocalDateString,
   getHotelBusinessDate,

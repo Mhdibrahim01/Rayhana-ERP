@@ -21,6 +21,7 @@ module.exports = {
   createBackupCopy: connection.createBackupCopy,
   restoreDatabaseFile: connection.restoreDatabaseFile,
   roundMoney: connection.roundMoney,
+  CURRENCY_TOLERANCE: connection.CURRENCY_TOLERANCE,
   close: connection.close,
 
   // users & logs

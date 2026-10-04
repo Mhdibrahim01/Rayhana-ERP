@@ -4,7 +4,7 @@
  */
 
 const connection = require('./connection');
-const { db, queryOne, queryAll, saveToFile, roundMoney, getLocalDateString } = connection;
+const { db, queryOne, queryAll, saveToFile, roundMoney, getLocalDateString, CURRENCY_TOLERANCE } = connection;
 
 function getDepositLedger(reservationId) {
   const row = queryOne(`
@@ -23,7 +23,7 @@ function recordDepositMovement({ reservationId, type, amount, paymentMethod = '�
   if (!['collected', 'reconciled', 'refunded', 'applied', 'retained'].includes(type)) throw new Error('نوع حركة التأمين غير صالح.');
   if (!Number.isFinite(value) || value <= 0) throw new Error('مبلغ حركة التأمين يجب أن يكون أكبر من الصفر.');
   const current = getDepositLedger(reservationId).balance;
-  if (!['collected', 'reconciled'].includes(type) && value - current > 0.005) {
+  if (!['collected', 'reconciled'].includes(type) && value - current > CURRENCY_TOLERANCE) {
     throw new Error(`حركة التأمين (${value} ريال) تتجاوز الرصيد المسجل (${current} ريال).`);
   }
   const stmt = db.prepare(`
@@ -48,7 +48,7 @@ function reconcileLegacyDeposit({ reservationId, amount, paymentMethod = 'نقد
   if (ledger.movementCount > 0) throw new Error('للحجز سجل تأمين بالفعل ولا يحتاج إلى مطابقة تاريخية.');
   const recordedAmount = roundMoney(reservation.deposit_amount || 0);
   const confirmedAmount = roundMoney(amount);
-  if (recordedAmount <= 0 || Math.abs(recordedAmount - confirmedAmount) > 0.005) {
+  if (recordedAmount <= 0 || Math.abs(recordedAmount - confirmedAmount) > CURRENCY_TOLERANCE) {
     throw new Error('المبلغ المؤكد يجب أن يطابق مبلغ التأمين التاريخي المسجل بالحجز.');
   }
   db.run('BEGIN TRANSACTION;');
@@ -331,7 +331,7 @@ function createReservation({
       if (passedTotal < 0) {
         throw new Error('قيمة الحجز لا يمكن أن تكون سالبة.');
       }
-      if (Math.abs(passedTotal - total) > 0.005) {
+      if (Math.abs(passedTotal - total) > CURRENCY_TOLERANCE) {
         throw new Error(
           `قيمة الحجز المُدخلة (${passedTotal} ريال) لا تطابق القيمة المحسوبة من الليالي والسعر والخصم (${total} ريال). ` +
           'يرجى مراجعة البيانات المدخلة.'
@@ -351,7 +351,7 @@ function createReservation({
     if (total <= 0 && normDiscountAmount === 0) {
       throw new Error('إجمالي قيمة الحجز الشهري يجب أن يكون أكبر من الصفر.');
     }
-    if (roundMoney(paid - total) > 0.005) {
+    if (roundMoney(paid - total) > CURRENCY_TOLERANCE) {
       throw new Error(`المبلغ المدفوع (${paid} ريال) لا يمكن أن يتجاوز إجمالي قيمة الحجز (${total} ريال).`);
     }
   } else {
@@ -371,7 +371,7 @@ function createReservation({
     if (total === 0 && normDiscountAmount === 0) {
       throw new Error('إجمالي قيمة الحجز يجب أن يكون أكبر من الصفر.');
     }
-    if (roundMoney(paid - total) > 0.005) {
+    if (roundMoney(paid - total) > CURRENCY_TOLERANCE) {
       throw new Error(`المبلغ المدفوع (${paid} ريال) لا يمكن أن يتجاوز إجمالي قيمة الحجز (${total} ريال).`);
     }
   }
@@ -677,7 +677,7 @@ function computeCheckoutSettlement(reservationId, {
   // explicit checkout discount is already for this settlement and is not prorated.
   const storedDisc = roundMoney(res.discount_amount || 0);
   const explicitDisc = (discountAmount !== undefined && discountAmount !== null && discountAmount !== '' && !isNaN(Number(discountAmount))) ? Math.max(0, roundMoney(discountAmount)) : null;
-  const hasExplicitDiscount = explicitDisc !== null && Math.abs(explicitDisc - storedDisc) > 0.005;
+  const hasExplicitDiscount = explicitDisc !== null && Math.abs(explicitDisc - storedDisc) > CURRENCY_TOLERANCE;
   const normDiscount = hasExplicitDiscount ? explicitDisc : storedDisc;
 
   let actualNights = null;
@@ -717,9 +717,9 @@ function computeCheckoutSettlement(reservationId, {
     bookedNights = contract.bookedNights;
     const storedTotal = roundMoney(res.total_price || 0);
       if (res.booking_type === 'حجز شهري') {
-        contractValueMismatch = Math.abs(roundMoney(contract.contractValue - storedTotal)) > 0.005;
+        contractValueMismatch = Math.abs(roundMoney(contract.contractValue - storedTotal)) > CURRENCY_TOLERANCE;
       } else {
-        contractValueMismatch = roundMoney(contract.contractValue) > storedTotal + 0.005;
+        contractValueMismatch = roundMoney(contract.contractValue) > storedTotal + CURRENCY_TOLERANCE;
       }
   }
 
@@ -760,9 +760,9 @@ function computeCheckoutSettlement(reservationId, {
     // difference < 0 → guest overpaid (refund due)
     // difference = 0 → settled
     difference,
-    needsCollection: difference !== null && difference > 0.005,
-    needsRefund:     difference !== null && difference < -0.005,
-    isSettled:       difference !== null && Math.abs(difference) <= 0.005
+    needsCollection: difference !== null && difference > CURRENCY_TOLERANCE,
+    needsRefund:     difference !== null && difference < -CURRENCY_TOLERANCE,
+    isSettled:       difference !== null && Math.abs(difference) <= CURRENCY_TOLERANCE
   };
 }
 
@@ -890,7 +890,7 @@ function checkoutReservation(reservationId, {
         ? roundMoney(Math.min(openDepositHeld, Math.max(0, openFinalTotal - openNewPaid))) : 0;
       const requestedOpenRetain = depositDisposition === 'retain' ? Number(depositRetainAmount || 0) : 0;
       const openDepositRetained = roundMoney(requestedOpenRetain);
-      if (!Number.isFinite(requestedOpenRetain) || openDepositRetained < 0 || openDepositRetained - openDepositHeld > 0.005) {
+      if (!Number.isFinite(requestedOpenRetain) || openDepositRetained < 0 || openDepositRetained - openDepositHeld > CURRENCY_TOLERANCE) {
         throw new Error(`المبلغ المحتفظ به يجب ألا يتجاوز التأمين المسجل (${openDepositHeld} ريال).`);
       }
       const openDepositRefunded = roundMoney(openDepositHeld - openDepositApplied - openDepositRetained);
@@ -912,16 +912,16 @@ function checkoutReservation(reservationId, {
       // An open contract that has been overpaid cannot be closed without a refund row,
       // otherwise paid_amount stays above total_price and the reservation reads as
       // 'رصيد دائن' forever with no ledger evidence that the guest was made whole.
-      if (openNewPaid > openFinalTotal + 0.005 && openMode !== 'refund') {
+      if (openNewPaid > openFinalTotal + CURRENCY_TOLERANCE && openMode !== 'refund') {
         throw new Error(
           `المبلغ المدفوع (${openNewPaid} ريال) يتجاوز الرسوم الصافية المستحقة (${openFinalTotal} ريال). ` +
           'يجب اختيار "استرداد" لإتمام تسجيل المغادرة.'
         );
       }
       // Collection cannot exceed the outstanding amount either.
-      if (openMode === 'collect' && openFinalTotal > openNewPaid + 0.005) {
+      if (openMode === 'collect' && openFinalTotal > openNewPaid + CURRENCY_TOLERANCE) {
         const amountDue = roundMoney(openFinalTotal - openNewPaid);
-        if (roundMoney(openAddPay - amountDue) > 0.005) {
+        if (roundMoney(openAddPay - amountDue) > CURRENCY_TOLERANCE) {
           throw new Error(`مبلغ التحصيل (${openAddPay} ريال) يتجاوز المبلغ المستحق (${amountDue} ريال).`);
         }
       }
@@ -937,7 +937,7 @@ function checkoutReservation(reservationId, {
         if (openRawRefund <= 0) {
           throw new Error('مبلغ الاسترداد يجب أن يكون أكبر من الصفر.');
         }
-        if (roundMoney(Math.abs(openRawRefund - openRefundDue)) > 0.005) {
+        if (roundMoney(Math.abs(openRawRefund - openRefundDue)) > CURRENCY_TOLERANCE) {
           throw new Error(
             `مبلغ الاسترداد (${openRawRefund} ريال) يجب أن يساوي الفرق الفعلي المستحق (${openRefundDue} ريال).`
           );
@@ -950,7 +950,7 @@ function checkoutReservation(reservationId, {
       }
 
       let openStatus = res.payment_status;
-      if (openNewPaid > openFinalTotal + 0.005) openStatus = 'رصيد دائن';
+      if (openNewPaid > openFinalTotal + CURRENCY_TOLERANCE) openStatus = 'رصيد دائن';
       else if (openFinalTotal === 0 && openNewPaid === 0) openStatus = 'مدفوع بالكامل';
       else if (openNewPaid >= openFinalTotal) openStatus = 'مدفوع بالكامل';
       else if (openNewPaid > 0) openStatus = 'مدفوع جزئياً';
@@ -1004,7 +1004,7 @@ function checkoutReservation(reservationId, {
   // Discount: already stripped for non-Admin by the IPC layer.
   const storedDiscountAtBooking = roundMoney(res.discount_amount || 0);
   const rawProvidedDisc = (discountAmount !== undefined && discountAmount !== null && discountAmount !== '' && !isNaN(Number(discountAmount))) ? Math.max(0, roundMoney(discountAmount)) : null;
-  const hasExplicitDiscount = rawProvidedDisc !== null && Math.abs(rawProvidedDisc - storedDiscountAtBooking) > 0.005;
+  const hasExplicitDiscount = rawProvidedDisc !== null && Math.abs(rawProvidedDisc - storedDiscountAtBooking) > CURRENCY_TOLERANCE;
   const normDiscountAmount = hasExplicitDiscount ? rawProvidedDisc : null;
   const normDiscountReason = discountReason !== undefined ? (discountReason || '').trim() : null;
   // Policy reason applies only to a monthly early checkout; it is independent of any
@@ -1085,7 +1085,7 @@ function checkoutReservation(reservationId, {
       const contract = computeContractValue(res);
       const storedTotal = roundMoney(res.total_price || 0);
       if (res.booking_type === 'حجز شهري') {
-        if (Math.abs(roundMoney(contract.contractValue - storedTotal)) > 0.005) {
+        if (Math.abs(roundMoney(contract.contractValue - storedTotal)) > CURRENCY_TOLERANCE) {
           throw new Error(
             `قيمة العقد المحسوبة (${contract.contractValue} ريال) لا تطابق الإجمالي المخزن (${storedTotal} ريال). ` +
             'يرجى مراجعة بيانات الحجز، أو اختيار احتساب الليالي الفعلية من قبل مدير النظام.'
@@ -1093,7 +1093,7 @@ function checkoutReservation(reservationId, {
         }
       } else {
         const computed = roundMoney(contract.contractValue);
-        if (computed > storedTotal + 0.005) {
+        if (computed > storedTotal + CURRENCY_TOLERANCE) {
           throw new Error(
             `تنبيه: القيمة المحسوبة للعقد (${computed} ريال) أعلى من الإجمالي المخزن (${storedTotal} ريال). ` +
             'الرجاء مراجعة الإجمالي أو استخدام الليالي الفعلية.'
@@ -1132,7 +1132,7 @@ function checkoutReservation(reservationId, {
     ? roundMoney(Math.min(depositHeld, Math.max(0, finalTotal - currentPaid))) : 0;
   const requestedRetain = depositDisposition === 'retain' ? Number(depositRetainAmount || 0) : 0;
   const depositRetained = roundMoney(requestedRetain);
-  if (!Number.isFinite(requestedRetain) || depositRetained < 0 || depositRetained - depositHeld > 0.005) {
+  if (!Number.isFinite(requestedRetain) || depositRetained < 0 || depositRetained - depositHeld > CURRENCY_TOLERANCE) {
     throw new Error(`المبلغ المحتفظ به يجب ألا يتجاوز التأمين المسجل (${depositHeld} ريال).`);
   }
   const depositRefunded = roundMoney(depositHeld - depositApplied - depositRetained);
@@ -1151,7 +1151,7 @@ function checkoutReservation(reservationId, {
       resolvedMode = roundMoney(settleAmount) > 0 ? 'collect' : 'defer';
     } else {
       // No mode provided — caller must supply one when there is a non-zero difference
-      if (Math.abs(difference) > 0.005) {
+      if (Math.abs(difference) > CURRENCY_TOLERANCE) {
         throw new Error('يرجى تحديد طريقة تسوية الحساب (تحصيل، ترحيل، أو استرداد) قبل إتمام تسجيل المغادرة.');
       }
       resolvedMode = 'defer'; // difference ≈ 0, no payment row needed
@@ -1159,7 +1159,7 @@ function checkoutReservation(reservationId, {
   }
 
   // Safety net: if paid > net and mode is not refund, block the close
-  if (adjustedCurrentPaid > finalTotal + 0.005 && resolvedMode !== 'refund') {
+  if (adjustedCurrentPaid > finalTotal + CURRENCY_TOLERANCE && resolvedMode !== 'refund') {
     throw new Error(
       `المبلغ المدفوع (${adjustedCurrentPaid} ريال) يتجاوز الرسوم الصافية المستحقة (${finalTotal} ريال). ` +
       'يجب اختيار "استرداد" لإتمام تسجيل المغادرة.'
@@ -1167,7 +1167,7 @@ function checkoutReservation(reservationId, {
   }
 
   // Safety net: if amount due and mode is not collect or defer, block
-  if (finalTotal > adjustedCurrentPaid + 0.005 && resolvedMode !== 'collect' && resolvedMode !== 'defer') {
+  if (finalTotal > adjustedCurrentPaid + CURRENCY_TOLERANCE && resolvedMode !== 'collect' && resolvedMode !== 'defer') {
     throw new Error('يوجد مبلغ مستحق. يرجى اختيار "تحصيل الآن" أو "تأجيل (آجل)".');
   }
 
@@ -1225,7 +1225,7 @@ function checkoutReservation(reservationId, {
       if (rawCollect <= 0) {
         throw new Error('مبلغ التحصيل يجب أن يكون أكبر من الصفر.');
       }
-      if (roundMoney(rawCollect - amountDue) > 0.005) {
+      if (roundMoney(rawCollect - amountDue) > CURRENCY_TOLERANCE) {
         throw new Error(`مبلغ التحصيل (${rawCollect} ريال) يتجاوز المبلغ المستحق (${amountDue} ريال).`);
       }
       newPaid = roundMoney(adjustedCurrentPaid + rawCollect);
@@ -1240,7 +1240,7 @@ function checkoutReservation(reservationId, {
           : `تحصيل عند المغادرة #${targetId}`]);
       ps.free();
       // Status
-      if (newPaid >= finalTotal - 0.005) {
+      if (newPaid >= finalTotal - CURRENCY_TOLERANCE) {
         newPaymentStatus = 'مدفوع بالكامل';
       } else if (newPaid > 0) {
         newPaymentStatus = 'مدفوع جزئياً';
@@ -1253,7 +1253,7 @@ function checkoutReservation(reservationId, {
       newPaid = adjustedCurrentPaid;
       if (finalTotal === 0 && adjustedCurrentPaid === 0) {
         newPaymentStatus = 'مدفوع بالكامل';
-      } else if (adjustedCurrentPaid >= finalTotal - 0.005) {
+      } else if (adjustedCurrentPaid >= finalTotal - CURRENCY_TOLERANCE) {
         newPaymentStatus = 'مدفوع بالكامل';
       } else if (adjustedCurrentPaid > 0) {
         newPaymentStatus = 'مدفوع جزئياً';
@@ -1272,7 +1272,7 @@ function checkoutReservation(reservationId, {
       if (rawRefund <= 0) {
         throw new Error('مبلغ الاسترداد يجب أن يكون أكبر من الصفر.');
       }
-      if (roundMoney(Math.abs(rawRefund - exactRefundDue)) > 0.005) {
+      if (roundMoney(Math.abs(rawRefund - exactRefundDue)) > CURRENCY_TOLERANCE) {
         throw new Error(
           `مبلغ الاسترداد (${rawRefund} ريال) يجب أن يساوي الفرق الفعلي المستحق (${exactRefundDue} ريال).`
         );
@@ -1813,10 +1813,10 @@ function addPaymentToReservation({ reservationId, amount, paymentMethod = 'نق�
     const newPaidAmount = roundMoney(currentPaid + payAmount);
     newRemaining = roundMoney(totalPrice - newPaidAmount);
 
-    if (newRemaining < -0.005) {
+    if (newRemaining < -CURRENCY_TOLERANCE) {
       newPaymentStatus = 'رصيد دائن';
       isFullyPaid = true;
-    } else if (Math.abs(newRemaining) <= 0.005) {
+    } else if (Math.abs(newRemaining) <= CURRENCY_TOLERANCE) {
       newPaymentStatus = 'مدفوع بالكامل';
       isFullyPaid = true;
     } else {
@@ -1832,13 +1832,13 @@ function addPaymentToReservation({ reservationId, amount, paymentMethod = 'نق�
     }
 
     // Strict overpayment validation
-    if (roundMoney(payAmount - remainingBalance) > 0.005) {
+    if (roundMoney(payAmount - remainingBalance) > CURRENCY_TOLERANCE) {
       throw new Error(`المبلغ المدفوع (${payAmount.toLocaleString()} ريال) يتجاوز الرصيد المتبقي المستحق (${remainingBalance.toLocaleString()} ريال). لا يمكن تحصيل مبالغ زائدة.`);
     }
 
     const newPaidAmount = roundMoney(currentPaid + payAmount);
     newRemaining = roundMoney(Math.max(0, totalPrice - newPaidAmount));
-    isFullyPaid = newRemaining <= 0.005;
+    isFullyPaid = newRemaining <= CURRENCY_TOLERANCE;
     newPaymentStatus = isFullyPaid ? 'مدفوع بالكامل' : 'مدفوع جزئياً';
   }
 
@@ -2080,7 +2080,7 @@ function updateReservationReceipt({
       if (eUtc > sUtc) {
         const nights = Math.round((eUtc - sUtc) / 86400000);
         const expectedTotal = roundMoney((nights * normCustomNightlyPrice) - (normDiscountAmount || 0));
-        if (Math.abs(expectedTotal - total) > 0.005) {
+        if (Math.abs(expectedTotal - total) > CURRENCY_TOLERANCE) {
            throw new Error(`السعر اليومي المخصص (${normCustomNightlyPrice}) يتناقض مع الإجمالي (${total}). الإجمالي المتوقع هو ${expectedTotal}.`);
         }
       }
@@ -2091,7 +2091,7 @@ function updateReservationReceipt({
     if (total === 0 && (normDiscountAmount === null || normDiscountAmount === 0)) {
       throw new Error('إجمالي قيمة الحجز يجب أن يكون أكبر من الصفر.');
     }
-    if (roundMoney(paid - total) > 0.005) {
+    if (roundMoney(paid - total) > CURRENCY_TOLERANCE) {
       throw new Error(`المبلغ المدفوع (${paid} ريال) لا يمكن أن يتجاوز إجمالي قيمة الحجز (${total} ريال).`);
     }
   } else {
