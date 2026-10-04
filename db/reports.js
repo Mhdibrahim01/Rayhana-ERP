@@ -34,7 +34,7 @@ function getTodayCheckouts(targetDate) {
     FROM reservations r
     JOIN guests g ON r.guest_id = g.id
     JOIN rooms rm ON r.room_id = rm.id
-    WHERE DATE(r.check_out_date) = DATE(?)
+    WHERE (DATE(r.check_out_date) = DATE(?) AND r.status != 'ملغي')
        OR (r.status = 'مؤكد' AND DATE(r.check_out_date) < DATE(?))
     ORDER BY rm.room_number ASC
   `;
@@ -187,7 +187,8 @@ function getShiftAuditReport(startDate, endDate) {
   transferTotal = roundMoney(transferTotal);
 
   // 2. Reservations active, created, checked-in, or checked-out in date range
-  // Range overlap: check_in_date <= dateTo AND (check_out_date >= dateFrom OR check_out_date IS NULL OR check_out_date = 'مفتوح' OR check_out_date = '')
+  // Operational movements in range: Created, Check-in, Check-out, Payment transaction, or Deposit movement.
+  // Inactive stay-overs from prior days with no activity within this range are excluded.
   const reservationsInRange = queryAll(`
     SELECT r.*, g.name AS guest_name, rm.room_number, rm.type AS room_type,
       COALESCE((SELECT SUM(CASE WHEN dm.movement_type IN ('collected', 'reconciled') THEN dm.amount ELSE -dm.amount END) FROM deposit_movements dm WHERE dm.reservation_id = r.id), 0) AS deposit_ledger_balance,
@@ -197,13 +198,13 @@ function getShiftAuditReport(startDate, endDate) {
     JOIN rooms rm ON r.room_id = rm.id
     WHERE (
        (DATE(r.created_at, 'localtime') BETWEEN DATE(?) AND DATE(?))
-       OR (r.check_in_date BETWEEN ? AND ?)
-       OR (r.check_out_date != 'مفتوح' AND r.check_out_date BETWEEN ? AND ?)
-       OR (r.check_in_date <= ? AND (r.check_out_date >= ? OR r.check_out_date IS NULL OR r.check_out_date = 'مفتوح' OR r.check_out_date = '') AND r.status = 'مؤكد')
+       OR (r.check_in_date BETWEEN ? AND ? AND r.status != 'ملغي')
+       OR (r.check_out_date != 'مفتوح' AND r.check_out_date BETWEEN ? AND ? AND r.status = 'مكتمل')
+       OR EXISTS (SELECT 1 FROM payments p WHERE p.reservation_id = r.id AND DATE(p.payment_date) BETWEEN DATE(?) AND DATE(?))
+       OR EXISTS (SELECT 1 FROM deposit_movements dm WHERE dm.reservation_id = r.id AND DATE(dm.movement_date) BETWEEN DATE(?) AND DATE(?))
     )
-    AND r.status != 'ملغي'
     ORDER BY r.id DESC
-  `, [dateFrom, dateTo, dateFrom, dateTo, dateFrom, dateTo, dateTo, dateFrom]);
+  `, [dateFrom, dateTo, dateFrom, dateTo, dateFrom, dateTo, dateFrom, dateTo, dateFrom, dateTo]);
 
   let expectedTotal = 0;
   let outstandingTotal = 0;
@@ -262,6 +263,7 @@ function getShiftAuditReport(startDate, endDate) {
     FROM reservations 
     WHERE check_out_date != 'مفتوح' 
       AND check_out_date BETWEEN ? AND ?
+      AND status = 'مكتمل'
   `, [dateFrom, dateTo])?.count || 0;
 
   // 4. Room status distribution (CURRENT real-time snapshot, not historical)
@@ -299,6 +301,7 @@ function getShiftAuditReport(startDate, endDate) {
     FROM reservations
     WHERE check_out_date != 'مفتوح'
       AND check_out_date BETWEEN ? AND ?
+      AND status = 'مكتمل'
     GROUP BY check_out_date
   `, [dateFrom, dateTo]);
   const checkoutsByDay = {};

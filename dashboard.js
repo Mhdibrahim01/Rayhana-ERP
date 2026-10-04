@@ -290,6 +290,8 @@
 
   function renderOverdueBadge(isOverdue) { return window.DashboardApp.Helpers.renderOverdueBadge(isOverdue); }
 
+  function roundMoney(val) { return window.DashboardApp.Helpers.roundMoney(val); }
+
   // Set default dates
   const today = new Date();
   const tomorrow = new Date(Date.now() + 86400000);
@@ -552,7 +554,8 @@
       const inv = res.data;
       currentInvoiceData = inv;
       const isContract = inv.booking_type === 'عقد مفتوح';
-      const total = parseFloat(inv.total_price || 0);
+      const isCancelled = inv.status === 'ملغي';
+      const total = isCancelled ? 0.0 : parseFloat(inv.total_price || 0);
       const paid = parseFloat(inv.paid_amount || 0);
       const deposit = parseFloat(inv.deposit_ledger_balance ?? inv.deposit_amount ?? 0);
       const legacyDeposit = Number(inv.deposit_legacy_unreconciled || 0) === 1;
@@ -565,26 +568,36 @@
       const isCredit = rawRemaining < -0.005;
       const remaining = isContract ? rawRemaining : Math.max(0, rawRemaining);
 
-      // Compute total refunded from the payments ledger.
-      // Any payment row with a negative amount is a refund (checkout settlement refund,
-      // cancellation refund, or mid-stay partial cancellation refund).
+      // Compute total collected and total refunded from the payments ledger.
+      let originalCollected = 0;
       let refundedTotal = 0;
       try {
         const paymentsRes = await window.api.getReservationPayments(targetId);
         if (paymentsRes && paymentsRes.success && Array.isArray(paymentsRes.data)) {
           for (const p of paymentsRes.data) {
-            if (parseFloat(p.amount) < 0) {
-              refundedTotal += Math.abs(parseFloat(p.amount));
+            const amt = parseFloat(p.amount) || 0;
+            if (amt > 0) {
+              originalCollected += amt;
+            } else if (amt < 0) {
+              refundedTotal += Math.abs(amt);
             }
           }
         }
       } catch (_) { /* non-critical — invoice still renders without it */ }
+      originalCollected = roundMoney(originalCollected);
       refundedTotal = roundMoney(refundedTotal);
 
       const d1 = inv.check_in_date ? new Date(inv.check_in_date) : null;
       const d2 = inv.check_out_date ? new Date(inv.check_out_date) : null;
+      const isSameDay = Boolean(inv.check_in_date && inv.check_out_date && inv.check_in_date === inv.check_out_date);
       const nights = (d1 && d2 && d2 > d1) ? Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24))) : (isContract ? '-' : 1);
-      const stayDurationText = isContract ? 'عقد مفتوح (غير محدد)' : (inv.booking_type === 'استخدام يومي' ? 'يوم استخدام' : `${nights} ${nights === 1 ? 'ليلة' : 'ليالٍ'}`);
+      const stayDurationText = isCancelled
+        ? 'حجز ملغي (0 ليلة)'
+        : (isContract
+          ? 'عقد مفتوح (غير محدد)'
+          : (inv.booking_type === 'استخدام يومي'
+            ? 'يوم استخدام'
+            : (isSameDay ? 'مغادرة في نفس اليوم (1 ليلة)' : `${nights} ${nights === 1 ? 'ليلة' : 'ليالٍ'}`)));
 
       // Monthly early checkout recorded under the contract policy: the invoice must
       // show the BOOKED nights and departure date, not the elapsed ones, and note
@@ -593,7 +606,9 @@
       const isActualPolicy = inv.checkout_policy === 'actual';
       let bookedNights = null;
       let checkOutDisplay;
-      if (isContractPolicy && inv.booked_check_out_date) {
+      if (isCancelled) {
+        checkOutDisplay = `${escapeHtml(inv.check_out_date || '-')} (حجز ملغي)`;
+      } else if (isContractPolicy && inv.booked_check_out_date) {
         const b1 = inv.check_in_date ? new Date(inv.check_in_date) : null;
         const b2 = new Date(inv.booked_check_out_date);
         if (b1 && b2 > b1) bookedNights = Math.max(1, Math.round((b2 - b1) / (1000 * 60 * 60 * 24)));
@@ -659,8 +674,8 @@
             </div>
 
             <div style="text-align: left; direction: ltr;">
-              <div style="background: #eef2ff; color: #3730a3; padding: 6px 18px; border-radius: 8px; font-weight: 800; font-size: 1.15rem; display: inline-block;">
-                سند
+              <div style="background: ${isCancelled ? '#fef2f2; color: #dc2626; border: 1px solid #fecaca;' : '#eef2ff; color: #3730a3;'}; padding: 6px 18px; border-radius: 8px; font-weight: 800; font-size: 1.15rem; display: inline-block;">
+                ${isCancelled ? 'سند حجز ملغي' : 'سند'}
               </div>
               <div style="font-size: 0.85rem; color: #334155; margin-top: 8px; font-weight: 700; direction: rtl; text-align: left;">
                 رقم السند: <span style="font-family: monospace; color: #4338ca;">${invoiceNum}</span>
@@ -670,7 +685,9 @@
                 <div>الوقت: <bdi dir="ltr" style="white-space: nowrap; unicode-bidi: isolate;">${escapeHtml(printTime)}</bdi></div>
               </div>
               <div style="margin-top: 6px; direction: rtl; text-align: left;">
-                ${window.DashboardApp.Helpers.getPaymentStatusBadge(inv.payment_status)}
+                ${isCancelled
+                  ? '<span class="badge badge-cancelled" style="font-size: 0.8rem; padding: 4px 10px;">حجز ملغي</span>'
+                  : window.DashboardApp.Helpers.getPaymentStatusBadge(inv.payment_status)}
               </div>
             </div>
           </div>
@@ -719,16 +736,20 @@
               </tr>
             </thead>
             <tbody>
-              <tr style="border-bottom: 1px solid #e2e8f0;">
+              <tr style="border-bottom: 1px solid #e2e8f0; ${isCancelled ? 'background: #fff8f8;' : ''}">
                 <td style="padding: 12px 14px;">
                   <strong>إقامة سكنية - وحدة ${escapeHtml(inv.room_number)} ${isContract ? '(عقد مفتوح)' : ''}</strong>
-                  <div style="font-size: 0.78rem; color: #64748b;">نوع الوحدة: ${escapeHtml(inv.room_type || 'عادية')} ${inv.custom_nightly_price ? '<span style="color:#166534; font-weight:700;">(سعر خاص معتمد)</span>' : ''}</div>
+                  <div style="font-size: 0.78rem; color: #64748b;">
+                    ${isCancelled
+                      ? '<span style="color: #dc2626; font-weight: 700;">(تم إبطال / إلغاء هذا الحجز بالكامل ولا توجد رسوم إقامة مستحقة)</span>'
+                      : `نوع الوحدة: ${escapeHtml(inv.room_type || 'عادية')} ${inv.custom_nightly_price ? '<span style="color:#166534; font-weight:700;">(سعر خاص معتمد)</span>' : ''}`}
+                  </div>
                 </td>
-                <td style="padding: 12px 14px; text-align: center;">${effectiveNightlyRate.toLocaleString()} ريال</td>
+                <td style="padding: 12px 14px; text-align: center;">${isCancelled ? '0 ريال' : `${effectiveNightlyRate.toLocaleString()} ريال`}</td>
                 <td style="padding: 12px 14px; text-align: center; font-weight: 700;">${invoiceDurationText}</td>
-                <td style="padding: 12px 14px; text-align: left; font-weight: 800; color: #1e1b4b;">${baseSubtotal.toLocaleString()} ريال</td>
+                <td style="padding: 12px 14px; text-align: left; font-weight: 800; color: #1e1b4b;">${(isCancelled ? 0 : baseSubtotal).toLocaleString()} ريال</td>
               </tr>
-              ${discount > 0 ? `
+              ${discount > 0 && !isCancelled ? `
                 <tr style="border-bottom: 1px solid #e2e8f0; background: #fff1f2;">
                   <td style="padding: 10px 14px;">
                     <strong style="color: #b91c1c;">خصم وتخفيض معتمد${discountReasonText}</strong>
@@ -739,7 +760,7 @@
                   <td style="padding: 10px 14px; text-align: left; font-weight: 800; color: #b91c1c;">- ${discount.toFixed(2)} ريال</td>
                 </tr>
               ` : ''}
-              ${lateFee > 0 ? `
+              ${lateFee > 0 && !isCancelled ? `
                 <tr style="border-bottom: 1px solid #e2e8f0; background: #fff7ed;">
                   <td style="padding: 10px 14px;"><strong style="color: #9a3412;">مبلغ إضافي لتأخير المغادرة</strong><div style="font-size: 0.75rem; color: #9a3412;">تم اعتماده يدويًا عند التسوية</div></td>
                   <td style="padding: 10px 14px; text-align: center;">-</td>
@@ -780,7 +801,7 @@
             </div>
 
             <div style="width: 280px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; font-size: 0.88rem;">
-              ${discount > 0 ? `
+              ${discount > 0 && !isCancelled ? `
                 <div style="display: flex; justify-content: space-between; margin-bottom: 6px; color: #64748b; font-size: 0.85rem;">
                   <span>المجموع قبل الخصم:</span>
                   <span>${(total + discount).toFixed(2)} ريال</span>
@@ -794,19 +815,28 @@
                 <span>الإجمالي الصافي:</span>
                 <span>${total.toFixed(2)} ريال</span>
               </div>
+              ${(originalCollected > paid && refundedTotal > 0) ? `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 6px; color: #64748b; font-size: 0.85rem;">
+                  <span>المبلغ المسدد أصلاً:</span>
+                  <span>${originalCollected.toFixed(2)} ريال</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 6px; color: #1d4ed8; font-size: 0.85rem; font-weight: 700;">
+                  <span>المبلغ المسترد:</span>
+                  <span>- ${refundedTotal.toFixed(2)} ريال</span>
+                </div>
+              ` : (refundedTotal > 0 ? `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px; color: #1d4ed8; font-weight: 700;">
+                  <span>المبلغ المسترد:</span>
+                  <span>- ${refundedTotal.toFixed(2)} ريال</span>
+                </div>
+              ` : '')}
               <div style="display: flex; justify-content: space-between; margin-bottom: 8px; color: #059669; font-weight: 700;">
-                <span>المبلغ المدفوع:</span>
+                <span>${refundedTotal > 0 ? 'صافي المدفوع:' : 'المبلغ المدفوع:'}</span>
                 <span>${paid.toFixed(2)} ريال</span>
               </div>
-              ${refundedTotal > 0 ? `
-              <div style="display: flex; justify-content: space-between; margin-bottom: 8px; color: #1d4ed8; font-weight: 700;">
-                <span>المبلغ المسترد:</span>
-                <span>- ${refundedTotal.toFixed(2)} ريال</span>
-              </div>
-              ` : ''}
-              <div style="display: flex; justify-content: space-between; padding-top: 6px; border-top: 1px dashed #cbd5e1; font-weight: 800; color: ${isCredit ? '#2563eb' : (remaining > 0 ? '#dc2626' : '#059669')};">
-                <span>${isCredit ? 'رصيد دائن:' : 'المبلغ المتبقي:'}</span>
-                <span>${isCredit ? `${Math.abs(rawRemaining).toFixed(2)} ريال` : `${remaining.toFixed(2)} ريال`}</span>
+              <div style="display: flex; justify-content: space-between; padding-top: 6px; border-top: 1px dashed #cbd5e1; font-weight: 800; color: ${isCancelled ? '#059669' : (isCredit ? '#2563eb' : (remaining > 0 ? '#dc2626' : '#059669'))};">
+                <span>${isCancelled ? 'المبلغ المتبقي:' : (isCredit ? 'رصيد دائن:' : 'المبلغ المتبقي:')}</span>
+                <span>${isCancelled ? '0.00 ريال' : (isCredit ? `${Math.abs(rawRemaining).toFixed(2)} ريال` : `${remaining.toFixed(2)} ريال`)}</span>
               </div>
             </div>
           </div>
@@ -1167,24 +1197,34 @@
                   <th style="padding: 8px 10px; text-align: right;">الحجز</th>
                   <th style="padding: 8px 10px; text-align: right;">النزيل</th>
                   <th style="padding: 8px 10px; text-align: right;">الغرفة</th>
+                  <th style="padding: 8px 10px; text-align: center;">فترة الإقامة</th>
                   <th style="padding: 8px 10px; text-align: center;">طريقة الدفع</th>
                   <th style="padding: 8px 10px; text-align: center;">المدفوع</th>
                   <th style="padding: 8px 10px; text-align: center;">رصيد التأمين</th>
+                  <th style="padding: 8px 10px; text-align: center;">حالة الحجز</th>
                   <th style="padding: 8px 10px; text-align: center;">حالة السداد</th>
                 </tr>
               </thead>
               <tbody>
-                ${txs.map(t => `
-                  <tr style="border-bottom: 1px solid #e2e8f0;">
+                ${txs.map(t => {
+                  const checkIn = t.check_in_date || '-';
+                  const checkOut = t.check_out_date || '-';
+                  const isSameDayStay = checkIn !== '-' && checkIn === checkOut;
+                  const stayText = isSameDayStay ? `${escapeHtml(checkIn)} (نفس اليوم)` : `${escapeHtml(checkIn)} &larr; ${escapeHtml(checkOut)}`;
+                  const isCancelledRow = t.status === 'ملغي';
+                  return `
+                  <tr style="border-bottom: 1px solid #e2e8f0; ${isCancelledRow ? 'background: #fff5f5; opacity: 0.88;' : ''}">
                     <td style="padding: 8px 10px; font-family: monospace; font-weight: 700;">#${t.id}</td>
                     <td style="padding: 8px 10px; font-weight: 700;">${escapeHtml(t.guest_name)}</td>
                     <td style="padding: 8px 10px;">غرفة ${escapeHtml(t.room_number)}</td>
+                    <td style="padding: 8px 10px; text-align: center; font-size: 0.78rem; direction: ltr;">${stayText}</td>
                     <td style="padding: 8px 10px; text-align: center;">${escapeHtml(t.payment_method || 'نقداً')}</td>
                     <td style="padding: 8px 10px; text-align: center; font-weight: 700; color: #059669;">${parseFloat(t.paid_amount || 0).toLocaleString()} ريال</td>
                     <td style="padding: 8px 10px; text-align: center; color: #701a75;">${parseFloat(t.deposit_ledger_balance || 0).toLocaleString()} ريال</td>
+                    <td style="padding: 8px 10px; text-align: center;">${window.DashboardApp.Helpers.getReservationStatusBadge(t.status)}</td>
                     <td style="padding: 8px 10px; text-align: center;">${window.DashboardApp.Helpers.getPaymentStatusBadge(t.payment_status)}</td>
                   </tr>
-                `).join('')}
+                `;}).join('')}
               </tbody>
             </table>
           `}
