@@ -2,7 +2,8 @@
   "note": "Tripwire only: structural counts and names do not prove behavior is unchanged.",
   "namedFunctionsPerFile": {
     "backupScheduler.js": 15,
-    "dashboard.js": 115,
+    "check.js": 0,
+    "dashboard.js": 116,
     "db.js": 0,
     "db/connection.js": 15,
     "db/guests.js": 8,
@@ -23,14 +24,21 @@
     "ipc/users.js": 3,
     "login.js": 1,
     "main.js": 13,
+    "patch-pw-2.js": 0,
+    "patch-pw.js": 0,
+    "playwright.config.js": 0,
+    "playwright.sandbox.config.js": 0,
     "preload.js": 59,
     "renderer.js": 8,
     "reset-db.js": 1,
-    "seed-checkout-tests.js": 7
+    "seed-checkout-tests.js": 7,
+    "verify-full.js": 0,
+    "verify-full2.js": 0
   },
   "totalWindowApiCallSites": 78,
   "windowApiCallSitesPerFile": {
     "backupScheduler.js": 0,
+    "check.js": 0,
     "dashboard.js": 70,
     "db.js": 0,
     "db/connection.js": 0,
@@ -52,10 +60,16 @@
     "ipc/users.js": 0,
     "login.js": 1,
     "main.js": 0,
+    "patch-pw-2.js": 0,
+    "patch-pw.js": 0,
+    "playwright.config.js": 0,
+    "playwright.sandbox.config.js": 0,
     "preload.js": 0,
     "renderer.js": 6,
     "reset-db.js": 0,
-    "seed-checkout-tests.js": 1
+    "seed-checkout-tests.js": 1,
+    "verify-full.js": 0,
+    "verify-full2.js": 0
   },
   "arabicStatusStringCounts": {
     "متاحة": 50,
@@ -69,7 +83,7 @@
     "غير مدفوع": 13,
     "مدفوع جزئياً": 19,
     "مدفوع بالكامل": 22,
-    "عقد مفتوح": 50,
+    "عقد مفتوح": 51,
     "نقداً": 58
   },
   "localStorageKeys": [

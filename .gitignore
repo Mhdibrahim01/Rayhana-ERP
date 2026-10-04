@@ -6,3 +6,15 @@ seed-checkout-tests-runtime.js
 seed-checkout-tests.js
 scratch/
 .test-output/
+check.js
+patch-pw-2.js
+patch-pw.js
+playwright.config.js
+playwright.sandbox.config.js
+test-results/
+tests/e2e-sandbox/
+tests/helpers/e2e-sandbox.js
+tests/helpers/prepare-sandbox-db.js
+tests/math-anomaly-report.js
+verify-full.js
+verify-full2.js
