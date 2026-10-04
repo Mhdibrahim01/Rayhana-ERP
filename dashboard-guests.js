@@ -127,6 +127,7 @@
     }
   }
 
+  App.Helpers.initGuests = function() {
   if (App.DOM.btnGuestsPrevPage) {
     App.DOM.btnGuestsPrevPage.addEventListener('click', () => {
       if (guestsCurrentPage > 1) {
@@ -142,7 +143,6 @@
       }
     });
   }
-  App.Helpers.initGuests = function() {
 
   if (App.DOM.searchGuests) {
     App.DOM.searchGuests.addEventListener('input', () => {
