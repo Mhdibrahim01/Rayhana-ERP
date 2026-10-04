@@ -2069,7 +2069,7 @@
     window.DashboardApp.DOM.roomsFilterTabs = document.querySelectorAll('#rooms-filter-tabs .filter-tab-btn');
     window.DashboardApp.DOM.roomsPaymentFilterTabs = document.querySelectorAll('#rooms-payment-filter-tabs .filter-tab-btn');
     window.DashboardApp.DOM.roomsPaymentFilterContainer = document.getElementById('rooms-payment-filter-tabs');
-    window.DashboardApp.DOM.searchRoomsInput = document.getElementById('search-rooms-input');
+    window.DashboardApp.DOM.searchRoomsInput = document.getElementById('search-rooms');
     window.DashboardApp.DOM.roomsBookingTypeTabs = document.querySelectorAll('#rooms-booking-type-tabs .filter-tab-btn');
     window.DashboardApp.DOM.roomsGridContainer = document.getElementById('rooms-grid-container');
     window.DashboardApp.DOM.btnToggleAddRoom = document.getElementById('btn-toggle-add-room');
