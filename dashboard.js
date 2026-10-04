@@ -12,7 +12,6 @@
   let roomsCache = [];
   let guestsCache = [];
   let usersCache = [];
-  let logsCache = [];
   let currentReservationFilter = 'all';
   let reservationsTableRows = [];
   let reservationsTableTotal = 0;
@@ -6619,88 +6618,7 @@
     }
   });
 
-  // =========================================================================
-  // VIEW 6: EMPLOYEE ACTIVITY LOGS (سجل نشاط الموظفين - Admin Only)
-  // =========================================================================
-  async function loadLogsData() {
-    const activeRole = localStorage.getItem('currentUserRole') || (currentUser ? currentUser.role : null);
-    if (activeRole !== 'Admin') return;
-
-    try {
-      const res = await window.api.getEmployeeLogs();
-      if (res.success) {
-        logsCache = res.data || [];
-        renderLogsTable();
-      } else {
-        showToast(res.error || 'تعذر تحميل سجل الموظفين.', 'error');
-      }
-    } catch (err) {
-      console.error('Load logs error:', err);
-    }
-  }
-
-  function renderLogsTable() {
-    const query = (searchLogs.value || '').toLowerCase().trim();
-
-    const filtered = logsCache.filter(log => {
-      if (!query) return true;
-      return (
-        String(log.id || '').includes(query) ||
-        String(log.username || '').toLowerCase().includes(query) ||
-        String(log.role || '').toLowerCase().includes(query)
-      );
-    });
-
-    logsCountBadge.textContent = filtered.length;
-
-    if (filtered.length === 0) {
-      logsTableBody.innerHTML = '';
-      logsEmpty.style.display = 'block';
-      return;
-    }
-
-    logsEmpty.style.display = 'none';
-
-    logsTableBody.innerHTML = filtered.map(log => {
-      const isAdmin = log.role === 'Admin';
-      const isActive = !log.logout_time;
-
-      return `
-        <tr>
-          <td style="font-family: monospace; font-weight: 700; color: var(--primary);">#${log.id}</td>
-          <td style="font-weight: 700; font-size: 0.9rem;">
-            ${escapeHtml(log.username)}
-          </td>
-          <td>
-            <span class="${isAdmin ? 'badge-role-admin' : 'badge-role-staff'}">
-              ${isAdmin ? 'مدير نظام (Admin)' : 'مستخدم (User)'}
-            </span>
-          </td>
-          <td style="font-family: monospace; font-size: 0.82rem; color: #334155;">
-            ${escapeHtml(log.login_time || '-')}
-          </td>
-          <td style="font-family: monospace; font-size: 0.82rem; color: #334155;">
-            ${log.logout_time ? escapeHtml(log.logout_time) : '<span style="color: var(--text-light);">-</span>'}
-          </td>
-          <td>
-            ${isActive ? `
-              <span class="badge" style="background: #ecfdf5; color: #065f46; font-weight: 800; display: inline-flex; align-items: center; gap: 6px;">
-                <span class="online-dot" style="display:inline-block; width:6px; height:6px;"></span>
-                متصل حالياً (نشط)
-              </span>
-            ` : `
-              <span class="badge" style="background: #f1f5f9; color: #64748b; font-weight: 700;">
-                جلسة منتهية
-              </span>
-            `}
-          </td>
-        </tr>
-      `;
-    }).join('');
-  }
-
-  searchLogs.addEventListener('input', renderLogsTable);
-  btnRefreshLogs.addEventListener('click', loadLogsData);
+  function loadLogsData() { return window.DashboardApp.Helpers.loadLogsData(); }
 
   function applyRbacUi(role) {
     const isAdmin = role === 'Admin';
@@ -6717,6 +6635,15 @@
   // --- INITIALIZE APPLICATION ---
   async function init() {
 
+    // Phase 2 DOM Bindings
+    window.DashboardApp.DOM.searchLogs = searchLogs;
+    window.DashboardApp.DOM.logsCountBadge = logsCountBadge;
+    window.DashboardApp.DOM.logsTableBody = logsTableBody;
+    window.DashboardApp.DOM.logsEmpty = logsEmpty;
+    window.DashboardApp.DOM.btnRefreshLogs = btnRefreshLogs;
+
+
+
     // Phase 1 DOM Bindings
     window.DashboardApp.DOM.statAvailableRooms = statAvailableRooms;
     window.DashboardApp.DOM.statOccupiedRooms = statOccupiedRooms;
@@ -6732,6 +6659,9 @@
     window.DashboardApp.DOM.todayCheckoutsEmpty = todayCheckoutsEmpty;
     window.DashboardApp.DOM.btnRefreshCheckouts = btnRefreshCheckouts;
     window.DashboardApp.DOM.todayCheckoutsFilters = todayCheckoutsFilters;
+
+    if (window.DashboardApp.Helpers.initOverview) window.DashboardApp.Helpers.initOverview();
+    if (window.DashboardApp.Helpers.initLogs) window.DashboardApp.Helpers.initLogs();
 
     // [Spike] Test State write
     window.DashboardApp.State.testVar = 42;

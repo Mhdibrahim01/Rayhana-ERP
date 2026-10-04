@@ -455,6 +455,7 @@
     }).join('');
   }
 
+  App.Helpers.initOverview = function() {
   document.querySelectorAll('[data-overview-table-tab]').forEach(tab => {
     tab.addEventListener('click', () => {
       const selectedPanelId = tab.dataset.overviewTableTab;
@@ -495,6 +496,7 @@
   }
 
 
+  };
   App.Helpers.loadOverviewData = loadOverviewData;
   App.Helpers.loadTodayCheckouts = loadTodayCheckouts;
 
