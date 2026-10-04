@@ -834,8 +834,8 @@
                 <span>${refundedTotal > 0 ? 'صافي المدفوع:' : 'المبلغ المدفوع:'}</span>
                 <span>${paid.toFixed(2)} ريال</span>
               </div>
-              <div style="display: flex; justify-content: space-between; padding-top: 6px; border-top: 1px dashed #cbd5e1; font-weight: 800; color: ${isCancelled ? '#059669' : (isCredit ? '#2563eb' : (remaining > 0 ? '#dc2626' : '#059669'))};">
-                <span>${isCancelled ? 'المبلغ المتبقي:' : (isCredit ? 'رصيد دائن:' : 'المبلغ المتبقي:')}</span>
+              <div style="display: flex; justify-content: space-between; padding-top: 6px; border-top: 1px dashed #cbd5e1; font-weight: 800; color: ${isCancelled ? '#059669' : (isCredit ? '#1d4ed8' : (remaining > 0 ? '#dc2626' : '#059669'))}; ${isCredit ? 'background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 6px 10px; margin-top: 6px;' : ''}">
+                <span>${isCancelled ? 'المبلغ المتبقي:' : (isCredit ? 'رصيد دائن للنزيل (مستحق له):' : 'المبلغ المتبقي:')}</span>
                 <span>${isCancelled ? '0.00 ريال' : (isCredit ? `${Math.abs(rawRemaining).toFixed(2)} ريال` : `${remaining.toFixed(2)} ريال`)}</span>
               </div>
             </div>
@@ -1479,8 +1479,8 @@
     const isOpenContract = currentInvoiceData && currentInvoiceData.booking_type === 'عقد مفتوح';
     const remaining = total - paid;
     if (editInvRemainingPreview) {
-      if (isOpenContract && remaining < -0.005) {
-        editInvRemainingPreview.textContent = `رصيد دائن: ${Math.abs(remaining).toFixed(2)} ريال`;
+      if (remaining < -0.005) {
+        editInvRemainingPreview.textContent = `رصيد دائن للنزيل (مستحق له): ${Math.abs(remaining).toFixed(2)} ريال`;
         editInvRemainingPreview.style.color = '#2563eb';
       } else {
         const displayRemaining = Math.max(0, remaining);

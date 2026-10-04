@@ -240,15 +240,14 @@ function getShiftAuditReport(startDate, endDate) {
       const amount = roundMoney(movement.amount || 0);
       if (movement.movement_type === 'collected') depositCashCollected += amount;
       else if (movement.movement_type === 'refunded') depositCashRefunded += amount;
-      // Retained deposits also get a payment receipt below; subtract them here to
-      // avoid counting the same cash twice in the expected drawer balance.
       else if (movement.movement_type === 'retained') depositCashRetained += amount;
     }
   }
   depositCashCollected = roundMoney(depositCashCollected);
   depositCashRefunded = roundMoney(depositCashRefunded);
   depositCashRetained = roundMoney(depositCashRetained);
-  const netCashDeposit = roundMoney(depositCashCollected - depositCashRefunded - depositCashRetained);
+  // Net cash held from deposits in the cash drawer (collected minus refunded to guest)
+  const netCashDeposit = roundMoney(depositCashCollected - depositCashRefunded);
 
   // 3. Movements (Check-ins & Check-outs in range)
   const checkinsInRange = queryOne(`

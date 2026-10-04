@@ -580,8 +580,12 @@ async function runComprehensiveMatrix() {
       const after = db.getReservationById(res.reservationId);
       assert.equal(after.deposit_ledger_balance, 0);
       const pays = db.getReservationPayments(res.reservationId);
-      assert.equal(pays[1].amount, 50);
-      assert.equal(pays[1].notes, 'إيراد تعويض/احتفاظ من التأمين');
+      assert.equal(pays.length, 1, 'Payments ledger strictly records stay payments, zero pollution from retained deposit');
+      const depositMvs = db.getReservationDepositMovements(res.reservationId);
+      const retainMv = depositMvs.find(m => m.movement_type === 'retained');
+      assert.ok(retainMv, 'Retained deposit is recorded in deposit_movements');
+      assert.equal(retainMv.amount, 50);
+      assert.equal(retainMv.reason, 'تلفيات في مفروشات الغرفة');
       return { depositHeld: 50, depositRetained: 50, reason: 'تلفيات في مفروشات الغرفة' };
     });
 
@@ -659,11 +663,11 @@ async function runComprehensiveMatrix() {
 
       // 3. paid_amount matches sum of stay ledger payments for EVERY reservation
       const paidMismatches = connection.queryAll(`
-        SELECT r.id, r.paid_amount, COALESCE(SUM(CASE WHEN p.notes = 'إيراد تعويض/احتفاظ من التأمين' THEN 0 ELSE p.amount END), 0) AS stay_ledger_total
+        SELECT r.id, r.paid_amount, COALESCE(SUM(p.amount), 0) AS stay_ledger_total
         FROM reservations r
         LEFT JOIN payments p ON p.reservation_id = r.id
         GROUP BY r.id
-        HAVING ABS(ROUND(COALESCE(r.paid_amount, 0), 2) - ROUND(COALESCE(SUM(CASE WHEN p.notes = 'إيراد تعويض/احتفاظ من التأمين' THEN 0 ELSE p.amount END), 0), 2)) > 0.005
+        HAVING ABS(ROUND(COALESCE(r.paid_amount, 0), 2) - ROUND(COALESCE(SUM(p.amount), 0), 2)) > 0.005
       `);
       assert.deepEqual(paidMismatches, [], 'Zero paid_amount vs stay ledger mismatches');
 

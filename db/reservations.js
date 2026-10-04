@@ -803,7 +803,7 @@ function checkoutReservation(reservationId, {
   if (!targetId || isNaN(targetId)) throw new Error('معرف الحجز غير صالح.');
 
   const res = queryOne(`
-    SELECT r.id, r.room_id, r.total_price, r.paid_amount, r.deposit_amount, r.payment_status, r.booking_type,
+    SELECT r.id, r.room_id, r.total_price, r.paid_amount, r.deposit_amount, r.payment_method, r.payment_status, r.booking_type,
            r.check_in_date, r.check_out_date, r.original_calculated_charge, r.status,
            r.custom_nightly_price, r.discount_amount, r.discount_reason,
            r.checkout_policy, r.checkout_policy_reason, r.booked_check_out_date,
@@ -904,10 +904,6 @@ function checkoutReservation(reservationId, {
       if (openDepositRetained > 0) {
         const retainReason = String(depositRetainReason || '').trim();
         recordDepositMovement({ reservationId: targetId, type: 'retained', amount: openDepositRetained, paymentMethod: depositRefundMethod, userId, reason: retainReason });
-        const retainReceipt = generateReceiptNumber(targetId);
-        const retainStmt = db.prepare(`INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes) VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)`);
-        retainStmt.run([retainReceipt, targetId, openDepositRetained, depositRefundMethod || 'نقداً', userId ? parseInt(userId, 10) : null, 'إيراد تعويض/احتفاظ من التأمين']);
-        retainStmt.free();
       }
       if (openDepositRefunded > 0) recordDepositMovement({ reservationId: targetId, type: 'refunded', amount: openDepositRefunded, paymentMethod: depositRefundMethod, userId, reason: `رد التأمين عند تسجيل المغادرة #${targetId}` });
 
@@ -962,6 +958,11 @@ function checkoutReservation(reservationId, {
       const storedOrig = res.original_calculated_charge;
       const origToWrite = (storedOrig !== null && storedOrig !== undefined) ? null : roundMoney(res.total_price || 0);
 
+      // Preserve original reservation payment method. Only set it at checkout if the
+      // reservation had zero prior payments or had no payment method set.
+      const openOriginalPaid = roundMoney(res.paid_amount || 0);
+      const openUpdateMethod = (openAddPay > 0 && (openOriginalPaid === 0 || !res.payment_method)) ? paymentMethod : null;
+
       const s1 = db.prepare(`
         UPDATE reservations SET status='مكتمل', check_out_date=?, total_price=?, paid_amount=?,
           payment_status=?, payment_method=COALESCE(?,payment_method),
@@ -973,7 +974,7 @@ function checkoutReservation(reservationId, {
         WHERE id=?
       `);
       s1.run([todayStr, openFinalTotal, openNewPaid, openStatus,
-        (openAddPay > 0 ? paymentMethod : null),
+        openUpdateMethod,
         normDiscountAmount, normDiscountAmount,
         normDiscountReason, normDiscountReason,
         normCustomNightlyPrice, normCustomNightlyPrice,
@@ -1206,13 +1207,6 @@ function checkoutReservation(reservationId, {
         paymentMethod: depositRefundMethod, userId: actingUser,
         reason: retainReason
       });
-      const retainReceiptNumber = generateReceiptNumber(targetId);
-      const retainStmt = db.prepare(`
-        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
-        VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
-      `);
-      retainStmt.run([retainReceiptNumber, targetId, depositRetained, depositRefundMethod || 'نقداً', actingUser, 'إيراد تعويض/احتفاظ من التأمين']);
-      retainStmt.free();
     }
     if (depositRefunded > 0) {
       recordDepositMovement({
@@ -1323,7 +1317,10 @@ function checkoutReservation(reservationId, {
       WHERE id = ? AND status != 'مكتمل'
     `);
 
-    const updateMethod = (resolvedMode === 'collect' || resolvedMode === 'refund') ? effMethod : null;
+    // Preserve original reservation payment method. Only set it at checkout if the
+    // reservation had zero prior payments or had no payment method set.
+    const originalPaid = roundMoney(res.paid_amount || 0);
+    const updateMethod = (resolvedMode === 'collect' && (originalPaid === 0 || !res.payment_method)) ? effMethod : null;
 
     stmt1.run([
       todayStr, finalTotal, newPaid, newPaymentStatus,
@@ -1784,7 +1781,7 @@ function addPaymentToReservation({ reservationId, amount, paymentMethod = 'نق�
   }
 
   const res = queryOne(`
-    SELECT r.id, r.total_price, r.paid_amount, r.status, r.booking_type,
+    SELECT r.id, r.total_price, r.paid_amount, r.payment_method, r.status, r.booking_type,
            (SELECT SUM(p.amount) FROM payments p WHERE p.reservation_id = r.id) AS ledger_paid_amount
     FROM reservations r
     WHERE r.id = ?
@@ -1864,14 +1861,17 @@ function addPaymentToReservation({ reservationId, amount, paymentMethod = 'نق�
     payStmt.free();
 
     // 2. Update reservations table
+    // Preserve initial reservation payment method if one was already set or paid for
+    const prevPaid = roundMoney(res.paid_amount || 0);
+    const updatePayMethod = (prevPaid === 0 || !res.payment_method) ? (paymentMethod || null) : null;
     const resStmt = db.prepare(`
       UPDATE reservations 
       SET paid_amount = ?, 
           payment_status = ?, 
-          payment_method = COALESCE(?, payment_method) 
+          payment_method = CASE WHEN ? IS NOT NULL THEN ? ELSE payment_method END 
       WHERE id = ?
     `);
-    resStmt.run([newPaidAmount, newPaymentStatus, paymentMethod || null, targetId]);
+    resStmt.run([newPaidAmount, newPaymentStatus, updatePayMethod, updatePayMethod, targetId]);
     resStmt.free();
 
     db.run("COMMIT;");
