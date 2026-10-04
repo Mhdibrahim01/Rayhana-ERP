@@ -5201,10 +5201,7 @@
     window.DashboardApp.Helpers.showConfirmDialog = showConfirmDialog;
 
     // Bind State
-    window.DashboardApp.Helpers.renderOverdueBadge = renderOverdueBadge;
-    window.DashboardApp.Helpers.getPaymentStatusBadge = getPaymentStatusBadge;
     window.DashboardApp.Helpers.loadReservationsData = loadReservationsData;
-    window.DashboardApp.Helpers.loadOverviewData = loadOverviewData;
     window.DashboardApp.Helpers.showPromptDialog = showPromptDialog;
     window.DashboardApp.State.currentUser = currentUser;
     // 1. Immediate UI state from localStorage cache

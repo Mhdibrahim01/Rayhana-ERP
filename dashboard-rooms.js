@@ -20,7 +20,7 @@
         App.State.roomsCache = roomsRes.data || [];
       }
       if (resRes && resRes.success) {
-        window.DashboardApp.State.App.State.reservationsCache = resRes.data || [];
+        App.State.reservationsCache = resRes.data || [];
       }
       renderRoomsGrid();
     } catch (err) {
@@ -50,7 +50,7 @@
 
     // Index each room's nearest future confirmed reservation once per render,
     // instead of filtering and sorting the full reservation cache for every card.
-    window.DashboardApp.State.App.State.reservationsCache.forEach(reservation => {
+    App.State.reservationsCache.forEach(reservation => {
       if (reservation.status !== 'مؤكد' || !reservation.check_in_date || reservation.check_in_date <= today) return;
 
       const current = futureReservationByRoom.get(reservation.room_id);
