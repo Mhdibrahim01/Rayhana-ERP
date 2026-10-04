@@ -94,6 +94,16 @@
   const btnCloseNewReservation = document.getElementById('btn-close-new-reservation');
   const btnResNewBooking = document.getElementById('btn-res-new-booking');
 
+  // User Manual Modal Elements
+  const btnOpenUserManual = document.getElementById('btn-open-user-manual');
+  const navUserManual = document.getElementById('nav-user-manual');
+  const userManualModal = document.getElementById('user-manual-modal');
+  const btnCloseUserManual = document.getElementById('btn-close-user-manual');
+  const btnCloseUserManualFooter = document.getElementById('btn-close-user-manual-footer');
+  const btnPrintUserManual = document.getElementById('btn-print-user-manual');
+  const manualSearchInput = document.getElementById('manual-search-input');
+  const manualContentContainer = document.getElementById('manual-content-container');
+
   // Topbar Actions (Backup, Restore, Shift Audit)
   const btnOpenShiftAudit = document.getElementById('btn-open-shift-audit');
   const btnBackupDb = document.getElementById('btn-backup-db');
@@ -1679,6 +1689,97 @@
     });
   }
 
+  // User Manual Modal Handlers
+  function openUserManualModal() {
+    if (!userManualModal) return;
+    userManualModal.style.display = 'flex';
+    if (manualSearchInput) {
+      manualSearchInput.value = '';
+      filterUserManual('');
+      setTimeout(() => manualSearchInput.focus(), 100);
+    }
+  }
+
+  function closeUserManualModal() {
+    if (!userManualModal) return;
+    userManualModal.style.display = 'none';
+  }
+
+  function filterUserManual(query) {
+    if (!manualContentContainer) return;
+    const term = String(query || '').trim().toLowerCase();
+    const sections = manualContentContainer.querySelectorAll('.manual-section');
+    sections.forEach(sec => {
+      if (!term) {
+        sec.style.display = '';
+        return;
+      }
+      const text = sec.textContent.toLowerCase();
+      sec.style.display = text.includes(term) ? '' : 'none';
+    });
+  }
+
+  if (btnOpenUserManual) {
+    btnOpenUserManual.addEventListener('click', openUserManualModal);
+  }
+  if (navUserManual) {
+    navUserManual.addEventListener('click', (e) => {
+      e.preventDefault();
+      openUserManualModal();
+    });
+  }
+  if (btnCloseUserManual) {
+    btnCloseUserManual.addEventListener('click', closeUserManualModal);
+  }
+  if (btnCloseUserManualFooter) {
+    btnCloseUserManualFooter.addEventListener('click', closeUserManualModal);
+  }
+  if (userManualModal) {
+    userManualModal.addEventListener('click', (e) => {
+      if (e.target === userManualModal) closeUserManualModal();
+    });
+  }
+  if (btnPrintUserManual) {
+    btnPrintUserManual.addEventListener('click', () => {
+      window.print();
+    });
+  }
+  if (manualSearchInput) {
+    manualSearchInput.addEventListener('input', (e) => {
+      filterUserManual(e.target.value);
+    });
+  }
+
+  // Navigation Pills click to scroll smoothly to section
+  document.querySelectorAll('.manual-nav-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      const targetId = pill.dataset.target;
+      const targetEl = document.getElementById(targetId);
+      if (targetEl && manualContentContainer) {
+        targetEl.style.display = '';
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        pill.style.background = '#1a4332';
+        pill.style.color = '#ffffff';
+        pill.style.borderColor = '#1a4332';
+        setTimeout(() => {
+          pill.style.background = '#ffffff';
+          pill.style.color = '#1e293b';
+          pill.style.borderColor = '#cbd5e1';
+        }, 1200);
+      }
+    });
+  });
+
+  // Global F1 key to open manual and Escape key to close
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'F1') {
+      e.preventDefault();
+      openUserManualModal();
+    } else if (e.key === 'Escape' && userManualModal && userManualModal.style.display === 'flex') {
+      closeUserManualModal();
+    }
+  });
+
   // Backup & Restore Database Handlers (Feature 4)
   if (btnBackupDb) {
     btnBackupDb.addEventListener('click', async () => {
@@ -2337,6 +2438,7 @@
   window.showConfirmDialog = showConfirmDialog;
   window.showPromptDialog = showPromptDialog;
   window.sendReservationWhatsApp = sendReservationWhatsApp;
+  window.openUserManualModal = openUserManualModal;
 
   init();
 

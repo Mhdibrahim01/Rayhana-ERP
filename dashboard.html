@@ -95,6 +95,14 @@
           </svg>
           <span>سجل نشاط الموظفين</span>
         </a>
+
+        <a id="nav-user-manual" class="nav-link" style="border-top: 1px solid rgba(255, 255, 255, 0.1); margin-top: 8px; padding-top: 12px; cursor: pointer;" title="دليل المستخدم والمساعدة الفورية (F1)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+          </svg>
+          <span>دليل الاستخدام 📖</span>
+        </a>
       </nav>
 
       <!-- User Profile & Logout -->
@@ -127,6 +135,16 @@
         </div>
 
         <div class="topbar-actions">
+          <!-- User Manual Button (All Roles) -->
+          <button id="btn-open-user-manual" type="button" class="btn btn-secondary btn-sm" title="دليل الاستخدام والمساعدة السريعة (F1)" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: #166534; background: #f0fdf4; border: 1.5px solid #86efac; cursor: pointer;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            <span>دليل الاستخدام 📖</span>
+          </button>
+
           <!-- Shift Audit Button -->
           <button id="btn-open-shift-audit" data-role-required="Admin" data-action="open-shift-audit" class="btn btn-secondary btn-sm" title="عرض تقرير إقفال الوردية والموازنة المالية (Shift Audit)">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1629,6 +1647,300 @@
       <div id="shift-audit-content" style="padding: 32px 36px; background: white; color: #0f172a; direction: rtl; text-align: right;">
         <!-- Filled dynamically by JavaScript -->
       </div>
+    </div>
+  </div>
+
+  <!-- User Manual & Help Modal (دليل المستخدم والمساعدة الفورية) -->
+  <div id="user-manual-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100015; align-items: center; justify-content: center; overflow: hidden; padding: 16px;">
+    <div style="background: #ffffff; border-radius: 16px; max-width: 1020px; width: 100%; height: 90vh; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.45); overflow: hidden; margin: auto; border: 1.5px solid rgba(166, 124, 82, 0.3);">
+      
+      <!-- Modal Header -->
+      <div class="no-print" style="background: linear-gradient(135deg, #1a4332 0%, #0e2e1f 100%); color: #ffffff; padding: 14px 22px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #a67c52; flex-shrink: 0; flex-wrap: wrap; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="background: rgba(255,255,255,0.15); width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+            📖
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #ffffff;">دليل مستخدم نظام ريحانة لإدارة الفنادق</h3>
+            <p style="margin: 0; font-size: 0.78rem; color: #cbd5e1;">Rayhana ERP User Manual • المرجع التشغيلي السريع للعمليات اليومية</p>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <!-- Quick Search -->
+          <div style="position: relative;">
+            <input type="text" id="manual-search-input" placeholder="🔍 بحث في الدليل (تأمين، خروج، فجر)..." style="width: 240px; padding: 6px 12px; border-radius: 8px; border: 1.5px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.12); color: #ffffff; font-size: 0.85rem; outline: none; font-family: inherit;">
+          </div>
+          
+          <!-- Print Button -->
+          <button id="btn-print-user-manual" type="button" class="btn btn-sm" style="background: #a67c52; color: white; font-weight: 700; padding: 6px 14px; border: none; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 6 2 18 2 18 9"></polyline>
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+              <rect x="6" y="14" width="12" height="8"></rect>
+            </svg>
+            <span>طباعة 🖨️</span>
+          </button>
+
+          <!-- Close Button -->
+          <button id="btn-close-user-manual" type="button" style="background: rgba(255,255,255,0.15); color: white; border: none; font-size: 1.4rem; border-radius: 8px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; line-height: 1;">
+            &times;
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Navigation Bar (Pills) -->
+      <div class="no-print" style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 8px 18px; display: flex; gap: 8px; overflow-x: auto; flex-shrink: 0; white-space: nowrap;">
+        <button type="button" class="manual-nav-pill" data-target="man-sec-quickstart" style="padding: 5px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #ffffff; color: #1e293b; font-size: 0.82rem; font-weight: 700; cursor: pointer;">🏠 البدء السريع</button>
+        <button type="button" class="manual-nav-pill" data-target="man-sec-rooms" style="padding: 5px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #ffffff; color: #1e293b; font-size: 0.82rem; font-weight: 700; cursor: pointer;">🟢 حالات الغرف</button>
+        <button type="button" class="manual-nav-pill" data-target="man-sec-checkin" style="padding: 5px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #ffffff; color: #1e293b; font-size: 0.82rem; font-weight: 700; cursor: pointer;">🛏️ التسكين والحجوزات</button>
+        <button type="button" class="manual-nav-pill" data-target="man-sec-night" style="padding: 5px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #ffffff; color: #1e293b; font-size: 0.82rem; font-weight: 700; cursor: pointer;">🌙 ما بعد منتصف الليل</button>
+        <button type="button" class="manual-nav-pill" data-target="man-sec-checkout" style="padding: 5px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #ffffff; color: #1e293b; font-size: 0.82rem; font-weight: 700; cursor: pointer;">🚪 تسجيل الخروج والتسوية</button>
+        <button type="button" class="manual-nav-pill" data-target="man-sec-void" style="padding: 5px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #ffffff; color: #1e293b; font-size: 0.82rem; font-weight: 700; cursor: pointer;">❌ إبطال حجز اليوم (Void)</button>
+        <button type="button" class="manual-nav-pill" data-target="man-sec-audit" style="padding: 5px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #ffffff; color: #1e293b; font-size: 0.82rem; font-weight: 700; cursor: pointer;">📊 تقرير الوردية والدرج</button>
+        <button type="button" class="manual-nav-pill" data-target="man-sec-invoices" style="padding: 5px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #ffffff; color: #1e293b; font-size: 0.82rem; font-weight: 700; cursor: pointer;">🧾 الفواتير والواتساب</button>
+        <button type="button" class="manual-nav-pill" data-target="man-sec-guests" style="padding: 5px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #ffffff; color: #1e293b; font-size: 0.82rem; font-weight: 700; cursor: pointer;">⛔ النزلاء والقائمة السوداء</button>
+        <button type="button" class="manual-nav-pill" data-target="man-sec-faqs" style="padding: 5px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #ffffff; color: #1e293b; font-size: 0.82rem; font-weight: 700; cursor: pointer;">❓ الأسئلة الشائعة</button>
+      </div>
+
+      <!-- Scrollable Manual Content -->
+      <div id="manual-content-container" style="flex: 1; overflow-y: auto; padding: 24px 32px; background: #ffffff; color: #0f172a; direction: rtl; text-align: right; line-height: 1.8; font-size: 0.95rem;">
+
+        <!-- 1. Quick Start -->
+        <section id="man-sec-quickstart" class="manual-section" style="margin-bottom: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
+          <h2 style="color: #1a4332; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px; margin-top: 0;">
+            <span>🏠</span> 1. البدء السريع وتسجيل الدخول
+          </h2>
+          <p>نظام ريحانة لإدارة الفنادق والشقق الفندقية هو منصة متكاملة مخصصة لإدارة العمليات اليومية من تسكين، خروج، جرد مالي، وإصدار الفواتير الضريبية.</p>
+          <div style="background: #f8fafc; border-radius: 10px; padding: 14px 18px; border: 1px solid #e2e8f0; margin-top: 10px;">
+            <strong>الصلاحيات وأدوار النظام:</strong>
+            <ul style="margin: 6px 0 0 20px; padding: 0;">
+              <li><strong style="color: #047857;">مدير النظام (Admin):</strong> صلاحيات كاملة تشمل تسعير الغرف، التقارير المالية والإيرادات، إدارة حسابات الموظفين، والنسخ الاحتياطي.</li>
+              <li><strong style="color: #0284c7;">موظف الاستقبال (Staff):</strong> عمليات التسكين، تسجيل الخروج، سندات القبض، طباعة الفواتير، وتقفيل الوردية.</li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- 2. Room States -->
+        <section id="man-sec-rooms" class="manual-section" style="margin-bottom: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
+          <h2 style="color: #1a4332; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+            <span>🟢</span> 2. الواجهة الرئيسية ودلالات ألوان الغرف
+          </h2>
+          <p>تعتمد الواجهة الرئيسية على بطاقات تفاعلية فورية لكل غرفة تعكس حالتها التشغيلية بدقة:</p>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 12px;">
+            <div style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 10px; padding: 12px 14px;">
+              <strong style="color: #166534; font-size: 1rem;">🟢 متاحة (جاهزة)</strong>
+              <p style="margin: 4px 0 0; font-size: 0.85rem; color: #14532d;">الغرفة نظيفة وجاهزة تماماً لاستقبال نزيل جديد فوراً بنقرة واحدة.</p>
+            </div>
+            <div style="background: #fef2f2; border: 1.5px solid #fca5a5; border-radius: 10px; padding: 12px 14px;">
+              <strong style="color: #991b1b; font-size: 1rem;">🔴 مشغولة</strong>
+              <p style="margin: 4px 0 0; font-size: 0.85rem; color: #7f1d1d;">يسكنها نزيل حالياً، ويُعرض عليها اسمه ورصيده المالي المتبقي أو الدائن.</p>
+            </div>
+            <div style="background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 10px; padding: 12px 14px;">
+              <strong style="color: #92400e; font-size: 1rem;">🟡 قيد التنظيف</strong>
+              <p style="margin: 4px 0 0; font-size: 0.85rem; color: #78350f;">النزيل غادر والغرفة تخضع للتجهيز. اضغط "جاهزة" عند اكتمال النظافة.</p>
+            </div>
+            <div style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 10px; padding: 12px 14px;">
+              <strong style="color: #1e40af; font-size: 1rem;">🔵 محجوزة</strong>
+              <p style="margin: 4px 0 0; font-size: 0.85rem; color: #1e3a8a;">الغرفة محجوزة لنزيل قادم في موعد وصول لاحق.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. Check-in & Booking Types -->
+        <section id="man-sec-checkin" class="manual-section" style="margin-bottom: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
+          <h2 style="color: #1a4332; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+            <span>🛏️</span> 3. دليل التسكين وأنواع الحجوزات
+          </h2>
+          <p>عند فتح نافذة الحجز عبر الضغط على أي غرفة متاحة أو زر "حجز جديد"، يجب اختيار نوع الحجز المناسب بدقة:</p>
+          
+          <div style="overflow-x: auto; margin-top: 10px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem; text-align: right;">
+              <thead>
+                <tr style="background: #1a4332; color: white;">
+                  <th style="padding: 10px 14px; border: 1px solid #cbd5e1;">نوع الحجز</th>
+                  <th style="padding: 10px 14px; border: 1px solid #cbd5e1;">تاريخ الوصول والمغادرة</th>
+                  <th style="padding: 10px 14px; border: 1px solid #cbd5e1;">الغرض التشغيلي</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="background: #ffffff;">
+                  <td style="padding: 10px 14px; border: 1px solid #cbd5e1; font-weight: 700; color: #1e293b;">حجز عادي (مبيت)</td>
+                  <td style="padding: 10px 14px; border: 1px solid #cbd5e1;">المغادرة بعد الوصول (ليلة واحدة على الأقل)</td>
+                  <td style="padding: 10px 14px; border: 1px solid #cbd5e1;">المبيت الليلي المعتاد لليلة واحدة أو أكثر حتى موعد الخروج 14:00.</td>
+                </tr>
+                <tr style="background: #f8fafc;">
+                  <td style="padding: 10px 14px; border: 1px solid #cbd5e1; font-weight: 700; color: #047857;">استخدام يومي (Day Use)</td>
+                  <td style="padding: 10px 14px; border: 1px solid #cbd5e1;">تاريخ الوصول = تاريخ المغادرة (نفس اليوم)</td>
+                  <td style="padding: 10px 14px; border: 1px solid #cbd5e1;">راحة نهارية لساعات محددة (ترانزيت) دون مبيت ليلي.</td>
+                </tr>
+                <tr style="background: #ffffff;">
+                  <td style="padding: 10px 14px; border: 1px solid #cbd5e1; font-weight: 700; color: #0284c7;">عقد مفتوح (Open Contract)</td>
+                  <td style="padding: 10px 14px; border: 1px solid #cbd5e1;">الوصول محدد، والمغادرة مفتوحة (غير محددة)</td>
+                  <td style="padding: 10px 14px; border: 1px solid #cbd5e1;">للشركات والنزلاء طويلي الأجل؛ يتم التحصيل على دفعات وتسوية الحساب عند الخروج.</td>
+                </tr>
+                <tr style="background: #f8fafc;">
+                  <td style="padding: 10px 14px; border: 1px solid #cbd5e1; font-weight: 700; color: #7c3aed;">حجز شهري (Monthly)</td>
+                  <td style="padding: 10px 14px; border: 1px solid #cbd5e1;">إقامة شهرية كاملة</td>
+                  <td style="padding: 10px 14px; border: 1px solid #cbd5e1;">باقة شهرية بسعر متفق عليه شهرياً.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 12px 16px; margin-top: 14px; font-size: 0.88rem;">
+            <strong>💡 متطلبات الحجز والتحقق الآلي:</strong>
+            <ul style="margin: 4px 0 0 18px; padding: 0;">
+              <li><strong>رقم الجوال:</strong> يبحث النظام تلقائياً عن النزيل بمجرد كتابة رقمه ويملأ بياناته إن كان مسجلاً سابقاً.</li>
+              <li><strong>رقم الهوية:</strong> يقبل الهوية الوطنية أو الإقامة (10 أرقام)، أو جواز السفر (6 إلى 9 خانات للزوار والخليجيين).</li>
+              <li><strong>الخصم:</strong> في حال تقديم أي خصم، يُلزم النظام الموظف بإدخال <em>سبب الخصم</em> لحماية التدقيق المحاسبي.</li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- 4. Post-Midnight Business Day -->
+        <section id="man-sec-night" class="manual-section" style="margin-bottom: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
+          <h2 style="color: #1a4332; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+            <span>🌙</span> 4. اليوم التشغيلي الفندقي لما بعد منتصف الليل
+          </h2>
+          <div style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 12px; padding: 16px 20px;">
+            <p style="margin: 0 0 10px; font-weight: 700; color: #1e40af;">كيف يتعامل النظام مع النزلاء الواصلين في ساعات الفجر المتأخرة؟</p>
+            <p style="margin: 0; font-size: 0.9rem; color: #1e3a8a;">
+              فندقياً، تستمر الليلة الفندقية حتى موعد الخروج الساعة 14:00 ظهراً. إذا وصل نزيل بين الساعة <strong>12:00 منتصف الليل وحتى 06:00 صباحاً</strong>، يقوم النظام تلقائياً بـ:
+            </p>
+            <ul style="margin: 8px 0 0 20px; font-size: 0.88rem; color: #1e3a8a;">
+              <li>اعتبار تاريخ الوصول تابعاً لليلة التشغيلية المستمرة، وتاريخ المغادرة ظهر اليوم (الساعة 14:00).</li>
+              <li>تحويل حالة الغرفة فوراً إلى <strong>"مشغولة 🔴"</strong> (وليس متاحة) حتى لو كانت مغادرته اليوم.</li>
+              <li>حساب تكلفة ليلة مبيت كاملة نظامياً.</li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- 5. Checkout & Settlement -->
+        <section id="man-sec-checkout" class="manual-section" style="margin-bottom: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
+          <h2 style="color: #1a4332; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+            <span>🚪</span> 5. تسجيل الخروج والتسوية المالية الذكية
+          </h2>
+          <p>عند مغادرة النزيل، اضغط على زر <strong>"تسجيل الخروج"</strong> للدخول إلى شاشة التسوية المالية الشاملة:</p>
+          <ol style="padding-right: 20px; font-size: 0.9rem;">
+            <li><strong>احتساب الليالي الفعلية:</strong> يحتسب النظام الليالي المستهلكة بدقة بناءً على تاريخ ووقت الخروج الفعلي.</li>
+            <li><strong>رسوم التأخير (بعد 14:00):</strong> إذا تأخر النزيل عن موعد المغادرة، يمكن إضافة رسوم خروج متأخر تلقائياً أو يدوياً.</li>
+            <li><strong>تسوية التأمين (Deposit):</strong>
+              <ul>
+                <li><strong>استرداد التأمين بالكامل:</strong> إذا سُلّمت الغرفة سليمة بدون أي تلفيات.</li>
+                <li><strong>استقطاع / مصادرة جزء من التأمين (Retain):</strong> في حال وجود تلفيات؛ يُسجل المبلغ في حركات التأمين المستقلة كتعويض تلفيات دون أن يُخل بمدفوعات الإقامة.</li>
+              </ul>
+            </li>
+            <li><strong>تصفية الرصيد:</strong>
+              <ul>
+                <li>إن كان على النزيل متبقي: اختر طريقة الدفع واضغط تحصيل.</li>
+                <li>إن كان للنزيل رصيد دائن: تظهر عبارة واضحة <strong style="color: #2563eb;">"رصيد دائن للنزيل (مستحق له)"</strong> ليُعاد المبلغ له.</li>
+              </ul>
+            </li>
+          </ol>
+          <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 12px 16px; font-size: 0.86rem; color: #991b1b;">
+            <strong>⚠️ أمان طرق الدفع:</strong> يحافظ النظام على طريقة الدفع الأصلية للنزيل (مثل التحويل البنكي) عند الخروج، ويسجل أي رسوم متأخرة نقدية بسندها المستقل حتى لا تتبدل تقارير المحاسبة بالخطأ.
+          </div>
+        </section>
+
+        <!-- 6. Same-Day Void -->
+        <section id="man-sec-void" class="manual-section" style="margin-bottom: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
+          <h2 style="color: #1a4332; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+            <span>❌</span> 6. إبطال الحجز المباشر في نفس اليوم (Same-Day Void)
+          </h2>
+          <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 16px 20px;">
+            <p style="margin: 0 0 8px; font-weight: 700; color: #92400e;">ماذا تفعل إذا سجلت حجزاً بالخطأ للغرفة وأردت التراجع فوراً؟</p>
+            <p style="margin: 0; font-size: 0.9rem; color: #78350f;">
+              اضغط على زر <strong>"إلغاء الحجز"</strong> من جدول الحجوزات لحجز اليوم الواحد. سيقوم النظام آلياً بـ:
+            </p>
+            <ul style="margin: 8px 0 0 20px; font-size: 0.88rem; color: #78350f;">
+              <li>إلغاء الحجز فورياً وقيد سند استرداد محاسبي لأي مبالغ دُفعت.</li>
+              <li><strong>إعادة الغرفة فوراً إلى حالة "متاحة 🟢"</strong> (وليس تنظيف) لأن النزيل لم يشغلها فعلياً، مما يتيح إعادة بيعها فوراً دون تعطيل.</li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- 7. Shift Audit -->
+        <section id="man-sec-audit" class="manual-section" style="margin-bottom: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
+          <h2 style="color: #1a4332; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+            <span>📊</span> 7. تقارير الوردية والجرد المالي اليومي (Shift Audit)
+          </h2>
+          <p>في نهاية كل مناوبة، يفتح موظف الاستقبال نافذة <strong>"تقرير الوردية"</strong> لمطابقة العهدة:</p>
+          <ul style="padding-right: 20px; font-size: 0.9rem;">
+            <li><strong>نقدية الدرج المتوقعة (Expected Cash in Drawer):</strong> 
+              <br><code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; color: #0f172a;">إيجارات الكاش المستلمة + مبالغ التأمين الكاش المستلمة - الاستردادات النقدية المرجعة</code>.
+            </li>
+            <li><strong>مبيعات الشبكة (مدى / بطاقات ائتمانية):</strong> تُطابق مع شريط جهاز نقاط البيع البنكي (POS Terminal).</li>
+            <li><strong>جدول حركة الحجوزات الفعلية:</strong> يقتصر فقط على من دخل اليوم، من غادر اليوم، ومن سدد دفعات اليوم، مع استبعاد النزلاء المقيمين من أيام سابقة الذين لم تطرأ عليهم أي حركة مالية لضمان وضوح التقرير.</li>
+          </ul>
+        </section>
+
+        <!-- 8. Invoices & WhatsApp -->
+        <section id="man-sec-invoices" class="manual-section" style="margin-bottom: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
+          <h2 style="color: #1a4332; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+            <span>🧾</span> 8. الفواتير وسندات القبض ومشاركتها عبر الواتساب
+          </h2>
+          <p>يولد النظام فواتير ضريبية إلكترونية متوافقة مع الأنظمة المعتمدة:</p>
+          <div style="display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px;">
+            <div style="flex: 1; min-width: 250px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; padding: 14px 16px;">
+              <strong style="color: #1a4332;">🖨️ الطباعة والحفظ PDF:</strong>
+              <p style="margin: 4px 0 0; font-size: 0.85rem; color: #475569;">تتضمن الفاتورة رمز الاستجابة السريع (QR Code)، تفصيل الليالي والأسعار والخصومات، والمبالغ المسددة والمتبقية.</p>
+            </div>
+            <div style="flex: 1; min-width: 250px; background: #f0fdf4; border: 1px solid #86efac; border-radius: 10px; padding: 14px 16px;">
+              <strong style="color: #166534;">💬 إرسال عبر واتساب:</strong>
+              <p style="margin: 4px 0 0; font-size: 0.85rem; color: #14532d;">بنقرة واحدة على زر "إرسال واتساب"، تُفتح محادثة مباشرة مع النزيل تتضمن رسالة ترحيبية مهذبة وملخص كامل للحجز.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- 9. Guests & Blacklist -->
+        <section id="man-sec-guests" class="manual-section" style="margin-bottom: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
+          <h2 style="color: #1a4332; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+            <span>⛔</span> 9. سجل النزلاء والقائمة السوداء (الحظر)
+          </h2>
+          <p>يتيح قسم <strong>"قائمة النزلاء"</strong> البحث الفوري برقم الهوية أو الجوال وتتبع سجل الإقامات السابقة:</p>
+          <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 14px 18px; margin-top: 10px;">
+            <strong style="color: #991b1b;">الحظر التلقائي للنزيل المخالف:</strong>
+            <p style="margin: 4px 0 0; font-size: 0.88rem; color: #7f1d1d;">
+              إذا أُضيف نزيل إلى القائمة المحظورة مع تسجيل سبب الحظر، سيقوم النظام تلقائياً بمنع أي موظف استقبال من تسكينه في أي غرفة في المستقبل مع إظهار تحذير أحمر فوري لحماية الفندق.
+            </p>
+          </div>
+        </section>
+
+        <!-- 10. FAQs -->
+        <section id="man-sec-faqs" class="manual-section" style="margin-bottom: 20px;">
+          <h2 style="color: #1a4332; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+            <span>❓</span> 10. الأسئلة الشائعة والأخطاء التشغيلية
+          </h2>
+          
+          <div style="margin-top: 14px; display: flex; flex-direction: column; gap: 14px;">
+            <div style="background: #f8fafc; border-right: 4px solid #1a4332; border-radius: 8px; padding: 12px 16px;">
+              <strong style="color: #1a4332;">س: النزيل يريد استئجار غرفة لعدة ساعات فقط في النهار بدون مبيت، ماذا أختار؟</strong>
+              <p style="margin: 4px 0 0; font-size: 0.88rem; color: #334155;">ج: اختر نوع الحجز <strong>"استخدام يومي (Day Use)"</strong>. هذا النوع يسمح بأن يكون تاريخ الوصول وتاريخ المغادرة في نفس اليوم تماماً.</p>
+            </div>
+
+            <div style="background: #f8fafc; border-right: 4px solid #1a4332; border-radius: 8px; padding: 12px 16px;">
+              <strong style="color: #1a4332;">س: شاشة تسوية الخروج تظهر تنبيه "تضارب قيمة العقد" والزر معطل؟</strong>
+              <p style="margin: 4px 0 0; font-size: 0.88rem; color: #334155;">ج: هذه حماية أمان تمنع تسجيل الخروج إذا كان سعر الليلة أو الخصم المسجل قديماً لا يطابق المعادلة الحسابية. اضغط على تعديل الحجز لمطابقة الإجمالي أولاً وستفتح لك شاشة التسوية فوراً.</p>
+            </div>
+
+            <div style="background: #f8fafc; border-right: 4px solid #1a4332; border-radius: 8px; padding: 12px 16px;">
+              <strong style="color: #1a4332;">س: كيف أحصل على نسخة احتياطية من قاعدة البيانات يومياً؟</strong>
+              <p style="margin: 4px 0 0; font-size: 0.88rem; color: #334155;">ج: يقوم النظام بنسخ تلقائي يومياً عند الساعة 12:00 منتصف الليل، ويمكنك أيضاً النقر على زر "نسخ احتياطي" في الشريط العلوي لتصدير نسخة فورية إلى فلاش ميموري خارجي.</p>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="no-print" style="background: #f1f5f9; border-top: 1px solid #cbd5e1; padding: 10px 22px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;">
+        <span style="font-size: 0.8rem; color: #64748b;">💡 اختصار سريع: يمكنك فتح دليل المستخدم في أي وقت بالضغط على مفتاح <kbd style="background: #ffffff; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px; font-weight: 700;">F1</kbd> في لوحة المفاتيح.</span>
+        <button id="btn-close-user-manual-footer" type="button" class="btn btn-secondary btn-sm" style="padding: 6px 18px; font-weight: 700; border-radius: 8px; background: #1a4332; color: #ffffff; border: none; cursor: pointer;">
+          تم، إغلاق الدليل
+        </button>
+      </div>
+
     </div>
   </div>
 
