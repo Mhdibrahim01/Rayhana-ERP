@@ -2,6 +2,7 @@ window.DashboardApp = {
   State: {
     testVar: 0,
     currentUser: null,
+    guestsCache: [],
     usersCache: [],
     logsCache: [],
     monthlyRevenueChart: null,

@@ -10,7 +10,6 @@
   // State Caches
   let currentUser = null;
   let roomsCache = [];
-  let guestsCache = [];
   let currentReservationFilter = 'all';
   let reservationsTableRows = [];
   let reservationsTableTotal = 0;
@@ -256,6 +255,12 @@
   const btnDeleteRoom = document.getElementById('btn-delete-room');
 
   // Guests Elements
+  const importResultModal = document.getElementById('import-result-modal');
+  const btnCloseImportResultModal = document.getElementById('btn-close-import-result-modal');
+  const btnConfirmImportResult = document.getElementById('btn-confirm-import-result');
+  const btnToggleUpdatedGuestsList = document.getElementById('btn-toggle-updated-guests-list');
+  const importModalUpdatedContainer = document.getElementById('import-modal-updated-container');
+  const importModalToggleArrow = document.getElementById('import-modal-toggle-arrow');
   const guestsTableBody = document.getElementById('guests-table-body');
   const guestsEmpty = document.getElementById('guests-empty');
   const searchGuests = document.getElementById('search-guests');
@@ -2518,620 +2523,7 @@
     });
   }
 
-  // =========================================================================
-  // VIEW 4: GUESTS DIRECTORY (SERVER-SIDE PAGINATION) + EXCEL IMPORT / EXPORT
-  // =========================================================================
-  let guestsCurrentPage = 1;
-  const guestsPageLimit = 50;
-  let guestsTotalPages = 1;
-  let guestsTotalCount = 0;
-  let guestSearchDebounceTimer = null;
-  let currentGuestBanFilter = 'all';
-
-  async function loadGuestsData(page = guestsCurrentPage) {
-    try {
-      guestsCurrentPage = Math.max(1, page);
-      const query = (searchGuests ? searchGuests.value : '').trim();
-
-      const res = await window.api.getGuestsPaginated({
-        page: guestsCurrentPage,
-        limit: guestsPageLimit,
-        search: query,
-        banFilter: currentGuestBanFilter
-      });
-
-      if (res && res.success) {
-        guestsCache = res.data || [];
-        const pag = res.pagination || {};
-        guestsTotalCount = res.totalCount !== undefined ? res.totalCount : (pag.totalCount || 0);
-        guestsTotalPages = res.totalPages !== undefined ? res.totalPages : (pag.totalPages || 1);
-        guestsCurrentPage = res.page !== undefined ? res.page : (pag.page || 1);
-
-        renderGuestsTable();
-        updateGuestsPaginationUI();
-      }
-    } catch (err) {
-      console.error('Error loading guests:', err);
-      showToast('خطأ أثناء تحميل بيانات النزلاء.', 'error');
-    }
-  }
-
-  function renderGuestsTable() {
-    if (guestsCountBadge) guestsCountBadge.textContent = guestsTotalCount.toLocaleString();
-
-    if (!guestsCache || guestsCache.length === 0) {
-      guestsTableBody.innerHTML = '';
-      if (guestsEmpty) guestsEmpty.style.display = 'block';
-      return;
-    }
-
-    if (guestsEmpty) guestsEmpty.style.display = 'none';
-
-    const activeRole = localStorage.getItem('currentUserRole') || (currentUser ? currentUser.role : null);
-    const isAdmin = activeRole === 'Admin';
-
-    document.querySelectorAll('#view-guests .admin-only').forEach(el => {
-      el.style.display = isAdmin ? '' : 'none';
-    });
-
-    guestsTableBody.innerHTML = guestsCache.map(g => {
-      const totalStays = parseInt(g.total_stays, 10) || 0;
-      const totalSpent = parseFloat(g.total_spent) || 0;
-      const isBanned = Number(g.is_banned) === 1;
-
-      return `
-        <tr>
-          <td style="font-family: monospace; font-weight: 700; color: var(--primary);">#${g.id}</td>
-          <td style="font-weight: 800; color: #1e293b; font-size: 0.9rem;">
-            ${escapeHtml(g.name)}
-          </td>
-          <td style="font-family: monospace; color: var(--text-secondary);">${escapeHtml(g.phone || '-')}</td>
-          <td style="color: var(--text-secondary);">${escapeHtml(g.id_number || '-')}</td>
-          <td>
-            <span class="badge" style="background: #fdfaf7; color: #a67c52; border: 1px solid rgba(166, 124, 82, 0.35); font-weight: 800;">
-              ${totalStays} ${totalStays === 1 ? 'إقامة' : 'إقامات'}
-            </span>
-          </td>
-          <td style="font-weight: 800; color: var(--primary);">${totalSpent.toLocaleString()} ريال</td>
-          <td style="font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(String(g.created_at || '').split(' ')[0])}</td>
-          <!-- The ban-status column travels with the ban action: a receptionist who can now
-               ban a guest must be able to see whether that guest is currently banned.
-               Previously both were wrapped in the same isAdmin check. -->
-          <td>
-            <span class="badge ${isBanned ? 'badge-cancelled' : 'badge-confirmed'}">
-              ${isBanned ? 'محظور' : 'نشط'}
-            </span>
-          </td>
-          <td style="text-align: center; white-space: nowrap;">
-            <div style="display: inline-flex; align-items: center; gap: 6px; justify-content: center;">
-              <button type="button" class="btn btn-secondary btn-sm" data-action="edit-guest" data-id="${g.id}" style="padding: 4px 10px; font-size: 0.78rem; font-weight: 700;">
-                تعديل ✏️
-              </button>
-              <!-- Banning is available to every signed-in user, matching the IPC gate in
-                   ipc/guests.js (session required, role not restricted). It was previously
-                   wrapped in an isAdmin check, hiding the button from reception while the
-                   backend would have allowed it anyway. -->
-              <button type="button" class="btn ${isBanned ? 'btn-secondary' : 'btn-danger'} btn-sm" data-action="toggle-ban-guest" data-id="${g.id}" data-name="${escapeHtml(g.name)}" data-banned="${isBanned ? '1' : '0'}" style="padding: 4px 10px; font-size: 0.78rem; font-weight: 700;">
-                              ${isBanned ? 'إلغاء الحظر' : 'حظر'}
-                            </button>
-            </div>
-          </td>
-        </tr>
-      `;
-    }).join('');
-  }
-
-  function updateGuestsPaginationUI() {
-    if (guestsCurrentPageEl) guestsCurrentPageEl.textContent = guestsCurrentPage;
-    if (guestsTotalPagesEl) guestsTotalPagesEl.textContent = Math.max(1, guestsTotalPages);
-    if (guestsTotalCountEl) guestsTotalCountEl.textContent = guestsTotalCount.toLocaleString();
-
-    if (guestsPageRangeEl) {
-      if (guestsTotalCount === 0) {
-        guestsPageRangeEl.textContent = '0 - 0';
-      } else {
-        const start = (guestsCurrentPage - 1) * guestsPageLimit + 1;
-        const end = Math.min(guestsCurrentPage * guestsPageLimit, guestsTotalCount);
-        guestsPageRangeEl.textContent = `${start} - ${end}`;
-      }
-    }
-
-    if (btnGuestsPrevPage) {
-      btnGuestsPrevPage.disabled = guestsCurrentPage <= 1;
-    }
-    if (btnGuestsNextPage) {
-      btnGuestsNextPage.disabled = guestsCurrentPage >= guestsTotalPages;
-    }
-  }
-
-  if (btnGuestsPrevPage) {
-    btnGuestsPrevPage.addEventListener('click', () => {
-      if (guestsCurrentPage > 1) {
-        loadGuestsData(guestsCurrentPage - 1);
-      }
-    });
-  }
-
-  if (btnGuestsNextPage) {
-    btnGuestsNextPage.addEventListener('click', () => {
-      if (guestsCurrentPage < guestsTotalPages) {
-        loadGuestsData(guestsCurrentPage + 1);
-      }
-    });
-  }
-
-  if (searchGuests) {
-    searchGuests.addEventListener('input', () => {
-      clearTimeout(guestSearchDebounceTimer);
-      guestSearchDebounceTimer = setTimeout(() => {
-        loadGuestsData(1);
-      }, 250);
-    });
-  }
-
-  // Ban-status filter tabs — re-fetch from page 1 with new filter applied server-side
-  guestsBanFilterTabs.forEach(btn => {
-    btn.addEventListener('click', () => {
-      guestsBanFilterTabs.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      currentGuestBanFilter = btn.dataset.banFilter;
-      loadGuestsData(1);
-    });
-  });
-
-  // Ban / Unban & Edit Guest Action Delegation
-  if (guestsTableBody) {
-    guestsTableBody.addEventListener('click', async (e) => {
-      // Edit Guest (All Staff & Admin)
-      const editBtn = e.target.closest('button[data-action="edit-guest"]');
-      if (editBtn) {
-        const guestId = parseInt(editBtn.dataset.id, 10);
-        openEditGuestModal(guestId);
-        return;
-      }
-
-      const btn = e.target.closest('button[data-action="toggle-ban-guest"]');
-      if (!btn) return;
-
-      const guestId = parseInt(btn.dataset.id, 10);
-      const guestName = btn.dataset.name || 'النزيل';
-      const isCurrentlyBanned = btn.dataset.banned === '1';
-
-      // No role check here. Banning is available to any signed-in user and the main
-      // process (ipc/guests.js) requires only a session. This renderer guard used to
-      // reject non-Admins with "هذا الإجراء مخصص لمدير النظام فقط", which blocked the
-      // click before it ever reached the IPC layer.
-      if (!currentUser) {
-        showToast('يرجى تسجيل الدخول أولاً.', 'error');
-        return;
-      }
-
-      if (isCurrentlyBanned) {
-        // Unban confirmation
-        const confirmed = await showConfirmDialog({
-          title: 'إلغاء حظر النزيل',
-          message: `هل أنت متأكد من إلغاء الحظر عن النزيل "${guestName}"؟\nسيتمكن النزيل من الحجز مجدداً دون قيود أو تنبيهات.`,
-          confirmText: 'نعم، إلغاء الحظر',
-          cancelText: 'تراجع',
-          isDanger: false
-        });
-
-        if (!confirmed) return;
-
-        try {
-          const res = await window.api.setGuestBanStatus({ guestId, isBanned: 0, reason: '' });
-          if (res && res.success) {
-            showToast(`تم إلغاء الحظر عن النزيل "${guestName}" بنجاح!`, 'success');
-            await loadGuestsData();
-          } else {
-            showToast(res?.error || 'فشل إلغاء الحظر.', 'error');
-          }
-        } catch (err) {
-          showToast(`خطأ: ${err.message}`, 'error');
-        }
-      } else {
-        // Ban prompt for reason
-        const reason = await showPromptDialog({
-          title: 'حظر النزيل (إدراج في القائمة السوداء)',
-          message: `يرجى إدخال سبب حظر النزيل "${guestName}":`,
-          placeholder: 'مثال: إتلاف أثاث الغرفة / سلوك غير لائق / تخلف عن السداد...',
-          confirmText: 'تأكيد الحظر',
-          cancelText: 'إلغاء'
-        });
-
-        if (reason === null) return; // User cancelled
-
-        try {
-          const res = await window.api.setGuestBanStatus({ guestId, isBanned: 1, reason });
-          if (res && res.success) {
-            showToast(`تم إدراج النزيل "${guestName}" في قائمة الحظر بنجاح!`, 'success');
-            await loadGuestsData();
-          } else {
-            showToast(res?.error || 'فشل حظر النزيل.', 'error');
-          }
-        } catch (err) {
-          showToast(`خطأ: ${err.message}`, 'error');
-        }
-      }
-    });
-  }
-
-  // =========================================================================
-  // EDIT GUEST MODAL
-  // =========================================================================
-  function openEditGuestModal(guestId) {
-    const targetId = parseInt(guestId, 10);
-    if (!targetId || isNaN(targetId)) return;
-
-    const guest = (guestsCache || []).find(g => g.id === targetId);
-    if (!guest) {
-      showToast('بيانات النزيل غير متوفرة في الصفحة الحالية.', 'error');
-      return;
-    }
-
-    if (editGuestId) editGuestId.value = guest.id;
-    if (editGuestName) editGuestName.value = guest.name || '';
-    if (editGuestPhone) editGuestPhone.value = guest.phone || '';
-    if (editGuestIdNumber) editGuestIdNumber.value = guest.id_number || '';
-
-    if (editGuestModal) editGuestModal.style.display = 'flex';
-    if (editGuestName) editGuestName.focus();
-  }
-
-  function closeEditGuestModal() {
-    if (editGuestModal) editGuestModal.style.display = 'none';
-    if (editGuestForm) editGuestForm.reset();
-  }
-
-  if (btnCloseEditGuest) btnCloseEditGuest.addEventListener('click', closeEditGuestModal);
-  if (btnCancelEditGuest) btnCancelEditGuest.addEventListener('click', closeEditGuestModal);
-  if (editGuestModal) {
-    editGuestModal.addEventListener('click', (e) => {
-      if (e.target === editGuestModal) closeEditGuestModal();
-    });
-  }
-
-  if (editGuestForm) {
-    editGuestForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const guestId = parseInt(editGuestId.value, 10);
-      const name = editGuestName.value.trim();
-      const phone = editGuestPhone.value.trim();
-      const id_number = editGuestIdNumber.value.trim();
-
-      if (!name) {
-        showToast('يرجى إدخال اسم النزيل.', 'warning');
-        return;
-      }
-
-      try {
-        if (btnSaveEditGuest) {
-          btnSaveEditGuest.disabled = true;
-          btnSaveEditGuest.textContent = 'جاري الحفظ...';
-        }
-
-        const res = await window.api.updateGuest({ guestId, name, phone, id_number });
-        if (res && res.success) {
-          showToast('تم تحديث بيانات النزيل بنجاح! ✓', 'success');
-          closeEditGuestModal();
-          await loadGuestsData(guestsCurrentPage);
-        } else {
-          showToast(res?.error || 'فشل تحديث بيانات النزيل.', 'error');
-        }
-      } catch (err) {
-        showToast(`خطأ: ${err.message}`, 'error');
-      } finally {
-        if (btnSaveEditGuest) {
-          btnSaveEditGuest.disabled = false;
-          btnSaveEditGuest.textContent = 'حفظ التعديلات ✓';
-        }
-      }
-    });
-  }
-
-  // Export Guests to Excel (fetches full list from database)
-  btnExportGuestsExcel.addEventListener('click', async () => {
-    if (typeof XLSX === 'undefined') {
-      showToast('مكتبة SheetJS غير متوفرة.', 'error');
-      return;
-    }
-
-    try {
-      showToast('جاري تحضير ملف Excel لكافة النزلاء...', 'info');
-      const allRes = await window.api.getAllGuests();
-      const allGuestsList = (allRes && allRes.data) ? allRes.data : guestsCache;
-
-      if (!allGuestsList || allGuestsList.length === 0) {
-        showToast('لا توجد بيانات نزلاء لتصديرها.', 'info');
-        return;
-      }
-
-      const exportRows = allGuestsList.map(g => ({
-        'معرف النزيل': g.id,
-        'اسم النزيل': g.name,
-        'رقم الجوال': g.phone || '',
-        'رقم الهوية / الجواز': g.id_number || '',
-        'عدد الإقامات': parseInt(g.total_stays, 10) || 0,
-        'إجمالي المدفوعات': parseFloat(g.total_spent) || 0,
-        'تاريخ التسجيل': g.created_at
-      }));
-
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(exportRows);
-
-      ws['!cols'] = [
-        { wch: 12 }, { wch: 28 }, { wch: 18 }, { wch: 20 },
-        { wch: 14 }, { wch: 18 }, { wch: 20 }
-      ];
-
-      XLSX.utils.book_append_sheet(wb, ws, 'قائمة النزلاء');
-      const filename = `hotel_guests_${getLocalDateString()}.xlsx`;
-      XLSX.writeFile(wb, filename);
-
-      showToast(`تم تصدير ${exportRows.length} نزيل إلى "${filename}" بنجاح!`, 'success');
-    } catch (err) {
-      console.error('Export error:', err);
-      showToast(`فشل تصدير Excel: ${err.message}`, 'error');
-    }
-  });
-
-  // Import Guests from CSV / Excel (with dual UTF-8 & Windows-1256 Arabic encoding support + smart column detector)
-  if (inputImportGuestsExcel) {
-    inputImportGuestsExcel.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = async function (evt) {
-        try {
-          const rawBuffer = evt.target.result;
-          const uint8Array = new Uint8Array(rawBuffer);
-
-          let wb;
-          // Check magic numbers for binary Excel (XLSX = PK / 0x50 0x4B, XLS = 0xD0 0xCF)
-          const isZip = uint8Array.length > 2 && uint8Array[0] === 0x50 && uint8Array[1] === 0x4b;
-          const isCfb = uint8Array.length > 2 && uint8Array[0] === 0xd0 && uint8Array[1] === 0xcf;
-
-          if (isZip || isCfb) {
-            wb = XLSX.read(uint8Array, { type: 'array' });
-          } else {
-            // Plain text CSV: decode with UTF-8 or fallback to Windows-1256 (standard Arabic Windows Excel encoding)
-            let decodedText = '';
-            try {
-              const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
-              decodedText = utf8Decoder.decode(uint8Array);
-              if (decodedText.includes('\uFFFD')) {
-                throw new Error('Mojibake detected');
-              }
-            } catch (utfErr) {
-              try {
-                const win1256Decoder = new TextDecoder('windows-1256');
-                decodedText = win1256Decoder.decode(uint8Array);
-              } catch (winErr) {
-                decodedText = new TextDecoder('utf-8').decode(uint8Array);
-              }
-            }
-            wb = XLSX.read(decodedText, { type: 'string' });
-          }
-
-          const sheetName = wb.SheetNames[0];
-          const sheet = wb.Sheets[sheetName];
-          if (!sheet) {
-            showToast('الملف المرفوع لا يحتوي على أي صفحات بيانات.', 'error');
-            return;
-          }
-
-          const cleanVal = (v) => String(v !== undefined && v !== null ? v : '').trim();
-
-          // 1. Try reading as Object rows with flexible key lookup
-          const rawRows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
-          let guestsData = [];
-
-          if (rawRows && rawRows.length > 0) {
-            guestsData = rawRows.map(row => {
-              let name = '', phone = '', id_number = '';
-              const cleanEntries = Object.entries(row).map(([k, v]) => [cleanVal(k).toLowerCase(), cleanVal(v)]);
-
-              // Header mapping
-              for (const [k, v] of cleanEntries) {
-                if (!v) continue;
-                if (!name && /^(الاسم|اسم النزيل|اسم العميل|الاسم الكامل|النزيل|العميل|name|guest_name|customer_name|fullname|full_name)$/i.test(k)) {
-                  name = v;
-                } else if (!phone && /^(الجوال|رقم الجوال|الهاتف|رقم الهاتف|الموبايل|رقم الموبايل|phone|mobile|tel|telephone|phone_number|mobile_number)$/i.test(k)) {
-                  phone = v;
-                } else if (!id_number && /^(الهوية|رقم الهوية|الهوية الوطنية|السجل المدني|الإقامة|رقم الإقامة|بطاقة الأحوال|الجواز|رقم الجواز|جواز السفر|رقم جواز السفر|passport|passport_number|id|id_number|national_id|iqama)$/i.test(k)) {
-                  id_number = v;
-                }
-              }
-
-              // Smart content-pattern heuristic fallback
-              if (!name || !phone || !id_number) {
-                for (const [, v] of cleanEntries) {
-                  if (!v) continue;
-                  const digits = v.replace(/\D/g, '');
-                  if (!id_number && /^[12]\d{9}$/.test(digits)) {
-                    id_number = digits;
-                  } else if (!id_number && /^[A-Za-z0-9\-]{6,15}$/.test(v.trim()) && !/^(الاسم|الجوال|الهوية|name|phone|id)$/i.test(v)) {
-                    id_number = v.trim();
-                  } else if (!phone && ((digits.startsWith('05') && digits.length === 10) || (digits.startsWith('5') && (digits.length === 8 || digits.length === 9)) || (digits.startsWith('9665') && digits.length === 12))) {
-                    phone = digits;
-                  } else if (!name && v.length >= 2 && !/^\d+$/.test(v) && !/^(الاسم|الجوال|الهوية|name|phone|id)$/i.test(v)) {
-                    name = v;
-                  }
-                }
-              }
-
-              // Normalize phone (prepend 0 if starting with 5)
-              let normPhone = phone.replace(/\D/g, '');
-              if (normPhone.startsWith('9665') && normPhone.length === 12) {
-                normPhone = '0' + normPhone.substring(3);
-              } else if (normPhone.startsWith('5') && (normPhone.length === 8 || normPhone.length === 9)) {
-                normPhone = '0' + normPhone;
-              }
-
-              return {
-                name,
-                phone: normPhone,
-                id_number: id_number.replace(/[^A-Za-z0-9\-]/g, '').trim(),
-                guest_name: name,
-                phone_number: normPhone
-              };
-            }).filter(g => g.name);
-          }
-
-          // 2. Fallback to 2D Array by column index if header-based parsing returned nothing
-          if (guestsData.length === 0) {
-            const rawArrays = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-            for (const arr of rawArrays) {
-              if (!Array.isArray(arr) || arr.length === 0) continue;
-              const c0 = cleanVal(arr[0]);
-              const c1 = cleanVal(arr[1]);
-              const c2 = cleanVal(arr[2]);
-              // Skip header line if detected
-              if (/^(الاسم|name|اسم النزيل)$/i.test(c0) || /^(الجوال|phone|رقم الجوال)$/i.test(c1)) continue;
-              if (c0 && c0.length >= 2 && !/^\d+$/.test(c0)) {
-                let p = c1.replace(/\D/g, '');
-                if (p.startsWith('5') && (p.length === 8 || p.length === 9)) p = '0' + p;
-                guestsData.push({
-                  name: c0,
-                  phone: p,
-                  id_number: c2.replace(/[^A-Za-z0-9\-]/g, '').trim(),
-                  guest_name: c0,
-                  phone_number: p
-                });
-              }
-            }
-          }
-
-          if (guestsData.length === 0) {
-            showToast('لم يتم العثور على بيانات نزلاء صالحة في الملف المرفوع.', 'error');
-            return;
-          }
-
-          // إرسال المصفوفة عبر IPC إلى الباك إند
-          const res = await window.api.importGuests(guestsData);
-
-          if (res.success) {
-            const count = res.importedCount ?? res.data?.inserted ?? 0;
-            const updated = res.updatedCount ?? res.data?.updated ?? 0;
-            const total = res.totalCount ?? guestsData.length;
-            const updatedGuests = res.updatedGuests || [];
-
-            // 1. تحديث جدول النزلاء في الشاشة فوراً حتى تكون البيانات جاهزة خلف النافذة
-            await loadGuestsData();
-
-            // 2. إشعار Toast علوي سريع
-            showToast(`تم استيراد ${count} عميل بنجاح!`, 'success');
-
-            // 3. فتح نافذة التقرير العصرية المنبثقة (بدون alert النظام القديم)
-            openImportResultModal({
-              importedCount: count,
-              updatedCount: updated,
-              totalCount: total,
-              updatedGuests: updatedGuests
-            });
-          } else {
-            showToast(res.message || res.error || 'فشل استيراد بيانات النزلاء.', 'error');
-          }
-        } catch (err) {
-          console.error('Import error:', err);
-          showToast(`خطأ في قراءة ملف البيانات: ${err.message}`, 'error');
-        } finally {
-          inputImportGuestsExcel.value = '';
-        }
-      };
-      reader.readAsArrayBuffer(file);
-    });
-  }
-
-  // Import Result Modal Handlers
-  const importResultModal = document.getElementById('import-result-modal');
-  const btnCloseImportResultModal = document.getElementById('btn-close-import-result-modal');
-  const btnConfirmImportResult = document.getElementById('btn-confirm-import-result');
-  const btnToggleUpdatedGuestsList = document.getElementById('btn-toggle-updated-guests-list');
-  const importModalUpdatedContainer = document.getElementById('import-modal-updated-container');
-  const importModalToggleArrow = document.getElementById('import-modal-toggle-arrow');
-
-  function openImportResultModal({ importedCount, updatedCount, totalCount, updatedGuests }) {
-    if (!importResultModal) return;
-
-    const insertedEl = document.getElementById('import-modal-inserted');
-    const updatedEl = document.getElementById('import-modal-updated');
-    const totalEl = document.getElementById('import-modal-total');
-    const totalSystemEl = document.getElementById('import-modal-total-system-guests');
-
-    if (insertedEl) insertedEl.textContent = importedCount;
-    if (updatedEl) updatedEl.textContent = updatedCount;
-    if (totalEl) totalEl.textContent = totalCount;
-    if (totalSystemEl) totalSystemEl.textContent = guestsCache.length;
-
-    const dedupNotice = document.getElementById('import-modal-dedup-notice');
-    const updatedInline = document.getElementById('import-modal-updated-inline');
-    const updatedSection = document.getElementById('import-modal-updated-section');
-    const mergedListCount = document.getElementById('import-modal-merged-list-count');
-    const updatedTbody = document.getElementById('import-modal-updated-table-body');
-
-    if (updatedCount > 0) {
-      if (dedupNotice) dedupNotice.style.display = 'block';
-      if (updatedInline) updatedInline.textContent = updatedCount;
-      if (updatedSection) updatedSection.style.display = 'block';
-      if (mergedListCount) mergedListCount.textContent = (updatedGuests && updatedGuests.length > 0) ? updatedGuests.length : updatedCount;
-
-      if (updatedTbody) {
-        if (updatedGuests && updatedGuests.length > 0) {
-          updatedTbody.innerHTML = updatedGuests.map(g => `
-            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
-              <td style="padding: 8px 12px; font-weight: 700; color: #ffffff;">${escapeHtml(g.name || '-')}</td>
-              <td style="padding: 8px 12px; font-family: monospace; color: var(--text-secondary);">${escapeHtml(g.phone || '-')}</td>
-              <td style="padding: 8px 12px; font-family: monospace; color: var(--text-secondary);">${escapeHtml(g.id_number || '-')}</td>
-              <td style="padding: 8px 12px; color: #f59e0b; font-weight: 600;">${escapeHtml(g.matchReason || 'تطابق بيانات')}</td>
-            </tr>
-          `).join('');
-        } else {
-          updatedTbody.innerHTML = `
-            <tr>
-              <td colspan="4" style="padding: 12px; text-align: center; color: var(--text-secondary);">
-                تم دمج السجلات المكررة مع النزلاء المسجلين مسبقاً لمنع التكرار.
-              </td>
-            </tr>
-          `;
-        }
-      }
-    } else {
-      if (dedupNotice) dedupNotice.style.display = 'none';
-      if (updatedSection) updatedSection.style.display = 'none';
-    }
-
-    importResultModal.style.display = 'flex';
-  }
-
-  function closeImportResultModal() {
-    if (importResultModal) {
-      importResultModal.style.display = 'none';
-    }
-  }
-
-  if (btnCloseImportResultModal) {
-    btnCloseImportResultModal.addEventListener('click', closeImportResultModal);
-  }
-
-  if (btnConfirmImportResult) {
-    btnConfirmImportResult.addEventListener('click', () => {
-      closeImportResultModal();
-      const tableCard = document.querySelector('#view-guests .card');
-      if (tableCard) tableCard.scrollIntoView({ behavior: 'smooth' });
-    });
-  }
-
-  if (btnToggleUpdatedGuestsList && importModalUpdatedContainer) {
-    btnToggleUpdatedGuestsList.addEventListener('click', () => {
-      const isVisible = importModalUpdatedContainer.style.display !== 'none';
-      importModalUpdatedContainer.style.display = isVisible ? 'none' : 'block';
-      if (importModalToggleArrow) {
-        importModalToggleArrow.textContent = isVisible ? 'إظهار التفاصيل ▼' : 'إخفاء التفاصيل ▲';
-      }
-    });
-  }
+  function loadGuestsData(page) { return window.DashboardApp.Helpers.loadGuestsData(page); }
 
   // =========================================================================
   // SUBSEQUENT PAYMENT MODAL (تسجيل سداد دفعة جديدة للحجز)
@@ -6137,7 +5529,7 @@
 
     // Edit Guest Modal Open
     if (action === 'edit-guest') {
-      openEditGuestModal(id);
+      window.DashboardApp.Helpers.openEditGuestModal(id);
       return;
     }
 
@@ -6400,6 +5792,37 @@
   // --- INITIALIZE APPLICATION ---
   async function init() {
 
+    // Phase 4 DOM Bindings
+    window.DashboardApp.DOM.guestsTableBody = guestsTableBody;
+    window.DashboardApp.DOM.guestsEmpty = guestsEmpty;
+    window.DashboardApp.DOM.searchGuests = searchGuests;
+    window.DashboardApp.DOM.guestsBanFilterTabs = guestsBanFilterTabs;
+    window.DashboardApp.DOM.guestsCountBadge = guestsCountBadge;
+    window.DashboardApp.DOM.btnExportGuestsExcel = btnExportGuestsExcel;
+    window.DashboardApp.DOM.inputImportGuestsExcel = inputImportGuestsExcel;
+    window.DashboardApp.DOM.btnGuestsPrevPage = btnGuestsPrevPage;
+    window.DashboardApp.DOM.btnGuestsNextPage = btnGuestsNextPage;
+    window.DashboardApp.DOM.guestsCurrentPageEl = guestsCurrentPageEl;
+    window.DashboardApp.DOM.guestsTotalPagesEl = guestsTotalPagesEl;
+    window.DashboardApp.DOM.guestsPageRangeEl = guestsPageRangeEl;
+    window.DashboardApp.DOM.guestsTotalCountEl = guestsTotalCountEl;
+    window.DashboardApp.DOM.editGuestModal = editGuestModal;
+    window.DashboardApp.DOM.btnCloseEditGuest = btnCloseEditGuest;
+    window.DashboardApp.DOM.btnCancelEditGuest = btnCancelEditGuest;
+    window.DashboardApp.DOM.editGuestForm = editGuestForm;
+    window.DashboardApp.DOM.editGuestId = editGuestId;
+    window.DashboardApp.DOM.editGuestName = editGuestName;
+    window.DashboardApp.DOM.editGuestPhone = editGuestPhone;
+    window.DashboardApp.DOM.editGuestIdNumber = editGuestIdNumber;
+    window.DashboardApp.DOM.btnSaveEditGuest = btnSaveEditGuest;
+    window.DashboardApp.DOM.importResultModal = importResultModal;
+    window.DashboardApp.DOM.btnCloseImportResultModal = btnCloseImportResultModal;
+    window.DashboardApp.DOM.btnConfirmImportResult = btnConfirmImportResult;
+    window.DashboardApp.DOM.btnToggleUpdatedGuestsList = btnToggleUpdatedGuestsList;
+    window.DashboardApp.DOM.importModalUpdatedContainer = importModalUpdatedContainer;
+    window.DashboardApp.DOM.importModalToggleArrow = importModalToggleArrow;
+
+
     // Phase 3 DOM Bindings
     window.DashboardApp.DOM.usersTableBody = usersTableBody;
     window.DashboardApp.DOM.addUserForm = addUserForm;
@@ -6444,6 +5867,7 @@
     window.DashboardApp.DOM.btnRefreshCheckouts = btnRefreshCheckouts;
     window.DashboardApp.DOM.todayCheckoutsFilters = todayCheckoutsFilters;
 
+    if (window.DashboardApp.Helpers.initGuests) window.DashboardApp.Helpers.initGuests();
     if (window.DashboardApp.Helpers.initAdmin) window.DashboardApp.Helpers.initAdmin();
     if (window.DashboardApp.Helpers.initOverview) window.DashboardApp.Helpers.initOverview();
     if (window.DashboardApp.Helpers.initLogs) window.DashboardApp.Helpers.initLogs();
@@ -6454,7 +5878,7 @@
     window.DashboardApp.Helpers.highlightField = highlightField;
     window.DashboardApp.Helpers.showConfirmDialog = showConfirmDialog;
 
-    // Bind State
+    // Bind State\n    window.DashboardApp.Helpers.showPromptDialog = showPromptDialog;
     window.DashboardApp.State.currentUser = currentUser;
     // 1. Immediate UI state from localStorage cache
     const cachedRole = localStorage.getItem('currentUserRole');
@@ -6511,7 +5935,7 @@
 
   window.openInvoiceModal = openInvoiceModal;
   window.openRoomRevenueModal = openRoomRevenueModal;
-  window.openEditGuestModal = openEditGuestModal;
+  window.openEditGuestModal = window.DashboardApp.Helpers.openEditGuestModal;
   window.openShiftAuditModal = openShiftAuditModal;
   window.openDailyBackupModal = openDailyBackupModal;
   window.showConfirmDialog = showConfirmDialog;
