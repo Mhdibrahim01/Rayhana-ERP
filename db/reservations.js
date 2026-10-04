@@ -830,6 +830,10 @@ function checkoutReservation(reservationId, {
   // use legacy shim fields (finalTotalPrice / settleAmount).
   // -------------------------------------------------------------------------
   if (isOpenContract) {
+    // Declared out here so the return below can report the settlement outcome.
+    let openMode = null;
+    let openReceiptNumber = null;
+    let openRefundReceiptNumber = null;
     db.run("BEGIN TRANSACTION;");
     try {
       const todayStr = getLocalDateString();
@@ -845,9 +849,29 @@ function checkoutReservation(reservationId, {
         ? roundMoney(finalTotalPrice)
         : roundMoney(res.total_price || 0);
 
-      const openAddPay = settleAmount !== undefined ? roundMoney(settleAmount) : 0;
+      // Resolve the settlement mode for the open-contract path.
+      // Prefer the modern fields; fall back to the legacy 'settleAmount' shim so
+      // callers that predate settleMode keep working unchanged.
+      openMode = settleMode;
+      if (!openMode) {
+        if (refundAmount !== undefined && refundAmount !== null) {
+          openMode = 'refund';
+        } else if (collectAmount !== undefined) {
+          openMode = roundMoney(collectAmount) > 0 ? 'collect' : 'defer';
+        } else if (settleAmount !== undefined) {
+          openMode = roundMoney(settleAmount) > 0 ? 'collect' : 'defer';
+        } else {
+          openMode = 'defer';
+        }
+      }
+      if (!['collect', 'defer', 'refund'].includes(openMode)) {
+        throw new Error('طريقة تسوية الحساب غير معروفة.');
+      }
+
+      const openAddPay = (openMode === 'collect')
+        ? (collectAmount !== undefined ? roundMoney(collectAmount) : (settleAmount !== undefined ? roundMoney(settleAmount) : 0))
+        : 0;
       let openNewPaid = currentPaid;
-      let openReceiptNumber = null;
       if (openAddPay > 0) {
         openNewPaid = roundMoney(currentPaid + openAddPay);
         openReceiptNumber = generateReceiptNumber(targetId);
@@ -887,6 +911,47 @@ function checkoutReservation(reservationId, {
       }
       if (openDepositRefunded > 0) recordDepositMovement({ reservationId: targetId, type: 'refunded', amount: openDepositRefunded, paymentMethod: depositRefundMethod, userId, reason: `رد التأمين عند تسجيل المغادرة #${targetId}` });
 
+      // Overpayment guard: mirror the non-contract rule (see the equivalent block below).
+      // An open contract that has been overpaid cannot be closed without a refund row,
+      // otherwise paid_amount stays above total_price and the reservation reads as
+      // 'رصيد دائن' forever with no ledger evidence that the guest was made whole.
+      if (openNewPaid > openFinalTotal + 0.005 && openMode !== 'refund') {
+        throw new Error(
+          `المبلغ المدفوع (${openNewPaid} ريال) يتجاوز الرسوم الصافية المستحقة (${openFinalTotal} ريال). ` +
+          'يجب اختيار "استرداد" لإتمام تسجيل المغادرة.'
+        );
+      }
+      // Collection cannot exceed the outstanding amount either.
+      if (openMode === 'collect' && openFinalTotal > openNewPaid + 0.005) {
+        const amountDue = roundMoney(openFinalTotal - openNewPaid);
+        if (roundMoney(openAddPay - amountDue) > 0.005) {
+          throw new Error(`مبلغ التحصيل (${openAddPay} ريال) يتجاوز المبلغ المستحق (${amountDue} ريال).`);
+        }
+      }
+
+      if (openMode === 'refund') {
+        // Same ledger mechanism as a regular booking: a negative payments row with its
+        // own receipt number. The invoice renderer keys off this exact notes prefix, so
+        // it must stay byte-identical to the non-contract wording below.
+        const openRefundDue = roundMoney(Math.max(0, openNewPaid - openFinalTotal));
+        const openRawRefund = refundAmount !== undefined && refundAmount !== null
+          ? roundMoney(refundAmount)
+          : openRefundDue;
+        if (openRawRefund <= 0) {
+          throw new Error('مبلغ الاسترداد يجب أن يكون أكبر من الصفر.');
+        }
+        if (roundMoney(Math.abs(openRawRefund - openRefundDue)) > 0.005) {
+          throw new Error(
+            `مبلغ الاسترداد (${openRawRefund} ريال) يجب أن يساوي الفرق الفعلي المستحق (${openRefundDue} ريال).`
+          );
+        }
+        openRefundReceiptNumber = generateReceiptNumber(targetId);
+        const refundStmt = db.prepare(`INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes) VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)`);
+        refundStmt.run([openRefundReceiptNumber, targetId, -openRawRefund, paymentMethod || 'نقداً', userId ? parseInt(userId, 10) : null, `استرداد - تسوية مغادرة #${targetId}`]);
+        refundStmt.free();
+        openNewPaid = roundMoney(openNewPaid - openRawRefund);
+      }
+
       let openStatus = res.payment_status;
       if (openNewPaid > openFinalTotal + 0.005) openStatus = 'رصيد دائن';
       else if (openFinalTotal === 0 && openNewPaid === 0) openStatus = 'مدفوع بالكامل';
@@ -925,7 +990,7 @@ function checkoutReservation(reservationId, {
       throw err;
     }
     saveToFile();
-    return { success: true };
+    return { success: true, settleMode: openMode, refundReceiptNumber: openRefundReceiptNumber, collectionReceiptNumber: openReceiptNumber };
   }
 
   // -------------------------------------------------------------------------
