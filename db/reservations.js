@@ -319,7 +319,7 @@ function createReservation({
     }
 
     const effectiveRate = normCustomNightlyPrice !== null ? normCustomNightlyPrice : roomRow.price_per_night;
-    const baseTotal = roundMoney(effectiveRate * 30);
+    const baseTotal = roundMoney(effectiveRate * MONTHLY_PACKAGE_NIGHTS);
     total = Math.max(0, roundMoney(baseTotal - normDiscountAmount));
 
     // A monthly booking has an authoritative total: booked nights x rate - discount.
@@ -341,9 +341,8 @@ function createReservation({
     }
 
     if (!computedCheckOutDate) {
-      const [y, m, d] = checkInDate.split('-').map(Number);
-      const outDateObj = new Date(y, m - 1, d + 30);
-      computedCheckOutDate = getLocalDateString(outDateObj);
+      // One full calendar month, clamped at month end, rather than a fixed 30-day span.
+      computedCheckOutDate = getCalendarMonthCheckOut(checkInDate);
     } else if (computedCheckOutDate <= checkInDate) {
       throw new Error('تاريخ المغادرة يجب أن يكون بعد تاريخ الوصول بشكل محدد.');
     }
@@ -555,6 +554,32 @@ function countNights(startDate, endDate) {
   return Math.round((endUtc - startUtc) / 86400000);
 }
 
+  /**
+   * A monthly ("حجز شهري") booking is priced as a closed package of 30 nights at the
+   * effective rate, independent of how many calendar days the month happens to contain.
+   * Both createReservation (stored total_price) and computeContractValue (the amount due
+   * at checkout) derive their figures from this, so a 28-day February and a 31-day July
+   * cost the same and the contract value never drifts from the stored total.
+   */
+  const MONTHLY_PACKAGE_NIGHTS = 30;
+
+  /**
+   * The checkout date that ends one full calendar month after the given check-in, with
+   * month-end clamping: 2026-07-03 -> 2026-08-03, 2026-01-31 -> 2026-02-28,
+   * 2028-01-31 -> 2028-02-29 (leap year). Returns '' for anything unparseable.
+   */
+  function getCalendarMonthCheckOut(checkInDateStr) {
+    const value = String(checkInDateStr || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return '';
+    const [y, m, d] = value.split('-').map(Number);
+    // m is the 1-based check-in month, so the next month is 0-based index m.
+    const lastDayOfNextMonth = new Date(y, m + 1, 0).getDate();
+    const clampedDay = Math.min(d, lastDayOfNextMonth);
+    // Let Date roll month index 12 over into January of the following year.
+    const nextMonthStart = new Date(y, m, 1);
+    return `${nextMonthStart.getFullYear()}-${String(nextMonthStart.getMonth() + 1).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`;
+  }
+
 /**
  * Is this a MONTHLY booking being checked out before its stored departure date?
  * The stored check_out_date must be a real date (never '' / 'مفتوح'), and the actual
@@ -591,7 +616,7 @@ function computeContractValue(res) {
   if (!bookedNights) {
     throw new Error('تعذر حساب قيمة العقد: تواريخ الإقامة غير صالحة.');
   }
-  const base = roundMoney(bookedNights * storedRate);
+  const base = roundMoney((res.booking_type === 'حجز شهري' ? MONTHLY_PACKAGE_NIGHTS : bookedNights) * storedRate);
   const fullDiscount = Math.max(0, roundMoney(res.discount_amount || 0));
   return {
     bookedNights,

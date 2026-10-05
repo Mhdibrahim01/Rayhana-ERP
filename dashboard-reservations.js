@@ -151,6 +151,47 @@
   const ARABIC_MONTHS = App.Helpers.ARABIC_MONTHS;
   function roundMoney(val) { return App.Helpers.roundMoney(val); }
   function getLocalDateString(d) { return App.Helpers.getLocalDateString(d); }
+
+  /**
+   * Calendar month package: the checkout date that ends one full calendar month.
+   *
+   * 2026-07-03 -> 2026-08-03, 2026-01-15 -> 2026-02-15.
+   * When the target month is shorter than the check-in day, clamp to that month's
+   * last day: 2026-01-31 -> 2026-02-28, 2028-01-31 -> 2028-02-29 (leap year).
+   *
+   * This replaces the old "check-in + 30 days" rule, which drifted from the calendar
+   * month (2026-07-03 + 30 = 2026-08-02, one day short of the month it was meant to
+   * book) and could never represent a 31-day span at all.
+   */
+  function getCalendarMonthCheckOut(checkInDateStr) {
+    if (!checkInDateStr) return '';
+    const parts = String(checkInDateStr).split('-').map(Number);
+    if (parts.length !== 3 || parts.some(n => !Number.isFinite(n))) return '';
+    const [y, m, d] = parts;
+
+    // m is the 1-based check-in month, so the next month is 0-based index m.
+  // new Date(y, m + 1, 0) is day 0 of the month AFTER that -> its .getDate() is the
+  // next month's last day, which is what we clamp against.
+  const lastDayOfNextMonth = new Date(y, m + 1, 0).getDate();
+  const clampedDay = Math.min(d, lastDayOfNextMonth);
+  // Let Date normalise month index 12 back into January of the following year.
+  const nextMonthStart = new Date(y, m, 1);
+  const nextY = nextMonthStart.getFullYear();
+  const nextM = nextMonthStart.getMonth() + 1;
+  return `${nextY}-${String(nextM).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`;
+  }
+
+  /**
+   * A monthly booking is priced as a closed package: 30 nights at the effective rate,
+   * never the raw calendar span. July 3 -> Aug 3 spans 31 nights but still bills as one
+   * 30-night package, so a February month costs the same as a July one and the stored
+   * total_price always matches the contract value at checkout.
+   */
+  const MONTHLY_PACKAGE_NIGHTS = 30;
+  function getMonthlyPackageTotal(effectiveRate, discount) {
+    const subtotal = roundMoney(effectiveRate * MONTHLY_PACKAGE_NIGHTS);
+    return Math.max(0, roundMoney(subtotal - (discount || 0)));
+  }
   function getHotelBusinessDate(d, cutoff) { return App.Helpers.getHotelBusinessDate(d, cutoff); }
   function getDefaultBookingDates() {
     const now = new Date();
@@ -500,17 +541,16 @@
       }
       if (priceHint) priceHint.style.display = 'none';
 
-      // Auto-fill checkout date to +30 days
+      // Calendar month: same day next month, clamped at month end.
       if (checkInInput && checkInInput.value) {
-        const [y, m, d] = checkInInput.value.split('-').map(Number);
-        const outDate = new Date(y, m - 1, d + 30);
-        checkOutInput.value = getLocalDateString(outDate);
+        const calendarOut = getCalendarMonthCheckOut(checkInInput.value);
+        if (calendarOut) checkOutInput.value = calendarOut;
       }
 
-      // Authoritatively calculate 30 days price from room rate
+      // Authoritatively price the month as a closed 30-night package from the room rate
       const selectedOption = roomSelect ? roomSelect.options[roomSelect.selectedIndex] : null;
       const pricePerNight = selectedOption && selectedOption.dataset.price ? parseFloat(selectedOption.dataset.price) || 0 : 0;
-      totalPriceInput.value = (pricePerNight * 30).toFixed(2);
+      totalPriceInput.value = getMonthlyPackageTotal(pricePerNight, 0).toFixed(2);
 
       if (paidAmountInput && (!isPaidAmountCustomized || !paidAmountInput.value || parseFloat(paidAmountInput.value) === 0)) {
         paidAmountInput.value = totalPriceInput.value;
@@ -604,12 +644,10 @@
 
     if (bType === 'حجز شهري') {
       if (checkInInput.value) {
-        const [y, m, d] = checkInInput.value.split('-').map(Number);
-        const outDate = new Date(y, m - 1, d + 30);
-        checkOutInput.value = getLocalDateString(outDate);
+        const calendarOut = getCalendarMonthCheckOut(checkInInput.value);
+        if (calendarOut) checkOutInput.value = calendarOut;
       }
-      const subtotal = effectiveRate * 30;
-      const netTotal = Math.max(0, subtotal - discount);
+      const netTotal = getMonthlyPackageTotal(effectiveRate, discount);
       totalPriceInput.value = netTotal.toFixed(2);
 
       if (priceCalculationBreakdown) {
@@ -686,6 +724,12 @@
   // When dates change, update paid amount if user hasn't explicitly customized a partial amount
   checkInInput.addEventListener('change', () => {
     if (bookingTypeSelect && bookingTypeSelect.value === 'استخدام يومي') checkOutInput.value = checkInInput.value;
+    // A monthly booking is a calendar month, so moving the arrival date must move the
+    // departure with it rather than leaving a stale span that no longer equals one month.
+    if (bookingTypeSelect && bookingTypeSelect.value === 'حجز شهري' && checkInInput.value) {
+      const calendarOut = getCalendarMonthCheckOut(checkInInput.value);
+      if (calendarOut) checkOutInput.value = calendarOut;
+    }
     updateMinimumCheckoutDate();
     calculatePrice(!isPaidAmountCustomized);
   });

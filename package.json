@@ -81,6 +81,7 @@
       "dashboard-admin.js",
       "dashboard-guests.js",
       "dashboard-rooms.js",
+      "dashboard-reservations.js",
       "dashboard.js",
       "styles.css",
       "assets/**/*",
