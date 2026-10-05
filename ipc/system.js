@@ -317,7 +317,8 @@ module.exports = function registerSystemIpc(ipcMain, { app, BrowserWindow, dialo
         backgroundColor: '#f8fafc',
         webPreferences: {
           nodeIntegration: false,
-          contextIsolation: true
+          contextIsolation: true,
+              webSecurity: false // <-- هذا السطر يسمح لنافذة المعاينة بقراءة صور assets فوراً!
         }
       });
 

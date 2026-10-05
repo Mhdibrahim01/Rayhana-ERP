@@ -676,16 +676,14 @@
           <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 24px; margin-bottom: 28px;">
             <!-- Company Info (Right) -->
             <div style="display: flex; gap: 16px; align-items: flex-start;">
-              <div style="width: 48px; height: 48px; border-radius: 10px; background: #4338ca; color: white; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.5rem; flex-shrink: 0;">
-                ر
-              </div>
+             
               <div>
                 <h2 style="font-size: 1.25rem; font-weight: 800; color: #1e293b; margin: 0 0 8px 0;">${isMonthly ? 'مؤسسة مكتب شمس المنازل للخدمات العقارية' : 'ريحانة للوحدات السكنية'}</h2>
                 <div style="font-size: 0.85rem; color: #64748b; line-height: 1.6;">
                   <div>العنوان: الخبر - الثقبة - طريق الملك خالد</div>
                   <div>الرمز البريدي: 34625</div>
                   <div>هاتف الاستقبال: 0560631783</div>
-                  ${isMonthly ? '<div>الرقم الموحد: 703895515</div>' : ''}
+                  ${isMonthly ? '<div>الرقم الموحد: 7038955915</div>' : ''}
                 </div>
               </div>
             </div>
@@ -858,33 +856,42 @@
 
             <!-- Stamps & Signatures (for monthly bookings) -->
             ${isMonthly ? `
-            <div style="flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: flex-end; text-align: center;">
+            <div style="flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: start; text-align: center;">
+
               <!-- Stamp -->
               <div>
-                <p style="font-weight: 700; color: #334155; margin-bottom: 12px; font-size: 0.9rem;">ختم المؤسسة</p>
-                <div style="width: 90px; height: 90px; border: 2px dashed #818cf8; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto; background: rgba(238, 242, 255, 0.5); position: relative;">
-                  <img src="assets/seal.png" style="max-height: 80px; max-width: 80px; object-fit: contain;" alt="الختم" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                  <div style="display: none; color: #6366f1; font-weight: 800; font-size: 0.75rem; text-align: center; line-height: 1.3;">ختم رسمي معتمد</div>
+                <p style="font-weight: 700; color: #334155; margin: 0 0 12px; font-size: 0.9rem;">ختم المؤسسة</p>
+                <div style="height: 100px; display: flex; align-items: flex-end; justify-content: center;">
+                  <img src="assets/seal.svg"
+                       style="width: 150px; height: auto; display: block;"
+                       alt="الختم"
+                       onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                  <div style="display: none; color: #6366f1; font-weight: 800; font-size: 0.75rem; line-height: 1.3;">ختم رسمي معتمد</div>
                 </div>
-                <p style="font-size: 0.72rem; color: #94a3b8; margin-top: 6px;">الرقم الموحد: 703895515</p>
               </div>
 
               <!-- Issuer Signature -->
               <div>
-                <p style="font-weight: 700; color: #334155; margin-bottom: 12px; font-size: 0.9rem;">توقيع الموظف</p>
-                <div style="width: 120px; height: 50px; border-bottom: 1px solid #94a3b8; margin: 0 auto; position: relative; display: flex; align-items: flex-end; justify-content: center;">
-                  <img src="assets/signature.png" style="max-height: 46px; object-fit: contain;" alt="التوقيع" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                  <svg style="display: none; width: 100%; height: 35px; color: #1e40af; opacity: 0.75;" viewBox="0 0 100 30" preserveAspectRatio="none">
-                    <path fill="none" stroke="currentColor" stroke-width="1.8" d="M10,20 Q30,5 50,20 T90,10"></path>
-                  </svg>
+                <p style="font-weight: 700; color: #334155; margin: 0 0 12px; font-size: 0.9rem;">توقيع الموظف</p>
+                <div style="height: 100px; display: flex; align-items: flex-end; justify-content: center;">
+                  <div style="width: 140px; height: 60px; border-bottom: 1px solid #94a3b8; display: flex; align-items: flex-end; justify-content: center;">
+                    <img src="assets/signature.svg" style="max-height: 56px; max-width: 100%; object-fit: contain;" alt="التوقيع"
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                    <svg style="display: none; width: 100%; height: 35px; color: #1e40af; opacity: 0.75;" viewBox="0 0 100 30" preserveAspectRatio="none">
+                      <path fill="none" stroke="currentColor" stroke-width="1.8" d="M10,20 Q30,5 50,20 T90,10"></path>
+                    </svg>
+                  </div>
                 </div>
               </div>
 
               <!-- Receiver Signature -->
               <div>
-                <p style="font-weight: 700; color: #334155; margin-bottom: 12px; font-size: 0.9rem;">توقيع المستلم</p>
-                <div style="width: 120px; height: 50px; border-bottom: 1px dashed #94a3b8; margin: 0 auto;"></div>
+                <p style="font-weight: 700; color: #334155; margin: 0 0 12px; font-size: 0.9rem;">توقيع المستلم</p>
+                <div style="height: 100px; display: flex; align-items: flex-end; justify-content: center;">
+                  <div style="width: 140px; height: 60px; border-bottom: 1px dashed #94a3b8;"></div>
+                </div>
               </div>
+
             </div>
             ` : `
             <!-- Non-monthly standard note / signature placeholder -->
