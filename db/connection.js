@@ -160,6 +160,7 @@ async function init(dbPath) {
         reservation_id INTEGER NOT NULL,
         amount REAL NOT NULL,
         payment_method TEXT NOT NULL DEFAULT 'نقداً',
+        payment_type TEXT NOT NULL DEFAULT 'legacy_unclassified',
         payment_date DATETIME DEFAULT CURRENT_TIMESTAMP,
         user_id INTEGER,
         notes TEXT,
@@ -200,6 +201,7 @@ async function init(dbPath) {
     db.run("PRAGMA foreign_keys = ON;");
 
     // Safe column migrations for existing databases
+    try { db.run("ALTER TABLE payments ADD COLUMN payment_type TEXT NOT NULL DEFAULT 'legacy_unclassified'"); } catch (e) {}
     try { db.run("ALTER TABLE reservations ADD COLUMN paid_amount REAL DEFAULT 0"); } catch (e) {}
     try { db.run("ALTER TABLE reservations ADD COLUMN deposit_amount REAL DEFAULT 0"); } catch (e) {}
     try { db.run("ALTER TABLE reservations ADD COLUMN payment_method TEXT DEFAULT 'نقداً'"); } catch (e) {}
@@ -228,8 +230,8 @@ async function init(dbPath) {
           const year = new Date().getFullYear();
           const receiptNo = `REC-${year}-${String(r.id).padStart(5, '0')}`;
           const stmt = db.prepare(`
-            INSERT OR IGNORE INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, notes)
-            VALUES (?, ?, ?, ?, ?, 'دفعة الحجز المبدئية (ترحيل آلي)')
+            INSERT OR IGNORE INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, notes)
+            VALUES (?, ?, ?, ?, 'legacy_unclassified', ?, 'دفعة الحجز المبدئية (ترحيل آلي)')
           `);
           stmt.run([receiptNo, r.id, r.paid_amount, r.payment_method || 'نقداً', r.created_at || new Date().toISOString()]);
           stmt.free();

@@ -224,6 +224,9 @@
   const roomsBookingTypeTabs = document.querySelectorAll('#rooms-booking-type-tabs .filter-tab-btn');
   const roomsPaymentFilterTabs = document.querySelectorAll('#rooms-payment-filter-tabs .filter-tab-btn');
   const roomsPaymentFilterContainer = document.getElementById('rooms-payment-filter-container');
+  const roomsFilterResult = document.getElementById('rooms-filter-result');
+  const roomsClearFiltersButton = document.getElementById('rooms-clear-filters');
+  const roomsActiveFilterCount = document.getElementById('rooms-active-filter-count');
   const btnToggleAddRoom = document.getElementById('btn-toggle-add-room');
   const addRoomPanel = document.getElementById('add-room-panel');
   const addRoomForm = document.getElementById('add-room-form');
@@ -831,7 +834,7 @@
               </div>
               ${(originalCollected > paid && refundedTotal > 0) ? `
                 <div style="display: flex; justify-content: space-between; align-items: center; color: #64748b; margin-bottom: 6px; font-size: 0.85rem;">
-                  <span>المبلغ المسدد أصلاً:</span>
+                  <span>المبلغ المسدد مسبقا:</span>
                   <span dir="ltr">${originalCollected.toFixed(2)} ريال</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; align-items: center; color: #1d4ed8; margin-bottom: 6px; font-size: 0.85rem; font-weight: 700;">
@@ -1123,6 +1126,7 @@
             <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 12px; text-align: center;">
               <div style="font-size: 0.78rem; color: #047857; font-weight: 700;">مقبوضات نقداً (كاش)</div>
               <div style="font-size: 1.25rem; font-weight: 900; color: #065f46; margin-top: 4px;">${parseFloat(fin.cashTotal || 0).toLocaleString()} <span style="font-size: 0.75rem;">ريال</span></div>
+              <div style="font-size: 0.68rem; color: #64748b; margin-top: 3px;">${parseFloat(fin.cashCollected || 0).toLocaleString()} مستلم - ${parseFloat(fin.cashRefunded || 0).toLocaleString()} مردود</div>
             </div>
             <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px; text-align: center;">
               <div style="font-size: 0.78rem; color: #1d4ed8; font-weight: 700;">مقبوضات مدى / شبكة</div>
@@ -1139,6 +1143,7 @@
               <span>صافي كاش التأمين: <strong style="color: ${Number(fin.netCashDeposit || 0) < 0 ? '#dc2626' : '#047857'};">${Number(fin.netCashDeposit || 0) > 0 ? '+' : ''}${parseFloat(fin.netCashDeposit || 0).toLocaleString()} ريال</strong></span>
               <span style="color: #64748b;">(${parseFloat(fin.depositCashCollected || 0).toLocaleString()} مستلم - ${parseFloat(fin.depositCashRefunded || 0).toLocaleString()} مردود${Number(fin.depositCashRetained || 0) ? ` - ${parseFloat(fin.depositCashRetained).toLocaleString()} محتفَظ به ومدرج ضمن المقبوضات` : ''})</span>
               <span>إجمالي النقد المتوقع بالخزينة: <strong style="color: #0f172a;">${parseFloat(fin.expectedCashInDrawer || 0).toLocaleString()} ريال</strong> <span style="color: #64748b;">(كاش المقبوضات + صافي كاش التأمين)</span></span>
+              <span>رسوم التأخير المسددة كسند مستقل: <strong>${parseFloat(fin.lateCheckoutFeesCollected || 0).toLocaleString()} ريال</strong></span>
             </div>
           </div>
 
@@ -1226,6 +1231,7 @@
                   <th style="padding: 8px 10px; text-align: right;">الحجز / النزيل</th>
                   <th style="padding: 8px 10px; text-align: right;">الغرفة</th>
                   <th style="padding: 8px 10px; text-align: center;">نوع السند</th>
+                  <th style="padding: 8px 10px; text-align: center;">تصنيف الدفعة</th>
                   <th style="padding: 8px 10px; text-align: center;">طريقة الدفع</th>
                   <th style="padding: 8px 10px; text-align: center;">المبلغ</th>
                   <th style="padding: 8px 10px; text-align: right;">البيان / الموظف</th>
@@ -1237,6 +1243,16 @@
                   const isRefund = amt < -0.005;
                   const amtColor = isRefund ? '#dc2626' : '#059669';
                   const formattedAmt = isRefund ? `- ${Math.abs(amt).toLocaleString()} ريال` : `+ ${amt.toLocaleString()} ريال`;
+                  const paymentPurpose = ({
+                    advance_payment: 'دفعة مقدمة',
+                    balance_payment: 'سداد رصيد',
+                    extension_payment: 'تمديد إقامة',
+                    late_checkout_fee: 'رسوم تأخير مغادرة',
+                    checkout_settlement: 'تسوية مغادرة',
+                    refund: 'استرداد',
+                    deposit_applied: 'تطبيق تأمين',
+                    legacy_unclassified: 'قديم / غير مصنف'
+                  })[p.payment_type] || 'قديم / غير مصنف';
                   const typeBadge = isRefund
                     ? '<span style="background: #fef2f2; color: #b91c1c; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 0.78rem;">استرداد / صرف</span>'
                     : '<span style="background: #ecfdf5; color: #047857; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 0.78rem;">تحصيل / قبض</span>';
@@ -1247,6 +1263,7 @@
                       <td style="padding: 8px 10px; font-weight: 700;">#${p.reservation_id} - ${escapeHtml(p.guest_name || 'نزيل')}</td>
                       <td style="padding: 8px 10px;">غرفة ${escapeHtml(p.room_number || '-')}</td>
                       <td style="padding: 8px 10px; text-align: center;">${typeBadge}</td>
+                      <td style="padding: 8px 10px; text-align: center;">${escapeHtml(paymentPurpose)}</td>
                       <td style="padding: 8px 10px; text-align: center;">${escapeHtml(p.payment_method || 'نقداً')}</td>
                       <td style="padding: 8px 10px; text-align: center; font-weight: 800; color: ${amtColor}; font-size: 0.88rem;">${formattedAmt}</td>
                       <td style="padding: 8px 10px; font-size: 0.78rem; color: #475569;">${escapeHtml(p.notes || '-')}${p.staff_username ? ` <span style="color:#94a3b8;">(${escapeHtml(p.staff_username)})</span>` : ''}</td>
@@ -2318,7 +2335,10 @@
     window.DashboardApp.DOM.btnRefreshRooms = document.getElementById('btn-refresh-rooms');
     window.DashboardApp.DOM.roomsFilterTabs = document.querySelectorAll('#rooms-filter-tabs .filter-tab-btn');
     window.DashboardApp.DOM.roomsPaymentFilterTabs = document.querySelectorAll('#rooms-payment-filter-tabs .filter-tab-btn');
-    window.DashboardApp.DOM.roomsPaymentFilterContainer = document.getElementById('rooms-payment-filter-tabs');
+    window.DashboardApp.DOM.roomsPaymentFilterContainer = roomsPaymentFilterContainer;
+    window.DashboardApp.DOM.roomsFilterResult = roomsFilterResult;
+    window.DashboardApp.DOM.roomsClearFiltersButton = roomsClearFiltersButton;
+    window.DashboardApp.DOM.roomsActiveFilterCount = roomsActiveFilterCount;
     window.DashboardApp.DOM.searchRoomsInput = document.getElementById('search-rooms');
     window.DashboardApp.DOM.roomsBookingTypeTabs = document.querySelectorAll('#rooms-booking-type-tabs .filter-tab-btn');
     window.DashboardApp.DOM.roomsGridContainer = document.getElementById('rooms-grid-container');
