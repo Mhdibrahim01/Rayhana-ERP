@@ -43,11 +43,22 @@ function createSafeTempDatabasePath() {
   return { scratchDirectory, databasePath };
 }
 
-async function withSafeDatabase(callback) {
+async function withSafeDatabase(callback, { businessDate = 'calendar' } = {}) {
   const { scratchDirectory, databasePath } = createSafeTempDatabasePath();
   try {
     // The location assertions above must pass before app code opens this database.
     await appDb.init(databasePath);
+    // Most legacy tests use the host calendar date for their fixtures. Anchor
+    // their fresh database to that date so they stay deterministic when the
+    // suite runs before the hotel's 06:00 initial-date cutoff. Tests for the
+    // cutoff or Night Audit can opt out with businessDate: 'preserve'.
+    if (businessDate === 'calendar') {
+      connection.db.run('UPDATE hotel_business_state SET current_business_date = ? WHERE id = 1', [appDb.getLocalDateString()]);
+      connection.saveToFile();
+    } else if (businessDate !== 'preserve') {
+      connection.db.run('UPDATE hotel_business_state SET current_business_date = ? WHERE id = 1', [businessDate]);
+      connection.saveToFile();
+    }
     return await callback(appDb, connection, databasePath);
   } finally {
     appDb.close();

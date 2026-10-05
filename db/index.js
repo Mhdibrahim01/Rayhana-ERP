@@ -10,6 +10,7 @@ const guests = require('./guests');
 const rooms = require('./rooms');
 const reservations = require('./reservations');
 const reports = require('./reports');
+const businessDay = require('./business-day');
 
 module.exports = {
   // connection & lifecycle
@@ -17,6 +18,9 @@ module.exports = {
   factoryReset: connection.factoryReset,
   getLocalDateString: connection.getLocalDateString,
   getHotelBusinessDate: connection.getHotelBusinessDate,
+  getCurrentBusinessDate: connection.getCurrentBusinessDate,
+  getCurrentBusinessState: connection.getCurrentBusinessState,
+  runNightAudit: businessDay.runNightAudit,
   getDatabaseFilePath: connection.getDatabaseFilePath,
   createBackupCopy: connection.createBackupCopy,
   restoreDatabaseFile: connection.restoreDatabaseFile,

@@ -27,6 +27,8 @@
   };
   const topbarHeading = document.getElementById('topbar-heading');
   const topbarSubheading = document.getElementById('topbar-subheading');
+  const currentSystemTimeDisplay = document.getElementById('current-system-time');
+  const activeBusinessDateDisplay = document.getElementById('active-business-date');
 
   const btnOpenFactoryReset = document.getElementById('btn-open-factory-reset');
   const factoryResetModal = document.getElementById('factory-reset-modal');
@@ -106,6 +108,7 @@
 
   // Topbar Actions (Backup, Restore, Shift Audit)
   const btnOpenShiftAudit = document.getElementById('btn-open-shift-audit');
+  const btnRunNightAudit = document.getElementById('btn-run-night-audit');
   const btnBackupDb = document.getElementById('btn-backup-db');
   const btnRestoreDb = document.getElementById('btn-restore-db');
 
@@ -298,6 +301,28 @@
    * Format local date as YYYY-MM-DD (immune to UTC timezone offsets)
    */
   function getLocalDateString(date) { return window.DashboardApp.Helpers.getLocalDateString(date); }
+
+  function updateSystemClock() {
+    if (!currentSystemTimeDisplay) return;
+    currentSystemTimeDisplay.textContent = new Date().toLocaleTimeString('ar-EG', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+  }
+
+  async function refreshHotelBusinessState() {
+    if (!window.api || typeof window.api.getHotelBusinessState !== 'function') return null;
+    const result = await window.api.getHotelBusinessState();
+    if (!result || !result.success || !result.data) return null;
+    const state = result.data;
+    window.DashboardApp.State.businessDate = state.current_business_date;
+    if (activeBusinessDateDisplay) {
+      activeBusinessDateDisplay.textContent = state.current_business_date;
+      activeBusinessDateDisplay.title = state.last_audit_at
+        ? `آخر إقفال: ${state.last_audit_at}`
+        : 'لم يتم تنفيذ إقفال فندقي بعد';
+    }
+    return state;
+  }
 
   function isReservationOverdue(res) { return window.DashboardApp.Helpers.isReservationOverdue(res); }
 
@@ -667,7 +692,8 @@
       const monthlyPackageSubtotal = roundMoney(effectiveNightlyRate * 30);
       const shownSubtotal = isMonthly ? monthlyPackageSubtotal : baseSubtotal;
 
-      const invoiceYear = (inv.created_at ? new Date(inv.created_at) : new Date()).getFullYear() || new Date().getFullYear();
+      const reservationCreatedAt = window.DashboardApp.Helpers.parseStoredTimestamp(inv.created_at);
+      const invoiceYear = (reservationCreatedAt || new Date()).getFullYear() || new Date().getFullYear();
       const invoiceNum = `SND-${invoiceYear}-${String(inv.id).padStart(5, '0')}`;
       const issuedAt = new Date();
       const printDate = issuedAt.toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -726,8 +752,9 @@
               <h3 style="font-size: 0.95rem; font-weight: 800; color: #1e293b; margin: 0 0 12px 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">بيانات الإقامة والوحدة (Stay Details)</h3>
               <div style="font-size: 0.85rem; line-height: 1.8; color: #475569;">
                 <div><strong style="color: #1e293b;">رقم الوحدة:</strong> ${escapeHtml(inv.room_number)} (${escapeHtml(inv.room_type || '')})</div>
-                <div><strong style="color: #1e293b;">تاريخ الوصول:</strong> ${escapeHtml(inv.check_in_date)}</div>
-                <div><strong style="color: #1e293b;">وقت الحجز:</strong> <span style="font-family: monospace;">${escapeHtml(inv.booking_time || '-')}</span></div>
+                <div><strong style="color: #1e293b;">تاريخ الوصول (اليوم الفندقي):</strong> ${escapeHtml(inv.check_in_date)}</div>
+                <div><strong style="color: #1e293b;">وقت الحجز المحلي:</strong> <span style="font-family: monospace;">${escapeHtml(inv.booking_time || '-')}</span></div>
+                <div><strong style="color: #1e293b;">التاريخ والوقت الفعلي للتسجيل:</strong> ${escapeHtml(formatArabicDateTime(inv.created_at))}</div>
                 <div><strong style="color: #1e293b;">تاريخ المغادرة:</strong> ${checkOutDisplay}</div>
                 ${inv.checkout_time ? `<div><strong style="color: #1e293b;">وقت المغادرة:</strong> <span style="font-family: monospace;">${escapeHtml(inv.checkout_time)}</span></div>` : ''}
                 ${policyNote ? `<div style="margin-top: 8px; padding: 6px 10px; border-radius: 6px; background: #eef2ff; color: #3730a3; font-size: 0.8rem; font-weight: 700;">${policyNote}</div>` : ''}
@@ -955,8 +982,8 @@
   function formatArabicDateRange(startDateStr, endDateStr) { return window.DashboardApp.Helpers.formatArabicDateRange(startDateStr, endDateStr); }
 
   function getShiftAuditPresetDates(preset) {
-    const todayObj = new Date();
-    const todayStr = getLocalDateString(todayObj);
+    const todayStr = window.DashboardApp.State.businessDate || getLocalDateString(new Date());
+    const todayObj = new Date(`${todayStr}T12:00:00`);
 
     switch (preset) {
       case 'today':
@@ -1040,10 +1067,10 @@
           if (preset === 'custom') {
             if (customDatesBox) customDatesBox.style.display = 'flex';
             if (customStartInput && !customStartInput.value) {
-              customStartInput.value = currentShiftAuditStartDate || getLocalDateString();
+              customStartInput.value = currentShiftAuditStartDate || window.DashboardApp.State.businessDate || getLocalDateString();
             }
             if (customEndInput && !customEndInput.value) {
-              customEndInput.value = currentShiftAuditEndDate || getLocalDateString();
+              customEndInput.value = currentShiftAuditEndDate || window.DashboardApp.State.businessDate || getLocalDateString();
             }
           } else {
             if (customDatesBox) customDatesBox.style.display = 'none';
@@ -1073,7 +1100,7 @@
 
   async function renderShiftAuditData(startDate, endDate) {
     try {
-      const start = startDate || getLocalDateString();
+      const start = startDate || window.DashboardApp.State.businessDate || getLocalDateString();
       const end = endDate || start;
       const res = await window.api.getShiftAuditReport({ startDate: start, endDate: end });
       if (!res || !res.success || !res.data) {
@@ -1226,7 +1253,7 @@
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 0.82rem;">
               <thead>
                 <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
-                  <th style="padding: 8px 10px; text-align: right;">الوقت</th>
+                  <th style="padding: 8px 10px; text-align: right;">وقت العملية / تاريخ العمل</th>
                   <th style="padding: 8px 10px; text-align: right;">رقم السند</th>
                   <th style="padding: 8px 10px; text-align: right;">الحجز / النزيل</th>
                   <th style="padding: 8px 10px; text-align: right;">الغرفة</th>
@@ -1258,7 +1285,7 @@
                     : '<span style="background: #ecfdf5; color: #047857; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 0.78rem;">تحصيل / قبض</span>';
                   return `
                     <tr style="border-bottom: 1px solid #e2e8f0; ${isRefund ? 'background: #fffafa;' : ''}">
-                      <td style="padding: 8px 10px; font-family: monospace; color: #64748b;">${escapeHtml(String(p.payment_date || '').slice(0, 16))}</td>
+                      <td style="padding: 8px 10px; color: #64748b;"><div style="font-family: monospace;">${escapeHtml(String(p.payment_date || p.created_at || '').slice(0, 16))}</div><small style="display:block; margin-top:3px; color:#1a4332;">تاريخ العمل: ${escapeHtml(p.business_date || '-')}</small></td>
                       <td style="padding: 8px 10px; font-family: monospace; font-weight: 700; color: #4338ca;">${escapeHtml(p.receipt_number || ('#' + p.id))}</td>
                       <td style="padding: 8px 10px; font-weight: 700;">#${p.reservation_id} - ${escapeHtml(p.guest_name || 'نزيل')}</td>
                       <td style="padding: 8px 10px;">غرفة ${escapeHtml(p.room_number || '-')}</td>
@@ -1327,11 +1354,11 @@
           ` : `
             <table style="width:100%; border-collapse:collapse; margin-bottom:22px; font-size:.8rem;">
               <thead><tr style="background:#f5f3ff; border-bottom:2px solid #ddd6fe;">
-                <th style="padding:7px; text-align:right;">التاريخ</th><th style="padding:7px; text-align:right;">الحجز / النزيل</th><th style="padding:7px; text-align:center;">الحركة</th><th style="padding:7px; text-align:center;">المبلغ</th><th style="padding:7px; text-align:center;">الطريقة</th><th style="padding:7px; text-align:right;">السبب / الموظف</th>
+                <th style="padding:7px; text-align:right;">وقت الحركة / تاريخ العمل</th><th style="padding:7px; text-align:right;">الحجز / النزيل</th><th style="padding:7px; text-align:center;">الحركة</th><th style="padding:7px; text-align:center;">المبلغ</th><th style="padding:7px; text-align:center;">الطريقة</th><th style="padding:7px; text-align:right;">السبب / الموظف</th>
               </tr></thead><tbody>
                 ${depositTxs.map(d => {
                   const labels = { collected: 'استلام', reconciled: 'مطابقة رصيد قديم', refunded: 'رد', applied: 'تسوية على الإقامة', retained: 'احتفاظ' };
-                  return `<tr style="border-bottom:1px solid #ede9fe;"><td style="padding:7px; font-family:monospace;">${escapeHtml(String(d.movement_date || '').slice(0, 16))}</td><td style="padding:7px;">#${d.reservation_id} - ${escapeHtml(d.guest_name)} / غرفة ${escapeHtml(d.room_number)}</td><td style="padding:7px; text-align:center;">${labels[d.movement_type] || escapeHtml(d.movement_type)}</td><td style="padding:7px; text-align:center; font-weight:800;">${Number(d.amount || 0).toLocaleString()} ريال</td><td style="padding:7px; text-align:center;">${escapeHtml(d.payment_method || 'نقداً')}</td><td style="padding:7px;">${escapeHtml(d.reason || '')}${d.staff_username ? ` - ${escapeHtml(d.staff_username)}` : ''}</td></tr>`;
+                  return `<tr style="border-bottom:1px solid #ede9fe;"><td style="padding:7px; color:#64748b;"><div style="font-family:monospace;">${escapeHtml(String(d.movement_date || d.created_at || '').slice(0, 16))}</div><small style="display:block; margin-top:3px; color:#1a4332;">تاريخ العمل: ${escapeHtml(d.business_date || '-')}</small></td><td style="padding:7px;">#${d.reservation_id} - ${escapeHtml(d.guest_name)} / غرفة ${escapeHtml(d.room_number)}</td><td style="padding:7px; text-align:center;">${labels[d.movement_type] || escapeHtml(d.movement_type)}</td><td style="padding:7px; text-align:center; font-weight:800;">${Number(d.amount || 0).toLocaleString()} ريال</td><td style="padding:7px; text-align:center;">${escapeHtml(d.payment_method || 'نقداً')}</td><td style="padding:7px;">${escapeHtml(d.reason || '')}${d.staff_username ? ` - ${escapeHtml(d.staff_username)}` : ''}</td></tr>`;
                 }).join('')}
               </tbody>
             </table>
@@ -1362,6 +1389,7 @@
 
   async function openShiftAuditModal(targetDateOrOptions) {
     try {
+      await refreshHotelBusinessState();
       ensureShiftAuditFilterBar();
 
       let startDate = null;
@@ -1374,7 +1402,7 @@
       } else if (typeof targetDateOrOptions === 'string' && targetDateOrOptions.trim() !== '') {
         startDate = targetDateOrOptions.trim();
         endDate = startDate;
-        currentShiftAuditPreset = (startDate === getLocalDateString()) ? 'today' : 'custom';
+        currentShiftAuditPreset = (startDate === (window.DashboardApp.State.businessDate || getLocalDateString())) ? 'today' : 'custom';
       } else {
         currentShiftAuditPreset = 'today';
         const dates = getShiftAuditPresetDates('today');
@@ -1405,6 +1433,10 @@
       }
 
       await renderShiftAuditData(startDate, endDate);
+
+      if (btnRunNightAudit && window.DashboardApp.State.businessDate) {
+        btnRunNightAudit.title = `إقفال تاريخ العمل ${window.DashboardApp.State.businessDate} والانتقال إلى اليوم التالي`;
+      }
 
       if (shiftAuditModal) {
         shiftAuditModal.style.display = 'flex';
@@ -1695,6 +1727,63 @@
   if (btnOpenShiftAudit) {
     btnOpenShiftAudit.addEventListener('click', () => openShiftAuditModal());
   }
+  if (btnRunNightAudit) {
+    btnRunNightAudit.addEventListener('click', async () => {
+      const state = await refreshHotelBusinessState();
+      const activeDate = state?.current_business_date || window.DashboardApp.State.businessDate;
+      if (!activeDate) {
+        showToast('تعذر قراءة تاريخ العمل الحالي.', 'error');
+        return;
+      }
+      if (currentShiftAuditStartDate !== activeDate || currentShiftAuditEndDate !== activeDate) {
+        showToast(`اختر تقرير اليوم المفتوح (${activeDate}) قبل إقفاله.`, 'warning');
+        return;
+      }
+
+      const confirmed = await showConfirmDialog({
+        title: 'إقفال اليوم الفندقي',
+        message: `سيتم إقفال تاريخ العمل ${activeDate} وحفظ ملخص المقبوضات والتأمين، ثم فتح تاريخ العمل التالي. هذا الإجراء لا يمكن التراجع عنه من داخل النظام. إذا لم تكن متأكداً، اختر «مراجعة التقرير».`,
+        confirmText: 'إقفال اليوم والانتقال',
+        cancelText: 'مراجعة التقرير',
+        isDanger: true
+      });
+      if (!confirmed) return;
+
+      btnRunNightAudit.disabled = true;
+      try {
+        const result = await window.api.runNightAudit(activeDate);
+        if (!result || !result.success || !result.data) {
+          showToast(result?.error || 'تعذر إقفال اليوم الفندقي.', 'error');
+          return;
+        }
+
+        await refreshHotelBusinessState();
+        btnRunNightAudit.title = `تاريخ العمل المفتوح الآن ${result.data.currentBusinessDate}`;
+        showToast(`تم إقفال ${result.data.closedBusinessDate}. تاريخ العمل الجديد: ${result.data.currentBusinessDate}.`, 'success');
+        currentShiftAuditPreset = 'custom';
+        const presetButtons = document.querySelectorAll('#shift-audit-filter-bar .btn-audit-preset');
+        presetButtons.forEach(button => {
+          const isActive = button.dataset.preset === 'custom';
+          button.style.background = isActive ? '#1a4332' : 'transparent';
+          button.style.color = isActive ? '#a7f3d0' : '#cbd5e1';
+          button.style.fontWeight = isActive ? '800' : '600';
+        });
+        const customDates = document.getElementById('shift-audit-custom-dates');
+        const customStart = document.getElementById('shift-audit-custom-start');
+        const customEnd = document.getElementById('shift-audit-custom-end');
+        if (customDates) customDates.style.display = 'flex';
+        if (customStart) customStart.value = result.data.closedBusinessDate;
+        if (customEnd) customEnd.value = result.data.closedBusinessDate;
+        currentShiftAuditStartDate = result.data.closedBusinessDate;
+        currentShiftAuditEndDate = result.data.closedBusinessDate;
+        await renderShiftAuditData(currentShiftAuditStartDate, currentShiftAuditEndDate);
+      } catch (err) {
+        showToast(`تعذر إقفال اليوم: ${err.message}`, 'error');
+      } finally {
+        btnRunNightAudit.disabled = false;
+      }
+    });
+  }
   if (btnCloseShiftAudit) {
     btnCloseShiftAudit.addEventListener('click', () => {
       if (shiftAuditModal) shiftAuditModal.style.display = 'none';
@@ -1896,6 +1985,7 @@
         if (res && res.canceled) return;
         if (res && res.success) {
           showToast(res.message || 'تمت استعادة قاعدة البيانات بنجاح!', 'success');
+          await refreshHotelBusinessState();
           await window.DashboardApp.Helpers.loadOverviewData();
           await window.DashboardApp.Helpers.loadReservationsData();
           await window.DashboardApp.Helpers.loadRoomsData();
@@ -2038,6 +2128,7 @@
                 if (restoreRes && restoreRes.success) {
                   showToast('تمت استعادة قاعدة البيانات بنجاح من النسخة المحددة!', 'success');
                   dailyBackupModal.style.display = 'none';
+                  await refreshHotelBusinessState();
                   await window.DashboardApp.Helpers.loadOverviewData();
                   await window.DashboardApp.Helpers.loadReservationsData();
                   await window.DashboardApp.Helpers.loadRoomsData();
@@ -2508,6 +2599,11 @@
       console.warn('App info error:', err);
     }
 
+    if (currentUser) {
+      try { await refreshHotelBusinessState(); }
+      catch (businessDateErr) { console.warn('Hotel business date unavailable:', businessDateErr); }
+    }
+
     // Default view: overview
     window.switchView('overview');
   }
@@ -2524,6 +2620,9 @@
   window.showPromptDialog = showPromptDialog;
   window.sendReservationWhatsApp = sendReservationWhatsApp;
   window.openUserManualModal = openUserManualModal;
+  window.DashboardApp.Helpers.refreshHotelBusinessState = refreshHotelBusinessState;
+  updateSystemClock();
+  window.setInterval(updateSystemClock, 1000);
 
   init();
 

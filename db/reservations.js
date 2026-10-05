@@ -107,7 +107,7 @@ const RESERVATION_LIST_SQL = `
   JOIN rooms rm ON r.room_id = rm.id
 `;
 
-function buildReservationListFilter({ search = '', status = 'all' } = {}) {
+function buildReservationListFilter({ search = '', status = 'all', paymentType = 'all' } = {}) {
   const conditions = [];
   const params = [];
 
@@ -116,6 +116,15 @@ function buildReservationListFilter({ search = '', status = 'all' } = {}) {
   } else if (['مؤكد', 'مكتمل'].includes(status)) {
     conditions.push('r.status = ?');
     params.push(status);
+  }
+
+  const allowedPaymentTypes = new Set([
+    'advance_payment', 'balance_payment', 'extension_payment', 'late_checkout_fee',
+    'checkout_settlement', 'refund', 'deposit_applied', 'legacy_unclassified'
+  ]);
+  if (allowedPaymentTypes.has(paymentType)) {
+    conditions.push('EXISTS (SELECT 1 FROM payments p WHERE p.reservation_id = r.id AND p.payment_type = ?)');
+    params.push(paymentType);
   }
 
   const normalizedSearch = String(search || '').trim().slice(0, 120);
@@ -145,10 +154,10 @@ function getAllReservations() {
   return queryAll(`${RESERVATION_LIST_SQL} ORDER BY r.id DESC`);
 }
 
-function getReservationsPage({ page = 1, pageSize = 50, search = '', status = 'all', exportAll = false } = {}) {
+function getReservationsPage({ page = 1, pageSize = 50, search = '', status = 'all', paymentType = 'all', exportAll = false } = {}) {
   const normalizedPageSize = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 50));
   const normalizedPage = Math.max(1, parseInt(page, 10) || 1);
-  const filter = buildReservationListFilter({ search, status });
+  const filter = buildReservationListFilter({ search, status, paymentType });
   const count = queryOne(
     `SELECT COUNT(*) AS total FROM reservations r JOIN guests g ON r.guest_id = g.id JOIN rooms rm ON r.room_id = rm.id ${filter.sql}`,
     filter.params
@@ -503,7 +512,7 @@ function createReservation({
     // Dynamic Room Status Evaluation:
     // Only mark room as 'مشغولة' if CURRENT_DATE >= check_in_date AND CURRENT_DATE < effectiveNewCheckout.
     // If check_in_date is in the future, mark as 'محجوزة' (unless it is already occupied today by another guest).
-    const todayStr = getLocalDateString();
+    const todayStr = connection.getCurrentBusinessDate();
     let assignedRoomStatus = 'متاحة';
     const currentRoom = queryOne("SELECT status FROM rooms WHERE id = ?", [parsedRoomId]);
 
@@ -1618,8 +1627,8 @@ function cancelReservation(reservationId, actualDepartureDate = null, manualOver
   }
   // Cancellation / Void is allowed before arrival or on the arrival date (immediate void of walk-in/same-day booking).
   // Once arrival day has passed (guest stayed overnight), use the checkout settlement flow so the stay keeps one lifecycle.
-  const hotelBizDate = connection.getHotelBusinessDate ? connection.getHotelBusinessDate() : today;
-  const isArrivalDate = res.check_in_date >= today || res.check_in_date === hotelBizDate;
+  const hotelBizDate = connection.getCurrentBusinessDate();
+  const isArrivalDate = res.check_in_date >= hotelBizDate;
   const hasStarted = !isArrivalDate;
   if (hasStarted) {
     throw new Error('الإقامة بدأت بالفعل. استخدم تسجيل الخروج لتصفية الحساب بدلاً من إلغاء الحجز.');
@@ -1945,6 +1954,8 @@ function getReservationPayments(reservationId) {
       p.payment_method,
       p.payment_type,
       p.payment_date,
+      p.created_at,
+      p.business_date,
       p.notes,
       p.user_id,
       u.username AS staff_username
@@ -1961,7 +1972,7 @@ function getReservationDepositMovements(reservationId) {
   if (!targetId || isNaN(targetId)) return [];
   return queryAll(`
     SELECT dm.id, dm.reservation_id, dm.movement_type, dm.amount, dm.payment_method,
-      dm.movement_date, dm.user_id, dm.reason, u.username AS staff_username
+      dm.movement_date, dm.created_at, dm.business_date, dm.user_id, dm.reason, u.username AS staff_username
     FROM deposit_movements dm
     LEFT JOIN users u ON u.id = dm.user_id
     WHERE dm.reservation_id = ?
@@ -1983,6 +1994,8 @@ function getPaymentReceipt(receiptIdentifier) {
       p.payment_method,
       p.payment_type,
       p.payment_date,
+      p.created_at,
+      p.business_date,
       p.notes,
       r.total_price,
       r.paid_amount,

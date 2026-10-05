@@ -3,7 +3,7 @@
  * Rooms Management & Inventory Module
  */
 
-const { db, queryOne, queryAll, saveToFile, roundMoney, getLocalDateString } = require('./connection');
+const { db, queryOne, queryAll, saveToFile, roundMoney, getCurrentBusinessDate } = require('./connection');
 
 /**
  * Room Functions
@@ -36,7 +36,7 @@ function updateRoomStatus(roomId, status) {
   }
 
   // An active reservation remains occupied until its status changes from 'مؤكد'.
-  const today = getLocalDateString();
+  const today = getCurrentBusinessDate();
   const activeRes = getActiveReservations(targetId, today)[0] || null;
 
   // Strict Lock: If the room is actively occupied by a guest today, reject manual changes away from 'مشغولة'
@@ -93,7 +93,7 @@ function updateRoom({ id, room_number, type, price_per_night, status = 'متاح
   }
 
   // An active reservation remains occupied until its status changes from 'مؤكد'.
-  const today = getLocalDateString();
+  const today = getCurrentBusinessDate();
   const activeRes = getActiveReservations(targetId, today)[0] || null;
 
   let finalStatus = status;
@@ -140,7 +140,7 @@ function deleteRoom(roomId) {
 
 /** Confirmed reservations whose arrival date has started remain active regardless of checkout date. */
 function getActiveReservations(roomId = null, currentDate) {
-  const today = currentDate || getLocalDateString();
+  const today = currentDate || getCurrentBusinessDate();
   const roomCondition = roomId === null || roomId === undefined ? '' : 'AND r.room_id = ?';
   const params = roomId === null || roomId === undefined ? [today] : [today, roomId];
   return queryAll(`
@@ -168,8 +168,8 @@ function getActiveReservations(roomId = null, currentDate) {
  * - Confirmed future arrivals set rooms to reserved.
  * - Checkout dates alone never set or clear room status.
  */
-function autoUpdateRoomStatuses(currentDate) {
-  const today = currentDate || getLocalDateString();
+function autoUpdateRoomStatuses(currentDate, { persist = true } = {}) {
+  const today = currentDate || getCurrentBusinessDate();
 
   const activeReservations = getActiveReservations(null, today);
   const occupiedRoomIds = new Set(activeReservations.map(r => r.room_id));
@@ -213,12 +213,22 @@ function autoUpdateRoomStatuses(currentDate) {
 
     if (targetStatus === 'مشغولة') occupiedCount++;
     if (targetStatus !== room.status) {
+      if (targetStatus === 'مشغولة' && room.status !== 'مشغولة') {
+        const arrivedReservations = roomActiveReservations.filter(reservation => reservation.check_in_date <= today);
+        for (const reservation of arrivedReservations) {
+          db.run(`
+            INSERT OR IGNORE INTO reservation_events (
+              entity_type, entity_id, event_type, new_status, created_at, business_date
+            ) VALUES ('reservation', ?, 'check_in', 'وصل النزيل', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), ?)
+          `, [reservation.id, getCurrentBusinessDate()]);
+        }
+      }
       db.run("UPDATE rooms SET status = ? WHERE id = ?", [targetStatus, room.id]);
       hasStatusChanges = true;
     }
   }
 
-  if (hasStatusChanges) saveToFile();
+  if (hasStatusChanges && persist) saveToFile();
   return {
     success: true,
     date: today,

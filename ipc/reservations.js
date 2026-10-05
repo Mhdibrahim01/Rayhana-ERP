@@ -43,7 +43,7 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
   // =========================================================================
   // Strict Backend Data Validations
   // =========================================================================
-  function validateReservationData(data, getLocalDateString) {
+  function validateReservationData(data, getLocalDateString, currentBusinessDate) {
     if (!data || typeof data !== 'object') {
       return { valid: false, error: 'بيانات الحجز غير صالحة.' };
     }
@@ -111,8 +111,9 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
     }
 
     const todayStr = getLocalDateString ? getLocalDateString(new Date()) : new Date().toISOString().split('T')[0];
-    if (checkInDate < todayStr) {
-      return { valid: false, error: 'تاريخ الوصول لا يمكن أن يكون في الماضي (يجب أن يكون اليوم أو تاريخاً مستقبلياً).' };
+    const minimumAllowedDate = currentBusinessDate || todayStr;
+    if (checkInDate < minimumAllowedDate) {
+      return { valid: false, error: 'تاريخ الوصول لا يمكن أن يسبق تاريخ العمل الفندقي الحالي.' };
     }
 
     if (bookingType === 'عقد مفتوح') {
@@ -143,7 +144,10 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
     const denied = requireSession();
     if (denied) return denied;
     try {
-      const validation = validateReservationData(data, helpers.getLocalDateString);
+      const currentBusinessDate = typeof db.getCurrentBusinessDate === 'function'
+        ? db.getCurrentBusinessDate()
+        : (helpers.getHotelBusinessDate ? helpers.getHotelBusinessDate(new Date()) : helpers.getLocalDateString());
+      const validation = validateReservationData(data, helpers.getLocalDateString, currentBusinessDate);
       if (!validation.valid) {
         return { success: false, error: validation.error };
       }

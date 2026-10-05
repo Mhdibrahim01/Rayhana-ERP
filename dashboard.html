@@ -132,6 +132,11 @@
         <div class="topbar-title">
           <h1 id="topbar-heading">ريحانة للوحدات السكنية</h1>
           <p id="topbar-subheading">Rayhana Suites • لوحة التحكم وإدارة العمليات</p>
+          <div class="business-date-indicator" dir="rtl" aria-live="polite">
+            <span>وقت النظام:</span> <strong id="current-system-time">--:--</strong>
+            <span class="business-date-separator">|</span>
+            <span>تاريخ العمل الفندقي:</span> <strong id="active-business-date">جارٍ التحميل</strong>
+          </div>
         </div>
 
         <div class="topbar-actions">
@@ -485,6 +490,21 @@
                 <button class="filter-tab-btn" data-filter="ملغي">ملغاة</button>
               </div>
 
+              <label class="reservations-payment-type-filter" for="reservations-payment-type-filter">
+                <span>نوع الدفعة</span>
+                <select id="reservations-payment-type-filter">
+                  <option value="all">كل أنواع الدفعات</option>
+                  <option value="advance_payment">دفعة مقدمة / حجز</option>
+                  <option value="balance_payment">سداد متبقي الإقامة</option>
+                  <option value="extension_payment">دفعة تمديد الإقامة</option>
+                  <option value="late_checkout_fee">رسوم تأخير المغادرة</option>
+                  <option value="checkout_settlement">تسوية الخروج</option>
+                  <option value="refund">استرداد للنزيل</option>
+                  <option value="deposit_applied">مستقطع من التأمين</option>
+                  <option value="legacy_unclassified">دفعة قديمة غير مصنفة</option>
+                </select>
+              </label>
+
               <!-- Search -->
               <div class="search-box">
                 <span class="search-icon">
@@ -532,13 +552,11 @@
                 <thead>
                   <tr>
                     <th>رقم الحجز</th>
-                    <th>اسم النزيل</th>
+                    <th>بيانات النزيل</th>
                     <th>الغرفة والنوع</th>
-                    <th>تاريخ الوصول</th>
-                    <th>تاريخ المغادرة</th>
+                    <th>الوصول والمغادرة</th>
                     <th>المبلغ والمدفوع</th>
-                    <th>طريقة السداد</th>
-                    <th>حالة الدفع</th>
+                    <th>طريقة وحالة الدفع</th>
                     <th>حالة الحجز</th>
                     <th style="text-align: center;">إجراءات وفواتير</th>
                   </tr>
@@ -1627,6 +1645,9 @@
           <span style="font-weight: 800; font-size: 1.05rem;">تقرير إقفال الوردية والموازنة المالية (Night Audit)</span>
         </div>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="btn-run-night-audit" data-role-required="Admin" type="button" class="btn btn-sm" style="background: #b45309; color: white; font-weight: 800; padding: 7px 14px; border: 1px solid #f59e0b;" title="إقفال تاريخ العمل الحالي والانتقال إلى اليوم التالي">
+            <span>إقفال اليوم الفندقي</span>
+          </button>
           <button id="btn-print-shift-audit" type="button" class="btn btn-sm" style="background: #059669; color: white; font-weight: 700; padding: 7px 14px;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="6 9 6 2 18 2 18 9"></polyline>

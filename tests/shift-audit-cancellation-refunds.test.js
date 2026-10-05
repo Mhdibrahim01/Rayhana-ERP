@@ -65,10 +65,10 @@ test('shift audit reports cancellation refunds and preserves historical cash', a
         paymentMethod: 'نقداً'
       });
 
-      // Shift payment date to yesterday
+      // Move both the display timestamp and the operational allocation date.
       connection.getDb().run(
-        'UPDATE payments SET payment_date = ? WHERE reservation_id = ? AND amount > 0',
-        [`${yesterday} 14:00:00`, res3.reservationId]
+        'UPDATE payments SET payment_date = ?, business_date = ? WHERE reservation_id = ? AND amount > 0',
+        [`${yesterday} 14:00:00`, yesterday, res3.reservationId]
       );
 
       // Verify yesterday audit before cancellation

@@ -3,7 +3,7 @@
  * Reports, Analytics, Daily Shifts & Checkouts Module
  */
 
-const { db, queryOne, queryAll, roundMoney, getLocalDateString } = require('./connection');
+const { db, queryOne, queryAll, roundMoney, getLocalDateString, getCurrentBusinessDate } = require('./connection');
 const { autoUpdateRoomStatuses } = require('./rooms');
 
 /**
@@ -44,15 +44,14 @@ function getTodayCheckouts(targetDate) {
 /**
  * Analytics Data: Monthly Revenue (Expected vs Collected)
  * Returns month-by-month financial summary:
- * - expected: SUM(total_price) for reservations created that month, excluding 'ملغي' (includes 'ملغي جزئي' at pro-rated value)
- * - collected: SUM(payments.amount) from payments ledger grouped by payment_date month (excluding 'ملغي')
- * Uses date(created_at, 'localtime') for accurate local-time monthly grouping.
+ * - expected: SUM(total_price) for reservations created in each hotel business month
+ * - collected: SUM(payments.amount) grouped by the payment's hotel business month
  */
 function getMonthlyRevenue() {
   const sql = `
     WITH expected_monthly AS (
       SELECT 
-        strftime('%Y-%m', date(created_at, 'localtime')) AS month,
+        strftime('%Y-%m', created_business_date) AS month,
         SUM(total_price) AS expected
       FROM reservations
       WHERE status != 'ملغي'
@@ -62,11 +61,12 @@ function getMonthlyRevenue() {
     ),
     collected_monthly AS (
       SELECT 
-        strftime('%Y-%m', p.payment_date) AS month,
+        strftime('%Y-%m', p.business_date) AS month,
         SUM(p.amount) AS collected
       FROM payments p
-      WHERE p.payment_date IS NOT NULL
-        AND p.payment_date != ''
+      WHERE p.business_date IS NOT NULL
+        AND p.business_date != ''
+        AND p.payment_method != 'من التأمين'
       GROUP BY month
     ),
     all_months AS (
@@ -124,10 +124,11 @@ function getDashboardStats() {
  * Shift Audit & Night Closing Report Data Provider
  * Supports date ranges (startDate, endDate) with day-by-day trend breakdown.
  * If endDate is omitted or same as startDate, behaves as exact single-day report.
- * Uses real, timestamped payments ledger table to compute daily collections accurately.
+ * Uses each ledger row's persisted hotel business_date for daily collections while
+ * retaining the real transaction timestamp for the audit detail rows.
  */
 function getShiftAuditReport(startDate, endDate) {
-  const today = getLocalDateString();
+  const today = getCurrentBusinessDate();
   const start = (startDate && typeof startDate === 'string' && startDate.trim() !== '') ? startDate.trim() : today;
   const end = (endDate && typeof endDate === 'string' && endDate.trim() !== '') ? endDate.trim() : start;
 
@@ -145,6 +146,8 @@ function getShiftAuditReport(startDate, endDate) {
       p.payment_method,
       p.payment_type,
       p.payment_date,
+      p.created_at,
+      p.business_date,
       p.notes,
       r.id AS res_id,
       r.status AS res_status,
@@ -157,7 +160,7 @@ function getShiftAuditReport(startDate, endDate) {
     JOIN guests g ON r.guest_id = g.id
     JOIN rooms rm ON r.room_id = rm.id
     LEFT JOIN users u ON p.user_id = u.id
-    WHERE DATE(p.payment_date) BETWEEN DATE(?) AND DATE(?)
+    WHERE p.business_date BETWEEN ? AND ?
       AND p.payment_method != 'من التأمين'
     ORDER BY p.id DESC
   `, [dateFrom, dateTo]);
@@ -208,14 +211,15 @@ function getShiftAuditReport(startDate, endDate) {
     JOIN guests g ON r.guest_id = g.id
     JOIN rooms rm ON r.room_id = rm.id
     WHERE (
-       (DATE(r.created_at, 'localtime') BETWEEN DATE(?) AND DATE(?))
+       (r.created_business_date BETWEEN ? AND ?)
        OR (r.check_in_date BETWEEN ? AND ? AND r.status != 'ملغي')
        OR (r.check_out_date != 'مفتوح' AND r.check_out_date BETWEEN ? AND ? AND r.status = 'مكتمل')
-       OR EXISTS (SELECT 1 FROM payments p WHERE p.reservation_id = r.id AND DATE(p.payment_date) BETWEEN DATE(?) AND DATE(?))
-       OR EXISTS (SELECT 1 FROM deposit_movements dm WHERE dm.reservation_id = r.id AND DATE(dm.movement_date) BETWEEN DATE(?) AND DATE(?))
+       OR EXISTS (SELECT 1 FROM payments p WHERE p.reservation_id = r.id AND p.business_date BETWEEN ? AND ?)
+       OR EXISTS (SELECT 1 FROM deposit_movements dm WHERE dm.reservation_id = r.id AND dm.business_date BETWEEN ? AND ?)
+       OR EXISTS (SELECT 1 FROM reservation_events ev WHERE ev.entity_type = 'reservation' AND ev.entity_id = r.id AND ev.business_date BETWEEN ? AND ?)
     )
     ORDER BY r.id DESC
-  `, [dateFrom, dateTo, dateFrom, dateTo, dateFrom, dateTo, dateFrom, dateTo, dateFrom, dateTo]);
+  `, [dateFrom, dateTo, dateFrom, dateTo, dateFrom, dateTo, dateFrom, dateTo, dateFrom, dateTo, dateFrom, dateTo]);
 
   let expectedTotal = 0;
   let outstandingTotal = 0;
@@ -231,14 +235,14 @@ function getShiftAuditReport(startDate, endDate) {
 
   const depositMovements = queryAll(`
     SELECT dm.id, dm.reservation_id, dm.movement_type, dm.amount, dm.payment_method,
-      dm.movement_date, dm.reason, g.name AS guest_name, rm.room_number,
+      dm.movement_date, dm.created_at, dm.business_date, dm.reason, g.name AS guest_name, rm.room_number,
       u.username AS staff_username
     FROM deposit_movements dm
     JOIN reservations r ON r.id = dm.reservation_id
     JOIN guests g ON g.id = r.guest_id
     JOIN rooms rm ON rm.id = r.room_id
     LEFT JOIN users u ON u.id = dm.user_id
-    WHERE DATE(dm.movement_date) BETWEEN DATE(?) AND DATE(?)
+    WHERE dm.business_date BETWEEN ? AND ?
     ORDER BY dm.id DESC
   `, [dateFrom, dateTo]);
   const depositActivity = { collected: 0, refunded: 0, applied: 0, retained: 0 };
@@ -288,7 +292,7 @@ function getShiftAuditReport(startDate, endDate) {
   // 5. Day-by-Day Breakdown Array (mini trend for range)
   const revByDate = {};
   for (const p of paymentsInRange) {
-    const pDate = p.payment_date ? p.payment_date.substring(0, 10) : '';
+    const pDate = p.business_date || '';
     if (pDate) {
       revByDate[pDate] = roundMoney((revByDate[pDate] || 0) + Number(p.amount || 0));
     }

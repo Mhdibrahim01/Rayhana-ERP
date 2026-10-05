@@ -38,6 +38,9 @@ test('database and business-logic safety net', async t => {
     // The safety assertion runs before the app opens or initializes this file.
     await db.init(databasePath);
     const today = db.getLocalDateString();
+    // These legacy scenarios are expressed in the calendar date, so keep the
+    // seeded operational date fixed to that date independent of test start time.
+    connection.getDb().run('UPDATE hotel_business_state SET current_business_date = ? WHERE id = 1', [today]);
 
     await t.test('initialization seeds the supported Admin and User accounts', () => {
       const users = Object.fromEntries(db.getAllUsers().map(user => [user.username, user.role]));
@@ -164,8 +167,8 @@ test('database and business-logic safety net', async t => {
         total: 200,
         paid: 75
       });
-      connection.getDb().run("UPDATE payments SET payment_date = ? WHERE reservation_id = ?", [`${today} 10:00:00`, reservationId]);
-      connection.getDb().run("UPDATE payments SET payment_date = ? WHERE reservation_id != ?", [`${addDays(today, -1)} 10:00:00`, reservationId]);
+      connection.getDb().run("UPDATE payments SET payment_date = ?, business_date = ? WHERE reservation_id = ?", [`${today} 10:00:00`, today, reservationId]);
+      connection.getDb().run("UPDATE payments SET payment_date = ?, business_date = ? WHERE reservation_id != ?", [`${addDays(today, -1)} 10:00:00`, addDays(today, -1), reservationId]);
 
       const report = db.getShiftAuditReport(today, today);
       assert.equal(report.isRange, false);
