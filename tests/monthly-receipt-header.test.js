@@ -100,7 +100,7 @@ test('monthly receipt header: renderer data layer', async t => {
       const dashboardSrc = fs.readFileSync(path.join(__dirname, '../dashboard.js'), 'utf8');
 
       assert.ok(dashboardSrc.includes('مؤسسة مكتب شمس المنازل للخدمات العقارية'), 'Institution title present');
-      assert.ok(dashboardSrc.includes('الرقم الموحد: 703895515'), 'Unified number present');
+      assert.ok(dashboardSrc.includes('الرقم الموحد: 7038955915'), 'Unified number present');
       assert.ok(dashboardSrc.includes('ختم المؤسسة'), 'Company stamp label present');
       assert.ok(dashboardSrc.includes('توقيع الموظف'), 'Employee signature label present');
       assert.ok(dashboardSrc.includes('توقيع المستلم'), 'Receiver signature label present');

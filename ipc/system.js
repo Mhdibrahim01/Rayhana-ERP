@@ -5,7 +5,22 @@
 
 const path = require('path');
 const fs = require('fs');
-
+function toDataUrl(file) {
+  try {
+    const buf = fs.readFileSync(path.join(__dirname, '../assets', file));
+    return 'data:image/svg+xml;base64,' + buf.toString('base64');
+  } catch (err) {
+    console.error('Failed to load asset:', file, err.message);
+    return '';
+  }
+}
+const sealUrl = toDataUrl('seal.svg');
+const signatureUrl = toDataUrl('signature.svg');
+function embedAssets(html) {
+  return html
+    .replace(/assets\/seal\.svg/g, sealUrl)
+    .replace(/assets\/signature\.svg/g, signatureUrl);
+}
 module.exports = function registerSystemIpc(ipcMain, { app, BrowserWindow, dialog, shell, db, backupScheduler, session, helpers }) {
   // 8. System Info & Database Path
   ipcMain.handle('app:get-info', async () => {
@@ -260,6 +275,7 @@ module.exports = function registerSystemIpc(ipcMain, { app, BrowserWindow, dialo
           <style>
             @page { size: A4 portrait; margin: 12mm 14mm; }
             * { box-sizing: border-box; margin: 0; padding: 0; }
+            html { font-size: 18px; }
             body {
               font-family: "Segoe UI", Tahoma, "Cairo", Arial, sans-serif;
               direction: rtl;
@@ -282,7 +298,7 @@ module.exports = function registerSystemIpc(ipcMain, { app, BrowserWindow, dialo
         </html>
       `;
 
-      await pdfWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(fullHtml)}`);
+await pdfWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(embedAssets(fullHtml))}`);
       const pdfData = await pdfWin.webContents.printToPDF({
         printBackground: true,
         pageSize: 'A4',
@@ -331,6 +347,7 @@ module.exports = function registerSystemIpc(ipcMain, { app, BrowserWindow, dialo
           <style>
             @page { size: A4 portrait; margin: 12mm 14mm; }
             * { box-sizing: border-box; margin: 0; padding: 0; }
+            html { font-size: 18px; }
             body {
               font-family: "Segoe UI", Tahoma, "Cairo", Arial, sans-serif;
               direction: rtl;
@@ -435,7 +452,11 @@ module.exports = function registerSystemIpc(ipcMain, { app, BrowserWindow, dialo
         </html>
       `;
 
-      previewWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(fullHtml)}`);
+const finalHtml = fullHtml
+  .replace(/assets\/seal\.svg/g, sealUrl)
+  .replace(/assets\/signature\.svg/g, signatureUrl);
+
+previewWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(embedAssets(finalHtml))}`);
       return { success: true };
     } catch (err) {
       console.error('[Preview Window Error]:', err);

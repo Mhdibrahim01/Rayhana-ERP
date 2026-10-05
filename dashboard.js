@@ -671,7 +671,7 @@
       const printTime = issuedAt.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
 
       invoicePrintableArea.innerHTML = `
-        <div style="border: 2px solid #e2e8f0; border-radius: 12px; padding: 28px; background: white;">
+        <div style="border: 2px solid #e2e8f0; border-radius: 12px; padding: 28px; background: white; min-height: 186mm; display: flex; flex-direction: column;">
           <!-- Top Section: Company & Receipt Info -->
           <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 24px; margin-bottom: 28px;">
             <!-- Company Info (Right) -->
@@ -856,14 +856,14 @@
 
             <!-- Stamps & Signatures (for monthly bookings) -->
             ${isMonthly ? `
-            <div style="flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: start; text-align: center;">
+            <div style="flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: start; text-align: center; margin-top: auto;">
 
               <!-- Stamp -->
               <div>
                 <p style="font-weight: 700; color: #334155; margin: 0 0 12px; font-size: 0.9rem;">ختم المؤسسة</p>
                 <div style="height: 100px; display: flex; align-items: flex-end; justify-content: center;">
                   <img src="assets/seal.svg"
-                       style="width: 150px; height: auto; display: block;"
+                       style="width: 180px; height: auto; display: block;"
                        alt="الختم"
                        onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                   <div style="display: none; color: #6366f1; font-weight: 800; font-size: 0.75rem; line-height: 1.3;">ختم رسمي معتمد</div>
@@ -873,9 +873,9 @@
               <!-- Issuer Signature -->
               <div>
                 <p style="font-weight: 700; color: #334155; margin: 0 0 12px; font-size: 0.9rem;">توقيع الموظف</p>
-                <div style="height: 100px; display: flex; align-items: flex-end; justify-content: center;">
-                  <div style="width: 140px; height: 60px; border-bottom: 1px solid #94a3b8; display: flex; align-items: flex-end; justify-content: center;">
-                    <img src="assets/signature.svg" style="max-height: 56px; max-width: 100%; object-fit: contain;" alt="التوقيع"
+                <div style="height: 70px; display: flex; align-items: flex-end; justify-content: center;">
+                  <div style="width: 160px; height: 70px; border-bottom: 1px solid #94a3b8; display: flex; align-items: flex-end; justify-content: center;">
+                    <img src="assets/signature.svg" style="max-height: 65px; max-width: 100%; object-fit: contain;" alt="التوقيع"
                          onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                     <svg style="display: none; width: 100%; height: 35px; color: #1e40af; opacity: 0.75;" viewBox="0 0 100 30" preserveAspectRatio="none">
                       <path fill="none" stroke="currentColor" stroke-width="1.8" d="M10,20 Q30,5 50,20 T90,10"></path>
