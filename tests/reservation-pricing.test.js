@@ -6,6 +6,22 @@ const db = require('../db');
 const { addDays, addRoom } = require('./helpers/fixtures');
 const { assertDatabaseIntegrity, withSafeDatabase } = require('./helpers/safe-temp-db');
 
+/**
+ * The departure date for a monthly booking: the same calendar day next month, clamped
+ * to that month's last day when it is shorter (2026-01-31 -> 2026-02-28). Duplicated
+ * here on purpose - the test states the expectation rather than trusting the module
+ * under test to supply it.
+ */
+function calendarMonthCheckOut(checkInDateStr) {
+  const [y, m, d] = String(checkInDateStr).split('-').map(Number);
+  const lastDayOfNextMonth = new Date(y, m + 1, 0).getDate();
+  const clampedDay = Math.min(d, lastDayOfNextMonth);
+  const nextMonth = new Date(y, m, 1);
+  return nextMonth.getFullYear() + '-' +
+    String(nextMonth.getMonth() + 1).padStart(2, '0') + '-' +
+    String(clampedDay).padStart(2, '0');
+}
+
 test('reservation creation stores custom rates and applies monthly discounts', async t => {
   await withSafeDatabase(async (appDb, connection) => {
     const today = appDb.getLocalDateString();
@@ -27,8 +43,11 @@ test('reservation creation stores custom rates and applies monthly discounts', a
       assert.equal(reservation.custom_nightly_price, 150);
       assert.equal(reservation.discount_amount, 300);
       assert.equal(reservation.discount_reason, 'خصم اختبار');
+      // One full calendar month priced as a closed 30-night package: 30 x 150 less 300.
       assert.equal(reservation.total_price, 4200);
-      assert.equal(reservation.check_out_date, addDays(today, 30));
+      // The departure is the same calendar day next month, clamped at month end - NOT
+      // a fixed +30 day span, which drifts by a day whenever the month is longer.
+      assert.equal(reservation.check_out_date, calendarMonthCheckOut(today));
       assertDatabaseIntegrity(connection, 'monthly custom rate and discount');
     });
 
