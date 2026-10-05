@@ -564,6 +564,11 @@
       const inv = res.data;
       currentInvoiceData = inv;
       const isContract = inv.booking_type === 'عقد مفتوح';
+      // Monthly bookings print under the institution's own letterhead (name, unified
+      // number, seal and signature) and bill the closed 30-night package rather than
+      // the night count. Kept separate from `isContract`, which is the open-contract
+      // type and is a different case entirely.
+      const isMonthly = inv.booking_type === 'حجز شهري';
       const isCancelled = inv.status === 'ملغي';
       const total = isCancelled ? 0.0 : parseFloat(inv.total_price || 0);
       const paid = parseFloat(inv.paid_amount || 0);
@@ -656,6 +661,8 @@
       const baseSubtotal = (typeof invoiceNights === 'number' && invoiceNights > 0)
         ? (invoiceNights * effectiveNightlyRate)
         : (total + discount);
+      const monthlyPackageSubtotal = roundMoney(effectiveNightlyRate * 30);
+      const shownSubtotal = isMonthly ? monthlyPackageSubtotal : baseSubtotal;
 
       const invoiceYear = (inv.created_at ? new Date(inv.created_at) : new Date()).getFullYear() || new Date().getFullYear();
       const invoiceNum = `SND-${invoiceYear}-${String(inv.id).padStart(5, '0')}`;
@@ -665,36 +672,35 @@
 
       invoicePrintableArea.innerHTML = `
         <div style="border: 2px solid #e2e8f0; border-radius: 12px; padding: 28px; background: white;">
-          <!-- Header -->
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #4338ca; padding-bottom: 20px; margin-bottom: 24px;">
-            <div>
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <div style="width: 44px; height: 44px; border-radius: 10px; background: #4338ca; color: white; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.3rem;">
-                  ر
-                </div>
-                <div>
-                  <h1 style="font-size: 1.5rem; font-weight: 800; color: #1e1b4b; margin: 0;">ريحانة للوحدات السكنية</h1>
-                </div>
+          <!-- Top Section: Company & Receipt Info -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 24px; margin-bottom: 28px;">
+            <!-- Company Info (Right) -->
+            <div style="display: flex; gap: 16px; align-items: flex-start;">
+              <div style="width: 48px; height: 48px; border-radius: 10px; background: #4338ca; color: white; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.5rem; flex-shrink: 0;">
+                ر
               </div>
-              <div style="font-size: 0.82rem; color: #475569; margin-top: 10px; line-height: 1.6;">
-                <div>العنوان: الخبر - الثقبة - طريق الملك خالد</div>
-                <div>الرمز البريدي: 34625</div>
-                <div>هاتف الاستقبال: 0560631783</div>
+              <div>
+                <h2 style="font-size: 1.25rem; font-weight: 800; color: #1e293b; margin: 0 0 8px 0;">${isMonthly ? 'مؤسسة مكتب شمس المنازل للخدمات العقارية' : 'ريحانة للوحدات السكنية'}</h2>
+                <div style="font-size: 0.85rem; color: #64748b; line-height: 1.6;">
+                  <div>العنوان: الخبر - الثقبة - طريق الملك خالد</div>
+                  <div>الرمز البريدي: 34625</div>
+                  <div>هاتف الاستقبال: 0560631783</div>
+                  ${isMonthly ? '<div>الرقم الموحد: 703895515</div>' : ''}
+                </div>
               </div>
             </div>
 
-            <div style="text-align: left; direction: ltr;">
-              <div style="background: ${isCancelled ? '#fef2f2; color: #dc2626; border: 1px solid #fecaca;' : '#eef2ff; color: #3730a3;'}; padding: 6px 18px; border-radius: 8px; font-weight: 800; font-size: 1.15rem; display: inline-block;">
+            <!-- Receipt Info (Left) -->
+            <div style="background: #eff6ff; border: 1px solid #dbeafe; border-radius: 10px; padding: 14px 18px; text-align: right; min-width: 220px;">
+              <div style="display: inline-block; background: #dbeafe; color: #1e40af; padding: 4px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: 800; margin-bottom: 10px;">
                 ${isCancelled ? 'سند حجز ملغي' : 'سند'}
               </div>
-              <div style="font-size: 0.85rem; color: #334155; margin-top: 8px; font-weight: 700; direction: rtl; text-align: left;">
-                رقم السند: <span style="font-family: monospace; color: #4338ca;">${invoiceNum}</span>
+              <div style="font-size: 0.85rem; color: #475569; line-height: 1.7;">
+                <div><span style="font-weight: 700; color: #1e293b;">رقم السند:</span> <span style="font-family: monospace; color: #4338ca; font-weight: 700;">${invoiceNum}</span></div>
+                <div>تاريخ الإصدار: <bdi dir="auto" style="white-space: nowrap;">${escapeHtml(printDate)}</bdi></div>
+                <div>الوقت: <bdi dir="ltr" style="white-space: nowrap;">${escapeHtml(printTime)}</bdi></div>
               </div>
-              <div style="font-size: 0.8rem; color: #64748b; margin-top: 4px; direction: rtl; text-align: left; line-height: 1.6;">
-                <div>تاريخ الإصدار: <bdi dir="auto" style="white-space: nowrap; unicode-bidi: isolate;">${escapeHtml(printDate)}</bdi></div>
-                <div>الوقت: <bdi dir="ltr" style="white-space: nowrap; unicode-bidi: isolate;">${escapeHtml(printTime)}</bdi></div>
-              </div>
-              <div style="margin-top: 6px; direction: rtl; text-align: left;">
+              <div style="margin-top: 10px;">
                 ${isCancelled
                   ? '<span class="badge badge-cancelled" style="font-size: 0.8rem; padding: 4px 10px;">حجز ملغي</span>'
                   : window.DashboardApp.Helpers.getPaymentStatusBadge(inv.payment_status)}
@@ -702,162 +708,214 @@
             </div>
           </div>
 
-          <!-- Guest & Reservation Info Box -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin-bottom: 24px;">
+          <!-- Details Section -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 28px; border-bottom: 2px solid #e2e8f0; padding-bottom: 24px; margin-bottom: 28px;">
+            <!-- Guest Details -->
             <div>
-              <h4 style="font-size: 0.9rem; font-weight: 800; color: #334155; margin-bottom: 10px; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px;">بيانات النزيل (Guest Details)</h4>
-              <div style="font-size: 0.85rem; line-height: 1.7; color: #1e293b;">
-                <div><strong>اسم النزيل:</strong> ${escapeHtml(inv.guest_name)}</div>
-                <div><strong>رقم الجوال:</strong> ${escapeHtml(inv.guest_phone || '-')}</div>
-                <div><strong>رقم الهوية / الإقامة:</strong> ${escapeHtml(inv.guest_id_number || 'غير مسجل')}</div>
+              <h3 style="font-size: 0.95rem; font-weight: 800; color: #1e293b; margin: 0 0 12px 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">بيانات النزيل (Guest Details)</h3>
+              <div style="font-size: 0.85rem; line-height: 1.8; color: #475569;">
+                <div><strong style="color: #1e293b;">اسم النزيل:</strong> ${escapeHtml(inv.guest_name)}</div>
+                <div><strong style="color: #1e293b;">رقم الجوال:</strong> ${escapeHtml(inv.guest_phone || '-')}</div>
+                <div><strong style="color: #1e293b;">رقم الهوية / الإقامة:</strong> ${escapeHtml(inv.guest_id_number || 'غير مسجل')}</div>
               </div>
             </div>
 
+            <!-- Stay Details -->
             <div>
-              <h4 style="font-size: 0.9rem; font-weight: 800; color: #334155; margin-bottom: 10px; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px;">بيانات الإقامة والوحدة (Stay Details)</h4>
-              <div style="font-size: 0.85rem; line-height: 1.7; color: #1e293b;">
-                <div><strong>رقم الوحدة:</strong> ${escapeHtml(inv.room_number)} (${escapeHtml(inv.room_type || '')})</div>
-                <div><strong>تاريخ الوصول:</strong> ${escapeHtml(inv.check_in_date)}</div>
-                <div><strong>وقت الحجز:</strong> <span style="font-family: monospace;">${escapeHtml(inv.booking_time || '-')}</span></div>
-                <div><strong>تاريخ المغادرة:</strong> ${checkOutDisplay}</div>
-                ${inv.checkout_time ? `<div><strong>وقت المغادرة:</strong> <span style="font-family: monospace;">${escapeHtml(inv.checkout_time)}</span></div>` : ''}
-                ${policyNote ? `<div style="margin-top:6px; padding:6px 8px; border-radius:6px; background:#eef2ff; color:#3730a3; font-size:0.8rem; font-weight:700;">${policyNote}</div>` : ''}
+              <h3 style="font-size: 0.95rem; font-weight: 800; color: #1e293b; margin: 0 0 12px 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">بيانات الإقامة والوحدة (Stay Details)</h3>
+              <div style="font-size: 0.85rem; line-height: 1.8; color: #475569;">
+                <div><strong style="color: #1e293b;">رقم الوحدة:</strong> ${escapeHtml(inv.room_number)} (${escapeHtml(inv.room_type || '')})</div>
+                <div><strong style="color: #1e293b;">تاريخ الوصول:</strong> ${escapeHtml(inv.check_in_date)}</div>
+                <div><strong style="color: #1e293b;">وقت الحجز:</strong> <span style="font-family: monospace;">${escapeHtml(inv.booking_time || '-')}</span></div>
+                <div><strong style="color: #1e293b;">تاريخ المغادرة:</strong> ${checkOutDisplay}</div>
+                ${inv.checkout_time ? `<div><strong style="color: #1e293b;">وقت المغادرة:</strong> <span style="font-family: monospace;">${escapeHtml(inv.checkout_time)}</span></div>` : ''}
+                ${policyNote ? `<div style="margin-top: 8px; padding: 6px 10px; border-radius: 6px; background: #eef2ff; color: #3730a3; font-size: 0.8rem; font-weight: 700;">${policyNote}</div>` : ''}
               </div>
             </div>
           </div>
 
           <!-- Items Table -->
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 0.88rem; table-layout: fixed; word-break: break-word;">
-          <colgroup>
-          <!-- Fixed widths so the amount column can never be pushed out of view by
-          a long room description. Without table-layout:fixed the first column
-          expands to fit its text and the total column is clipped off the card. -->
-          <col style="width: 52%;">
-          <col style="width: 15%;">
-          <col style="width: 13%;">
-          <col style="width: 20%;">
-          </colgroup>
-          <thead>
-              <tr style="background: #1e1b4b; color: white;">
-                <th style="padding: 10px 14px; text-align: right; border-radius: 0 6px 0 0;">الوصف والخدمة</th>
-                <th style="padding: 10px 14px; text-align: center;">سعر الليلة / اليوم</th>
-                <th style="padding: 10px 14px; text-align: center;">المدة</th>
-                <th style="padding: 10px 14px; text-align: left; border-radius: 6px 0 0 0;">المجموع</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr style="border-bottom: 1px solid #e2e8f0; ${isCancelled ? 'background: #fff8f8;' : ''}">
-                <td style="padding: 12px 14px;">
-                  <strong>إقامة سكنية - وحدة ${escapeHtml(inv.room_number)} ${isContract ? '(عقد مفتوح)' : ''}</strong>
-                  <div style="font-size: 0.78rem; color: #64748b;">
-                    ${isCancelled
-                      ? '<span style="color: #dc2626; font-weight: 700;">(تم إبطال / إلغاء هذا الحجز بالكامل ولا توجد رسوم إقامة مستحقة)</span>'
-                      : `نوع الوحدة: ${escapeHtml(inv.room_type || 'عادية')} ${inv.custom_nightly_price ? '<span style="color:#166534; font-weight:700;">(سعر خاص معتمد)</span>' : ''}`}
-                  </div>
-                </td>
-                <td style="padding: 12px 14px; text-align: center;">${isCancelled ? '0 ريال' : `${effectiveNightlyRate.toLocaleString()} ريال`}</td>
-                <td style="padding: 12px 14px; text-align: center; font-weight: 700;">${invoiceDurationText}</td>
-                <td style="padding: 12px 14px; text-align: left; font-weight: 800; color: #1e1b4b;">${(isCancelled ? 0 : baseSubtotal).toLocaleString()} ريال</td>
-              </tr>
-              ${discount > 0 && !isCancelled ? `
-                <tr style="border-bottom: 1px solid #e2e8f0; background: #fff1f2;">
-                  <td style="padding: 10px 14px;">
-                    <strong style="color: #b91c1c;">خصم وتخفيض معتمد${discountReasonText}</strong>
-                    <div style="font-size: 0.75rem; color: #991b1b;">تخفيض ممنوح على إجمالي قيمة الإقامة</div>
+          <div style="margin-bottom: 28px; overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem; table-layout: fixed; word-break: break-word;">
+              <colgroup>
+                <col style="width: 48%;">
+                <col style="width: 18%;">
+                <col style="width: 14%;">
+                <col style="width: 20%;">
+              </colgroup>
+              <thead>
+                <tr style="background: #1e1b4b; color: white;">
+                  <th style="padding: 12px 14px; text-align: right; border-radius: 0 8px 0 0; font-weight: 700;">الوصف والخدمة</th>
+                  <th style="padding: 12px 14px; text-align: center; font-weight: 700;">سعر الليلة / اليوم</th>
+                  <th style="padding: 12px 14px; text-align: center; font-weight: 700;">المدة</th>
+                  <th style="padding: 12px 14px; text-align: left; border-radius: 8px 0 0 0; font-weight: 700;">المجموع</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="border-bottom: 1px solid #e2e8f0; ${isCancelled ? 'background: #fff8f8;' : ''}">
+                  <td style="padding: 14px;">
+                    <div style="font-weight: 700; color: #1e293b;">إقامة سكنية - وحدة ${escapeHtml(inv.room_number)} ${isContract ? '(عقد مفتوح)' : ''}</div>
+                    <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">
+                      ${isCancelled
+                        ? '<span style="color: #dc2626; font-weight: 700;">(تم إبطال / إلغاء هذا الحجز بالكامل ولا توجد رسوم إقامة مستحقة)</span>'
+                        : `نوع الوحدة: ${escapeHtml(inv.room_type || 'عادية')} ${inv.custom_nightly_price ? '<span style="color: #059669; font-weight: 700;">(سعر خاص معتمد)</span>' : ''}`}
+                    </div>
                   </td>
-                  <td style="padding: 10px 14px; text-align: center;">-</td>
-                  <td style="padding: 10px 14px; text-align: center;">-</td>
-                  <td style="padding: 10px 14px; text-align: left; font-weight: 800; color: #b91c1c;">- ${discount.toFixed(2)} ريال</td>
+                  <td style="padding: 14px; text-align: center; color: #475569;">${isCancelled ? '0 ريال' : `${effectiveNightlyRate.toLocaleString()} ريال`}</td>
+                  <td style="padding: 14px; text-align: center; font-weight: 700; color: #475569;">${isMonthly ? 'شهر' : invoiceDurationText}</td>
+                  <td style="padding: 14px; text-align: left; font-weight: 800; color: #1e1b4b;">${(isCancelled ? 0 : shownSubtotal).toLocaleString()} ريال</td>
                 </tr>
-              ` : ''}
-              ${lateFee > 0 && !isCancelled ? `
-                <tr style="border-bottom: 1px solid #e2e8f0; background: #fff7ed;">
-                  <td style="padding: 10px 14px;"><strong style="color: #9a3412;">مبلغ إضافي لتأخير المغادرة</strong><div style="font-size: 0.75rem; color: #9a3412;">تم اعتماده يدويًا عند التسوية</div></td>
-                  <td style="padding: 10px 14px; text-align: center;">-</td>
-                  <td style="padding: 10px 14px; text-align: center;">-</td>
-                  <td style="padding: 10px 14px; text-align: left; font-weight: 800; color: #9a3412; white-space: nowrap;">+ ${lateFee.toFixed(2)} ريال</td>
-                </tr>
-              ` : ''}
-              ${hasCancellationAdjustment ? `
-                <tr style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
-                  <td style="padding: 10px 14px;">
-                    <strong style="color: #4338ca;">تعديل إداري معتمد لمبلغ الإلغاء</strong>
-                    <div style="font-size: 0.75rem; color: #64748b;">الحساب التلقائي الأصلي قبل التعديل: ${parseFloat(inv.original_calculated_charge).toLocaleString()} ريال</div>
-                  </td>
-                  <td style="padding: 10px 14px; text-align: center;">-</td>
-                  <td style="padding: 10px 14px; text-align: center;">-</td>
-                  <td style="padding: 10px 14px; text-align: left; font-weight: 800; color: #4338ca;">${parseFloat(inv.total_price || 0).toLocaleString()} ريال</td>
-                </tr>
-              ` : ''}
-              ${deposit > 0 ? `
-                <tr style="border-bottom: 1px solid #e2e8f0; background: #fdf4ff;">
-                  <td style="padding: 10px 14px;">
-                    <strong>رصيد التأمين المسجل (Deposit Balance)</strong>
-                    <div style="font-size: 0.75rem; color: #64748b;">${legacyDeposit ? 'قيمة تاريخية بلا سند حركة، وتحتاج مراجعة قبل ردها' : 'مبلغ محفوظ للتأمين ويتطلب تسوية عند المغادرة'}</div>
-                  </td>
-                  <td style="padding: 10px 14px; text-align: center;">-</td>
-                  <td style="padding: 10px 14px; text-align: center;">-</td>
-                  <td style="padding: 10px 14px; text-align: left; font-weight: 700; color: #701a75;">${deposit.toLocaleString()} ريال</td>
-                </tr>
-              ` : ''}
-            </tbody>
-          </table>
+                ${discount > 0 && !isCancelled ? `
+                  <tr style="background: #fff1f2; border-bottom: 1px solid #ffe4e6;">
+                    <td style="padding: 12px 14px;">
+                      <div style="font-weight: 700; color: #dc2626;">خصم وتخفيض معتمد${discountReasonText}</div>
+                      <div style="font-size: 0.75rem; color: #ef4444; margin-top: 2px;">تخفيض ممنوح على إجمالي قيمة الإقامة</div>
+                    </td>
+                    <td style="padding: 12px 14px; text-align: center; color: #ef4444;">-</td>
+                    <td style="padding: 12px 14px; text-align: center; color: #ef4444;">-</td>
+                    <td style="padding: 12px 14px; text-align: left; font-weight: 800; color: #dc2626;" dir="ltr">- ${discount.toFixed(2)} ريال</td>
+                  </tr>
+                ` : ''}
+                ${lateFee > 0 && !isCancelled ? `
+                  <tr style="background: #fff7ed; border-bottom: 1px solid #ffedd5;">
+                    <td style="padding: 12px 14px;">
+                      <div style="font-weight: 700; color: #c2410c;">مبلغ إضافي لتأخير المغادرة</div>
+                      <div style="font-size: 0.75rem; color: #ea580c; margin-top: 2px;">تم اعتماده يدويًا عند التسوية</div>
+                    </td>
+                    <td style="padding: 12px 14px; text-align: center; color: #ea580c;">-</td>
+                    <td style="padding: 12px 14px; text-align: center; color: #ea580c;">-</td>
+                    <td style="padding: 12px 14px; text-align: left; font-weight: 800; color: #c2410c; white-space: nowrap;">+ ${lateFee.toFixed(2)} ريال</td>
+                  </tr>
+                ` : ''}
+                ${hasCancellationAdjustment ? `
+                  <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 12px 14px;">
+                      <div style="font-weight: 700; color: #4338ca;">تعديل إداري معتمد لمبلغ الإلغاء</div>
+                      <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">الحساب التلقائي الأصلي قبل التعديل: ${parseFloat(inv.original_calculated_charge).toLocaleString()} ريال</div>
+                    </td>
+                    <td style="padding: 12px 14px; text-align: center;">-</td>
+                    <td style="padding: 12px 14px; text-align: center;">-</td>
+                    <td style="padding: 12px 14px; text-align: left; font-weight: 800; color: #4338ca;">${parseFloat(inv.total_price || 0).toLocaleString()} ريال</td>
+                  </tr>
+                ` : ''}
+                ${deposit > 0 ? `
+                  <tr style="background: #fdf4ff; border-bottom: 1px solid #fae8ff;">
+                    <td style="padding: 12px 14px;">
+                      <div style="font-weight: 700; color: #701a75;">رصيد التأمين المسجل (Deposit Balance)</div>
+                      <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">${legacyDeposit ? 'قيمة تاريخية بلا سند حركة، وتحتاج مراجعة قبل ردها' : 'مبلغ محفوظ للتأمين ويتطلب تسوية عند المغادرة'}</div>
+                    </td>
+                    <td style="padding: 12px 14px; text-align: center;">-</td>
+                    <td style="padding: 12px 14px; text-align: center;">-</td>
+                    <td style="padding: 12px 14px; text-align: left; font-weight: 700; color: #701a75;">${deposit.toLocaleString()} ريال</td>
+                  </tr>
+                ` : ''}
+              </tbody>
+            </table>
+          </div>
 
-          <!-- Financial Breakdown & Totals -->
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px;">
-            <div style="max-width: 340px; font-size: 0.82rem; color: #64748b; line-height: 1.6;">
-              <div style="font-weight: 700; color: #334155; margin-bottom: 4px;">طريقة السداد: ${escapeHtml(inv.payment_method || 'نقداً')}</div>
-              <div>* يعتبر هذا المستند سند استلام رسمي ومعتمد.</div>
-            </div>
-
-            <div style="width: 280px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; font-size: 0.88rem;">
+          <!-- Footer Section: Totals and Signatures -->
+          <div style="display: flex; flex-direction: row-reverse; justify-content: space-between; align-items: flex-start; gap: 32px; margin-top: 28px;">
+            <!-- Totals Block -->
+            <div style="width: 290px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; flex-shrink: 0; font-size: 0.88rem;">
               ${discount > 0 && !isCancelled ? `
-                <div style="display: flex; justify-content: space-between; margin-bottom: 6px; color: #64748b; font-size: 0.85rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; color: #64748b; margin-bottom: 8px;">
                   <span>المجموع قبل الخصم:</span>
-                  <span>${(total + discount).toFixed(2)} ريال</span>
+                  <span dir="ltr">${(total + discount).toFixed(2)} ريال</span>
                 </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 6px; color: #b91c1c; font-size: 0.85rem; font-weight: 700;">
+                <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 700; color: #dc2626; margin-bottom: 8px;">
                   <span>الخصم المعتمد:</span>
-                  <span>- ${discount.toFixed(2)} ريال</span>
+                  <span dir="ltr">- ${discount.toFixed(2)} ريال</span>
                 </div>
               ` : ''}
-              <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: 800; font-size: 1rem; color: #1e1b4b;">
+              <div style="border-top: 1px solid #e2e8f0; padding-top: 8px; display: flex; justify-content: space-between; align-items: center; font-weight: 800; font-size: 1rem; color: #1e293b; margin-bottom: 8px;">
                 <span>الإجمالي الصافي:</span>
-                <span>${total.toFixed(2)} ريال</span>
+                <span dir="ltr">${total.toFixed(2)} ريال</span>
               </div>
               ${(originalCollected > paid && refundedTotal > 0) ? `
-                <div style="display: flex; justify-content: space-between; margin-bottom: 6px; color: #64748b; font-size: 0.85rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; color: #64748b; margin-bottom: 6px; font-size: 0.85rem;">
                   <span>المبلغ المسدد أصلاً:</span>
-                  <span>${originalCollected.toFixed(2)} ريال</span>
+                  <span dir="ltr">${originalCollected.toFixed(2)} ريال</span>
                 </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 6px; color: #1d4ed8; font-size: 0.85rem; font-weight: 700;">
+                <div style="display: flex; justify-content: space-between; align-items: center; color: #1d4ed8; margin-bottom: 6px; font-size: 0.85rem; font-weight: 700;">
                   <span>المبلغ المسترد:</span>
-                  <span>- ${refundedTotal.toFixed(2)} ريال</span>
+                  <span dir="ltr">- ${refundedTotal.toFixed(2)} ريال</span>
                 </div>
               ` : (refundedTotal > 0 ? `
-                <div style="display: flex; justify-content: space-between; margin-bottom: 8px; color: #1d4ed8; font-weight: 700;">
+                <div style="display: flex; justify-content: space-between; align-items: center; color: #1d4ed8; font-weight: 700; margin-bottom: 8px;">
                   <span>المبلغ المسترد:</span>
-                  <span>- ${refundedTotal.toFixed(2)} ريال</span>
+                  <span dir="ltr">- ${refundedTotal.toFixed(2)} ريال</span>
                 </div>
               ` : '')}
-              <div style="display: flex; justify-content: space-between; margin-bottom: 8px; color: #059669; font-weight: 700;">
+              <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 700; color: #059669; margin-bottom: 8px;">
                 <span>${refundedTotal > 0 ? 'صافي المدفوع:' : 'المبلغ المدفوع:'}</span>
-                <span>${paid.toFixed(2)} ريال</span>
+                <span dir="ltr">${paid.toFixed(2)} ريال</span>
               </div>
-              <div style="display: flex; justify-content: space-between; padding-top: 6px; border-top: 1px dashed #cbd5e1; font-weight: 800; color: ${isCancelled ? '#059669' : (isCredit ? '#1d4ed8' : (remaining > 0 ? '#dc2626' : '#059669'))}; ${isCredit ? 'background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 6px 10px; margin-top: 6px;' : ''}">
+              <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px dashed #cbd5e1; font-weight: 800; color: ${isCancelled ? '#059669' : (isCredit ? '#1d4ed8' : (remaining > 0 ? '#dc2626' : '#059669'))}; ${isCredit ? 'background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 6px 10px; margin-top: 6px;' : ''}">
                 <span>${isCancelled ? 'المبلغ المتبقي:' : (isCredit ? 'رصيد دائن للنزيل (مستحق له):' : 'المبلغ المتبقي:')}</span>
-                <span>${isCancelled ? '0.00 ريال' : (isCredit ? `${Math.abs(rawRemaining).toFixed(2)} ريال` : `${remaining.toFixed(2)} ريال`)}</span>
+                <span dir="ltr">${isCancelled ? '0.00 ريال' : (isCredit ? `${Math.abs(rawRemaining).toFixed(2)} ريال` : `${remaining.toFixed(2)} ريال`)}</span>
               </div>
             </div>
+
+            <!-- Stamps & Signatures (for monthly bookings) -->
+            ${isMonthly ? `
+            <div style="flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: flex-end; text-align: center;">
+              <!-- Stamp -->
+              <div>
+                <p style="font-weight: 700; color: #334155; margin-bottom: 12px; font-size: 0.9rem;">ختم المؤسسة</p>
+                <div style="width: 90px; height: 90px; border: 2px dashed #818cf8; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto; background: rgba(238, 242, 255, 0.5); position: relative;">
+                  <img src="assets/seal.png" style="max-height: 80px; max-width: 80px; object-fit: contain;" alt="الختم" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                  <div style="display: none; color: #6366f1; font-weight: 800; font-size: 0.75rem; text-align: center; line-height: 1.3;">ختم رسمي معتمد</div>
+                </div>
+                <p style="font-size: 0.72rem; color: #94a3b8; margin-top: 6px;">الرقم الموحد: 703895515</p>
+              </div>
+
+              <!-- Issuer Signature -->
+              <div>
+                <p style="font-weight: 700; color: #334155; margin-bottom: 12px; font-size: 0.9rem;">توقيع الموظف</p>
+                <div style="width: 120px; height: 50px; border-bottom: 1px solid #94a3b8; margin: 0 auto; position: relative; display: flex; align-items: flex-end; justify-content: center;">
+                  <img src="assets/signature.png" style="max-height: 46px; object-fit: contain;" alt="التوقيع" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                  <svg style="display: none; width: 100%; height: 35px; color: #1e40af; opacity: 0.75;" viewBox="0 0 100 30" preserveAspectRatio="none">
+                    <path fill="none" stroke="currentColor" stroke-width="1.8" d="M10,20 Q30,5 50,20 T90,10"></path>
+                  </svg>
+                </div>
+              </div>
+
+              <!-- Receiver Signature -->
+              <div>
+                <p style="font-weight: 700; color: #334155; margin-bottom: 12px; font-size: 0.9rem;">توقيع المستلم</p>
+                <div style="width: 120px; height: 50px; border-bottom: 1px dashed #94a3b8; margin: 0 auto;"></div>
+              </div>
+            </div>
+            ` : `
+            <!-- Non-monthly standard note / signature placeholder -->
+            <div style="flex: 1; display: flex; align-items: flex-end; justify-content: flex-start; padding-bottom: 8px;">
+              <div style="color: #64748b; font-size: 0.82rem; line-height: 1.6;">
+                <div>* يعتبر هذا المستند فاتورة وسند استلام رسمي ومعتمد.</div>
+                <div>* نتمنى لكم إقامة سعيدة ومريحة.</div>
+              </div>
+            </div>
+            `}
           </div>
+
+          <!-- Payment Method & Notice -->
+          <div style="margin-top: 24px; padding-top: 14px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+            <div>
+              <span style="font-weight: 700; color: #1e293b;">طريقة السداد:</span>
+              <span style="color: #475569; margin-right: 4px;">${escapeHtml(inv.payment_method || 'نقداً')}</span>
+            </div>
+            <div style="font-size: 0.78rem; color: #64748b;">
+              * يعتبر هذا المستند سند استلام رسمي ومعتمد
+            </div>
+          </div>
+
           ${invoiceDepositMovements.length ? `
-            <div style="margin-top:18px; padding-top:12px; border-top:1px solid #ddd6fe;">
-              <h4 style="font-size:.9rem; font-weight:800; color:#5b21b6; margin-bottom:8px;">سجل حركات التأمين</h4>
-              <table style="width:100%; border-collapse:collapse; font-size:.78rem;">
-                <thead><tr style="background:#f5f3ff;"><th style="padding:6px; text-align:right;">التاريخ</th><th style="padding:6px; text-align:center;">الحركة</th><th style="padding:6px; text-align:center;">المبلغ</th><th style="padding:6px; text-align:center;">الطريقة</th><th style="padding:6px; text-align:right;">السبب / الموظف</th></tr></thead>
+            <div style="margin-top: 24px; padding-top: 14px; border-top: 1px solid #ddd6fe;">
+              <h4 style="font-size: 0.9rem; font-weight: 800; color: #5b21b6; margin-bottom: 8px;">سجل حركات التأمين</h4>
+              <table style="width: 100%; border-collapse: collapse; font-size: 0.78rem;">
+                <thead><tr style="background: #f5f3ff;"><th style="padding: 6px; text-align: right;">التاريخ</th><th style="padding: 6px; text-align: center;">الحركة</th><th style="padding: 6px; text-align: center;">المبلغ</th><th style="padding: 6px; text-align: center;">الطريقة</th><th style="padding: 6px; text-align: right;">السبب / الموظف</th></tr></thead>
                 <tbody>${invoiceDepositMovements.map(m => {
                   const labels = { collected: 'استلام', reconciled: 'مطابقة رصيد قديم', refunded: 'رد', applied: 'تسوية على الإقامة', retained: 'احتفاظ' };
-                  return `<tr style="border-bottom:1px solid #ede9fe;"><td style="padding:6px;">${escapeHtml(String(m.movement_date || '').slice(0, 16))}</td><td style="padding:6px; text-align:center;">${labels[m.movement_type] || escapeHtml(m.movement_type)}</td><td style="padding:6px; text-align:center;">${Number(m.amount || 0).toLocaleString()} ريال</td><td style="padding:6px; text-align:center;">${escapeHtml(m.payment_method || 'نقداً')}</td><td style="padding:6px;">${escapeHtml(m.reason || '')}${m.staff_username ? ` - ${escapeHtml(m.staff_username)}` : ''}</td></tr>`;
+                  return `<tr style="border-bottom: 1px solid #ede9fe;"><td style="padding: 6px;">${escapeHtml(String(m.movement_date || '').slice(0, 16))}</td><td style="padding: 6px; text-align: center;">${labels[m.movement_type] || escapeHtml(m.movement_type)}</td><td style="padding: 6px; text-align: center;">${Number(m.amount || 0).toLocaleString()} ريال</td><td style="padding: 6px; text-align: center;">${escapeHtml(m.payment_method || 'نقداً')}</td><td style="padding: 6px;">${escapeHtml(m.reason || '')}${m.staff_username ? ` - ${escapeHtml(m.staff_username)}` : ''}</td></tr>`;
                 }).join('')}</tbody>
               </table>
             </div>
