@@ -475,8 +475,8 @@ function createReservation({
     if (paid > 0) {
       receiptNumber = generateReceiptNumber(newReservationId);
       const payStmt = db.prepare(`
-        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
-        VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, 'دفعة الحجز المبدئية عند تسجيل الوصول')
+        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes)
+        VALUES (?, ?, ?, ?, 'advance_payment', datetime('now', 'localtime'), ?, 'دفعة الحجز المبدئية عند تسجيل الوصول')
       `);
       payStmt.run([
         receiptNumber,
@@ -901,7 +901,7 @@ function checkoutReservation(reservationId, {
       if (openAddPay > 0) {
         openNewPaid = roundMoney(currentPaid + openAddPay);
         openReceiptNumber = generateReceiptNumber(targetId);
-        const ps = db.prepare(`INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes) VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)`);
+        const ps = db.prepare(`INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes) VALUES (?, ?, ?, ?, 'checkout_settlement', datetime('now', 'localtime'), ?, ?)`);
         ps.run([openReceiptNumber, targetId, openAddPay, paymentMethod || 'نقداً', userId ? parseInt(userId, 10) : null, notes || 'سداد تصفية حساب مغادرة']);
         ps.free();
       }
@@ -923,7 +923,7 @@ function checkoutReservation(reservationId, {
         openNewPaid = roundMoney(openNewPaid + openDepositApplied);
         recordDepositMovement({ reservationId: targetId, type: 'applied', amount: openDepositApplied, paymentMethod: depositRefundMethod, userId, reason: `تسوية من التأمين على الإقامة #${targetId}` });
         const applyReceipt = generateReceiptNumber(targetId);
-        const applyStmt = db.prepare(`INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes) VALUES (?, ?, ?, 'من التأمين', datetime('now', 'localtime'), ?, ?)`);
+        const applyStmt = db.prepare(`INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes) VALUES (?, ?, ?, 'من التأمين', 'deposit_applied', datetime('now', 'localtime'), ?, ?)`);
         applyStmt.run([applyReceipt, targetId, openDepositApplied, userId ? parseInt(userId, 10) : null, `تسوية من التأمين #${targetId}`]);
         applyStmt.free();
       }
@@ -968,7 +968,7 @@ function checkoutReservation(reservationId, {
           );
         }
         openRefundReceiptNumber = generateReceiptNumber(targetId);
-        const refundStmt = db.prepare(`INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes) VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)`);
+        const refundStmt = db.prepare(`INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes) VALUES (?, ?, ?, ?, 'refund', datetime('now', 'localtime'), ?, ?)`);
         refundStmt.run([openRefundReceiptNumber, targetId, -openRawRefund, paymentMethod || 'نقداً', userId ? parseInt(userId, 10) : null, `استرداد - تسوية مغادرة #${targetId}`]);
         refundStmt.free();
         openNewPaid = roundMoney(openNewPaid - openRawRefund);
@@ -1220,8 +1220,8 @@ function checkoutReservation(reservationId, {
       });
       const applyReceipt = generateReceiptNumber(targetId);
       const applyStmt = db.prepare(`
-        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
-        VALUES (?, ?, ?, 'من التأمين', datetime('now', 'localtime'), ?, ?)
+        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes)
+        VALUES (?, ?, ?, 'من التأمين', 'deposit_applied', datetime('now', 'localtime'), ?, ?)
       `);
       applyStmt.run([applyReceipt, targetId, depositApplied, actingUser, `تسوية من التأمين #${targetId}`]);
       applyStmt.free();
@@ -1255,11 +1255,18 @@ function checkoutReservation(reservationId, {
       }
       newPaid = roundMoney(adjustedCurrentPaid + rawCollect);
       collectionReceiptNumber = generateReceiptNumber(targetId);
+      // A receipt can only have one purpose label. Mark it as a late-fee payment
+      // only when accommodation was already fully settled before this collection.
+      // Mixed accommodation/fee collections stay checkout_settlement to avoid
+      // misreporting the whole receipt as a late fee.
+      const collectionType = normalizedLateCheckoutFee > 0 && adjustedCurrentPaid >= accommodationNetTotal - 0.005
+        ? 'late_checkout_fee'
+        : 'checkout_settlement';
       const ps = db.prepare(`
-        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
-        VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
+        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes)
+        VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
       `);
-      ps.run([collectionReceiptNumber, targetId, rawCollect, effMethod, actingUser,
+      ps.run([collectionReceiptNumber, targetId, rawCollect, effMethod, collectionType, actingUser,
         normalizedLateCheckoutFee > 0
           ? `تحصيل عند المغادرة #${targetId} (يشمل مبلغ تأخير ${normalizedLateCheckoutFee} ريال)`
           : `تحصيل عند المغادرة #${targetId}`]);
@@ -1304,8 +1311,8 @@ function checkoutReservation(reservationId, {
       }
       refundReceiptNumber = generateReceiptNumber(targetId);
       const ps = db.prepare(`
-        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
-        VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
+        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes)
+        VALUES (?, ?, ?, ?, 'refund', datetime('now', 'localtime'), ?, ?)
       `);
       ps.run([refundReceiptNumber, targetId, -rawRefund, effMethod, actingUser,
         `استرداد - تسوية مغادرة #${targetId}`]);
@@ -1521,8 +1528,8 @@ function extendReservation({
       newPaid = roundMoney(currentPaid + payAmount);
       receiptNumber = generateReceiptNumber(targetId);
       const payStmt = db.prepare(`
-        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
-        VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
+        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes)
+        VALUES (?, ?, ?, ?, 'extension_payment', datetime('now', 'localtime'), ?, ?)
       `);
       payStmt.run([
         receiptNumber,
@@ -1659,8 +1666,8 @@ function cancelReservation(reservationId, actualDepartureDate = null, manualOver
           ? 'استرداد كامل - إلغاء قبل الوصول #' + targetId
           : 'استرداد كامل - إبطال الحجز المباشر #' + targetId;
         const refundStmt = db.prepare(`
-          INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
-          VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
+          INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes)
+          VALUES (?, ?, ?, ?, 'refund', datetime('now', 'localtime'), ?, ?)
         `);
         refundStmt.run([
           refundReceiptNumber,
@@ -1740,8 +1747,8 @@ function cancelReservation(reservationId, actualDepartureDate = null, manualOver
       if (refundDue > 0) {
         const refundReceiptNumber = generateReceiptNumber(targetId);
         const refundStmt = db.prepare(`
-          INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
-          VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
+          INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes)
+          VALUES (?, ?, ?, ?, 'refund', datetime('now', 'localtime'), ?, ?)
         `);
         refundStmt.run([
           refundReceiptNumber,
@@ -1875,8 +1882,8 @@ function addPaymentToReservation({ reservationId, amount, paymentMethod = 'نق�
 
     // 1. Insert entry into payments ledger table
     const payStmt = db.prepare(`
-      INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
-      VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
+      INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes)
+      VALUES (?, ?, ?, ?, 'balance_payment', datetime('now', 'localtime'), ?, ?)
     `);
     payStmt.run([
       receiptNumber,
@@ -1936,6 +1943,7 @@ function getReservationPayments(reservationId) {
       p.reservation_id,
       p.amount,
       p.payment_method,
+      p.payment_type,
       p.payment_date,
       p.notes,
       p.user_id,
@@ -1973,6 +1981,7 @@ function getPaymentReceipt(receiptIdentifier) {
       p.reservation_id,
       p.amount,
       p.payment_method,
+      p.payment_type,
       p.payment_date,
       p.notes,
       r.total_price,
@@ -2196,8 +2205,8 @@ function updateReservationReceipt({
     } else if (paid > 0) {
       const receiptNumber = generateReceiptNumber(targetId);
       const insertPayStmt = db.prepare(`
-        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
-        VALUES (?, ?, ?, ?, datetime('now', 'localtime'), NULL, 'دفعة الحجز عند تعديل السند')
+        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes)
+        VALUES (?, ?, ?, ?, 'advance_payment', datetime('now', 'localtime'), NULL, 'دفعة الحجز عند تعديل السند')
       `);
       insertPayStmt.run([receiptNumber, targetId, paid, method]);
       insertPayStmt.free();

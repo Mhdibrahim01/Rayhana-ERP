@@ -1902,6 +1902,269 @@ tr:hover td {
   border: 1px solid var(--primary-forest);
 }
 
+.rooms-filters-card {
+  margin-bottom: 22px;
+  padding: 20px;
+  border: 1px solid rgba(206, 222, 217, 0.9);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.07);
+}
+
+.rooms-filters-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.rooms-filters-header h2 {
+  color: var(--text-primary);
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.rooms-filters-header p {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+}
+
+.rooms-filter-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.rooms-filter-result {
+  padding: 7px 11px;
+  border-radius: 999px;
+  color: #367565;
+  background: #e9f7f1;
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.rooms-filter-result[hidden] {
+  display: none;
+}
+
+.rooms-clear-filters {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 6px;
+  border: 0;
+  border-radius: 9px;
+  color: #687f79;
+  background: transparent;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.rooms-clear-filters.visible {
+  display: inline-flex;
+}
+
+.rooms-clear-filters:hover {
+  color: var(--primary-forest);
+  background: #e9f7f1;
+}
+
+.rooms-active-filter-count {
+  display: grid;
+  width: 23px;
+  height: 23px;
+  place-items: center;
+  border-radius: 7px;
+  color: #ffffff;
+  background: var(--primary-forest);
+  font-size: 0.75rem;
+}
+
+.rooms-filters-card .filter-tabs-bar {
+  gap: 4px;
+  padding: 5px;
+  border-color: #dce8e4;
+  border-radius: 12px;
+  box-shadow: 0 2px 7px rgba(24, 78, 64, 0.08);
+}
+
+.rooms-filters-card .filter-tab-btn {
+  min-height: 40px;
+  padding: 8px 13px;
+  border: 0;
+  border-radius: 8px;
+  color: #647b76;
+  font-size: 0.84rem;
+  white-space: nowrap;
+}
+
+.rooms-filters-card .filter-tab-btn:hover:not(.active) {
+  color: var(--primary-forest);
+  background: #f3f8f6;
+}
+
+.rooms-filters-card .filter-tab-btn.active {
+  color: #ffffff;
+  background: var(--primary-forest);
+  box-shadow: 0 3px 7px rgba(22, 79, 64, 0.2);
+}
+
+.rooms-primary-filter {
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+.rooms-primary-filter .filter-tab-btn {
+  flex: 1 1 0;
+}
+
+.rooms-secondary-filters {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(360px, 1.25fr) minmax(420px, 1.5fr);
+  gap: 12px;
+}
+
+.rooms-filter-search {
+  display: flex;
+  min-width: 0;
+  min-height: 52px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 13px;
+  border: 1px solid #ceded9;
+  border-radius: 12px;
+  color: #849792;
+  background: #ffffff;
+}
+
+.rooms-filter-search:focus-within {
+  border-color: #5b9888;
+  box-shadow: 0 0 0 3px rgba(40, 132, 106, 0.12);
+}
+
+.rooms-filter-search svg {
+  width: 19px;
+  height: 19px;
+  flex: none;
+}
+
+.rooms-filter-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: var(--text-primary);
+  background: transparent;
+  font: inherit;
+}
+
+.rooms-filter-search input::placeholder {
+  color: #93a5a1;
+}
+
+.rooms-filter-block {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 5px 9px 5px 5px;
+  border: 1px solid #dce8e4;
+  border-radius: 12px;
+  background: #f8fbfa;
+}
+
+.rooms-filter-label {
+  color: #5d746f;
+  font-size: 0.84rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.rooms-filters-card .rooms-secondary-tabs {
+  min-width: 0;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.rooms-filters-card .rooms-secondary-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.rooms-filters-card .rooms-secondary-tabs .filter-tab-btn {
+  min-height: 38px;
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 1260px) {
+  .rooms-secondary-filters {
+    grid-template-columns: minmax(220px, 0.72fr) minmax(0, 1.28fr);
+  }
+
+  .rooms-payment-filter-panel {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .rooms-filters-card {
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  .rooms-filters-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .rooms-filter-header-actions {
+    order: 3;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .rooms-secondary-filters {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .rooms-filter-block {
+    display: block;
+    padding: 10px;
+  }
+
+  .rooms-filter-label {
+    display: block;
+    margin: 0 4px 7px;
+  }
+
+  .rooms-primary-filter {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .rooms-primary-filter::-webkit-scrollbar {
+    display: none;
+  }
+
+  .rooms-primary-filter .filter-tab-btn {
+    flex: 0 0 auto;
+  }
+}
+
 /* ==========================================================================
    Room Cards Grid (Light White Frosted Glass Cards)
    ========================================================================== */

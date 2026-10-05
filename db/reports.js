@@ -143,6 +143,7 @@ function getShiftAuditReport(startDate, endDate) {
       p.reservation_id,
       p.amount,
       p.payment_method,
+      p.payment_type,
       p.payment_date,
       p.notes,
       r.id AS res_id,
@@ -163,6 +164,9 @@ function getShiftAuditReport(startDate, endDate) {
 
   let totalRevenue = 0;
   let cashTotal = 0;
+  let cashCollected = 0;
+  let cashRefunded = 0;
+  let lateCheckoutFeesCollected = 0;
   let cardTotal = 0;
   let transferTotal = 0;
 
@@ -172,6 +176,8 @@ function getShiftAuditReport(startDate, endDate) {
 
     if (p.payment_method === 'نقداً') {
       cashTotal += amt;
+      if (amt > 0) cashCollected += amt;
+      else if (amt < 0) cashRefunded += Math.abs(amt);
     } else if (p.payment_method === 'بطاقة / مدى' || p.payment_method === 'شبكة / مدى') {
       cardTotal += amt;
     } else if (p.payment_method === 'تحويل بنكي') {
@@ -183,6 +189,11 @@ function getShiftAuditReport(startDate, endDate) {
 
   totalRevenue = roundMoney(totalRevenue);
   cashTotal = roundMoney(cashTotal);
+  cashCollected = roundMoney(cashCollected);
+  cashRefunded = roundMoney(cashRefunded);
+  lateCheckoutFeesCollected = roundMoney(paymentsInRange
+    .filter(p => p.payment_type === 'late_checkout_fee' && Number(p.amount) > 0)
+    .reduce((total, p) => total + Number(p.amount || 0), 0));
   cardTotal = roundMoney(cardTotal);
   transferTotal = roundMoney(transferTotal);
 
@@ -336,6 +347,9 @@ function getShiftAuditReport(startDate, endDate) {
     financials: {
       totalRevenue,
       cashTotal,
+      cashCollected,
+      cashRefunded,
+      lateCheckoutFeesCollected,
       cardTotal,
       transferTotal,
       depositTotal: roundMoney(depositActivity.collected - depositActivity.refunded),

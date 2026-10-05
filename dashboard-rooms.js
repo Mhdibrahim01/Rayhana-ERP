@@ -43,6 +43,27 @@
     return role === 'Admin';
   }
 
+  function setActiveRoomFilterButton(buttons, selectedButton) {
+    buttons.forEach(button => {
+      const isSelected = button === selectedButton;
+      button.classList.toggle('active', isSelected);
+      button.setAttribute('aria-pressed', String(isSelected));
+    });
+  }
+
+  function updateRoomFilterSummary() {
+    const activeCount = [
+      currentRoomFilter !== 'all',
+      currentRoomBookingType !== 'all',
+      currentRoomPaymentFilter !== 'all',
+      currentRoomSearch.trim() !== ''
+    ].filter(Boolean).length;
+
+    if (App.DOM.roomsFilterResult) App.DOM.roomsFilterResult.hidden = activeCount > 0;
+    if (App.DOM.roomsActiveFilterCount) App.DOM.roomsActiveFilterCount.textContent = String(activeCount);
+    if (App.DOM.roomsClearFiltersButton) App.DOM.roomsClearFiltersButton.classList.toggle('visible', activeCount > 0);
+  }
+
   function renderRoomsGrid() {
     const searchTerm = currentRoomSearch.trim().toLowerCase();
     const today = App.Helpers.getLocalDateString();
@@ -58,10 +79,6 @@
         futureReservationByRoom.set(reservation.room_id, reservation);
       }
     });
-
-    if (App.DOM.roomsPaymentFilterContainer) {
-      App.DOM.roomsPaymentFilterContainer.style.display = currentRoomFilter === 'مشغولة' ? 'flex' : 'none';
-    }
 
     const filtered = App.State.roomsCache.filter(room => {
       // 1. Status tab filter (unchanged behaviour)
@@ -82,15 +99,20 @@
       }
 
       if (currentRoomPaymentFilter !== 'all') {
-        const currentGuestReservation = room.status === 'مشغولة' ? (room.active_reservations || [])[0] : null;
-        const paymentStatus = currentGuestReservation?.payment_status === 'مكتمل'
+        const currentGuestReservation = room.status === 'مشغولة'
+          ? (room.active_reservations || [])[0]
+          : (room.status === 'محجوزة' ? futureReservationByRoom.get(room.id) : null);
+        if (!currentGuestReservation) return false;
+        const paymentStatus = currentGuestReservation.payment_status === 'مكتمل'
           ? 'مدفوع بالكامل'
-          : (currentGuestReservation?.payment_status || 'غير مدفوع');
+          : (currentGuestReservation.payment_status || 'غير مدفوع');
         if (paymentStatus !== currentRoomPaymentFilter) return false;
       }
 
       return true;
     });
+
+    updateRoomFilterSummary();
 
     if (filtered.length === 0) {
       App.DOM.roomsGridContainer.innerHTML = `
@@ -290,25 +312,33 @@
   App.Helpers.initRooms = function() {
   App.DOM.roomsFilterTabs.forEach(btn => {
     btn.addEventListener('click', () => {
-      App.DOM.roomsFilterTabs.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+      setActiveRoomFilterButton(App.DOM.roomsFilterTabs, btn);
       currentRoomFilter = btn.dataset.roomFilter;
-      if (currentRoomFilter !== 'مشغولة') {
-        currentRoomPaymentFilter = 'all';
-        App.DOM.roomsPaymentFilterTabs.forEach(tab => tab.classList.toggle('active', tab.dataset.roomPaymentStatus === 'all'));
-      }
       renderRoomsGrid();
     });
   });
 
   App.DOM.roomsPaymentFilterTabs.forEach(btn => {
     btn.addEventListener('click', () => {
-      App.DOM.roomsPaymentFilterTabs.forEach(tab => tab.classList.remove('active'));
-      btn.classList.add('active');
+      setActiveRoomFilterButton(App.DOM.roomsPaymentFilterTabs, btn);
       currentRoomPaymentFilter = btn.dataset.roomPaymentStatus;
       renderRoomsGrid();
     });
   });
+
+  if (App.DOM.roomsClearFiltersButton) {
+    App.DOM.roomsClearFiltersButton.addEventListener('click', () => {
+      currentRoomFilter = 'all';
+      currentRoomBookingType = 'all';
+      currentRoomPaymentFilter = 'all';
+      currentRoomSearch = '';
+      if (App.DOM.searchRoomsInput) App.DOM.searchRoomsInput.value = '';
+      setActiveRoomFilterButton(App.DOM.roomsFilterTabs, App.DOM.roomsFilterTabs[0]);
+      setActiveRoomFilterButton(App.DOM.roomsBookingTypeTabs, App.DOM.roomsBookingTypeTabs[0]);
+      setActiveRoomFilterButton(App.DOM.roomsPaymentFilterTabs, App.DOM.roomsPaymentFilterTabs[0]);
+      renderRoomsGrid();
+    });
+  }
 
   window.openRoomsFiltered = function (status) {
     window.switchView('rooms');
@@ -327,8 +357,7 @@
   // Booking-type filter tabs
   App.DOM.roomsBookingTypeTabs.forEach(btn => {
     btn.addEventListener('click', () => {
-      App.DOM.roomsBookingTypeTabs.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+      setActiveRoomFilterButton(App.DOM.roomsBookingTypeTabs, btn);
       currentRoomBookingType = btn.dataset.roomBookingType;
       renderRoomsGrid();
     });

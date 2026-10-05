@@ -568,58 +568,70 @@
              SECTION 3: ROOMS (الغرف الفندقية)
              ================================================================== -->
         <div id="view-rooms" class="view-section" style="display: none;">
-          <!-- Row 1: Status filter tabs + Add button -->
-          <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;">
-            <div class="filter-tabs-bar" id="rooms-filter-tabs">
-              <button class="filter-tab-btn active" data-room-filter="all">جميع الغرف</button>
-              <button class="filter-tab-btn" data-room-filter="متاحة">المتاحة فقط</button>
-              <button class="filter-tab-btn" data-room-filter="محجوزة">المحجوزة (قادمة)</button>
-              <button class="filter-tab-btn" data-room-filter="مشغولة">المشغولة</button>
-              <button class="filter-tab-btn" data-room-filter="تنظيف">قيد التنظيف</button>
+          <section class="rooms-filters-card" aria-labelledby="rooms-filters-heading">
+            <div class="rooms-filters-header">
+              <div>
+                <h2 id="rooms-filters-heading">تصفية الغرف</h2>
+                <p>اختر حالة الغرفة أو نوع الإقامة أو حالة الدفع</p>
+              </div>
+              <div class="rooms-filter-header-actions">
+                <span id="rooms-filter-result" class="rooms-filter-result">عرض جميع النتائج</span>
+                <!-- Adding a room is Admin-only in the main process (ipc/rooms.js), so hide the
+                     button from other roles. applyRbacUi hides .admin-only on login. -->
+                <button id="btn-toggle-add-room" class="btn btn-primary btn-sm admin-only">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  <span>إضافة غرفة جديدة</span>
+                </button>
+              </div>
+              <button id="rooms-clear-filters" class="rooms-clear-filters" type="button" aria-label="مسح الفلاتر المحددة">
+                مسح الفلاتر
+                <span id="rooms-active-filter-count" class="rooms-active-filter-count">0</span>
+              </button>
             </div>
 
-            <!-- Adding a room is Admin-only in the main process (ipc/rooms.js), so hide the
-                 button from other roles. applyRbacUi hides .admin-only on login. -->
-            <button id="btn-toggle-add-room" class="btn btn-primary btn-sm admin-only">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-              <span>إضافة غرفة جديدة</span>
-            </button>
-          </div>
+            <div class="filter-tabs-bar rooms-primary-filter" id="rooms-filter-tabs" role="group" aria-label="حالة الغرفة">
+              <button type="button" class="filter-tab-btn active" data-room-filter="all" aria-pressed="true">جميع الغرف</button>
+              <button type="button" class="filter-tab-btn" data-room-filter="متاحة" aria-pressed="false">المتاحة فقط</button>
+              <button type="button" class="filter-tab-btn" data-room-filter="محجوزة" aria-pressed="false">المحجوزة (قادمة)</button>
+              <button type="button" class="filter-tab-btn" data-room-filter="مشغولة" aria-pressed="false">المشغولة</button>
+              <button type="button" class="filter-tab-btn" data-room-filter="تنظيف" aria-pressed="false">قيد التنظيف</button>
+            </div>
 
-          <!-- Row 2: Search box + Booking-type filter -->
-          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
-            <div class="search-box" style="flex: 1; min-width: 200px;">
-              <span class="search-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            <div class="rooms-secondary-filters">
+              <label class="rooms-filter-search">
+                <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+                  <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"></circle>
+                  <path d="m16.3 16.3 4.2 4.2" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"></path>
                 </svg>
-              </span>
-              <input type="text" id="search-rooms" placeholder="بحث برقم الغرفة أو النوع...">
-            </div>
+                <input type="search" id="search-rooms" aria-label="البحث عن غرفة" placeholder="بحث برقم الغرفة أو النوع...">
+              </label>
 
-            <div class="filter-tabs-bar" id="rooms-booking-type-tabs">
-              <button class="filter-tab-btn active" data-room-booking-type="all">الكل</button>
-              <button class="filter-tab-btn" data-room-booking-type="عادي">يومي</button>
-              <button class="filter-tab-btn" data-room-booking-type="استخدام يومي">استخدام يومي</button>
-              <button class="filter-tab-btn" data-room-booking-type="حجز شهري">شهري</button>
-              <button class="filter-tab-btn" data-room-booking-type="عقد مفتوح">عقد مفتوح</button>
-            </div>
-          </div>
+              <div class="rooms-filter-block">
+                <span class="rooms-filter-label">نوع الإقامة</span>
+                <div class="filter-tabs-bar rooms-secondary-tabs" id="rooms-booking-type-tabs" role="group" aria-label="نوع الإقامة">
+                  <button type="button" class="filter-tab-btn active" data-room-booking-type="all" aria-pressed="true">الكل</button>
+                  <button type="button" class="filter-tab-btn" data-room-booking-type="عادي" aria-pressed="false">يومي</button>
+                  <button type="button" class="filter-tab-btn" data-room-booking-type="استخدام يومي" aria-pressed="false">استخدام يومي</button>
+                  <button type="button" class="filter-tab-btn" data-room-booking-type="حجز شهري" aria-pressed="false">شهري</button>
+                  <button type="button" class="filter-tab-btn" data-room-booking-type="عقد مفتوح" aria-pressed="false">عقد مفتوح</button>
+                </div>
+              </div>
 
-          <div id="rooms-payment-filter-container" style="display: none; align-items: center; gap: 10px; margin: -8px 0 18px; flex-wrap: wrap;">
-            <strong style="font-size: 0.82rem; color: var(--text-secondary);">حالة سداد النزيل الحالي:</strong>
-            <div class="filter-tabs-bar" id="rooms-payment-filter-tabs" role="group" aria-label="فلترة الغرف حسب حالة السداد">
-              <button type="button" class="filter-tab-btn active" data-room-payment-status="all">الكل</button>
-              <button type="button" class="filter-tab-btn" data-room-payment-status="غير مدفوع">غير مدفوع</button>
-              <button type="button" class="filter-tab-btn" data-room-payment-status="مدفوع جزئياً">مدفوع جزئياً</button>
-              <button type="button" class="filter-tab-btn" data-room-payment-status="مدفوع بالكامل">مدفوع بالكامل</button>
-              <button type="button" class="filter-tab-btn" data-room-payment-status="رصيد دائن">رصيد دائن</button>
+              <div class="rooms-filter-block rooms-payment-filter-panel" id="rooms-payment-filter-container">
+                <span class="rooms-filter-label">حالة الدفع</span>
+                <div id="rooms-payment-filter-tabs" class="filter-tabs-bar rooms-secondary-tabs" role="group" aria-label="حالة الدفع">
+                  <button type="button" class="filter-tab-btn active" data-room-payment-status="all" aria-pressed="true">الكل</button>
+                  <button type="button" class="filter-tab-btn" data-room-payment-status="غير مدفوع" aria-pressed="false">غير مدفوع</button>
+                  <button type="button" class="filter-tab-btn" data-room-payment-status="مدفوع جزئياً" aria-pressed="false">مدفوع جزئياً</button>
+                  <button type="button" class="filter-tab-btn" data-room-payment-status="مدفوع بالكامل" aria-pressed="false">مدفوع بالكامل</button>
+                  <button type="button" class="filter-tab-btn" data-room-payment-status="رصيد دائن" aria-pressed="false">رصيد دائن</button>
+                </div>
+              </div>
             </div>
-          </div>
+          </section>
 
           <!-- Add Room Collapsible Form -->
           <div id="add-room-panel" class="card" style="display: none; margin-bottom: 24px; border: 2px dashed #c7d2fe;">
