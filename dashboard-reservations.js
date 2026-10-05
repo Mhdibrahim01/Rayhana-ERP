@@ -653,7 +653,13 @@
       if (priceCalculationBreakdown) {
         if (discount > 0) {
           priceCalculationBreakdown.style.display = 'inline';
-          priceCalculationBreakdown.textContent = `(قبل الخصم: ${subtotal.toFixed(2)} - خصم: ${discount.toFixed(2)})`;
+          // The pre-discount package price, derived rather than read from a `subtotal`
+          // local. That local used to live in this branch; moving the maths into
+          // getMonthlyPackageTotal() removed it, and referencing it here threw a
+          // ReferenceError that aborted calculatePrice() before the paid-amount sync
+          // below, leaving "Advance Paid" at the pre-discount total.
+          const packageSubtotal = roundMoney(effectiveRate * MONTHLY_PACKAGE_NIGHTS);
+          priceCalculationBreakdown.textContent = `(قبل الخصم: ${packageSubtotal.toFixed(2)} - خصم: ${discount.toFixed(2)})`;
         } else {
           priceCalculationBreakdown.style.display = 'none';
         }

@@ -135,6 +135,50 @@ test('calendar month: renderer and backend agree on the same month boundary', ()
 });
 
 // ===========================================================================
+// 5. NO UNBOUND IDENTIFIERS IN THE PRICE PATH
+// ===========================================================================
+
+test('calendar month: the price breakdown must not reference an out-of-scope subtotal', () => {
+  const src = fs.readFileSync(
+    path.resolve(__dirname, '..', 'dashboard-reservations.js'), 'utf8');
+
+  // Regression: moving the monthly maths into getMonthlyPackageTotal() deleted the
+  // branch-local `subtotal`, but the breakdown line still referenced it. That threw a
+  // ReferenceError mid-calculatePrice(), AFTER total_price was written and BEFORE the
+  // advance-paid sync, so the form showed the discounted total while "Advance Paid" kept
+  // the pre-discount amount and the balance read 0.00 on a part-paid booking.
+  //
+  // eslint does not catch this (the file is lint-ignored) and no DB test could, because
+  // the whole failure was in the renderer. Assert on the source instead.
+  const monthlyStart = src.indexOf("if (bType === 'حجز شهري') {",
+    src.indexOf('function calculatePrice'));
+  assert.ok(monthlyStart > -1, 'the monthly branch of calculatePrice must exist');
+
+  const monthlyEnd = src.indexOf('// Normal booking', monthlyStart);
+  const monthlyBranch = src.slice(monthlyStart, monthlyEnd);
+
+  // Strip comments first: prose about `subtotal` must not be mistaken for a use of it.
+  const code = monthlyBranch
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n]*/g, '');
+
+  // Every bare `subtotal` used in the branch must be declared inside it. Match the
+  // identifier on its own so `packageSubtotal` (a distinct, correctly-scoped local)
+  // is not counted as a use of the removed one.
+  const uses = [...code.matchAll(/(?<![\w$])subtotal(?![\w$])/g)];
+  const declares = [...code.matchAll(/(?:const|let)\s+subtotal\s*=/g)];
+  assert.equal(uses.length, declares.length,
+    'the monthly branch uses `subtotal` ' + uses.length + ' time(s) but declares it ' +
+    declares.length + ' time(s); an undeclared reference throws at runtime and aborts ' +
+    'the advance-paid sync');
+
+  // The pre-discount amount the breakdown shows must come from the shared package
+  // constant, so it cannot drift from the total that gets stored.
+  assert.match(monthlyBranch, /roundMoney\(effectiveRate \* MONTHLY_PACKAGE_NIGHTS\)/,
+    'the breakdown must derive the pre-discount total from MONTHLY_PACKAGE_NIGHTS');
+});
+
+// ===========================================================================
 // 2 & 3. PACKAGE PRICING AND CONTRACT VALUE, through the real database
 // ===========================================================================
 
