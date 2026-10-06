@@ -1,0 +1,137 @@
+/* Shared table controls and status tokens for the dashboard's operational tables. */
+.btn-row-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.btn-row {
+  box-sizing: border-box;
+  display: inline-flex;
+  height: 36px;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 11px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color .15s ease, background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+
+.btn-row svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.btn-row.primary {
+  border-color: #1a4332;
+  background: #1a4332;
+  color: #fff;
+}
+.btn-row.primary:hover { border-color: #0f281e; background: #0f281e; }
+
+.btn-row.secondary {
+  border-color: #dbe3ed;
+  background: #fff;
+  color: #334155;
+}
+.btn-row.secondary:hover { border-color: #b8c9c1; background: #f8fafc; }
+
+.btn-row.icon-ghost {
+  width: 36px;
+  min-width: 36px;
+  padding: 0;
+  border-color: #e2e8f0;
+  background: #fff;
+  color: #475569;
+}
+.btn-row.icon-ghost:hover { border-color: #cbd5e1; background: #f8fafc; color: #1a4332; }
+
+.btn-row:focus-visible {
+  outline: 2px solid rgba(16, 185, 129, .65);
+  outline-offset: 2px;
+}
+
+.status-badge {
+  box-sizing: border-box;
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 2px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.status-badge.success { border-color: #a7f3d0; background: #ecfdf5; color: #047857; }
+.status-badge.warning { border-color: #fde68a; background: #fffbeb; color: #a16207; }
+.status-badge.danger { border-color: #fecdd3; background: #fff1f2; color: #be123c; }
+.status-badge.neutral { border-color: #e2e8f0; background: #f8fafc; color: #475569; }
+.status-badge.info { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+
+#widget-today-checkouts .today-checkouts-table tbody tr,
+#widget-recent-bookings #overview-table-body tr { min-height: 64px; }
+
+#widget-today-checkouts .today-checkouts-table tbody td,
+#widget-recent-bookings #overview-table-body td {
+  height: 64px;
+  padding: 8px 10px !important;
+  vertical-align: middle;
+  font-family: inherit;
+}
+
+#widget-today-checkouts .today-checkouts-table .badge,
+#widget-today-checkouts .today-checkouts-table .status-badge,
+#widget-recent-bookings #overview-table-body .badge,
+#widget-recent-bookings #overview-table-body .status-badge {
+  min-height: 26px;
+  padding: 2px 10px !important;
+  border-radius: 999px !important;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+#widget-today-checkouts .checkout-row-action,
+#widget-today-checkouts .late-checkout-button,
+#widget-recent-bookings .btn-action-icon {
+  box-sizing: border-box;
+  height: 36px;
+  min-height: 36px;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+#widget-today-checkouts .checkout-row-action svg,
+#widget-recent-bookings .btn-action-icon svg { width: 16px; height: 16px; }
+
+#widget-today-checkouts .today-checkouts-table .checkout-date-stack,
+#widget-recent-bookings .table-date,
+#widget-recent-bookings .table-time { font-family: inherit; }
+
+@media (max-width: 760px) {
+  .btn-row-group { gap: 4px; }
+  #widget-today-checkouts .today-checkouts-table tbody td,
+  #widget-recent-bookings #overview-table-body td { padding-inline: 6px !important; }
+}
