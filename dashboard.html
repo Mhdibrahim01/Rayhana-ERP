@@ -924,6 +924,20 @@
               </form>
               <div id="business-day-pending-reconciliation" class="business-day-pending-reconciliation" hidden></div>
             </section>
+
+            <section class="card business-day-settings-card receipt-policy-settings-card" aria-labelledby="receipt-policy-settings-title">
+              <div class="card-header">
+                <div>
+                  <h2 id="receipt-policy-settings-title">سياسة الإقامة والشروط</h2>
+                  <p>تظهر هذه الشروط في سند الاستلام؛ اكتب شرطاً واحداً في كل سطر، بحد أقصى 7 شروط.</p>
+                </div>
+              </div>
+              <form id="receipt-policy-settings-form" class="receipt-policy-settings-form">
+                <label for="receipt-policy-text">شروط الإقامة</label>
+                <textarea id="receipt-policy-text" rows="6" maxlength="1279" required></textarea>
+                <button type="submit" class="btn btn-primary">حفظ الشروط</button>
+              </form>
+            </section>
             
             <!-- Side-by-Side Forms Grid (grid-cols-1 lg:grid-cols-2 gap-6) -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 24px;">
@@ -1404,39 +1418,39 @@
           <span style="font-weight: 800; font-size: 1.05rem;">معاينة سند الاستلام والإقامة</span>
         </div>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <button id="btn-export-pdf-invoice" type="button" class="btn btn-sm" style="background: #059669; color: white; font-weight: 700; padding: 7px 14px;">
+          <button id="btn-export-pdf-invoice" type="button" class="btn btn-sm receipt-toolbar-btn receipt-toolbar-btn--secondary" style="background: #059669; color: white; font-weight: 700; padding: 7px 14px;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
               <polyline points="14 2 14 8 20 8"></polyline>
             </svg>
             <span>حفظ PDF 📄</span>
           </button>
-          <button id="btn-preview-window-invoice" type="button" class="btn btn-sm" style="background: #0e2e1f; color: white; font-weight: 700; padding: 7px 14px; border: 1px solid #143d2b;">
+          <button id="btn-preview-window-invoice" type="button" class="btn btn-sm receipt-toolbar-btn receipt-toolbar-btn--secondary" style="background: #0e2e1f; color: white; font-weight: 700; padding: 7px 14px; border: 1px solid #143d2b;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
             <span>معاينة مستقلة 🔍</span>
           </button>
-          <button id="btn-edit-invoice" type="button" class="btn btn-sm" style="background: #4338ca; color: white; font-weight: 700; padding: 7px 14px; border: 1px solid #6366f1;">
+          <button id="btn-edit-invoice" type="button" class="btn btn-sm receipt-toolbar-btn receipt-toolbar-btn--secondary" style="background: #4338ca; color: white; font-weight: 700; padding: 7px 14px; border: 1px solid #6366f1;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
             </svg>
             <span>تعديل السند ✏️</span>
           </button>
-          <button id="btn-close-invoice-modal" type="button" class="btn btn-sm" style="background: rgba(255,255,255,0.15); color: white; border: none; font-size: 0.95rem;">
+          <button id="btn-close-invoice-modal" type="button" class="btn btn-sm receipt-toolbar-btn receipt-toolbar-btn--close" style="background: rgba(255,255,255,0.15); color: white; border: none; font-size: 0.95rem;">
             إغلاق &times;
           </button>
         </div>
       </div>
 
       <!-- Printable Area -->
-      <div id="invoice-printable-area" style="padding: 18px 24px; background: white; color: #0f172a; direction: rtl; text-align: right; flex: 1 1 auto; min-height: 0; min-width: 0; overflow: hidden;">
+      <div id="invoice-printable-area" style="padding: 14px 18px; background: white; color: #0f172a; direction: rtl; text-align: right; flex: 1 1 auto; min-height: 0; min-width: 0; overflow: auto;">
         <!-- Filled dynamically by JavaScript -->
       </div>
       <div class="no-print" style="display: flex; justify-content: flex-start; padding: 16px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0;">
-        <button id="btn-trigger-print-invoice" type="button" class="btn btn-sm" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #4338ca; color: white; font-weight: 800; padding: 10px 20px; border-radius: 8px;">
+        <button id="btn-trigger-print-invoice" type="button" class="btn btn-sm receipt-toolbar-btn receipt-toolbar-btn--primary" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #4338ca; color: white; font-weight: 800; padding: 10px 20px; border-radius: 8px;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="6 9 6 2 18 2 18 9"></polyline>
             <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>

@@ -583,6 +583,58 @@ function getCurrentBusinessDate() {
   return getCurrentBusinessState().current_business_date;
 }
 
+const DEFAULT_RECEIPT_STAY_POLICIES = [
+  'موعد المغادرة الساعة 2:00 ظهراً، وأي تأخير عنه قد يترتب عليه رسوم إضافية وفق سياسة المنشأة.',
+  'يُسترد مبلغ التأمين عند المغادرة بعد معاينة الوحدة، ويحق للمنشأة خصم قيمة أي تلفيات مع بيان السبب.',
+  'في الحجوزات الشهرية لا تُسترد قيمة الليالي غير المستخدمة عند المغادرة المبكرة إلا بموافقة الإدارة.',
+  'يلتزم النزيل بالمحافظة على الوحدة ومحتوياتها، ويتحمل قيمة أي تلف أو فقد ناتج عن الاستخدام.',
+  'يقتصر السكن على النزلاء المسجلين، ويُمنع التنازل عن الوحدة للغير، مع الالتزام بالهدوء وأنظمة المنشأة.',
+  'المنشأة غير مسؤولة عن المقتنيات الشخصية المتروكة أو المفقودة داخل الوحدة.'
+];
+
+function getReceiptStayPolicies() {
+  const row = queryOne('SELECT setting_value FROM app_settings WHERE setting_key = ?', ['receipt_stay_policies']);
+  if (!row || !row.setting_value) return [...DEFAULT_RECEIPT_STAY_POLICIES];
+  try {
+    const parsed = JSON.parse(row.setting_value);
+    if (!Array.isArray(parsed)) return [...DEFAULT_RECEIPT_STAY_POLICIES];
+    const policies = parsed.map(value => String(value || '').trim()).filter(Boolean).slice(0, 7);
+    return policies.length ? policies : [...DEFAULT_RECEIPT_STAY_POLICIES];
+  } catch (_) {
+    return [...DEFAULT_RECEIPT_STAY_POLICIES];
+  }
+}
+
+function updateReceiptStayPolicies(input) {
+  const policies = (Array.isArray(input) ? input : String(input || '').split(/\r?\n/))
+    .map(value => String(value || '').trim())
+    .filter(Boolean);
+  if (policies.length > 7) throw new Error('يمكن حفظ 7 شروط كحد أقصى.');
+  if (policies.some(policy => policy.length > 180)) throw new Error('يجب أن يكون كل شرط سطراً مختصراً لا يتجاوز 180 حرفاً.');
+  if (!policies.length) throw new Error('أدخل شرطاً واحداً على الأقل.');
+
+  const database = db;
+  const previousSnapshot = database.export();
+  database.run('BEGIN TRANSACTION');
+  try {
+    const statement = database.prepare(`
+      INSERT INTO app_settings (setting_key, setting_value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = CURRENT_TIMESTAMP
+    `);
+    statement.run(['receipt_stay_policies', JSON.stringify(policies)]);
+    statement.free();
+    database.run('COMMIT');
+  } catch (error) {
+    try { database.run('ROLLBACK'); } catch (_) {}
+    throw error;
+  }
+  if (!saveToFile()) {
+    restoreInMemorySnapshot(previousSnapshot);
+    throw new Error('تعذر حفظ سياسات الإقامة إلى قاعدة البيانات.');
+  }
+  return getReceiptStayPolicies();
+}
+
 function getBusinessDaySettings() {
   const rows = queryAll('SELECT setting_key, setting_value FROM app_settings WHERE setting_key IN (?, ?, ?)', [
     'business_day_cutoff_time', 'hotel_timezone', 'auto_rollover_enabled'
@@ -767,6 +819,8 @@ module.exports = {
   getCurrentBusinessDate,
   getBusinessDaySettings,
   updateBusinessDaySettings,
+  getReceiptStayPolicies,
+  updateReceiptStayPolicies,
   getPendingShiftReconciliationAudits,
   markShiftAuditReconciled,
   createBackupCopy,

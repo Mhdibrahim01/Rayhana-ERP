@@ -63,6 +63,20 @@ module.exports = function registerReportsIpc(ipcMain, { db, session, helpers }) 
     catch (err) { return { success: false, error: err.message }; }
   });
 
+  ipcMain.handle('receipt-stay-policies:get', async () => {
+    if (!session.currentUser) return { success: false, error: 'غير مصرح: يرجى تسجيل الدخول أولاً.' };
+    try { return { success: true, data: db.getReceiptStayPolicies() }; }
+    catch (err) { return { success: false, error: err.message }; }
+  });
+
+  ipcMain.handle('receipt-stay-policies:update', async (_event, policies) => {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
+      return { success: false, error: 'غير مصرح: تعديل سياسات الإقامة مخصص لمدير النظام.' };
+    }
+    try { return { success: true, data: db.updateReceiptStayPolicies(policies) }; }
+    catch (err) { return { success: false, error: err.message }; }
+  });
+
   ipcMain.handle('hotel-business-day:get-pending-reconciliation', async () => {
     if (!session.currentUser || session.currentUser.role !== 'Admin') {
       return { success: false, error: 'غير مصرح.' };

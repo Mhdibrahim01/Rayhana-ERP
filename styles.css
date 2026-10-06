@@ -3209,11 +3209,6 @@ body.login-body {
    Print Optimization for Invoices & Reports
    100% White Paper Printing with Zero Ink Waste
    ========================================================================== */
-@page {
-  size: A4 portrait;
-  margin: 10mm 12mm;
-}
-
 @media print {
   html, body {
     background: white !important;
@@ -3308,9 +3303,6 @@ body.login-body {
     color: #0f172a !important;
   }
 
-  #invoice-printable-area > div {
-    zoom: 1 !important;
-  }
 }
 
 .business-day-shift-notice {
@@ -5241,6 +5233,48 @@ body.login-body {
   width: min(1100px, 96vw) !important;
   max-width: 1100px !important;
   max-height: calc(100vh - 24px) !important;
+}
+
+#invoice-printable-area {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: auto !important;
+  overscroll-behavior: contain;
+}
+
+.receipt-toolbar-btn {
+  min-height: 38px !important;
+  padding: 8px 13px !important;
+  border: 1px solid #dbe3ec !important;
+  border-radius: 9px !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  white-space: nowrap;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.receipt-toolbar-btn--secondary {
+  background: #fff !important;
+  border-color: #dbe3ec !important;
+  color: #334155 !important;
+}
+.receipt-toolbar-btn--secondary:hover { background: #f8fafc !important; border-color: #cbd5e1 !important; }
+.receipt-toolbar-btn--primary { background: #047857 !important; border-color: #047857 !important; color: #fff !important; }
+.receipt-toolbar-btn--primary:hover { background: #065f46 !important; }
+.receipt-toolbar-btn--close { min-width: 70px; background: #fff !important; color: #475569 !important; }
+.receipt-toolbar-btn:focus-visible { outline: 3px solid rgba(16,185,129,.25); outline-offset: 2px; }
+
+.receipt-policy-settings-form { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; align-items: center; }
+.receipt-policy-settings-form label { grid-column: 1 / -1; color: #334155; font-size: .82rem; font-weight: 800; }
+.receipt-policy-settings-form textarea { width: 100%; min-height: 150px; resize: vertical; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 9px; color: #1e293b; background: #fff; font: inherit; line-height: 1.7; }
+.receipt-policy-settings-form button { min-height: 40px; align-self: end; }
+
+@media (max-width: 700px) {
+  .receipt-policy-settings-form { grid-template-columns: 1fr; }
+  .receipt-policy-settings-form button { justify-self: start; }
 }
 
 #room-revenue-modal > .modal-layout {

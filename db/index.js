@@ -22,6 +22,8 @@ module.exports = {
   getCurrentBusinessState: connection.getCurrentBusinessState,
   getBusinessDaySettings: connection.getBusinessDaySettings,
   updateBusinessDaySettings: connection.updateBusinessDaySettings,
+  getReceiptStayPolicies: connection.getReceiptStayPolicies,
+  updateReceiptStayPolicies: connection.updateReceiptStayPolicies,
   getPendingShiftReconciliationAudits: connection.getPendingShiftReconciliationAudits,
   markShiftAuditReconciled: connection.markShiftAuditReconciled,
   runNightAudit: businessDay.runNightAudit,

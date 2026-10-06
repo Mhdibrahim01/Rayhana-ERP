@@ -552,24 +552,36 @@
   });
   // OFFICIAL HOTEL TAX INVOICE & RECEIPT (FEATURE 1)
   // =========================================================================
+  function fitReceiptToA4Page(receipt, { applyZoom = true } = {}) {
+    if (!receipt) return null;
+    const printableHeight = (297 - 20) * 96 / 25.4;
+    receipt.classList.add('receipt-print-mode');
+    receipt.style.zoom = '1';
+    let contentHeight = Math.max(receipt.scrollHeight, receipt.getBoundingClientRect().height);
+    if (contentHeight > printableHeight) {
+      receipt.classList.add('receipt-print-policy-compact');
+      contentHeight = Math.max(receipt.scrollHeight, receipt.getBoundingClientRect().height);
+    }
+    // Leave a little headroom because Chromium's print media rules are slightly
+    // taller than the screen measurement (notably on monthly receipts).
+    let scale = Math.max(0.88, Math.min(1, printableHeight * 0.94 / Math.max(1, contentHeight)));
+    if (applyZoom) receipt.style.zoom = String(scale);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const renderedHeight = Math.max(receipt.scrollHeight * scale, receipt.getBoundingClientRect().height);
+      if (renderedHeight <= printableHeight) break;
+      scale = Math.max(0.88, scale * printableHeight / renderedHeight * 0.995);
+      if (applyZoom) receipt.style.zoom = String(scale);
+    }
+    return { scale, contentHeight, printableHeight };
+  }
+
   function fitInvoicePreviewToViewport() {
     if (!invoicePrintableArea || !invoiceModal || invoiceModal.style.display === 'none') return;
-    const invoiceCard = invoicePrintableArea.firstElementChild;
+    const invoiceCard = invoicePrintableArea.querySelector('.receipt-document');
     if (!invoiceCard) return;
 
-    // Keep the complete receipt visible in the preview. Printed/PDF receipts use
-    // the unscaled HTML, so this only adapts the on-screen modal to the window.
+    // The preview pane may scroll; keep receipt text at its intended readable size.
     invoiceCard.style.zoom = '1';
-    const availableHeight = invoicePrintableArea.clientHeight;
-    const availableWidth = invoicePrintableArea.clientWidth;
-    if (!availableHeight || !availableWidth) return;
-
-    const scale = Math.min(
-      1,
-      availableHeight / invoiceCard.scrollHeight,
-      availableWidth / invoiceCard.scrollWidth
-    );
-    invoiceCard.style.zoom = String(scale);
   }
 
   window.addEventListener('resize', fitInvoicePreviewToViewport);
@@ -649,28 +661,32 @@
       const isContractPolicy = inv.checkout_policy === 'contract';
       const isActualPolicy = inv.checkout_policy === 'actual';
       let bookedNights = null;
-      let checkOutDisplay;
-      if (isCancelled) {
-        checkOutDisplay = `${escapeHtml(inv.check_out_date || '-')} (حجز ملغي)`;
-      } else if (isContractPolicy && inv.booked_check_out_date) {
+      if (isContractPolicy && inv.booked_check_out_date) {
         const b1 = inv.check_in_date ? new Date(inv.check_in_date) : null;
         const b2 = new Date(inv.booked_check_out_date);
         if (b1 && b2 > b1) bookedNights = Math.max(1, Math.round((b2 - b1) / (1000 * 60 * 60 * 24)));
-        const bookedWord = bookedNights === 1 ? 'ليلة' : 'ليالٍ';
-        checkOutDisplay = `${escapeHtml(inv.check_out_date)} (غادر مبكراً — ${bookedNights} ${bookedWord} محجوزة حتى ${escapeHtml(inv.booked_check_out_date)})`;
-      } else {
-        checkOutDisplay = inv.check_out_date ? `${escapeHtml(inv.check_out_date)} (${stayDurationText})` : 'مفتوح (غير محدد)';
       }
 
+      const receiptDigits = value => String(value ?? '').replace(/[٠-٩۰-۹]/g, digit => {
+        const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
+        const persianDigits = '۰۱۲۳۴۵۶۷۸۹';
+        const arabicIndex = arabicDigits.indexOf(digit);
+        return String(arabicIndex >= 0 ? arabicIndex : persianDigits.indexOf(digit));
+      });
       const policyNote = isContractPolicy
         ? 'تم الاحتساب بقيمة العقد الكاملة (لا يشمل استرداد الليالي غير المستخدمة).'
         : (isActualPolicy
-          ? `تم الاحتساب بالليالي الفعلية بناء على استثناء معتمد: ${escapeHtml(inv.checkout_policy_reason || 'بدون سبب مذكور')}`
+          ? `تم الاحتساب بالليالي الفعلية بناء على استثناء معتمد: ${escapeHtml(receiptDigits(inv.checkout_policy_reason || 'بدون سبب مذكور'))}`
           : '');
 
       const effectiveNightlyRate = parseFloat(inv.custom_nightly_price || inv.price_per_night || 0);
       const discount = parseFloat(inv.discount_amount || 0);
-      const discountReasonText = inv.discount_reason ? ` (${escapeHtml(inv.discount_reason)})` : '';
+      const rawDiscountReason = String(inv.discount_reason || '').trim();
+      const normalizedDiscountReason = rawDiscountReason.replace(/[إأآ]/g, 'ا').replace(/[()]/g, '').replace(/[\s-]+/g, ' ').trim();
+      const displayDiscountReason = /^اقامة طويلة شهري$/.test(normalizedDiscountReason)
+        ? 'إقامة طويلة - شهري'
+        : receiptDigits(rawDiscountReason);
+      const discountReasonText = displayDiscountReason ? ` (${escapeHtml(displayDiscountReason)})` : '';
       const lateFee = parseFloat(inv.late_checkout_fee || 0);
 
       // "تعديل السند" rewrites the reservation total and paid amount. The main process
@@ -697,13 +713,143 @@
       const invoiceYear = (reservationCreatedAt || new Date()).getFullYear() || new Date().getFullYear();
       const invoiceNum = `SND-${invoiceYear}-${String(inv.id).padStart(5, '0')}`;
       const issuedAt = new Date();
-      const printDate = issuedAt.toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
-      const printTime = issuedAt.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+      const formatReceiptDate = value => {
+        const match = receiptDigits(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+        return match ? `${match[1]}-${match[2]}-${match[3]}` : '-';
+      };
+      const formatReceiptTime = value => {
+        const match = receiptDigits(value).match(/(?:^|\s)(\d{1,2}):(\d{2})/);
+        return match ? `${String(match[1]).padStart(2, '0')}:${match[2]}` : '-';
+      };
+      const formatReceiptMoney = value => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value) || 0);
+      const formatReceiptDateTime = value => {
+        const raw = String(value || '');
+        const date = formatReceiptDate(raw);
+        const time = formatReceiptTime(raw.replace('T', ' '));
+        return time === '-' ? date : `${date} ${time}`;
+      };
+      const printDate = `${issuedAt.getFullYear()}-${String(issuedAt.getMonth() + 1).padStart(2, '0')}-${String(issuedAt.getDate()).padStart(2, '0')}`;
+      const printTime = `${String(issuedAt.getHours()).padStart(2, '0')}:${String(issuedAt.getMinutes()).padStart(2, '0')}`;
+      const checkInReceiptDate = formatReceiptDate(inv.check_in_date);
+      const receiptScheduledCheckoutDate = isContractPolicy && inv.booked_check_out_date
+        ? inv.booked_check_out_date
+        : (inv.check_out_date || inv.booked_check_out_date);
+      const checkOutReceiptDate = receiptScheduledCheckoutDate
+        ? formatReceiptDate(receiptScheduledCheckoutDate)
+        : 'غير محدد';
+      const registrationDate = formatReceiptDateTime(inv.created_at);
+      const showRegistrationDate = registrationDate !== '-' && registrationDate.slice(0, 10) !== checkInReceiptDate;
+      let receiptPolicies = [];
+      try {
+        const policiesResult = await window.api.getReceiptStayPolicies();
+        if (policiesResult?.success && Array.isArray(policiesResult.data)) receiptPolicies = policiesResult.data;
+      } catch (_) { /* the receipt can render without policy settings */ }
+      const displayedPolicies = receiptPolicies
+        .map(value => String(value || '').trim())
+        .filter(Boolean)
+        .filter((_, index) => isMonthly || index !== 2)
+        .slice(0, 7);
+      const receiptDocumentStyles = `
+        <style>
+          .receipt-document{box-sizing:border-box;width:100%;max-width:100%;min-height:0;padding:16px;border:1px solid #dbe3ec;border-radius:12px;background:#fff;color:#0f172a;display:flex;flex-direction:column;gap:12px;font:13px/1.45 "Segoe UI",Tahoma,"Cairo",Arial,sans-serif;direction:rtl;text-align:right;overflow-wrap:anywhere}
+          .receipt-document.receipt-print-mode{width:190mm!important;max-width:190mm!important;min-height:0!important;height:auto!important;padding:0!important;border:0!important;border-radius:0!important;box-shadow:none!important;gap:6px!important;font-size:10pt!important;line-height:1.35!important;overflow:visible!important}
+          .receipt-print-mode .receipt-header{padding-bottom:6px!important;margin:0!important}
+          .receipt-print-mode .receipt-details-grid{gap:8px!important;padding-bottom:6px!important;margin:0!important}
+          .receipt-print-mode .receipt-items-wrap{margin:0!important}
+          .receipt-print-mode .receipt-items-table th,.receipt-print-mode .receipt-items-table td{padding:6px!important}
+          .receipt-print-mode .receipt-policy-card,.receipt-print-mode .receipt-totals-card{padding:8px!important}
+          .receipt-print-mode .receipt-signature-row{gap:8px!important}
+          .receipt-print-mode .receipt-seal{width:80px!important;height:42px!important}
+          .receipt-print-mode .receipt-signature-line{height:50px!important}
+          .receipt-print-mode .receipt-payment-notice{padding:0!important;border:0!important;line-height:1.35!important}
+          .receipt-print-mode.receipt-print-policy-compact .receipt-policy-card ol{line-height:1.1!important}
+          .receipt-print-mode.receipt-print-policy-compact .receipt-policy-card li{padding-bottom:0!important}
+          .receipt-document *{box-sizing:border-box}
+          .receipt-header{padding:0 0 12px!important;margin:0!important;border-bottom:1px solid #e2e8f0!important;gap:16px}
+          .receipt-header h2{font-size:18px!important;margin-bottom:4px!important}
+          .receipt-header>div:first-child>div{font-size:12px!important;line-height:1.45!important}
+          .receipt-header>div:last-child{min-width:190px!important;padding:10px 12px!important}
+          .receipt-header>div:last-child>div{font-size:12px!important;line-height:1.45!important}
+          .receipt-details-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:16px!important;padding-bottom:12px!important;margin:0!important}
+          .receipt-details-grid h3{font-size:13px!important;margin-bottom:6px!important;padding-bottom:5px!important}
+          .receipt-details-grid>div>div{font-size:12px!important;line-height:1.55!important}
+          .receipt-details-grid strong{color:#64748b!important}
+          .receipt-details-grid>div>div{color:#334155!important}
+          .receipt-items-wrap{margin:0!important;overflow:visible!important}
+          .receipt-items-table{font-size:12px!important}
+          .receipt-items-table th,.receipt-items-table td{padding:7px 8px!important}
+          .receipt-items-table td>div{font-size:12px!important}
+          .receipt-summary-row{display:flex;align-items:stretch;gap:12px;break-inside:avoid;page-break-inside:avoid}
+          .receipt-policy-card{flex:0 0 60%;min-width:0;border:1px solid #dbe3ec;border-radius:9px;background:#f8fafc;padding:10px 12px}
+          .receipt-policy-card h3{margin:0 0 6px;padding-bottom:5px;border-bottom:1px solid #e2e8f0;color:#334155;font-size:13px;font-weight:800}
+          .receipt-policy-card ol{margin:0;padding:0;color:#475569;font-size:10px;line-height:1.45;list-style:none}
+          .receipt-policy-card li{display:flex;gap:5px;padding:0 0 2px}
+          .receipt-policy-number{flex:0 0 15px;color:#64748b;font-weight:700;text-align:left}
+          .receipt-totals-card{flex:1;min-width:0;border:1px solid #e2e8f0;border-radius:9px;background:#f8fafc;padding:10px 12px;font-size:12px;break-inside:avoid;page-break-inside:avoid}
+          .receipt-total-line{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 0 5px;color:#475569}
+          .receipt-total-line>span:last-child{color:#1e293b;font-weight:700;white-space:nowrap}
+          .receipt-total-discount{padding:3px 5px;border-radius:5px;background:#f1f5f9;color:#334155}
+          .receipt-total-net{padding-top:5px;border-top:1px solid #e2e8f0;color:#0f172a;font-weight:800}
+          .receipt-total-paid{color:#047857;font-weight:700}
+          .receipt-total-remaining{padding:6px 5px 0;border-top:1px dashed #cbd5e1;font-weight:800}
+          .receipt-signature-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;text-align:center;break-inside:avoid;page-break-inside:avoid}
+          .receipt-signature-monthly{grid-template-columns:repeat(3,minmax(0,1fr))}
+          .receipt-signature-cell{min-width:0;display:flex;flex-direction:column;align-items:center;gap:5px;color:#334155;font-size:12px}
+          .receipt-signature-cell strong{font-size:12px}
+          .receipt-signature-line{width:70%;height:28px;border-bottom:1px dashed #94a3b8}
+          .receipt-staff-signature-line img{max-width:100%;max-height:100%;object-fit:contain}
+          .receipt-seal{display:block;width:74px;height:42px;object-fit:contain}
+          .receipt-receiver-signature small{max-width:100%;color:#64748b;font-size:12px;line-height:1.35}
+          .receipt-payment-notice{display:flex;justify-content:space-between;gap:12px;padding-top:8px;border-top:1px solid #e2e8f0;color:#475569;font-size:12px}
+          .receipt-deposit-movements{margin-top:0;padding-top:8px;border-top:1px solid #ddd6fe;break-inside:avoid;page-break-inside:avoid}
+          .receipt-deposit-movements h4{margin:0 0 5px!important;font-size:12px!important}
+          .receipt-deposit-movements table{font-size:12px!important}
+          .receipt-deposit-movements th,.receipt-deposit-movements td{padding:4px!important}
+          @media(max-width:760px){.receipt-details-grid{grid-template-columns:1fr!important}.receipt-summary-row{flex-direction:column}.receipt-policy-card{flex-basis:auto}.receipt-header{flex-direction:column}.receipt-header>div:last-child{width:100%}}
+          @page{size:A4;margin:10mm}
+          @media print{
+            html,body{width:100%;height:auto;margin:0!important;padding:0!important;overflow:visible!important}
+            *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+            .receipt-document{width:100%;max-width:100%;min-height:0;height:auto;padding:0;border:0;border-radius:0;box-shadow:none;gap:6px;font-size:10pt;line-height:1.35;overflow:visible}
+            .receipt-header{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;justify-content:space-between!important;align-items:flex-start!important;gap:10px!important;padding-bottom:6px!important;margin:0 0 6px!important}
+            .receipt-header>div:first-child{flex:1 1 auto!important;min-width:0!important}
+            .receipt-header>div:last-child{flex:0 0 55mm!important;width:55mm!important;min-width:55mm!important;padding:8px!important}
+            .receipt-header h2{font-size:14pt!important}
+            .receipt-header>div:first-child>div,.receipt-header>div:last-child>div{font-size:10pt!important}
+            .receipt-details-grid{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:8px!important;padding-bottom:6px!important;margin:0 0 6px!important}
+            .receipt-details-grid>div{min-width:0!important}
+            .receipt-details-grid h3{font-size:10pt!important;margin:0 0 2px!important;padding:0 0 2px!important;border-bottom:0!important}
+            .receipt-details-grid>div>div{font-size:10pt!important;line-height:1.3!important}
+            .receipt-details-grid>div>div:not(h3){display:flex!important;flex-direction:column!important;gap:2px!important}
+            .receipt-items-table{font-size:10pt!important}
+            .receipt-items-table th,.receipt-items-table td{padding:6px!important}
+            .receipt-items-table td>div{font-size:10pt!important}
+            .receipt-summary-row{display:grid!important;grid-template-columns:minmax(0,3fr) minmax(0,2fr)!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:stretch!important;gap:8px!important;margin:0!important;break-inside:avoid!important;page-break-inside:avoid!important}
+            .receipt-policy-card,.receipt-totals-card{min-width:0!important;width:auto!important;break-inside:avoid!important;page-break-inside:avoid!important}
+            .receipt-policy-card{padding:8px!important}
+            .receipt-policy-card h3{font-size:10pt}
+            .receipt-policy-card ol{font-size:9pt!important;line-height:1.25!important}
+            .receipt-totals-card{padding:8px!important;font-size:10pt!important}
+            .receipt-total-line{margin-bottom:3px}
+            .receipt-payment-notice{margin:0 0 4px!important;padding:0!important;border:0!important;font-size:10pt!important}
+            .receipt-signature-row{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important;margin:0!important;break-inside:avoid!important;page-break-inside:avoid!important}
+            .receipt-signature-row:not(.receipt-signature-monthly){grid-template-columns:repeat(2,minmax(0,1fr))!important}
+            .receipt-signature-line{height:50px!important}
+            .receipt-signature-cell,.receipt-signature-cell strong{font-size:10pt}
+            .receipt-seal{width:80px!important;height:50px!important;object-fit:contain!important}
+            .receipt-receiver-signature small{font-size:9pt}
+            .receipt-deposit-movements table{font-size:9pt!important}
+            .receipt-deposit-movements th,.receipt-deposit-movements td{padding:3px!important}
+          }
+        </style>`;
+      const receiptPrintFitScript = `<script>(function(){window.prepareReceiptForPrint=function(){const receipt=document.querySelector('.receipt-document');return receipt?(${fitReceiptToA4Page.toString()})(receipt):null;};window.addEventListener('beforeprint',window.prepareReceiptForPrint);})();</script>`;
 
       invoicePrintableArea.innerHTML = `
-        <div style="border: 2px solid #e2e8f0; border-radius: 12px; padding: 28px; background: white; min-height: 186mm; display: flex; flex-direction: column;">
+        ${receiptDocumentStyles}
+        ${receiptPrintFitScript}
+        <div class="receipt-document" dir="rtl">
           <!-- Top Section: Company & Receipt Info -->
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 24px; margin-bottom: 28px;">
+          <div class="receipt-header" style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 24px; margin-bottom: 28px;">
             <!-- Company Info (Right) -->
             <div style="display: flex; gap: 16px; align-items: flex-start;">
              
@@ -725,7 +871,7 @@
               </div>
               <div style="font-size: 0.85rem; color: #475569; line-height: 1.7;">
                 <div><span style="font-weight: 700; color: #1e293b;">رقم السند:</span> <span style="font-family: monospace; color: #4338ca; font-weight: 700;">${invoiceNum}</span></div>
-                <div>تاريخ الإصدار: <bdi dir="auto" style="white-space: nowrap;">${escapeHtml(printDate)}</bdi></div>
+                <div>تاريخ الإصدار: <bdi dir="ltr" style="white-space: nowrap;">${printDate}</bdi></div>
                 <div>الوقت: <bdi dir="ltr" style="white-space: nowrap;">${escapeHtml(printTime)}</bdi></div>
               </div>
               <div style="margin-top: 10px;">
@@ -737,14 +883,14 @@
           </div>
 
           <!-- Details Section -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 28px; border-bottom: 2px solid #e2e8f0; padding-bottom: 24px; margin-bottom: 28px;">
+          <div class="receipt-details-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 28px; border-bottom: 2px solid #e2e8f0; padding-bottom: 24px; margin-bottom: 28px;">
             <!-- Guest Details -->
             <div>
               <h3 style="font-size: 0.95rem; font-weight: 800; color: #1e293b; margin: 0 0 12px 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">بيانات النزيل (Guest Details)</h3>
-              <div style="font-size: 0.85rem; line-height: 1.8; color: #475569;">
-                <div><strong style="color: #1e293b;">اسم النزيل:</strong> ${escapeHtml(inv.guest_name)}</div>
-                <div><strong style="color: #1e293b;">رقم الجوال:</strong> ${escapeHtml(inv.guest_phone || '-')}</div>
-                <div><strong style="color: #1e293b;">رقم الهوية / الإقامة:</strong> ${escapeHtml(inv.guest_id_number || 'غير مسجل')}</div>
+                <div style="font-size: 0.85rem; line-height: 1.8; color: #475569;">
+                <div><strong style="color: #1e293b;">اسم النزيل:</strong> ${escapeHtml(receiptDigits(inv.guest_name))}</div>
+                <div><strong style="color: #1e293b;">رقم الجوال:</strong> ${escapeHtml(receiptDigits(inv.guest_phone || '-'))}</div>
+                <div><strong style="color: #1e293b;">رقم الهوية / الإقامة:</strong> ${escapeHtml(receiptDigits(inv.guest_id_number || 'غير مسجل'))}</div>
               </div>
             </div>
 
@@ -752,20 +898,19 @@
             <div>
               <h3 style="font-size: 0.95rem; font-weight: 800; color: #1e293b; margin: 0 0 12px 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">بيانات الإقامة والوحدة (Stay Details)</h3>
               <div style="font-size: 0.85rem; line-height: 1.8; color: #475569;">
-                <div><strong style="color: #1e293b;">رقم الوحدة:</strong> ${escapeHtml(inv.room_number)} (${escapeHtml(inv.room_type || '')})</div>
-                <div><strong style="color: #1e293b;">تاريخ الوصول (اليوم الفندقي):</strong> ${escapeHtml(inv.check_in_date)}</div>
-                <div><strong style="color: #1e293b;">وقت الحجز المحلي:</strong> <span style="font-family: monospace;">${escapeHtml(inv.booking_time || '-')}</span></div>
-                <div><strong style="color: #1e293b;">التاريخ والوقت الفعلي للتسجيل:</strong> ${escapeHtml(formatArabicDateTime(inv.created_at))}</div>
-                <div><strong style="color: #1e293b;">تاريخ المغادرة:</strong> ${checkOutDisplay}</div>
-                ${inv.checkout_time ? `<div><strong style="color: #1e293b;">وقت المغادرة:</strong> <span style="font-family: monospace;">${escapeHtml(inv.checkout_time)}</span></div>` : ''}
+                <div><strong style="color: #1e293b;">رقم الوحدة:</strong> ${escapeHtml(receiptDigits(inv.room_number))} (${escapeHtml(receiptDigits(inv.room_type || ''))})</div>
+                <div><strong style="color: #1e293b;">تاريخ الوصول:</strong> <bdi dir="ltr">${checkInReceiptDate}</bdi></div>
+                <div><strong style="color: #1e293b;">تاريخ المغادرة (${escapeHtml(invoiceDurationText)}):</strong> <bdi dir="ltr">${checkOutReceiptDate}</bdi></div>
+                ${showRegistrationDate ? `<div><strong style="color: #1e293b;">تاريخ التسجيل:</strong> <bdi dir="ltr">${registrationDate}</bdi></div>` : ''}
+                ${inv.checkout_time && formatReceiptDate(inv.check_out_date) === checkOutReceiptDate ? `<div><strong style="color: #1e293b;">وقت المغادرة:</strong> <bdi dir="ltr">${formatReceiptTime(inv.checkout_time)}</bdi></div>` : ''}
                 ${policyNote ? `<div style="margin-top: 8px; padding: 6px 10px; border-radius: 6px; background: #eef2ff; color: #3730a3; font-size: 0.8rem; font-weight: 700;">${policyNote}</div>` : ''}
               </div>
             </div>
           </div>
 
           <!-- Items Table -->
-          <div style="margin-bottom: 28px; overflow-x: auto;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem; table-layout: fixed; word-break: break-word;">
+          <div class="receipt-items-wrap" style="margin-bottom: 28px; overflow-x: auto;">
+            <table class="receipt-items-table" style="width: 100%; border-collapse: collapse; font-size: 0.88rem; table-layout: fixed; word-break: break-word;">
               <colgroup>
                 <col style="width: 48%;">
                 <col style="width: 18%;">
@@ -783,26 +928,26 @@
               <tbody>
                 <tr style="border-bottom: 1px solid #e2e8f0; ${isCancelled ? 'background: #fff8f8;' : ''}">
                   <td style="padding: 14px;">
-                    <div style="font-weight: 700; color: #1e293b;">إقامة سكنية - وحدة ${escapeHtml(inv.room_number)} ${isContract ? '(عقد مفتوح)' : ''}</div>
+                    <div style="font-weight: 700; color: #1e293b;">إقامة سكنية - وحدة ${escapeHtml(receiptDigits(inv.room_number))} ${isContract ? '(عقد مفتوح)' : ''}</div>
                     <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">
                       ${isCancelled
                         ? '<span style="color: #dc2626; font-weight: 700;">(تم إبطال / إلغاء هذا الحجز بالكامل ولا توجد رسوم إقامة مستحقة)</span>'
-                        : `نوع الوحدة: ${escapeHtml(inv.room_type || 'عادية')} ${inv.custom_nightly_price ? '<span style="color: #059669; font-weight: 700;">(سعر خاص معتمد)</span>' : ''}`}
+                        : `نوع الوحدة: ${escapeHtml(receiptDigits(inv.room_type || 'عادية'))} ${inv.custom_nightly_price ? '<span style="color: #059669; font-weight: 700;">(سعر خاص معتمد)</span>' : ''}`}
                     </div>
                   </td>
-                  <td style="padding: 14px; text-align: center; color: #475569;">${isCancelled ? '0 ريال' : `${effectiveNightlyRate.toLocaleString()} ريال`}</td>
+                    <td style="padding: 14px; text-align: center; color: #475569;">${isCancelled ? '0.00 ر.س' : `${formatReceiptMoney(effectiveNightlyRate)} ر.س`}</td>
                   <td style="padding: 14px; text-align: center; font-weight: 700; color: #475569;">${isMonthly ? 'شهر' : invoiceDurationText}</td>
-                  <td style="padding: 14px; text-align: left; font-weight: 800; color: #1e1b4b;">${(isCancelled ? 0 : shownSubtotal).toLocaleString()} ريال</td>
+                  <td style="padding: 14px; text-align: left; font-weight: 800; color: #1e1b4b;">${formatReceiptMoney(isCancelled ? 0 : shownSubtotal)} ر.س</td>
                 </tr>
                 ${discount > 0 && !isCancelled ? `
-                  <tr style="background: #fff1f2; border-bottom: 1px solid #ffe4e6;">
+                  <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
                     <td style="padding: 12px 14px;">
-                      <div style="font-weight: 700; color: #dc2626;">خصم وتخفيض معتمد${discountReasonText}</div>
-                      <div style="font-size: 0.75rem; color: #ef4444; margin-top: 2px;">تخفيض ممنوح على إجمالي قيمة الإقامة</div>
+                      <div style="font-weight: 700; color: #334155;">خصم وتخفيض معتمد${discountReasonText}</div>
+                      <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">تخفيض ممنوح على إجمالي قيمة الإقامة</div>
                     </td>
-                    <td style="padding: 12px 14px; text-align: center; color: #ef4444;">-</td>
-                    <td style="padding: 12px 14px; text-align: center; color: #ef4444;">-</td>
-                    <td style="padding: 12px 14px; text-align: left; font-weight: 800; color: #dc2626;" dir="ltr">- ${discount.toFixed(2)} ريال</td>
+                    <td style="padding: 12px 14px; text-align: center; color: #475569;">-</td>
+                    <td style="padding: 12px 14px; text-align: center; color: #475569;">-</td>
+                    <td style="padding: 12px 14px; text-align: left; font-weight: 800; color: #334155;" dir="ltr">- ${formatReceiptMoney(discount)} ر.س</td>
                   </tr>
                 ` : ''}
                 ${lateFee > 0 && !isCancelled ? `
@@ -813,18 +958,18 @@
                     </td>
                     <td style="padding: 12px 14px; text-align: center; color: #ea580c;">-</td>
                     <td style="padding: 12px 14px; text-align: center; color: #ea580c;">-</td>
-                    <td style="padding: 12px 14px; text-align: left; font-weight: 800; color: #c2410c; white-space: nowrap;">+ ${lateFee.toFixed(2)} ريال</td>
+                    <td style="padding: 12px 14px; text-align: left; font-weight: 800; color: #c2410c; white-space: nowrap;">+ ${formatReceiptMoney(lateFee)} ر.س</td>
                   </tr>
                 ` : ''}
                 ${hasCancellationAdjustment ? `
                   <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
                     <td style="padding: 12px 14px;">
                       <div style="font-weight: 700; color: #4338ca;">تعديل إداري معتمد لمبلغ الإلغاء</div>
-                      <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">الحساب التلقائي الأصلي قبل التعديل: ${parseFloat(inv.original_calculated_charge).toLocaleString()} ريال</div>
+                      <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">الحساب التلقائي الأصلي قبل التعديل: ${formatReceiptMoney(inv.original_calculated_charge)} ر.س</div>
                     </td>
                     <td style="padding: 12px 14px; text-align: center;">-</td>
                     <td style="padding: 12px 14px; text-align: center;">-</td>
-                    <td style="padding: 12px 14px; text-align: left; font-weight: 800; color: #4338ca;">${parseFloat(inv.total_price || 0).toLocaleString()} ريال</td>
+                    <td style="padding: 12px 14px; text-align: left; font-weight: 800; color: #4338ca;">${formatReceiptMoney(inv.total_price || 0)} ر.س</td>
                   </tr>
                 ` : ''}
                 ${deposit > 0 ? `
@@ -835,125 +980,84 @@
                     </td>
                     <td style="padding: 12px 14px; text-align: center;">-</td>
                     <td style="padding: 12px 14px; text-align: center;">-</td>
-                    <td style="padding: 12px 14px; text-align: left; font-weight: 700; color: #701a75;">${deposit.toLocaleString()} ريال</td>
+                    <td style="padding: 12px 14px; text-align: left; font-weight: 700; color: #701a75;">${formatReceiptMoney(deposit)} ر.س</td>
                   </tr>
                 ` : ''}
               </tbody>
             </table>
           </div>
 
-          <!-- Footer Section: Totals and Signatures -->
-          <div style="display: flex; flex-direction: row-reverse; justify-content: space-between; align-items: flex-start; gap: 32px; margin-top: 28px;">
-            <!-- Totals Block -->
-            <div style="width: 290px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; flex-shrink: 0; font-size: 0.88rem;">
-              ${discount > 0 && !isCancelled ? `
-                <div style="display: flex; justify-content: space-between; align-items: center; color: #64748b; margin-bottom: 8px;">
-                  <span>المجموع قبل الخصم:</span>
-                  <span dir="ltr">${(total + discount).toFixed(2)} ريال</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 700; color: #dc2626; margin-bottom: 8px;">
-                  <span>الخصم المعتمد:</span>
-                  <span dir="ltr">- ${discount.toFixed(2)} ريال</span>
-                </div>
-              ` : ''}
-              <div style="border-top: 1px solid #e2e8f0; padding-top: 8px; display: flex; justify-content: space-between; align-items: center; font-weight: 800; font-size: 1rem; color: #1e293b; margin-bottom: 8px;">
-                <span>الإجمالي الصافي:</span>
-                <span dir="ltr">${total.toFixed(2)} ريال</span>
-              </div>
-              ${(originalCollected > paid && refundedTotal > 0) ? `
-                <div style="display: flex; justify-content: space-between; align-items: center; color: #64748b; margin-bottom: 6px; font-size: 0.85rem;">
-                  <span>المبلغ المسدد مسبقا:</span>
-                  <span dir="ltr">${originalCollected.toFixed(2)} ريال</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; color: #1d4ed8; margin-bottom: 6px; font-size: 0.85rem; font-weight: 700;">
-                  <span>المبلغ المسترد:</span>
-                  <span dir="ltr">- ${refundedTotal.toFixed(2)} ريال</span>
-                </div>
-              ` : (refundedTotal > 0 ? `
-                <div style="display: flex; justify-content: space-between; align-items: center; color: #1d4ed8; font-weight: 700; margin-bottom: 8px;">
-                  <span>المبلغ المسترد:</span>
-                  <span dir="ltr">- ${refundedTotal.toFixed(2)} ريال</span>
-                </div>
-              ` : '')}
-              <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 700; color: #059669; margin-bottom: 8px;">
-                <span>${refundedTotal > 0 ? 'صافي المدفوع:' : 'المبلغ المدفوع:'}</span>
-                <span dir="ltr">${paid.toFixed(2)} ريال</span>
-              </div>
-              <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px dashed #cbd5e1; font-weight: 800; color: ${isCancelled ? '#059669' : (isCredit ? '#1d4ed8' : (remaining > 0 ? '#dc2626' : '#059669'))}; ${isCredit ? 'background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 6px 10px; margin-top: 6px;' : ''}">
-                <span>${isCancelled ? 'المبلغ المتبقي:' : (isCredit ? 'رصيد دائن للنزيل (مستحق له):' : 'المبلغ المتبقي:')}</span>
-                <span dir="ltr">${isCancelled ? '0.00 ريال' : (isCredit ? `${Math.abs(rawRemaining).toFixed(2)} ريال` : `${remaining.toFixed(2)} ريال`)}</span>
-              </div>
-            </div>
-
-            <!-- Stamps & Signatures (for monthly bookings) -->
-            ${isMonthly ? `
-            <div style="flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: start; text-align: center; margin-top: auto;">
-
-              <!-- Stamp -->
-              <div>
-                <p style="font-weight: 700; color: #334155; margin: 0 0 12px; font-size: 0.9rem;">ختم المؤسسة</p>
-                <div style="height: 100px; display: flex; align-items: flex-end; justify-content: center;">
-                  <img src="assets/seal.svg"
-                       style="width: 180px; height: auto; display: block;"
-                       alt="الختم"
-                       onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                  <div style="display: none; color: #6366f1; font-weight: 800; font-size: 0.75rem; line-height: 1.3;">ختم رسمي معتمد</div>
-                </div>
-              </div>
-
-              <!-- Issuer Signature -->
-              <div>
-                <p style="font-weight: 700; color: #334155; margin: 0 0 12px; font-size: 0.9rem;">توقيع الموظف</p>
-                <div style="height: 70px; display: flex; align-items: flex-end; justify-content: center;">
-                  <div style="width: 160px; height: 70px; border-bottom: 1px solid #94a3b8; display: flex; align-items: flex-end; justify-content: center;">
-                    <img src="assets/signature.svg" style="max-height: 65px; max-width: 100%; object-fit: contain;" alt="التوقيع"
-                         onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                    <svg style="display: none; width: 100%; height: 35px; color: #1e40af; opacity: 0.75;" viewBox="0 0 100 30" preserveAspectRatio="none">
-                      <path fill="none" stroke="currentColor" stroke-width="1.8" d="M10,20 Q30,5 50,20 T90,10"></path>
-                    </svg>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Receiver Signature -->
-              <div>
-                <p style="font-weight: 700; color: #334155; margin: 0 0 12px; font-size: 0.9rem;">توقيع المستلم</p>
-                <div style="height: 100px; display: flex; align-items: flex-end; justify-content: center;">
-                  <div style="width: 140px; height: 60px; border-bottom: 1px dashed #94a3b8;"></div>
-                </div>
-              </div>
-
-            </div>
-            ` : `
-            <!-- Non-monthly standard note / signature placeholder -->
-            <div style="flex: 1; display: flex; align-items: flex-end; justify-content: flex-start; padding-bottom: 8px;">
-              <div style="color: #64748b; font-size: 0.82rem; line-height: 1.6;">
-                <div>* يعتبر هذا المستند فاتورة وسند استلام رسمي ومعتمد.</div>
-                <div>* نتمنى لكم إقامة سعيدة ومريحة.</div>
-              </div>
-            </div>
-            `}
-          </div>
-
-          <!-- Payment Method & Notice -->
-          <div style="margin-top: 24px; padding-top: 14px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+          <div class="receipt-payment-notice">
             <div>
               <span style="font-weight: 700; color: #1e293b;">طريقة السداد:</span>
-              <span style="color: #475569; margin-right: 4px;">${escapeHtml(inv.payment_method || 'نقداً')}</span>
+              <span style="color: #475569; margin-right: 4px;">${escapeHtml(receiptDigits(inv.payment_method || 'نقداً'))}</span>
             </div>
-            <div style="font-size: 0.78rem; color: #64748b;">
-              * يعتبر هذا المستند سند استلام رسمي ومعتمد
+            <div>
+              هذا المستند سند استلام رسمي ومعتمد
             </div>
+          </div>
+
+          <!-- Policies and totals stay together below the items table. -->
+          <div class="receipt-summary-row" dir="rtl">
+            <section class="receipt-policy-card" aria-label="سياسة الإقامة والشروط">
+              <h3>سياسة الإقامة والشروط</h3>
+              <ol>${displayedPolicies.map((policy, index) => `<li><span class="receipt-policy-number" dir="ltr">${index + 1}.</span><span>${escapeHtml(receiptDigits(policy))}</span></li>`).join('')}</ol>
+            </section>
+            <div class="receipt-totals-card">
+              ${discount > 0 && !isCancelled ? `
+                <div class="receipt-total-line">
+                  <span>المجموع قبل الخصم:</span>
+                  <span dir="ltr">${formatReceiptMoney(total + discount)} ر.س</span>
+                </div>
+                <div class="receipt-total-line receipt-total-discount">
+                  <span>الخصم المعتمد:</span>
+                  <span dir="ltr">- ${formatReceiptMoney(discount)} ر.س</span>
+                </div>
+              ` : ''}
+              <div class="receipt-total-line receipt-total-net">
+                <span>الإجمالي الصافي:</span>
+                <span dir="ltr">${formatReceiptMoney(total)} ر.س</span>
+              </div>
+              ${(originalCollected > paid && refundedTotal > 0) ? `
+                <div class="receipt-total-line">
+                  <span>المبلغ المسدد مسبقا:</span>
+                  <span dir="ltr">${formatReceiptMoney(originalCollected)} ر.س</span>
+                </div>
+                <div class="receipt-total-line">
+                  <span>المبلغ المسترد:</span>
+                  <span dir="ltr">- ${formatReceiptMoney(refundedTotal)} ر.س</span>
+                </div>
+              ` : (refundedTotal > 0 ? `
+                <div class="receipt-total-line">
+                  <span>المبلغ المسترد:</span>
+                  <span dir="ltr">- ${formatReceiptMoney(refundedTotal)} ر.س</span>
+                </div>
+              ` : '')}
+              <div class="receipt-total-line receipt-total-paid">
+                <span>${refundedTotal > 0 ? 'صافي المدفوع:' : 'المبلغ المدفوع:'}</span>
+                <span dir="ltr">${formatReceiptMoney(paid)} ر.س</span>
+              </div>
+              <div class="receipt-total-line receipt-total-remaining" style="color: ${isCancelled ? '#059669' : (isCredit ? '#1d4ed8' : (remaining > 0 ? '#dc2626' : '#059669'))};">
+                <span>${isCancelled ? 'المبلغ المتبقي:' : (isCredit ? 'رصيد دائن للنزيل (مستحق له):' : 'المبلغ المتبقي:')}</span>
+                <span dir="ltr">${formatReceiptMoney(isCancelled ? 0 : (isCredit ? Math.abs(rawRemaining) : remaining))} ر.س</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="receipt-signature-row ${isMonthly ? 'receipt-signature-monthly' : ''}" dir="rtl">
+            ${isMonthly ? `<div class="receipt-signature-cell"><strong>ختم المؤسسة</strong><img class="receipt-seal" src="assets/seal.svg" alt="الختم" onerror="this.style.display='none'"></div>` : ''}
+            <div class="receipt-signature-cell"><strong>توقيع الموظف</strong><div class="receipt-signature-line receipt-staff-signature-line">${isMonthly ? '<img src="assets/signature.svg" alt="التوقيع" onerror="this.style.display=\'none\'">' : ''}</div></div>
+            <div class="receipt-signature-cell receipt-receiver-signature"><strong>توقيع المستلم</strong><div class="receipt-signature-line"></div><small>بتوقيعي أقر بالاطلاع على الشروط أعلاه والموافقة عليها.</small></div>
           </div>
 
           ${invoiceDepositMovements.length ? `
-            <div style="margin-top: 24px; padding-top: 14px; border-top: 1px solid #ddd6fe;">
+            <div class="receipt-deposit-movements">
               <h4 style="font-size: 0.9rem; font-weight: 800; color: #5b21b6; margin-bottom: 8px;">سجل حركات التأمين</h4>
               <table style="width: 100%; border-collapse: collapse; font-size: 0.78rem;">
                 <thead><tr style="background: #f5f3ff;"><th style="padding: 6px; text-align: right;">التاريخ</th><th style="padding: 6px; text-align: center;">الحركة</th><th style="padding: 6px; text-align: center;">المبلغ</th><th style="padding: 6px; text-align: center;">الطريقة</th><th style="padding: 6px; text-align: right;">السبب / الموظف</th></tr></thead>
                 <tbody>${invoiceDepositMovements.map(m => {
                   const labels = { collected: 'استلام', reconciled: 'مطابقة رصيد قديم', refunded: 'رد', applied: 'تسوية على الإقامة', retained: 'احتفاظ' };
-                  return `<tr style="border-bottom: 1px solid #ede9fe;"><td style="padding: 6px;">${escapeHtml(String(m.movement_date || '').slice(0, 16))}</td><td style="padding: 6px; text-align: center;">${labels[m.movement_type] || escapeHtml(m.movement_type)}</td><td style="padding: 6px; text-align: center;">${Number(m.amount || 0).toLocaleString()} ريال</td><td style="padding: 6px; text-align: center;">${escapeHtml(m.payment_method || 'نقداً')}</td><td style="padding: 6px;">${escapeHtml(m.reason || '')}${m.staff_username ? ` - ${escapeHtml(m.staff_username)}` : ''}</td></tr>`;
+                  return `<tr style="border-bottom: 1px solid #ede9fe;"><td style="padding: 6px;"><bdi dir="ltr">${formatReceiptDateTime(m.movement_date)}</bdi></td><td style="padding: 6px; text-align: center;">${labels[m.movement_type] || escapeHtml(receiptDigits(m.movement_type))}</td><td style="padding: 6px; text-align: center;">${formatReceiptMoney(m.amount)} ر.س</td><td style="padding: 6px; text-align: center;">${escapeHtml(receiptDigits(m.payment_method || 'نقداً'))}</td><td style="padding: 6px;">${escapeHtml(receiptDigits(m.reason || ''))}${m.staff_username ? ` - ${escapeHtml(receiptDigits(m.staff_username))}` : ''}</td></tr>`;
                 }).join('')}</tbody>
               </table>
             </div>
@@ -1474,6 +1578,9 @@
       printFrame.style.visibility = 'hidden';
       document.body.appendChild(printFrame);
     }
+    // Match the CSS viewport used by A4 portrait printing before print media activates.
+    printFrame.style.width = isInvoice ? '794px' : '0';
+    printFrame.style.height = isInvoice ? '1123px' : '0';
 
     const doc = printFrame.contentWindow.document;
     doc.open();
@@ -1484,7 +1591,7 @@
         <meta charset="UTF-8">
         <title>${documentTitle}</title>
         <style>
-          @page { size: A4 portrait; margin: 10mm 12mm; }
+          ${isInvoice ? '' : '@page { size: A4; margin: 10mm; }'}
           * { box-sizing: border-box; margin: 0; padding: 0; }
           body {
             font-family: "Segoe UI", Tahoma, "Cairo", Arial, sans-serif;
@@ -1501,11 +1608,14 @@
         </style>
       </head>
       <body>
-        <div style="padding: 10px; width: 100%;">${contentHtml}</div>
+        <div style="padding: ${isInvoice ? '0' : '10px'}; width: 100%;">${contentHtml}</div>
       </body>
       </html>
     `);
     doc.close();
+    if (isInvoice && typeof printFrame.contentWindow.prepareReceiptForPrint === 'function') {
+      printFrame.contentWindow.prepareReceiptForPrint();
+    }
 
     setTimeout(() => {
       try {
@@ -1513,6 +1623,9 @@
         printFrame.contentWindow.print();
       } catch (e) {
         console.error('Iframe print error, falling back to window.print():', e);
+        if (isInvoice && invoicePrintableArea) {
+          fitReceiptToA4Page(invoicePrintableArea.querySelector('.receipt-document'));
+        }
         window.print();
       } finally {
         setTimeout(() => {

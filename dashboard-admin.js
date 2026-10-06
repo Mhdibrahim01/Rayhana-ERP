@@ -27,14 +27,19 @@
     const notice = document.getElementById('business-day-pending-reconciliation');
     if (!form) return;
     try {
-      const [settingsResult, pendingResult] = await Promise.all([
+      const [settingsResult, pendingResult, policiesResult] = await Promise.all([
         window.api.getBusinessDaySettings(),
-        window.api.getPendingShiftReconciliationAudits()
+        window.api.getPendingShiftReconciliationAudits(),
+        window.api.getReceiptStayPolicies()
       ]);
       if (settingsResult?.success && settingsResult.data) {
         document.getElementById('business-day-cutoff-time').value = settingsResult.data.business_day_cutoff_time;
         document.getElementById('hotel-timezone').value = settingsResult.data.hotel_timezone;
         document.getElementById('auto-rollover-enabled').checked = settingsResult.data.auto_rollover_enabled;
+      }
+      if (policiesResult?.success && Array.isArray(policiesResult.data)) {
+        const policyInput = document.getElementById('receipt-policy-text');
+        if (policyInput) policyInput.value = policiesResult.data.join('\n');
       }
       const pending = pendingResult?.success && Array.isArray(pendingResult.data) ? pendingResult.data : [];
       if (notice) {
@@ -98,6 +103,27 @@
         await loadBusinessDayAdminSettings();
       } catch (error) {
         App.Helpers.showToast(error.message || 'تعذر حفظ الإعدادات.', 'error');
+      } finally {
+        if (submit) submit.disabled = false;
+      }
+    });
+  }
+
+  const receiptPolicySettingsForm = document.getElementById('receipt-policy-settings-form');
+  if (receiptPolicySettingsForm) {
+    receiptPolicySettingsForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const submit = receiptPolicySettingsForm.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+      try {
+        const policies = document.getElementById('receipt-policy-text').value.split(/\r?\n/).map(value => value.trim()).filter(Boolean);
+        if (policies.length > 7) throw new Error('يمكن حفظ 7 شروط كحد أقصى.');
+        const response = await window.api.updateReceiptStayPolicies(policies);
+        if (!response?.success) throw new Error(response?.error || 'تعذر حفظ سياسة الإقامة.');
+        document.getElementById('receipt-policy-text').value = response.data.join('\n');
+        App.Helpers.showToast('تم حفظ سياسة الإقامة والشروط.', 'success');
+      } catch (error) {
+        App.Helpers.showToast(error.message || 'تعذر حفظ سياسة الإقامة.', 'error');
       } finally {
         if (submit) submit.disabled = false;
       }

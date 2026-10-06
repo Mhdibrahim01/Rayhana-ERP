@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('api', {
   runNightAudit: (expectedBusinessDate) => ipcRenderer.invoke('hotel-business-day:run-audit', expectedBusinessDate),
   getBusinessDaySettings: () => ipcRenderer.invoke('hotel-business-day:get-settings'),
   updateBusinessDaySettings: (settings) => ipcRenderer.invoke('hotel-business-day:update-settings', settings),
+  getReceiptStayPolicies: () => ipcRenderer.invoke('receipt-stay-policies:get'),
+  updateReceiptStayPolicies: (policies) => ipcRenderer.invoke('receipt-stay-policies:update', policies),
   getPendingShiftReconciliationAudits: () => ipcRenderer.invoke('hotel-business-day:get-pending-reconciliation'),
   reconcileShiftAudit: (auditId) => ipcRenderer.invoke('hotel-business-day:reconcile-shift-audit', auditId),
   onHotelBusinessDateChanged: (callback) => {
