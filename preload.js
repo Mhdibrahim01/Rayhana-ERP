@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // Analytics & Statistics
   getDashboardStats: () => ipcRenderer.invoke('dashboard:get-stats'),
+  getCurrentShiftRevenueSummary: () => ipcRenderer.invoke('reports:get-current-shift-summary'),
   getMonthlyRevenue: () => ipcRenderer.invoke('analytics:get-monthly-revenue'),
   getHotelBusinessState: () => ipcRenderer.invoke('hotel-business-day:get-state'),
   runNightAudit: (expectedBusinessDate) => ipcRenderer.invoke('hotel-business-day:run-audit', expectedBusinessDate),

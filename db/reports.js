@@ -120,6 +120,31 @@ function getDashboardStats() {
   };
 }
 
+/** Minimal current-business-day revenue summary for the overview KPI. */
+function getCurrentShiftRevenueSummary() {
+  const date = getCurrentBusinessDate();
+  const row = queryOne(`
+    SELECT
+      COALESCE(SUM(amount), 0) AS totalRevenue,
+      COALESCE(SUM(CASE
+        WHEN payment_method NOT IN ('بطاقة / مدى', 'شبكة / مدى', 'تحويل بنكي') THEN amount
+        ELSE 0
+      END), 0) AS cashTotal,
+      COALESCE(SUM(CASE WHEN payment_method IN ('بطاقة / مدى', 'شبكة / مدى') THEN amount ELSE 0 END), 0) AS cardTotal,
+      COALESCE(SUM(CASE WHEN payment_method = 'تحويل بنكي' THEN amount ELSE 0 END), 0) AS transferTotal
+    FROM payments
+    WHERE business_date = ? AND payment_method != 'من التأمين'
+  `, [date]);
+
+  return {
+    date,
+    totalRevenue: roundMoney(row?.totalRevenue || 0),
+    cashTotal: roundMoney(row?.cashTotal || 0),
+    cardTotal: roundMoney(row?.cardTotal || 0),
+    transferTotal: roundMoney(row?.transferTotal || 0)
+  };
+}
+
 /**
  * Shift Audit & Night Closing Report Data Provider
  * Supports date ranges (startDate, endDate) with day-by-day trend breakdown.
@@ -395,5 +420,6 @@ module.exports = {
   getTodayCheckouts,
   getMonthlyRevenue,
   getDashboardStats,
+  getCurrentShiftRevenueSummary,
   getShiftAuditReport
 };

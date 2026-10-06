@@ -133,6 +133,7 @@
       const activeReservations = room.active_reservations || [];
       const activeRes = room.status === 'مشغولة' ? activeReservations[0] || null : null;
       const nextActiveRes = room.status === 'مشغولة' ? activeReservations[1] || null : null;
+      const activeLateCheckout = activeRes ? App.Helpers.isLateCheckout(activeRes) : false;
 
       // Future reservations remain a separate lookup; cleaning rooms show the next arrival too.
       const futureReservation = futureReservationByRoom.get(room.id) || null;
@@ -179,8 +180,9 @@
                 </div>
                 <p style="font-size: 0.84rem; font-weight: 600; color: #64748b; margin-top: 2px;">${App.Helpers.escapeHtml(room.type)}</p>
               </div>
-              <div style="flex-shrink: 0;">
+              <div class="room-card-status-stack" style="flex-shrink: 0;">
                 ${App.Helpers.getRoomStatusBadge(room.status)}
+                ${activeLateCheckout ? App.Helpers.renderOverdueBadge(activeRes, 'تأخر بالمغادرة') : ''}
               </div>
             </div>
 
@@ -198,7 +200,7 @@
                     ${App.Helpers.getPaymentStatusBadge(activeRes.payment_status)}
                   </span>
                 </div>
-                ${App.Helpers.renderOverdueBadge(activeRes)}
+                ${activeLateCheckout ? '<div class="room-late-checkout-alert">⚠️ تأخر بالمغادرة بعد الساعة 14:00 ظهراً - مطلوب إجراء فوري</div>' : ''}
                 <div style="font-size: 0.74rem; color: #475569; margin-top: 4px;">
                   ${hasCheckOut 
                     ? `المغادرة: <strong style="color: #0f172a;">${App.Helpers.escapeHtml(checkOutDateVal)}</strong>` 
@@ -255,12 +257,12 @@
               ` : ''}
 
               ${room.status === 'مشغولة' && activeRes ? `
-                <button type="button" class="btn-room-action" data-action="checkout" data-id="${activeRes.id}" style="border: none; border-radius: 8px; padding: 7px 12px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: #dc2626; color: #ffffff;">
-                  <span>تسجيل خروج &larr;</span>
+                <button type="button" class="btn-room-action ${activeLateCheckout ? 'late-checkout-button-primary' : ''}" data-action="checkout" data-id="${activeRes.id}" style="border: none; border-radius: 8px; padding: 7px 12px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: ${activeLateCheckout ? '#1a4332' : '#dc2626'}; color: #ffffff;">
+                  <span>${activeLateCheckout ? '🚪 خروج فوري' : 'تسجيل خروج &larr;'}</span>
                 </button>
                 ${activeRes.check_out_date && activeRes.check_out_date !== 'مفتوح' ? `
-                  <button type="button" class="btn-room-action" data-action="extend" data-id="${activeRes.id}" style="border: none; border-radius: 8px; padding: 7px 12px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: #1e3a8a; color: #ffffff;" title="تمديد فترة الإقامة">
-                    <span>تمديد ⏳</span>
+                  <button type="button" class="btn-room-action ${activeLateCheckout ? 'late-checkout-button-secondary' : ''}" data-action="extend" data-id="${activeRes.id}" style="border: none; border-radius: 8px; padding: 7px 12px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: ${activeLateCheckout ? '#fff7ed' : '#1e3a8a'}; color: ${activeLateCheckout ? '#9a3412' : '#ffffff'}; border: ${activeLateCheckout ? '1px solid #f59e0b' : 'none'};" title="تمديد فترة الإقامة">
+                    <span>${activeLateCheckout ? '⏳ تمديد' : 'تمديد ⏳'}</span>
                   </button>
                 ` : ''}
                 <button type="button" class="btn-room-action" data-action="invoice" data-id="${activeRes.id}" style="border: none; border-radius: 8px; padding: 7px 12px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: #1a4332; color: #ffffff;">

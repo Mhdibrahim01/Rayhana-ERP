@@ -508,7 +508,7 @@
     Object.keys(viewSections).forEach(key => {
       const section = viewSections[key];
       if (section) {
-        section.style.display = key === targetView ? 'block' : 'none';
+        section.style.display = key === targetView ? (key === 'overview' ? 'flex' : 'block') : 'none';
       }
     });
 

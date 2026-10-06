@@ -1484,6 +1484,7 @@
       const canCheckOut = isConfirmed && (getLocalDateString() >= r.check_in_date);
       const canCancel = isConfirmed && !hasStarted;
       const isContract = r.booking_type === 'عقد مفتوح';
+      const isLateCheckout = App.Helpers.isLateCheckout(r);
       const total = parseFloat(r.total_price || 0);
       const paid = parseFloat((r.status === 'ملغي جزئي' && r.payment_status === 'مدفوع جزئياً' ? r.ledger_paid_amount : r.paid_amount) || 0);
       const deposit = parseFloat(r.deposit_ledger_balance || 0);
@@ -1498,14 +1499,14 @@
       const fmtDep = deposit.toLocaleString();
       const typeBadge = getBookingTypeBadge(r.booking_type);
       const checkOutDisplay = r.check_out_date || (isContract ? 'مفتوح (غير محدد)' : '-');
-      const overdueBadge = renderOverdueBadge(r);
+      const overdueBadge = renderOverdueBadge(r, 'تأخر بالمغادرة (بعد 14:00)');
       const expectedCheckoutTime = isConfirmed && !isContract && r.check_out_date && r.check_out_date !== 'مفتوح' ? '14:00' : '';
       const departureTime = r.checkout_time
         ? `<small class="reservation-date-time"><span>وقت المغادرة الفعلي</span><bdi>${escapeHtml(r.checkout_time)}</bdi></small>`
         : (expectedCheckoutTime ? `<small class="reservation-date-time"><span>وقت المغادرة المتوقع</span><bdi>${expectedCheckoutTime}</bdi></small>` : '');
 
       return `
-        <tr>
+        <tr class="${isLateCheckout ? 'late-checkout-row' : ''}">
           <td style="font-family: monospace; font-weight: 700; color: var(--primary); white-space: nowrap;">#${r.id}</td>
           <td class="reservation-guest-details">
             <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; line-height: 1.2;">
@@ -1566,13 +1567,17 @@
               ` : ''}
               ${isConfirmed ? `
                 ${r.check_out_date && r.check_out_date !== 'مفتوح' ? `
+                  ${isLateCheckout ? `
+                  <button type="button" class="late-checkout-button late-checkout-button-secondary" data-action="extend" data-id="${r.id}" title="تمديد فترة الإقامة">⏳ تمديد الإقامة</button>
+                  ` : `
                   <button type="button" class="btn-action-icon" data-action="extend" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #eff6ff; color: #1e40af; border: 1.5px solid #bfdbfe; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="تمديد فترة الإقامة">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                   </button>
+                  `}
                 ` : ''}
-                ${canCheckOut ? `<button type="button" class="btn-action-icon" data-action="checkout" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #ffffff; color: #334155; border: 1.5px solid #cbd5e1; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="تسجيل مغادرة وتسليم الغرفة">
+                ${canCheckOut ? (isLateCheckout ? `<button type="button" class="late-checkout-button late-checkout-button-primary" data-action="checkout" data-id="${r.id}" title="تسوية فورية وتسجيل المغادرة">🚪 خروج فوري</button>` : `<button type="button" class="btn-action-icon" data-action="checkout" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #ffffff; color: #334155; border: 1.5px solid #cbd5e1; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="تسجيل مغادرة وتسليم الغرفة">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                </button>` : ''}
+                </button>`) : ''}
                 <button type="button" class="btn-action-icon" data-action="whatsapp" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #f0fdf4; color: #16a34a; border: 1.5px solid #86efac; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="مراسلة النزيل عبر واتساب">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
                 </button>
@@ -2700,6 +2705,7 @@
   let currentCalcExtraNights = 0;
   let currentCalcAdditionalCost = 0;
   let currentCalcNewTotal = 0;
+  let halfDayPresetActive = false;
 
   function updateExtendStayCalculations() {
     if (!currentExtendingReservation || !extendNewCheckoutDate) return;
@@ -2829,6 +2835,7 @@
     if (extendDiscountInput) {
       extendDiscountInput.value = '0.00';
     }
+    halfDayPresetActive = false;
 
     // Set min checkout date = current checkout + 1 day
     const oldDate = new Date(res.check_out_date + 'T00:00:00');
@@ -2868,6 +2875,7 @@
     currentCalcExtraNights = 0;
     currentCalcAdditionalCost = 0;
     currentCalcNewTotal = 0;
+    halfDayPresetActive = false;
   }
 
   if (btnCloseExtendStay) btnCloseExtendStay.addEventListener('click', closeExtendStayModal);
@@ -2885,6 +2893,16 @@
       if (!currentExtendingReservation || !currentExtendingReservation.check_out_date) return;
       const days = parseInt(btn.dataset.days, 10);
       if (!days || isNaN(days)) return;
+      const isHalfDay = btn.dataset.halfDay === 'true';
+      if (isHalfDay) {
+        const rate = parseFloat(extendNightlyRateInput?.value)
+          || Number(currentExtendingReservation.custom_nightly_price ?? currentExtendingReservation.price_per_night ?? 0);
+        if (extendDiscountInput) extendDiscountInput.value = String(Math.round(Math.max(0, rate) * 0.5));
+        halfDayPresetActive = true;
+      } else if (halfDayPresetActive) {
+        if (extendDiscountInput) extendDiscountInput.value = '0.00';
+        halfDayPresetActive = false;
+      }
 
       const d = new Date(currentExtendingReservation.check_out_date + 'T00:00:00');
       d.setDate(d.getDate() + days);
@@ -2908,8 +2926,12 @@
   }
 
   if (extendDiscountInput) {
-    extendDiscountInput.addEventListener('input', updateExtendStayCalculations);
-    extendDiscountInput.addEventListener('change', updateExtendStayCalculations);
+    const handleDiscountChange = () => {
+      halfDayPresetActive = false;
+      updateExtendStayCalculations();
+    };
+    extendDiscountInput.addEventListener('input', handleDiscountChange);
+    extendDiscountInput.addEventListener('change', handleDiscountChange);
   }
 
   if (extendCollectNowToggle) {
@@ -3061,6 +3083,10 @@
 
     const action = btn.dataset.action;
     const id = parseInt(btn.dataset.id || btn.getAttribute('data-id'), 10);
+    if (btn.closest('#reservation-preview-modal') && ['invoice', 'whatsapp', 'extend', 'checkout'].includes(action)) {
+      const previewModal = document.getElementById('reservation-preview-modal');
+      if (previewModal) previewModal.style.display = 'none';
+    }
 
     // Shift Audit Open
     if (action === 'open-shift-audit') {
@@ -3087,6 +3113,11 @@
     // Invoice View & Print
     if (action === 'invoice') {
       openInvoiceModal(id);
+      return;
+    }
+
+    if (action === 'preview-reservation') {
+      await window.DashboardApp.Helpers.openReservationPreview(id);
       return;
     }
 

@@ -41,7 +41,7 @@ window.DashboardApp = {
     return getLocalDateString(date);
   }
 
-  function isReservationOverdue(reservation) {
+  function isLateCheckout(reservation) {
     if (!reservation || reservation.status !== 'مؤكد') return false;
     const checkOutDate = String(reservation.check_out_date || '').slice(0, 10);
     if (!checkOutDate || checkOutDate === 'مفتوح') return false;
@@ -50,13 +50,17 @@ window.DashboardApp = {
     if (checkOutDate < todayStr) return true;
     if (checkOutDate > todayStr) return false;
 
-    const now = new Date();
-    return now.getHours() > 14 || (now.getHours() === 14 && (now.getMinutes() > 0 || now.getSeconds() > 0 || now.getMilliseconds() > 0));
+    // Check-out is due at 14:00 hotel local time on the scheduled date.
+    return new Date().getHours() >= 14;
+  }
+
+  function isReservationOverdue(reservation) {
+    return isLateCheckout(reservation);
   }
 
   function renderOverdueBadge(reservation, label = 'متأخر عن المغادرة') {
-    return isReservationOverdue(reservation)
-      ? `<span class="badge" style="display: inline-block; margin-top: 4px; background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; font-size: 0.7rem; font-weight: 800;">${escapeHtml(label)}</span>`
+    return isLateCheckout(reservation)
+      ? `<span class="late-checkout-badge"><span aria-hidden="true">⚠️</span>${escapeHtml(label)}</span>`
       : '';
   }
 
@@ -212,6 +216,7 @@ window.DashboardApp = {
   App.Helpers.getLocalDateString = getLocalDateString;
   App.Helpers.getHotelBusinessDate = getHotelBusinessDate;
   window.getHotelBusinessDate = getHotelBusinessDate;
+  App.Helpers.isLateCheckout = isLateCheckout;
   App.Helpers.isReservationOverdue = isReservationOverdue;
   App.Helpers.renderOverdueBadge = renderOverdueBadge;
   App.Helpers.showToast = showToast;
