@@ -291,3 +291,104 @@
   #widget-recent-bookings .recent-bookings-table-wrap { overflow-x: auto !important; }
   #widget-recent-bookings .recent-bookings-table { min-width: 1000px; }
 }
+
+/* Full reservations page: keep its table controls isolated from dashboard widgets. */
+#view-reservations .reservations-table th:nth-child(8),
+#view-reservations .reservations-table td:nth-child(8) { width: 20%; }
+#view-reservations .reservations-table th:nth-child(7),
+#view-reservations .reservations-table td:nth-child(7) { width: 8%; }
+#view-reservations .reservations-table th:nth-child(2),
+#view-reservations .reservations-table td:nth-child(2) { width: 16%; }
+#view-reservations .reservations-table th:nth-child(3),
+#view-reservations .reservations-table td:nth-child(3) { width: 8%; }
+#view-reservations .reservations-table th:nth-child(6),
+#view-reservations .reservations-table td:nth-child(6) { width: 13%; }
+#view-reservations .reservations-table th:nth-child(4) { width: 16%; }
+#view-reservations .reservations-table td:nth-child(4) { width: 16%; }
+#view-reservations .reservation-actions-list {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  gap: 5px;
+  white-space: nowrap;
+}
+#view-reservations .reservation-actions-list .btn-row {
+  flex: 0 0 36px;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  border-radius: 10px;
+}
+#view-reservations .reservations-table td:nth-child(8) { padding-inline: 4px; }
+#view-reservations .reservation-actions-list .btn-action-icon {
+  box-sizing: border-box;
+  flex: 0 0 36px;
+  width: 36px !important;
+  min-width: 36px;
+  height: 36px !important;
+  border-radius: 10px !important;
+}
+#view-reservations .reservation-actions-list .btn-row svg {
+  width: 15px;
+  height: 15px;
+}
+#view-reservations .reservation-status-cell {
+  white-space: normal;
+  line-height: 1.2;
+}
+#view-reservations .reservation-late-status {
+  display: block;
+  margin-top: 4px;
+}
+#view-reservations .reservation-late-status .late-checkout-badge {
+  max-width: 100%;
+  margin-top: 0;
+  padding: 3px 6px;
+  gap: 3px;
+  font-size: 10px;
+  white-space: normal;
+}
+
+/* Today's checkouts: one flexible guest column and a reserved action area. */
+#widget-today-checkouts .table-responsive { overflow-x: hidden; }
+#widget-today-checkouts .today-checkouts-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+#widget-today-checkouts .today-checkouts-table th,
+#widget-today-checkouts .today-checkouts-table td {
+  box-sizing: border-box;
+  min-width: 0;
+  overflow: hidden;
+}
+#widget-today-checkouts .today-checkouts-table td:nth-child(3) { min-width: 0; }
+#widget-today-checkouts .checkout-guest-name,
+#widget-today-checkouts .checkout-room-type {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#widget-today-checkouts .today-checkouts-table th:last-child,
+#widget-today-checkouts .today-checkouts-table td:last-child { width: 320px; }
+#widget-today-checkouts .overview-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  gap: 5px;
+  white-space: nowrap;
+}
+#widget-today-checkouts .checkout-row-action,
+#widget-today-checkouts .late-checkout-button {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 900px) {
+  #widget-today-checkouts .table-responsive { overflow-x: auto; }
+  #widget-today-checkouts .today-checkouts-table { min-width: 1120px; }
+}
