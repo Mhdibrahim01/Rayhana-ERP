@@ -2,6 +2,7 @@ window.DashboardApp = {
   State: {
     testVar: 0,
     currentUser: null,
+    businessDate: null,
     roomsCache: [],
     guestsCache: [],
     usersCache: [],
@@ -153,11 +154,29 @@ window.DashboardApp = {
     return `${d1} ${ARABIC_MONTHS[m1 - 1] || ''} ${y1} - ${d2} ${ARABIC_MONTHS[m2 - 1] || ''} ${y2}`;
   }
 
+  function parseStoredTimestamp(timestamp) {
+    if (!timestamp) return null;
+    const raw = String(timestamp).trim();
+    if (!raw) return null;
+
+    // SQLite CURRENT_TIMESTAMP values are UTC but omit a timezone marker.
+    // Parsing "YYYY-MM-DD HH:mm:ss" directly makes JavaScript treat it as
+    // local time, which shifts the displayed date for post-midnight bookings.
+    let normalized = raw.replace(' ', 'T');
+    const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized);
+    if (!hasTimezone && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(normalized)) {
+      normalized += 'Z';
+    }
+
+    const date = new Date(normalized);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
   function formatArabicDateTime(isoString) {
     if (!isoString) return '-';
     try {
-      const d = new Date(isoString);
-      if (isNaN(d.getTime())) return isoString;
+      const d = parseStoredTimestamp(isoString);
+      if (!d) return isoString;
       return d.toLocaleDateString('ar-EG', {
         year: 'numeric',
         month: 'short',
@@ -202,6 +221,7 @@ window.DashboardApp = {
   App.Helpers.getRoomStatusBadge = getRoomStatusBadge;
   App.Helpers.formatArabicDateRange = formatArabicDateRange;
   App.Helpers.formatArabicDateTime = formatArabicDateTime;
+  App.Helpers.parseStoredTimestamp = parseStoredTimestamp;
   App.Helpers.escapeHtml = escapeHtml;
 
 })(window.DashboardApp);

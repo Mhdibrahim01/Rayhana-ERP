@@ -20,6 +20,7 @@ function _hashPassword(plain) {
 
 let db = null;
 let currentDbPath = '';
+let SQLRuntime = null;
 
 const dbProxy = new Proxy({}, {
   get(target, prop) {
@@ -33,18 +34,20 @@ const dbProxy = new Proxy({}, {
  * Saves current in-memory SQLite state to the physical .sqlite file on disk.
  */
 function saveToFile() {
-  if (!db || !currentDbPath) return;
+  if (!db || !currentDbPath) return false;
   const tempPath = `${currentDbPath}.tmp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   try {
     const data = db.export();
     const buffer = Buffer.from(data);
     fs.writeFileSync(tempPath, buffer);
     fs.renameSync(tempPath, currentDbPath);
+    return true;
   } catch (err) {
     try {
       if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
     } catch (_) {}
     console.error('[DB] خطأ أثناء حفظ قاعدة البيانات إلى القرص:', err);
+    return false;
   }
 }
 
@@ -86,6 +89,7 @@ async function init(dbPath) {
     }
 
     const SQL = await initSqlJs();
+    SQLRuntime = SQL;
 
     if (fs.existsSync(dbPath)) {
       const fileBuffer = fs.readFileSync(dbPath);
@@ -147,6 +151,7 @@ async function init(dbPath) {
         original_calculated_charge REAL,
         checked_out_at DATETIME,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_business_date TEXT,
         FOREIGN KEY(guest_id) REFERENCES guests(id),
         FOREIGN KEY(room_id) REFERENCES rooms(id)
       );
@@ -162,6 +167,8 @@ async function init(dbPath) {
         payment_method TEXT NOT NULL DEFAULT 'نقداً',
         payment_type TEXT NOT NULL DEFAULT 'legacy_unclassified',
         payment_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        business_date TEXT,
         user_id INTEGER,
         notes TEXT,
         FOREIGN KEY(reservation_id) REFERENCES reservations(id),
@@ -179,6 +186,8 @@ async function init(dbPath) {
         amount REAL NOT NULL CHECK (amount > 0),
         payment_method TEXT NOT NULL DEFAULT 'نقداً',
         movement_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        business_date TEXT,
         user_id INTEGER,
         reason TEXT,
         FOREIGN KEY(reservation_id) REFERENCES reservations(id),
@@ -193,6 +202,43 @@ async function init(dbPath) {
         user_id INTEGER NOT NULL,
         login_time DATETIME DEFAULT CURRENT_TIMESTAMP,
         logout_time DATETIME,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS hotel_business_state (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        current_business_date TEXT NOT NULL,
+        last_audit_at DATETIME,
+        last_audit_user_id INTEGER,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(last_audit_user_id) REFERENCES users(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS night_audits (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        closed_business_date TEXT NOT NULL UNIQUE,
+        business_date TEXT NOT NULL,
+        next_business_date TEXT NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        user_id INTEGER,
+        payment_count INTEGER NOT NULL DEFAULT 0,
+        payment_net REAL NOT NULL DEFAULT 0,
+        deposit_movement_count INTEGER NOT NULL DEFAULT 0,
+        deposit_net REAL NOT NULL DEFAULT 0,
+        summary_json TEXT NOT NULL DEFAULT '{}',
+        FOREIGN KEY(user_id) REFERENCES users(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS reservation_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entity_type TEXT NOT NULL CHECK (entity_type IN ('reservation', 'room')),
+        entity_id INTEGER NOT NULL,
+        event_type TEXT NOT NULL,
+        old_status TEXT,
+        new_status TEXT,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        business_date TEXT NOT NULL,
+        user_id INTEGER,
         FOREIGN KEY(user_id) REFERENCES users(id)
       );
     `);
@@ -220,6 +266,114 @@ async function init(dbPath) {
     try { db.run("ALTER TABLE reservations ADD COLUMN checkout_policy TEXT"); } catch (e) {}
     try { db.run("ALTER TABLE reservations ADD COLUMN checkout_policy_reason TEXT"); } catch (e) {}
     try { db.run("ALTER TABLE reservations ADD COLUMN booked_check_out_date TEXT"); } catch (e) {}
+    try { db.run("ALTER TABLE reservations ADD COLUMN created_business_date TEXT"); } catch (e) {}
+    try { db.run("ALTER TABLE payments ADD COLUMN created_at DATETIME"); } catch (e) {}
+    try { db.run("ALTER TABLE payments ADD COLUMN business_date TEXT"); } catch (e) {}
+    try { db.run("ALTER TABLE deposit_movements ADD COLUMN created_at DATETIME"); } catch (e) {}
+    try { db.run("ALTER TABLE deposit_movements ADD COLUMN business_date TEXT"); } catch (e) {}
+    try { db.run("ALTER TABLE night_audits ADD COLUMN business_date TEXT"); } catch (e) {}
+
+    // Seed the operational date only once. The legacy 06:00 rule is used solely
+    // to choose the initial date for an existing installation; later date changes
+    // are performed only by a successful Night Audit.
+    db.run(`
+      INSERT OR IGNORE INTO hotel_business_state (id, current_business_date)
+      VALUES (1, '${getHotelBusinessDate()}')
+    `);
+
+    // Preserve the historical report day for old rows. Exact historical business
+    // dates cannot be reconstructed because the old database did not store them.
+    db.run(`
+      UPDATE payments
+      SET created_at = COALESCE(NULLIF(created_at, ''), NULLIF(payment_date, ''), CURRENT_TIMESTAMP),
+          business_date = COALESCE(NULLIF(business_date, ''), date(payment_date),
+            (SELECT current_business_date FROM hotel_business_state WHERE id = 1))
+      WHERE created_at IS NULL OR created_at = '' OR business_date IS NULL OR business_date = '';
+      UPDATE deposit_movements
+      SET created_at = COALESCE(NULLIF(created_at, ''), NULLIF(movement_date, ''), CURRENT_TIMESTAMP),
+          business_date = COALESCE(NULLIF(business_date, ''), date(movement_date),
+            (SELECT current_business_date FROM hotel_business_state WHERE id = 1))
+      WHERE created_at IS NULL OR created_at = '' OR business_date IS NULL OR business_date = '';
+      UPDATE reservations
+      SET created_business_date = COALESCE(NULLIF(created_business_date, ''), date(created_at, 'localtime'),
+            (SELECT current_business_date FROM hotel_business_state WHERE id = 1))
+      WHERE created_business_date IS NULL OR created_business_date = '';
+    `);
+
+    db.run(`
+      CREATE INDEX IF NOT EXISTS idx_payments_business_date ON payments(business_date);
+      CREATE INDEX IF NOT EXISTS idx_deposit_movements_business_date ON deposit_movements(business_date);
+      CREATE INDEX IF NOT EXISTS idx_reservations_created_business_date ON reservations(created_business_date);
+      CREATE INDEX IF NOT EXISTS idx_reservation_events_business_date ON reservation_events(business_date);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_reservation_events_one_checkin
+        ON reservation_events(entity_id, event_type)
+        WHERE entity_type = 'reservation' AND event_type = 'check_in';
+
+      CREATE TRIGGER IF NOT EXISTS trg_payments_stamp_business_date
+      AFTER INSERT ON payments
+      WHEN NEW.business_date IS NULL OR NEW.business_date = '' OR NEW.created_at IS NULL OR NEW.created_at = ''
+      BEGIN
+        UPDATE payments
+        SET business_date = COALESCE(NULLIF(NEW.business_date, ''),
+              (SELECT current_business_date FROM hotel_business_state WHERE id = 1)),
+            created_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE id = NEW.id;
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_deposit_movements_stamp_business_date
+      AFTER INSERT ON deposit_movements
+      WHEN NEW.business_date IS NULL OR NEW.business_date = '' OR NEW.created_at IS NULL OR NEW.created_at = ''
+      BEGIN
+        UPDATE deposit_movements
+        SET business_date = COALESCE(NULLIF(NEW.business_date, ''),
+              (SELECT current_business_date FROM hotel_business_state WHERE id = 1)),
+            created_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE id = NEW.id;
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_reservations_created_event
+      AFTER INSERT ON reservations
+      BEGIN
+        UPDATE reservations
+        SET created_business_date = COALESCE(NULLIF(NEW.created_business_date, ''),
+              (SELECT current_business_date FROM hotel_business_state WHERE id = 1))
+        WHERE id = NEW.id AND (NEW.created_business_date IS NULL OR NEW.created_business_date = '');
+        INSERT INTO reservation_events (entity_type, entity_id, event_type, new_status, created_at, business_date)
+        VALUES ('reservation', NEW.id, 'created', NEW.status, COALESCE(NEW.created_at, CURRENT_TIMESTAMP),
+          COALESCE(NULLIF(NEW.created_business_date, ''), (SELECT current_business_date FROM hotel_business_state WHERE id = 1)));
+        INSERT OR IGNORE INTO reservation_events (entity_type, entity_id, event_type, new_status, created_at, business_date)
+        SELECT 'reservation', NEW.id, 'check_in', 'وصل النزيل', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+          (SELECT current_business_date FROM hotel_business_state WHERE id = 1)
+        WHERE NEW.check_in_date <= (SELECT current_business_date FROM hotel_business_state WHERE id = 1);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_reservations_status_event
+      AFTER UPDATE OF status ON reservations
+      WHEN OLD.status IS NOT NEW.status
+      BEGIN
+        INSERT INTO reservation_events (entity_type, entity_id, event_type, old_status, new_status, created_at, business_date)
+        VALUES ('reservation', NEW.id, 'status_changed', OLD.status, NEW.status, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+          (SELECT current_business_date FROM hotel_business_state WHERE id = 1));
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_reservations_payment_status_event
+      AFTER UPDATE OF payment_status ON reservations
+      WHEN OLD.payment_status IS NOT NEW.payment_status
+      BEGIN
+        INSERT INTO reservation_events (entity_type, entity_id, event_type, old_status, new_status, created_at, business_date)
+        VALUES ('reservation', NEW.id, 'payment_status_changed', OLD.payment_status, NEW.payment_status, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+          (SELECT current_business_date FROM hotel_business_state WHERE id = 1));
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_rooms_status_event
+      AFTER UPDATE OF status ON rooms
+      WHEN OLD.status IS NOT NEW.status
+      BEGIN
+        INSERT INTO reservation_events (entity_type, entity_id, event_type, old_status, new_status, created_at, business_date)
+        VALUES ('room', NEW.id, 'status_changed', OLD.status, NEW.status, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+          (SELECT current_business_date FROM hotel_business_state WHERE id = 1));
+      END;
+    `);
 
     // Backfill historical payments from reservations if payments table is empty
     try {
@@ -230,10 +384,13 @@ async function init(dbPath) {
           const year = new Date().getFullYear();
           const receiptNo = `REC-${year}-${String(r.id).padStart(5, '0')}`;
           const stmt = db.prepare(`
-            INSERT OR IGNORE INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, notes)
-            VALUES (?, ?, ?, ?, 'legacy_unclassified', ?, 'دفعة الحجز المبدئية (ترحيل آلي)')
+            INSERT OR IGNORE INTO payments (
+              receipt_number, reservation_id, amount, payment_method, payment_type,
+              payment_date, notes, created_at, business_date
+            ) VALUES (?, ?, ?, ?, 'legacy_unclassified', ?, 'دفعة الحجز المبدئية (ترحيل آلي)', ?, date(?))
           `);
-          stmt.run([receiptNo, r.id, r.paid_amount, r.payment_method || 'نقداً', r.created_at || new Date().toISOString()]);
+          const legacyCreatedAt = r.created_at || new Date().toISOString();
+          stmt.run([receiptNo, r.id, r.paid_amount, r.payment_method || 'نقداً', legacyCreatedAt, legacyCreatedAt, legacyCreatedAt]);
           stmt.free();
         }
       }
@@ -374,12 +531,8 @@ function getLocalDateString(d = new Date()) {
 }
 
 /**
- * Get the current hotel business operational date (اليوم الفندقي التشغيلي).
- * Standard hotel audit practice: between 00:00 midnight and early morning cutoff (default: 06:00 AM),
- * guests arriving are checking in for the ongoing night (check-in date is yesterday, checkout today at 14:00).
- * @param {Date} [d=new Date()]
- * @param {number} [cutoffHour=6] - Hour before which the business date rolls back to previous day
- * @returns {string} YYYY-MM-DD
+ * Legacy cutoff calculation used only to seed the persisted business date once
+ * when a hotel database is first initialized. Never use it for later rollover.
  */
 function getHotelBusinessDate(d = new Date(), cutoffHour = 6) {
   const date = new Date(d);
@@ -387,6 +540,22 @@ function getHotelBusinessDate(d = new Date(), cutoffHour = 6) {
     date.setDate(date.getDate() - 1);
   }
   return getLocalDateString(date);
+}
+
+/** Read the persisted operational date. This date changes only through Night Audit. */
+function getCurrentBusinessState() {
+  const state = queryOne(`
+    SELECT current_business_date, last_audit_at, last_audit_user_id, updated_at
+    FROM hotel_business_state WHERE id = 1
+  `);
+  if (!state || !/^\d{4}-\d{2}-\d{2}$/.test(String(state.current_business_date || ''))) {
+    throw new Error('تاريخ العمل الفندقي غير مهيأ في قاعدة البيانات.');
+  }
+  return state;
+}
+
+function getCurrentBusinessDate() {
+  return getCurrentBusinessState().current_business_date;
 }
 
 /**
@@ -454,6 +623,14 @@ function close() {
   }
 }
 
+function restoreInMemorySnapshot(snapshot) {
+  if (!SQLRuntime || !snapshot) throw new Error('تعذر استعادة لقطة قاعدة البيانات السابقة.');
+  if (db) {
+    try { db.close(); } catch (_) {}
+  }
+  db = new SQLRuntime.Database(snapshot);
+}
+
 /**
  * Factory Reset: Wipes the SQLite file completely and reinitializes fresh baseline data
  * (Default Admin/Staff/User accounts, 7 default available rooms, empty reservations/guests/logs).
@@ -485,12 +662,15 @@ module.exports = {
   db: dbProxy,
   getDb: () => db,
   saveToFile,
+  restoreInMemorySnapshot,
   queryAll,
   queryOne,
   init,
   roundMoney,
   getLocalDateString,
   getHotelBusinessDate,
+  getCurrentBusinessState,
+  getCurrentBusinessDate,
   createBackupCopy,
   restoreDatabaseFile,
   getDatabaseFilePath,

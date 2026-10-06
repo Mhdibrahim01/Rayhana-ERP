@@ -23,6 +23,29 @@ module.exports = function registerReportsIpc(ipcMain, { db, session, helpers }) 
     }
   });
 
+  ipcMain.handle('hotel-business-day:get-state', async () => {
+    if (!session.currentUser) {
+      return { success: false, error: 'غير مصرح: يرجى تسجيل الدخول أولاً.' };
+    }
+    try {
+      return { success: true, data: db.getCurrentBusinessState() };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('hotel-business-day:run-audit', async (event, expectedBusinessDate) => {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
+      return { success: false, error: 'غير مصرح: إقفال اليوم الفندقي مخصص لمدير النظام (Admin).' };
+    }
+    try {
+      const result = db.runNightAudit(session.currentUser.id, expectedBusinessDate);
+      return { success: true, data: result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   // 10. Shift Audit & Night Closing Report
   ipcMain.handle('reports:get-shift-audit', async (event, customDate, endDate) => {
     if (!session.currentUser || session.currentUser.role !== 'Admin') {
@@ -37,7 +60,7 @@ module.exports = function registerReportsIpc(ipcMain, { db, session, helpers }) 
         end = customDate.endDate;
       }
 
-      const date = start || helpers.getLocalDateString();
+      const date = start || (db.getCurrentBusinessDate ? db.getCurrentBusinessDate() : helpers.getLocalDateString());
       const report = db.getShiftAuditReport(date, end);
       return { success: true, data: report, currentUser: session.currentUser };
     } catch (err) {

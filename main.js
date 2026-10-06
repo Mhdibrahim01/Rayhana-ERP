@@ -209,13 +209,13 @@ function backupDatabase() {
 
 /**
  * Automated Room Status updater function in main.js
- * Checks Reservations table against the current date:
+ * Checks Reservations table against the currently open hotel business date:
  * - If today's date falls between check_in_date and check_out_date -> update room to 'مشغولة' (Occupied)
  * - If check_out_date has passed -> update room to 'تنظيف' (Cleaning)
  */
 function updateAutomatedRoomStatuses() {
   try {
-    const today = getLocalDateString();
+    const today = db.getCurrentBusinessDate();
     const result = db.autoUpdateRoomStatuses(today);
     return result;
   } catch (err) {
@@ -239,6 +239,8 @@ function registerIpcHandlers() {
 
   const helpers = {
     getLocalDateString,
+    getHotelBusinessDate: db.getHotelBusinessDate,
+    getCurrentBusinessDate: db.getCurrentBusinessDate,
     updateAutomatedRoomStatuses,
     backupDatabase
   };

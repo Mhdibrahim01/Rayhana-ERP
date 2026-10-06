@@ -55,6 +55,7 @@
   const extendDiscountBadge = document.getElementById('extend-discount-badge');
   const allReservationsTableBody = document.getElementById('all-reservations-table-body');
   const allReservationsEmpty = document.getElementById('all-reservations-empty');
+  const reservationsPaymentTypeFilter = document.getElementById('reservations-payment-type-filter');
   const reservationsPagination = document.getElementById('reservations-pagination');
   const reservationsPaginationSummary = document.getElementById('reservations-pagination-summary');
   const reservationsPaginationPage = document.getElementById('reservations-pagination-page');
@@ -192,22 +193,18 @@
     const subtotal = roundMoney(effectiveRate * MONTHLY_PACKAGE_NIGHTS);
     return Math.max(0, roundMoney(subtotal - (discount || 0)));
   }
-  function getHotelBusinessDate(d, cutoff) { return App.Helpers.getHotelBusinessDate(d, cutoff); }
-  function getDefaultBookingDates() {
-    const now = new Date();
-    if (now.getHours() < 6) {
-      return {
-        checkIn: getHotelBusinessDate(now),
-        checkOut: getLocalDateString(now)
-      };
-    }
-    const checkIn = getLocalDateString(now);
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return {
-      checkIn,
-      checkOut: getLocalDateString(tomorrow)
-    };
+  function getOperationalBusinessDate() {
+    return App.State.businessDate || '';
+  }
+  function addIsoCalendarDay(value) {
+    const [year, month, day] = String(value).split('-').map(Number);
+    const next = new Date(year, month - 1, day, 12);
+    next.setDate(next.getDate() + 1);
+    return getLocalDateString(next);
+  }
+  function getDefaultBookingDates(businessDate = getOperationalBusinessDate()) {
+    const checkIn = businessDate;
+    return { checkIn, checkOut: addIsoCalendarDay(checkIn) };
   }
   function isReservationOverdue(res) { return App.Helpers.isReservationOverdue(res); }
   function renderOverdueBadge(isOverdue) { return App.Helpers.renderOverdueBadge(isOverdue); }
@@ -1011,10 +1008,14 @@
       return { valid: false, error: 'يرجى تحديد تاريخ الوصول.' };
     }
 
-    const minAllowedDate = getHotelBusinessDate(new Date());
+    const minAllowedDate = getOperationalBusinessDate();
+    if (!minAllowedDate) {
+      showToast('تعذر قراءة تاريخ العمل الفندقي. يرجى تحديث الصفحة والمحاولة مجدداً.', 'error');
+      return { valid: false, error: 'تعذر قراءة تاريخ العمل الفندقي.' };
+    }
     if (checkInDate < minAllowedDate) {
       if (checkInInput) { checkInInput.focus(); highlightField(checkInInput); }
-      return { valid: false, error: 'تاريخ الوصول لا يمكن أن يكون في الماضي (يجب أن يكون تاريخ اليوم أو تاريخاً مستقبلياً).' };
+      return { valid: false, error: 'تاريخ الوصول لا يمكن أن يسبق تاريخ العمل الفندقي الحالي.' };
     }
 
     if (bookingType === 'عقد مفتوح') {
@@ -1323,18 +1324,41 @@
     }
   }
 
- function openNewReservationModal() {
+ async function openNewReservationModal() {
   if (!newReservationModal) return;
+  try {
+    const businessState = await window.api.getHotelBusinessState();
+    if (businessState?.success && businessState.data?.current_business_date) {
+      App.State.businessDate = businessState.data.current_business_date;
+    }
+  } catch (_) {}
+  if (!getOperationalBusinessDate()) {
+    showToast('تعذر قراءة تاريخ العمل الفندقي. حدّث الصفحة قبل تسجيل حجز جديد.', 'error');
+    return;
+  }
   clearFieldError(guestPhoneInput, guestPhoneError);
   clearFieldError(guestIdNumberInput, guestIdError);
   isPaidAmountCustomized = false;
 
-  // Safety net: never open the modal with empty date fields, regardless
-  // of what happened before this call.
-  if (!checkInInput.value || !checkOutInput.value) {
-    const defaultDates = getDefaultBookingDates();
-    if (!checkInInput.value) checkInInput.value = defaultDates.checkIn;
-    if (!checkOutInput.value) checkOutInput.value = defaultDates.checkOut;
+  // Reservation defaults follow the persisted open hotel date, which advances only
+  // when the manager completes the Night Audit.
+  const defaultDates = getDefaultBookingDates(getOperationalBusinessDate());
+  if (checkInInput) {
+    checkInInput.min = getOperationalBusinessDate();
+    checkInInput.value = defaultDates.checkIn;
+  }
+  if (checkOutInput) {
+    const bookingType = bookingTypeSelect?.value || 'عادي';
+    if (bookingType === 'عقد مفتوح') {
+      checkOutInput.value = '';
+    } else if (bookingType === 'استخدام يومي') {
+      checkOutInput.value = defaultDates.checkIn;
+    } else if (bookingType === 'حجز شهري') {
+      checkOutInput.value = getCalendarMonthCheckOut(defaultDates.checkIn) || defaultDates.checkOut;
+    } else {
+      checkOutInput.value = defaultDates.checkOut;
+    }
+    updateMinimumCheckoutDate();
   }
 
   if (roomSelect && roomSelect.value) {
@@ -1394,7 +1418,8 @@
         page: reservationsTablePage,
         pageSize: reservationsTablePageSize,
         search: searchAllReservations.value || '',
-        status: currentReservationFilter
+        status: currentReservationFilter,
+        paymentType: reservationsPaymentTypeFilter?.value || 'all'
       });
       if (!res || !res.success) {
         console.error('Error loading reservations:', res?.error || 'Unknown error');
@@ -1453,7 +1478,7 @@
     // once to avoid hundreds of costly individual DOM reflows (layout thrashing).
     const rowsHtml = filtered.map(r => {
       const isConfirmed = r.status === 'مؤكد';
-      const hotelBizDate = getHotelBusinessDate();
+      const hotelBizDate = getOperationalBusinessDate();
       const isArrivalDate = r.check_in_date ? (r.check_in_date >= getLocalDateString() || r.check_in_date === hotelBizDate) : false;
       const hasStarted = r.check_in_date ? !isArrivalDate : false;
       const canCheckOut = isConfirmed && (getLocalDateString() >= r.check_in_date);
@@ -1476,15 +1501,15 @@
       const overdueBadge = renderOverdueBadge(r);
       const expectedCheckoutTime = isConfirmed && !isContract && r.check_out_date && r.check_out_date !== 'مفتوح' ? '14:00' : '';
       const departureTime = r.checkout_time
-        ? `<div class="table-time"><span class="table-time-label">مغادرة فعلية:</span><bdi class="table-time-value">${escapeHtml(r.checkout_time)}</bdi></div>`
-        : (expectedCheckoutTime ? `<div class="table-time"><span class="table-time-label">مغادرة متوقعة:</span><bdi class="table-time-value">${expectedCheckoutTime}</bdi></div>` : '');
+        ? `<small class="reservation-date-time"><span>وقت المغادرة الفعلي</span><bdi>${escapeHtml(r.checkout_time)}</bdi></small>`
+        : (expectedCheckoutTime ? `<small class="reservation-date-time"><span>وقت المغادرة المتوقع</span><bdi>${expectedCheckoutTime}</bdi></small>` : '');
 
       return `
         <tr>
           <td style="font-family: monospace; font-weight: 700; color: var(--primary); white-space: nowrap;">#${r.id}</td>
-          <td>
+          <td class="reservation-guest-details">
             <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; line-height: 1.2;">
-              <span style="font-weight: 800; color: #1e293b; font-size: 0.9rem; white-space: nowrap;">${escapeHtml(r.guest_name)}</span>
+              <span style="font-weight: 800; color: #1e293b; font-size: 0.9rem;">${escapeHtml(r.guest_name)}</span>
               ${typeBadge}
             </div>
             ${r.guest_id_number ? `<div style="font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; line-height: 1.2; margin-top: 2px;">هوية: ${escapeHtml(r.guest_id_number)}</div>` : ''}
@@ -1494,11 +1519,22 @@
             <span style="font-weight: 800; color: #1a4332; line-height: 1.2;">غرفة ${escapeHtml(r.room_number)}</span>
             <div style="font-size: 0.72rem; color: var(--text-muted); line-height: 1.2; margin-top: 2px;">${escapeHtml(r.room_type || '')}</div>
           </td>
-          <td style="font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; font-family: monospace; direction: ltr; text-align: right; line-height: 1.2;">
-            <div style="line-height: 1.2;">${escapeHtml(r.check_in_date)}</div>
-            ${r.booking_time ? `<div class="table-time"><span class="table-time-label">الوصول:</span><bdi class="table-time-value">${escapeHtml(r.booking_time)}</bdi></div>` : ''}
+          <td class="reservation-date-range">
+            <div class="reservation-date-item">
+              <span class="reservation-date-kind">الوصول</span>
+              <div class="reservation-date-values">
+                <bdi dir="ltr">${escapeHtml(r.check_in_date || '-')}</bdi>
+                ${r.booking_time ? `<small class="reservation-date-time"><span>وقت التسجيل</span><bdi>${escapeHtml(r.booking_time)}</bdi></small>` : ''}
+              </div>
+            </div>
+            <div class="reservation-date-item">
+              <span class="reservation-date-kind">المغادرة</span>
+              <div class="reservation-date-values">
+                <bdi dir="ltr">${escapeHtml(checkOutDisplay)}</bdi>
+                ${departureTime}
+              </div>
+            </div>
           </td>
-          <td style="font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; font-family: ${r.check_out_date ? 'monospace' : 'inherit'}; direction: ${r.check_out_date ? 'ltr' : 'rtl'}; text-align: right; line-height: 1.2;">${escapeHtml(checkOutDisplay)}${departureTime}</td>
           <td style="white-space: nowrap; line-height: 1.2;">
             <div style="font-weight: 800; color: #1e293b; font-size: 0.88rem; line-height: 1.2;">${fmtTotal} ريال</div>
             ${r.original_calculated_charge != null ? `<div style="font-size: 0.70rem; color: #64748b; font-weight: 600; line-height: 1.2; margin-top: 2px;" title="المبلغ الأصلي قبل تعديل الإدارة">معدل يدوياً (أصلي: ${parseFloat(r.original_calculated_charge).toLocaleString()} ريال)</div>` : ''}
@@ -1508,16 +1544,18 @@
             ${deposit > 0 ? `<div style="font-size: 0.70rem; color: #4338ca; line-height: 1.2; margin-top: 2px;">تأمين مسجل: ${fmtDep}</div>` : ''}
             ${legacyDeposit > 0 ? `<div style="font-size: 0.70rem; color: #9a3412; line-height: 1.2; margin-top: 2px;">تأمين قديم للمراجعة: ${legacyDeposit.toLocaleString()}</div>` : ''}
           </td>
-          <td style="font-size: 0.82rem; white-space: nowrap;">
-            <span class="badge" style="background: rgba(0,0,0,0.04); color: #334155; border: 1px solid #cbd5e1; font-weight: 600;">${escapeHtml(r.payment_method || 'نقداً')}</span>
+          <td>
+            <div class="reservation-payment-details">
+              <span class="badge" style="background: rgba(0,0,0,0.04); color: #334155; border: 1px solid #cbd5e1; font-weight: 600;">${escapeHtml(r.payment_method || 'نقداً')}</span>
+              <div>${getPaymentStatusBadge(r.payment_status)}</div>
+            </div>
           </td>
-          <td style="white-space: nowrap;">${getPaymentStatusBadge(r.payment_status)}</td>
           <td style="white-space: nowrap; line-height: 1.2;">
             ${getReservationStatusBadge(r.status)}
             ${overdueBadge}
           </td>
-          <td style="text-align: center; white-space: nowrap;">
-            <div style="display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: nowrap;">
+          <td style="text-align: center;">
+            <div class="reservation-actions-list" style="display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap;">
               <button type="button" class="btn-action-icon" data-action="invoice" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #f0fdf4; color: #166534; border: 1.5px solid #bbf7d0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="طباعة سند الاستلام والإقامة (فاتورة)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
               </button>
@@ -1571,6 +1609,13 @@
     }, 250);
   });
 
+  if (reservationsPaymentTypeFilter) {
+    reservationsPaymentTypeFilter.addEventListener('change', () => {
+      reservationsTablePage = 1;
+      loadReservationsData();
+    });
+  }
+
   if (btnReservationsPrevPage) {
     btnReservationsPrevPage.addEventListener('click', () => {
       if (reservationsTablePage <= 1) return;
@@ -1602,6 +1647,7 @@
         pageSize: reservationsTablePageSize,
         search: searchAllReservations.value || '',
         status: currentReservationFilter,
+        paymentType: reservationsPaymentTypeFilter?.value || 'all',
         exportAll: true
       });
       if (!response || !response.success) {
@@ -3178,7 +3224,7 @@
       }
 
       const todayStr = getLocalDateString();
-      const hotelBizDate = getHotelBusinessDate();
+      const hotelBizDate = getOperationalBusinessDate();
       const isArrivalDate = targetRes && targetRes.check_in_date ? (targetRes.check_in_date >= todayStr || targetRes.check_in_date === hotelBizDate) : false;
       const hasStarted = targetRes && targetRes.check_in_date ? !isArrivalDate : false;
       if (hasStarted) {

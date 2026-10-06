@@ -154,12 +154,16 @@ test('same-day stays, check-outs counting, and shift audit reservation log', asy
       });
       // Backdate created_at and payment_date to 4 days ago
       connection.getDb().run(
-        "UPDATE reservations SET created_at = ? WHERE id = ?",
-        [`${fourDaysAgo} 12:00:00`, res6.reservationId]
+        "UPDATE reservations SET created_at = ?, created_business_date = ? WHERE id = ?",
+        [`${fourDaysAgo} 12:00:00`, fourDaysAgo, res6.reservationId]
       );
       connection.getDb().run(
-        "UPDATE payments SET payment_date = ? WHERE reservation_id = ?",
-        [`${fourDaysAgo} 12:00:00`, res6.reservationId]
+        "UPDATE payments SET payment_date = ?, business_date = ? WHERE reservation_id = ?",
+        [`${fourDaysAgo} 12:00:00`, fourDaysAgo, res6.reservationId]
+      );
+      connection.getDb().run(
+        "UPDATE reservation_events SET business_date = ? WHERE entity_type = 'reservation' AND entity_id = ?",
+        [fourDaysAgo, res6.reservationId]
       );
 
       const reportToday = appDb.getShiftAuditReport(today, today);

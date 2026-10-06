@@ -106,6 +106,31 @@ test('monthly receipt header: renderer data layer', async t => {
       assert.ok(dashboardSrc.includes('توقيع المستلم'), 'Receiver signature label present');
       assert.ok(dashboardSrc.includes('طريقة السداد:'), 'Payment method label present');
       assert.ok(dashboardSrc.includes('يعتبر هذا المستند سند استلام رسمي ومعتمد'), 'Official document notice present');
+      assert.ok(dashboardSrc.includes('التاريخ والوقت الفعلي للتسجيل'), 'Invoice distinguishes the real registration timestamp');
+      assert.ok(dashboardSrc.includes('تاريخ الوصول (اليوم الفندقي)'), 'Invoice labels the operational arrival date');
+    });
+
+    await t.test('SQLite UTC timestamps format as the actual local date and time', () => {
+      const fs = require('node:fs');
+      const path = require('node:path');
+      const vm = require('node:vm');
+      const dashboardAppSrc = fs.readFileSync(path.join(__dirname, '../dashboard-app.js'), 'utf8');
+      const sandbox = { window: {} };
+      vm.runInNewContext(dashboardAppSrc, sandbox, { filename: 'dashboard-app.js' });
+
+      const parsed = sandbox.window.DashboardApp.Helpers.parseStoredTimestamp('2026-10-05 23:00:00');
+      assert.equal(parsed.toISOString(), '2026-10-05T23:00:00.000Z');
+      const expectedLocal = new Date('2026-10-05T23:00:00.000Z').toLocaleDateString('ar-EG', {
+        year: 'numeric', month: 'short', day: 'numeric'
+      }) + ' ' + new Date('2026-10-05T23:00:00.000Z').toLocaleTimeString('ar-EG', {
+        hour: '2-digit', minute: '2-digit'
+      });
+      assert.equal(sandbox.window.DashboardApp.Helpers.formatArabicDateTime('2026-10-05 23:00:00'), expectedLocal);
+      assert.equal(
+        sandbox.window.DashboardApp.Helpers.parseStoredTimestamp('2026-10-05T23:00:00.000Z').toISOString(),
+        '2026-10-05T23:00:00.000Z',
+        'timestamps that already include UTC remain unchanged'
+      );
     });
   });
 });
