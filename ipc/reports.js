@@ -14,6 +14,19 @@ module.exports = function registerReportsIpc(ipcMain, { db, session, helpers }) 
     }
   });
 
+  // Logged-in staff can see the current shift totals on the overview. Return only
+  // aggregate amounts here; guest and transaction details remain Admin-only.
+  ipcMain.handle('reports:get-current-shift-summary', async () => {
+    if (!session.currentUser) {
+      return { success: false, error: 'غير مصرح: يرجى تسجيل الدخول أولاً.' };
+    }
+    try {
+      return { success: true, data: db.getCurrentShiftRevenueSummary() };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('analytics:get-monthly-revenue', async () => {
     try {
       const monthlyData = db.getMonthlyRevenue();
