@@ -83,5 +83,6 @@ module.exports = {
   getTodayCheckouts: reports.getTodayCheckouts,
   getMonthlyRevenue: reports.getMonthlyRevenue,
   getDashboardStats: reports.getDashboardStats,
+  getCurrentShiftRevenueSummary: reports.getCurrentShiftRevenueSummary,
   getShiftAuditReport: reports.getShiftAuditReport
 };

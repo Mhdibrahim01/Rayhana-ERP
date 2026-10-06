@@ -154,6 +154,367 @@
     }
   }
 
+  // A transparent weekly demand baseline keeps this estimate useful before the
+  // application has enough booking-pickup history for a learned forecast. Confirmed
+  // reservations always take precedence over the baseline.
+  const WEEKDAY_DEMAND_BASELINE = [45, 36, 55, 64, 82, 91, 73];
+  const ARABIC_WEEKDAYS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+  let occupancyForecastChart = null;
+
+  function buildOccupancyForecast(reservations, totalCapacity) {
+    const capacity = Math.max(0, Number(totalCapacity) || 0);
+    if (capacity === 0) return [];
+
+    const today = App.Helpers.getLocalDateString();
+    const [year, month, day] = today.split('-').map(Number);
+    const startDate = new Date(year, month - 1, day);
+    const confirmedReservations = (reservations || []).filter(reservation => reservation.status === 'مؤكد');
+
+    return Array.from({ length: 7 }, (_, dayOffset) => {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + dayOffset);
+      const isoDate = App.Helpers.getLocalDateString(date);
+      const bookedRoomIds = new Set();
+
+      confirmedReservations.forEach(reservation => {
+        const checkInDate = String(reservation.check_in_date || '').slice(0, 10);
+        const checkOutDate = String(reservation.check_out_date || '').slice(0, 10);
+        const openEndedStay = !checkOutDate || checkOutDate === 'مفتوح';
+        const overlaps = checkInDate && checkInDate <= isoDate && (openEndedStay || checkOutDate > isoDate);
+        if (overlaps && reservation.room_id !== null && reservation.room_id !== undefined) {
+          bookedRoomIds.add(String(reservation.room_id));
+        }
+      });
+
+      const weekdayIndex = date.getDay();
+      const baselineRate = WEEKDAY_DEMAND_BASELINE[weekdayIndex];
+      const bookedRooms = Math.min(capacity, bookedRoomIds.size);
+      const projectedRooms = Math.min(capacity, Math.max(bookedRooms, Math.round(capacity * baselineRate / 100)));
+      const occupancyRate = Math.round(projectedRooms / capacity * 100);
+      const displayDate = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const demandLevel = occupancyRate >= 85
+        ? 'ذروة قصوى 🔥'
+        : occupancyRate >= 75
+          ? 'طلب مرتفع ⚡'
+          : 'طلب اعتيادي 🟢';
+
+      return {
+        date: isoDate,
+        displayDate,
+        dayName: ARABIC_WEEKDAYS[weekdayIndex],
+        bookedRooms,
+        occupiedRooms: projectedRooms,
+        availableRooms: Math.max(0, capacity - projectedRooms),
+        totalCapacity: capacity,
+        occupancyRate,
+        isHighDemand: occupancyRate >= 80,
+        demandLevel
+      };
+    });
+  }
+
+  function updateForecastTooltip(tooltipContext, forecast) {
+    const tooltipElement = document.getElementById('occupancy-forecast-tooltip');
+    if (!tooltipElement) return;
+
+    const { chart, tooltip } = tooltipContext;
+    if (!tooltip || tooltip.opacity === 0 || !tooltip.dataPoints?.length) {
+      tooltipElement.hidden = true;
+      return;
+    }
+
+    const day = forecast[tooltip.dataPoints[0].dataIndex];
+    if (!day) {
+      tooltipElement.hidden = true;
+      return;
+    }
+
+    const safeDayName = App.Helpers.escapeHtml(day.dayName);
+    const safeDemand = App.Helpers.escapeHtml(day.demandLevel);
+    tooltipElement.innerHTML = `
+      <strong class="forecast-tooltip-heading">${safeDayName} · ${day.displayDate}</strong>
+      <div class="forecast-tooltip-rate">${day.occupancyRate}% إشغال متوقع</div>
+      <div>الحجوزات المؤكدة: ${day.bookedRooms} من ${day.totalCapacity} غرفة</div>
+      <div>الإشغال المتوقع: ${day.occupiedRooms} من ${day.totalCapacity} غرفة</div>
+      <div>الغرف المتاحة المتوقعة: ${day.availableRooms}</div>
+      <span class="forecast-tooltip-tier ${day.isHighDemand ? 'is-high' : ''}">${safeDemand}</span>
+    `;
+    tooltipElement.hidden = false;
+
+    const chartArea = chart.chartArea;
+    const tooltipLeft = Math.min(chartArea.right - tooltipElement.offsetWidth, Math.max(chartArea.left, tooltip.caretX + 12));
+    const tooltipTop = Math.max(4, tooltip.caretY - tooltipElement.offsetHeight - 12);
+    tooltipElement.style.left = `${tooltipLeft}px`;
+    tooltipElement.style.top = `${tooltipTop}px`;
+  }
+
+  function renderOccupancyForecast(reservations, rooms) {
+    const chartCanvas = document.getElementById('occupancy-forecast-chart');
+    const chartWrap = chartCanvas?.parentElement;
+    const emptyState = document.getElementById('occupancy-forecast-empty');
+    const daysContainer = document.getElementById('occupancy-forecast-days');
+    if (!chartCanvas || !chartWrap || !daysContainer) return;
+
+    const capacity = Array.isArray(rooms) ? rooms.length : 0;
+    const forecast = buildOccupancyForecast(reservations, capacity);
+    if (emptyState) emptyState.hidden = forecast.length > 0;
+    chartWrap.hidden = forecast.length === 0;
+    daysContainer.hidden = forecast.length === 0;
+
+    if (!forecast.length) {
+      daysContainer.replaceChildren();
+      if (occupancyForecastChart) {
+        occupancyForecastChart.destroy();
+        occupancyForecastChart = null;
+      }
+      return;
+    }
+
+    const peak = forecast.reduce((highest, item) => item.occupancyRate > highest.occupancyRate ? item : highest, forecast[0]);
+    const averageRate = Math.round(forecast.reduce((sum, item) => sum + item.occupancyRate, 0) / forecast.length);
+    const highDemandDays = forecast.filter(item => item.isHighDemand);
+    const peakElement = document.getElementById('forecast-peak-day');
+    const averageElement = document.getElementById('forecast-average-rate');
+    const highDaysElement = document.getElementById('forecast-high-demand-days');
+    const alertBanner = document.getElementById('occupancy-forecast-alert');
+    const alertCopy = document.getElementById('occupancy-forecast-alert-copy');
+
+    if (peakElement) peakElement.textContent = `${peak.dayName} ${peak.occupancyRate}%`;
+    if (averageElement) averageElement.textContent = `${averageRate}%`;
+    if (highDaysElement) highDaysElement.textContent = String(highDemandDays.length);
+    if (alertBanner) alertBanner.hidden = highDemandDays.length === 0;
+    if (alertCopy && highDemandDays.length) {
+      alertCopy.textContent = `تُظهر التوقعات طلباً مرتفعاً في ${highDemandDays.map(item => `${item.dayName} (${item.displayDate})`).join('، ')}. هذه تقديرات تخطيطية وليست حجوزات مؤكدة.`;
+    }
+
+    daysContainer.innerHTML = forecast.map(item => `
+      <article class="occupancy-forecast-day ${item.isHighDemand ? 'is-high-demand' : ''}">
+        <div class="forecast-day-heading"><strong>${item.dayName}</strong><time datetime="${item.date}">${item.displayDate}</time></div>
+        <b class="forecast-day-rate">${item.occupancyRate}%</b>
+        <span class="forecast-day-rooms">${item.occupiedRooms} / ${item.totalCapacity} غرفة</span>
+        <span class="forecast-day-status ${item.isHighDemand ? 'is-high' : ''}">${item.isHighDemand ? 'ذروة طلب' : 'طلب هادئ'}</span>
+      </article>
+    `).join('');
+
+    if (typeof Chart === 'undefined') return;
+    if (occupancyForecastChart) occupancyForecastChart.destroy();
+
+    occupancyForecastChart = new Chart(chartCanvas, {
+      type: 'bar',
+      data: {
+        labels: forecast.map((item, index) => `${index === 0 ? 'اليوم' : item.dayName} (${item.displayDate})`),
+        datasets: [
+          {
+            type: 'bar',
+            label: 'الغرف المشغولة والمتوقعة',
+            data: forecast.map(item => item.occupiedRooms),
+            yAxisID: 'rooms',
+            backgroundColor: 'rgba(166, 124, 82, 0.25)',
+            hoverBackgroundColor: 'rgba(166, 124, 82, 0.42)',
+            borderColor: 'rgba(166, 124, 82, 0.48)',
+            borderWidth: 1,
+            borderRadius: 7,
+            maxBarThickness: 28,
+            order: 2
+          },
+          {
+            type: 'line',
+            label: 'نسبة الإشغال المتوقعة',
+            data: forecast.map(item => item.occupancyRate),
+            yAxisID: 'occupancy',
+            borderColor: '#1a4332',
+            borderWidth: 2.5,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            pointBackgroundColor: forecast.map(item => item.isHighDemand ? '#a67c52' : '#1a4332'),
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: 2,
+            tension: 0.38,
+            fill: true,
+            backgroundColor: context => {
+              const { chart } = context;
+              const { ctx, chartArea } = chart;
+              if (!chartArea) return 'rgba(26, 67, 50, 0.12)';
+              const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+              gradient.addColorStop(0, 'rgba(26, 67, 50, 0.30)');
+              gradient.addColorStop(1, 'rgba(26, 67, 50, 0.015)');
+              return gradient;
+            },
+            order: 1
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        layout: { padding: { top: 12, right: 8, left: 4, bottom: 0 } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            enabled: false,
+            external: context => updateForecastTooltip(context, forecast)
+          }
+        },
+        scales: {
+          occupancy: {
+            type: 'linear',
+            position: 'left',
+            min: 0,
+            max: 100,
+            ticks: {
+              stepSize: 25,
+              color: '#8391a2',
+              font: { family: 'Cairo, Segoe UI, Tahoma', size: 10 },
+              callback: value => `${value}%`
+            },
+            grid: { color: '#f1f5f9', drawBorder: false }
+          },
+          rooms: {
+            type: 'linear',
+            position: 'right',
+            min: 0,
+            max: capacity,
+            display: false,
+            grid: { display: false }
+          },
+          x: {
+            reverse: true,
+            ticks: {
+              color: '#53667a',
+              maxRotation: 0,
+              minRotation: 0,
+              autoSkip: false,
+              font: { family: 'Cairo, Segoe UI, Tahoma', size: 10, weight: '700' }
+            },
+            grid: { display: false }
+          }
+        }
+      },
+      plugins: [{
+        id: 'occupancy-demand-threshold',
+        afterDatasetsDraw(chart) {
+          const yScale = chart.scales.occupancy;
+          const chartArea = chart.chartArea;
+          if (!yScale || !chartArea) return;
+          const y = yScale.getPixelForValue(80);
+          const { ctx } = chart;
+          ctx.save();
+          ctx.strokeStyle = '#ef4444';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([5, 4]);
+          ctx.beginPath();
+          ctx.moveTo(chartArea.left, y);
+          ctx.lineTo(chartArea.right, y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = '#dc2626';
+          ctx.font = '700 10px Cairo, Segoe UI, Tahoma';
+          ctx.textAlign = 'right';
+          ctx.direction = 'rtl';
+          ctx.fillText('عتبة الذروة (80%)', chartArea.right - 4, y - 6);
+          ctx.restore();
+        }
+      }]
+    });
+  }
+
+  function renderExecutiveSummaryKpis(stats, reservations, rooms, shiftSummary) {
+    const today = App.Helpers.getLocalDateString();
+    const confirmedReservations = (reservations || []).filter(reservation => reservation.status === 'مؤكد');
+    const checkInsToday = confirmedReservations.filter(reservation => String(reservation.check_in_date || '').slice(0, 10) === today).length;
+    const checkoutsToday = confirmedReservations.filter(reservation => String(reservation.check_out_date || '').slice(0, 10) === today);
+    const pendingCheckouts = checkoutsToday.length;
+    const totalRooms = Math.max(0, Number(stats?.totalRooms) || (Array.isArray(rooms) ? rooms.length : 0));
+    const roomStatusCount = (Array.isArray(rooms) ? rooms.filter(room => room.status === 'مشغولة').length : 0);
+    const occupiedRooms = Math.min(totalRooms, Math.max(0, Number(stats?.occupiedRooms ?? roomStatusCount) || 0));
+    const occupancyRate = totalRooms > 0 ? Math.round(occupiedRooms / totalRooms * 100) : 0;
+
+    const occupancyRateEl = document.getElementById('overview-occupancy-rate');
+    const occupancyBadge = document.getElementById('overview-occupancy-badge');
+    const occupancyProgress = document.getElementById('overview-occupancy-progress');
+    const occupiedCountEl = document.getElementById('overview-occupied-count');
+    const checkInsEl = document.getElementById('overview-checkins-count');
+    const checkOutsEl = document.getElementById('overview-checkouts-count');
+    const pendingCheckoutsEl = document.getElementById('overview-pending-checkouts-count');
+    const revenueTotalEl = document.getElementById('overview-shift-revenue-total');
+    const revenueBreakdownEl = document.getElementById('overview-shift-revenue-breakdown');
+
+    if (occupancyRateEl) occupancyRateEl.textContent = `${occupancyRate}%`;
+    if (occupancyBadge) {
+      occupancyBadge.textContent = occupancyRate >= 80
+        ? 'إشغال مرتفع 🔥'
+        : occupancyRate >= 50
+          ? 'إشغال معتدل 🟢'
+          : 'إشغال هادئ';
+    }
+    if (occupancyProgress) occupancyProgress.style.width = `${occupancyRate}%`;
+    if (occupiedCountEl) occupiedCountEl.textContent = `${occupiedRooms} من ${totalRooms} غرف مسكونة`;
+    if (checkInsEl) checkInsEl.textContent = String(checkInsToday);
+    if (checkOutsEl) checkOutsEl.textContent = String(checkoutsToday.length);
+    if (pendingCheckoutsEl) pendingCheckoutsEl.textContent = String(pendingCheckouts);
+
+    if (shiftSummary && revenueTotalEl && revenueBreakdownEl) {
+      const cash = Number(shiftSummary.cashTotal) || 0;
+      const card = Number(shiftSummary.cardTotal) || 0;
+      const transfer = Number(shiftSummary.transferTotal) || 0;
+      const total = cash + card + transfer;
+      revenueTotalEl.textContent = total.toLocaleString('en-US');
+      revenueBreakdownEl.textContent = `كاش: ${cash.toLocaleString('en-US')} | شبكة: ${(card + transfer).toLocaleString('en-US')} ر.س`;
+    } else {
+      if (revenueTotalEl) revenueTotalEl.textContent = '—';
+      if (revenueBreakdownEl) revenueBreakdownEl.textContent = 'بيانات الوردية غير متاحة';
+    }
+  }
+
+  function initExecutiveSummaryKpiActions() {
+    const occupancyKpi = document.getElementById('overview-kpi-occupancy');
+    const checkInsKpi = document.getElementById('overview-kpi-checkins');
+    const checkOutsKpi = document.getElementById('overview-kpi-checkouts');
+    const shiftRevenueKpi = document.getElementById('overview-kpi-shift-revenue');
+
+    occupancyKpi?.addEventListener('click', () => {
+      if (typeof window.openRoomsFiltered === 'function') window.openRoomsFiltered('مشغولة');
+      else if (typeof window.switchView === 'function') window.switchView('rooms');
+    });
+    checkInsKpi?.addEventListener('click', () => {
+      document.getElementById('btn-open-new-reservation-modal')?.click();
+    });
+    checkOutsKpi?.addEventListener('click', () => {
+      document.getElementById('tab-today-checkouts')?.click();
+      document.getElementById('widget-today-checkouts')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    shiftRevenueKpi?.addEventListener('click', () => {
+      if (App.State.currentUser?.role === 'Admin' && typeof window.openShiftAuditModal === 'function') {
+        window.openShiftAuditModal();
+      } else {
+        App.Helpers.showToast('تقرير الوردية التفصيلي متاح لمدير النظام فقط.', 'warning');
+      }
+    });
+  }
+
+  async function loadOccupancyForecast(stats) {
+    try {
+      const [reservationsResult, roomsResult, shiftSummaryResult] = await Promise.all([
+        window.api.getAllReservations(),
+        window.api.getAllRooms(),
+        window.api.getCurrentShiftRevenueSummary().catch(err => {
+          console.warn('Could not load current shift summary:', err);
+          return null;
+        })
+      ]);
+      if (!reservationsResult?.success || !roomsResult?.success) {
+        throw new Error(reservationsResult?.error || roomsResult?.error || 'تعذر تحميل بيانات الإشغال.');
+      }
+      const reservations = reservationsResult.data || [];
+      const rooms = roomsResult.data || [];
+      renderOccupancyForecast(reservations, rooms);
+      renderExecutiveSummaryKpis(stats, reservations, rooms, shiftSummaryResult?.success ? shiftSummaryResult.data : null);
+    } catch (err) {
+      console.error('Error loading 7-day occupancy forecast:', err);
+    }
+  }
+
   // =========================================================================
   // VIEW 1: OVERVIEW LOGIC
   // =========================================================================
@@ -164,10 +525,10 @@
       const statsRes = await window.api.getDashboardStats();
       if (statsRes.success && statsRes.data) {
         stats = statsRes.data;
-        App.DOM.statAvailableRooms.textContent = stats.availableRooms.toLocaleString();
-        App.DOM.statOccupiedRooms.textContent = stats.occupiedRooms.toLocaleString();
-        App.DOM.statCleaningRooms.textContent = stats.cleaningRooms.toLocaleString();
-        App.DOM.statTotalReservations.textContent = stats.totalReservations.toLocaleString();
+        if (App.DOM.statAvailableRooms) App.DOM.statAvailableRooms.textContent = stats.availableRooms.toLocaleString();
+        if (App.DOM.statOccupiedRooms) App.DOM.statOccupiedRooms.textContent = stats.occupiedRooms.toLocaleString();
+        if (App.DOM.statCleaningRooms) App.DOM.statCleaningRooms.textContent = stats.cleaningRooms.toLocaleString();
+        if (App.DOM.statTotalReservations) App.DOM.statTotalReservations.textContent = stats.totalReservations.toLocaleString();
       }
 
       // 2. Load Monthly Revenue for Analytics
@@ -179,6 +540,7 @@
 
       // Render Charts
       renderAnalyticsCharts(monthlyData, stats);
+      await loadOccupancyForecast();
 
       // 3. Load Available & Future Reserved Rooms into Booking Dropdown
       const currentSelectedVal = App.DOM.roomSelect ? App.DOM.roomSelect.value : '';
@@ -203,6 +565,9 @@
       const resRes = await window.api.getReservationsPage({ page: 1, pageSize: 8, status: 'مؤكد' });
       if (resRes && resRes.success) {
         App.State.reservationsCache = resRes.data?.rows || [];
+        const activeBookingsCount = Number(resRes.data?.total ?? App.State.reservationsCache.length);
+        const activeBookingsTabCount = document.getElementById('active-bookings-tab-count');
+        if (activeBookingsTabCount) activeBookingsTabCount.textContent = String(activeBookingsCount);
         renderOverviewTable();
       }
 
@@ -331,6 +696,33 @@
     }
   }
 
+  function renderLateCheckoutAlert(checkouts) {
+    const alert = document.getElementById('late-checkout-alert');
+    const counter = document.getElementById('late-checkout-count');
+    const actions = document.getElementById('late-checkout-actions');
+    if (!alert || !actions) return;
+
+    const lateCheckouts = (checkouts || []).filter(row => App.Helpers.isLateCheckout(row));
+    alert.hidden = lateCheckouts.length === 0;
+    if (counter) counter.textContent = `${lateCheckouts.length} ${lateCheckouts.length === 1 ? 'غرفة متأخرة' : 'غرف متأخرة'}`;
+    actions.innerHTML = lateCheckouts.map(row => {
+      const id = Number(row.reservation_id ?? row.id);
+      return `
+        <article class="late-checkout-action-card">
+          <div class="late-checkout-action-guest">
+            <strong>غرفة ${App.Helpers.escapeHtml(row.room_number || '-')}</strong>
+            <span>${App.Helpers.escapeHtml(row.guest_name || 'نزيل')}</span>
+            <small dir="ltr">${App.Helpers.escapeHtml(row.guest_phone || 'لا يوجد رقم جوال')}</small>
+          </div>
+          <div class="late-checkout-action-buttons">
+            <button type="button" class="late-checkout-button late-checkout-button-primary" data-action="checkout" data-id="${id}">🚪 خروج فوري</button>
+            <button type="button" class="late-checkout-button late-checkout-button-secondary" data-action="extend" data-id="${id}">⏳ تمديد</button>
+          </div>
+        </article>
+      `;
+    }).join('');
+  }
+
   function renderTodayCheckoutsTable(checkouts) {
     if (!App.DOM.todayCheckoutsTableBody) return;
 
@@ -365,10 +757,13 @@
       String(a.room_number || '').localeCompare(String(b.room_number || ''), undefined, { numeric: true })
     );
     App.State.todayCheckoutsRows = checkouts;
+    renderLateCheckoutAlert(checkouts);
 
     if (App.DOM.todayCheckoutsCountBadge) {
       const count = checkouts.length;
       App.DOM.todayCheckoutsCountBadge.textContent = `${count} ${count === 1 ? 'مغادرة' : 'مغادرات'}`;
+      const todayCheckoutsTabCount = document.getElementById('today-checkouts-tab-count');
+      if (todayCheckoutsTabCount) todayCheckoutsTabCount.textContent = String(count);
     }
 
     const searchTerm = String(App.DOM.todayCheckoutsSearch?.value || '').trim().toLocaleLowerCase();
@@ -408,10 +803,11 @@
     App.DOM.todayCheckoutsTableBody.innerHTML = visibleCheckouts.map(r => {
       const isConfirmed = r.status === 'مؤكد';
       const isCompleted = r.status === 'مكتمل';
+      const isLateCheckout = App.Helpers.isLateCheckout(r);
       const expectedCheckoutTime = isConfirmed && r.booking_type !== 'عقد مفتوح' && r.check_out_date && r.check_out_date !== 'مفتوح' ? '14:00' : '';
 
       return `
-        <tr style="border-bottom: 1px solid #f1f5f9;">
+        <tr class="${isLateCheckout ? 'late-checkout-row' : ''}" style="border-bottom: 1px solid #f1f5f9;">
           <td>
             <span style="font-weight: 800; font-size: 0.92rem; color: #1a4332; background: #ecfdf5; padding: 3px 8px; border-radius: 6px; border: 1px solid #a7f3d0;">
               غرفة ${App.Helpers.escapeHtml(r.room_number)}
@@ -432,19 +828,30 @@
           <td>
             <div class="checkouts-status-stack">
               ${App.Helpers.getReservationStatusBadge(r.status)}
-              ${App.Helpers.renderOverdueBadge(r, String(r.check_out_date || '').slice(0, 10) < App.Helpers.getLocalDateString() ? 'متأخر' : 'متأخر عن المغادرة')}
+              ${App.Helpers.renderOverdueBadge(r, 'تأخر بالمغادرة (بعد 14:00)')}
               ${r.checkout_time ? `<div class="table-time"><span class="table-time-label">مغادرة فعلية:</span><bdi class="table-time-value">${App.Helpers.escapeHtml(r.checkout_time)}</bdi></div>` : (expectedCheckoutTime ? `<div class="table-time"><span class="table-time-label">مغادرة متوقعة:</span><bdi class="table-time-value">${expectedCheckoutTime}</bdi></div>` : '')}
             </div>
           </td>
           <td style="text-align: center;">
             ${isConfirmed ? `
-              <div class="overview-row-actions">
-                <button class="btn btn-primary btn-sm checkout-row-action checkout-row-action-primary" data-action="checkout" data-id="${r.id}" title="تسجيل مغادرة النزيل وتسليم الغرفة">
-                  تسجيل مغادرة &larr;
-                </button>
-                <button type="button" class="btn btn-secondary btn-sm checkout-row-action checkout-row-action-secondary" data-action="extend" data-id="${r.id}" title="تمديد فترة الإقامة">
-                  تمديد ⏳
-                </button>
+              <div class="overview-row-actions ${isLateCheckout ? 'overview-row-actions-late-checkout' : ''}" role="group" aria-label="إجراءات الحجز">
+                ${isLateCheckout ? `
+                  <button type="button" class="checkout-row-action checkout-row-action-preview" data-action="preview-reservation" data-id="${r.id}" title="معاينة تفاصيل الحجز" aria-label="معاينة تفاصيل الحجز">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  </button>
+                  <button type="button" class="late-checkout-button late-checkout-button-primary" data-action="checkout" data-id="${r.id}" title="تسوية فورية وتسجيل المغادرة">🚪 خروج فوري</button>
+                  <button type="button" class="late-checkout-button late-checkout-button-secondary" data-action="extend" data-id="${r.id}" title="تمديد فترة الإقامة">⏳ تمديد الإقامة</button>
+                ` : `
+                  <button type="button" class="checkout-row-action checkout-row-action-preview" data-action="preview-reservation" data-id="${r.id}" title="معاينة تفاصيل الحجز" aria-label="معاينة تفاصيل الحجز">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  </button>
+                  <button type="button" class="checkout-row-action checkout-row-action-extend" data-action="extend" data-id="${r.id}" title="تمديد فترة الإقامة" aria-label="تمديد فترة الإقامة">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg><span>تمديد</span>
+                  </button>
+                  <button type="button" class="checkout-row-action checkout-row-action-primary" data-action="checkout" data-id="${r.id}" title="تسجيل مغادرة النزيل وتسليم الغرفة" aria-label="تسجيل مغادرة النزيل وتسليم الغرفة">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H5v14h4M14 8l4 4-4 4M18 12H9"></path></svg><span>تسجيل المغادرة</span>
+                  </button>
+                `}
               </div>
             ` : isCompleted ? `
               <span class="badge" style="background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; font-weight: 800;">تمت المغادرة &check;</span>
@@ -455,7 +862,66 @@
     }).join('');
   }
 
+  function formatPreviewDate(value) {
+    if (!value || value === 'مفتوح') return value || 'غير محدد';
+    const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
+    return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('ar-SA-u-nu-latn', { year: 'numeric', month: 'long', day: 'numeric' }).format(date);
+  }
+
+  function previewField(label, value, detail = '') {
+    const safe = App.Helpers.escapeHtml(value == null || value === '' ? 'غير متوفر' : String(value));
+    return `<div class="reservation-preview-field"><span>${App.Helpers.escapeHtml(label)}</span><strong>${safe}</strong>${detail ? `<small>${App.Helpers.escapeHtml(detail)}</small>` : ''}</div>`;
+  }
+
+  App.Helpers.openReservationPreview = async function(reservationId) {
+    const response = await window.api.getInvoiceData(reservationId);
+    if (!response?.success || !response.data) {
+      App.Helpers.showToast?.(response?.error || 'تعذر تحميل تفاصيل الحجز.', 'error');
+      return;
+    }
+
+    let modal = document.getElementById('reservation-preview-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'reservation-preview-modal';
+      modal.className = 'reservation-preview-backdrop';
+      modal.setAttribute('role', 'presentation');
+      modal.innerHTML = '<section class="reservation-preview-dialog modal-layout" role="dialog" aria-modal="true" aria-labelledby="reservation-preview-title" dir="rtl"><div id="reservation-preview-content"></div></section>';
+      document.body.appendChild(modal);
+      modal.addEventListener('click', event => { if (event.target === modal) modal.style.display = 'none'; });
+      modal.addEventListener('click', event => { if (event.target.closest('[data-preview-close]')) modal.style.display = 'none'; });
+      document.addEventListener('keydown', event => { if (event.key === 'Escape' && modal.style.display === 'flex') modal.style.display = 'none'; });
+    }
+
+    const r = response.data;
+    const total = Number(r.total_price) || 0;
+    const paid = Number(r.ledger_paid_amount ?? r.paid_amount) || 0;
+    const balance = Math.max(0, total - paid);
+    const money = value => `${Number(value || 0).toLocaleString('ar-SA')} ر.س`;
+    const status = App.Helpers.escapeHtml(r.status || 'غير محدد');
+    const statusTone = r.status === 'مؤكد' ? 'active' : (r.status === 'مكتمل' ? 'done' : 'other');
+    const content = modal.querySelector('#reservation-preview-content');
+    content.innerHTML = `
+      <header class="reservation-preview-header modal-layout__header">
+        <div class="reservation-preview-heading">
+          <div class="reservation-preview-room-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 18V8a2 2 0 0 1 2-2h3a3 3 0 0 1 3 3v2h6a4 4 0 0 1 4 4v3M3 14h18M5 18v2m14-2v2"></path></svg></div>
+          <div><div class="reservation-preview-eyebrow">إقامة النزيل · رقم الحجز ${App.Helpers.escapeHtml(r.id)}</div><h2 id="reservation-preview-title">تفاصيل الغرفة ${App.Helpers.escapeHtml(r.room_number || '-')}</h2><p>${App.Helpers.escapeHtml(r.room_type || 'نوع الغرفة غير محدد')} · ${App.Helpers.escapeHtml(r.booking_type || 'حجز')} · السعر الأساسي ${money(r.custom_nightly_price || r.price_per_night)}/ليلة</p></div>
+        </div>
+        <div class="reservation-preview-header-side"><span class="reservation-preview-status is-${statusTone}">${status}</span><button type="button" class="reservation-preview-close modal-layout__close" data-preview-close aria-label="إغلاق">&times;</button></div>
+      </header>
+      <div class="reservation-preview-body modal-layout__body"><div class="reservation-preview-column">
+        <section class="reservation-preview-section modal-section-card"><div class="reservation-preview-section-title modal-section-card__header"><span class="reservation-preview-title-icon">♙</span><div><strong>بيانات النزيل المقيم حالياً</strong><small>Guest Profile</small></div><div class="reservation-preview-contact-actions">${r.guest_phone ? `<a class="reservation-preview-contact" href="tel:${App.Helpers.escapeHtml(r.guest_phone)}">اتصال <span>☎</span></a>` : ''}<button type="button" class="reservation-preview-contact reservation-preview-whatsapp" data-action="whatsapp" data-id="${App.Helpers.escapeHtml(r.id)}">مراسلة واتساب <span>⌯</span></button></div></div><div class="reservation-preview-grid reservation-preview-grid-guest">${previewField('اسم النزيل الثنائي', r.guest_name, 'نزيل مسجل في النظام')}${previewField('رقم الجوال', r.guest_phone, 'متاح للإشعارات والاتصال')}${previewField('رقم الهوية / الإقامة', r.guest_id_number, 'إثبات ساري ومطابق للنظام')}</div></section>
+        <section class="reservation-preview-section modal-section-card"><div class="reservation-preview-section-title modal-section-card__header"><span class="reservation-preview-title-icon">▦</span><div><strong>تفاصيل ومواعيد الإقامة</strong><small>Stay &amp; Contract Details</small></div><span class="reservation-preview-reference">رقم السند: RYH-${new Date().getFullYear()}-${String(r.id).padStart(5, '0')}</span></div><div class="reservation-preview-grid">${previewField('نوع الحجز', r.booking_type || 'حجز يومي', r.booking_type === 'عقد مفتوح' ? 'عقد إقامة مفتوح' : '')}${previewField('تاريخ الدخول', formatPreviewDate(r.check_in_date), r.booking_time ? `تسجيل: ${r.booking_time}` : '')}${previewField('تاريخ المغادرة المقررة', formatPreviewDate(r.check_out_date), r.checkout_time ? `تسليم المفتاح: ${r.checkout_time}` : '')}${previewField('سعر الليلة المتفق عليه', money(r.custom_nightly_price || r.price_per_night), Number(r.discount_amount) > 0 ? `خصم ${money(r.discount_amount)}` : '')}</div>${Number(r.discount_amount) > 0 || r.booking_type === 'عقد مفتوح' ? `<div class="reservation-preview-note"><strong>ملاحظات وتعليمات الإقامة:</strong> ${r.discount_reason ? App.Helpers.escapeHtml(r.discount_reason) : 'تطبق شروط العقد المسجلة على هذه الإقامة.'}</div>` : ''}</section>
+        </div><div class="reservation-preview-column">
+        <section class="reservation-preview-section modal-section-card"><div class="reservation-preview-section-title modal-section-card__header"><span class="reservation-preview-title-icon financial">ر.س</span><div><strong>المحاسبة والموقف المالي</strong><small>Financial Summary</small></div><span class="reservation-preview-paid-badge">${balance <= 0 ? 'مدفوع بالكامل' : 'مطلوب تحصيل'}</span></div><div class="reservation-preview-grid">${previewField('إجمالي الإقامة', money(total))}${previewField('إجمالي المبالغ المسددة', money(paid), r.payment_method || '')}${previewField('المبلغ المتبقي', money(balance), balance > 0 ? 'يستحق قبل المغادرة' : 'لا يوجد مبلغ مستحق')}${previewField('مبلغ التأمين', money(r.deposit_ledger_balance ?? r.deposit_amount), 'حسب سجل التأمين')}</div><div class="reservation-preview-payment-bar"><span style="width:${total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : (paid > 0 ? 100 : 0)}%"></span></div></section>
+        </div></div>
+      <footer class="reservation-preview-footer modal-layout__footer">${r.status === 'مؤكد' ? `<button type="button" class="reservation-preview-action reservation-preview-checkout" data-action="checkout" data-id="${App.Helpers.escapeHtml(r.id)}"><span>⇥</span> تسوية ومغادرة (Check-out)</button><button type="button" class="reservation-preview-action reservation-preview-extend" data-action="extend" data-id="${App.Helpers.escapeHtml(r.id)}"><span>◷</span> تمديد الإقامة</button>` : ''}<button type="button" class="reservation-preview-action reservation-preview-invoice" data-action="invoice" data-id="${App.Helpers.escapeHtml(r.id)}"><span>▤</span> معاينة الفاتورة بالختم والتوقيع</button><button type="button" class="reservation-preview-footer-close" data-preview-close>إغلاق</button></footer>`;
+    modal.style.display = 'flex';
+    modal.querySelector('[data-preview-close]')?.focus();
+  };
+
   App.Helpers.initOverview = function() {
+  initExecutiveSummaryKpiActions();
   document.querySelectorAll('[data-overview-table-tab]').forEach(tab => {
     tab.addEventListener('click', () => {
       const selectedPanelId = tab.dataset.overviewTableTab;
