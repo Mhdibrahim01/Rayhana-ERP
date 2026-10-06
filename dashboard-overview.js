@@ -5,153 +5,67 @@
   // ANALYTICS & CHART.JS VISUALIZATION (Light White Glass with Forest Green)
   // =========================================================================
   function renderAnalyticsCharts(monthlyData, stats) {
-    if (typeof Chart === 'undefined') {
-      console.warn('Chart.js is not loaded.');
-      return;
+    const revenueBars = document.getElementById('monthly-revenue-bars');
+    const currentRevenue = document.getElementById('monthly-revenue-current');
+    const roomMeters = document.getElementById('room-status-meters');
+    const roomCount = document.getElementById('room-status-total');
+    const readiness = document.getElementById('room-status-readiness');
+    const formatMoney = value => (Number(value) || 0).toLocaleString('en-US');
+    const today = String(App.State.businessDate || App.Helpers.getLocalDateString());
+    const [currentYear, currentMonth] = today.slice(0, 7).split('-').map(Number);
+    const monthNames = App.Helpers.ARABIC_MONTHS || ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+    const revenueByMonth = new Map((monthlyData || []).map(row => [String(row.month || '').slice(0, 7), Number(row.collected) || 0]));
+    const lastSixMonths = Array.from({ length: 6 }, (_, index) => {
+      const date = new Date(currentYear, currentMonth - 1 - (5 - index), 1);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      return { key: monthKey, name: monthNames[date.getMonth()], amount: revenueByMonth.get(monthKey) || 0 };
+    });
+    const maxRevenue = Math.max(0, ...lastSixMonths.map(item => item.amount));
+
+    if (revenueBars) {
+      revenueBars.innerHTML = lastSixMonths.map((item, index) => {
+        const current = item.key === `${String(currentYear).padStart(4, '0')}-${String(currentMonth).padStart(2, '0')}`;
+        const height = maxRevenue > 0 ? Math.round((item.amount / maxRevenue) * 100) : 0;
+        return `<div class="monthly-revenue-bar${current ? ' is-current' : ''}" tabindex="0" role="img" aria-label="${item.name}: ${formatMoney(item.amount)} ر.س">
+          <span class="monthly-revenue-value" style="bottom:${Math.round((height / 100) * 190) + 28}px">${formatMoney(item.amount)} ر.س</span>
+          <div class="monthly-revenue-track"><div class="monthly-revenue-fill" style="height:${height}%"></div></div>
+          <span class="monthly-revenue-month">${item.name}</span>
+        </div>`;
+      }).join('');
+    }
+    if (currentRevenue) {
+      const currentKey = `${String(currentYear).padStart(4, '0')}-${String(currentMonth).padStart(2, '0')}`;
+      currentRevenue.textContent = `${formatMoney(revenueByMonth.get(currentKey) || 0)} ر.س (الشهر الحالي)`;
     }
 
-    // 1. Monthly Revenue Bar Chart (Expected vs Collected)
-    const revenueCtx = document.getElementById('monthly-revenue-chart');
-    if (revenueCtx) {
-      let labels = [];
-      let expectedValues = [];
-      let collectedValues = [];
-
-      if (monthlyData && monthlyData.length > 0) {
-        labels = monthlyData.map(d => d.month);
-        expectedValues = monthlyData.map(d => parseFloat(d.expected !== undefined ? d.expected : d.revenue) || 0);
-        collectedValues = monthlyData.map(d => parseFloat(d.collected) || 0);
-      } else {
-        const curMonth = (typeof App.Helpers.getLocalDateString === 'function')
-          ? App.Helpers.getLocalDateString().substring(0, 7)
-          : new Date().toISOString().substring(0, 7);
-        labels = [curMonth];
-        expectedValues = [0];
-        collectedValues = [0];
+    if (roomMeters) {
+      const total = Math.max(0, Number(stats?.totalRooms) || 0);
+      const statuses = [
+        { label: 'متاحة للاستقبال', count: Math.max(0, Number(stats?.availableRooms) || 0), key: 'available' },
+        { label: 'مشغولة بنزلاء', count: Math.max(0, Number(stats?.occupiedRooms) || 0), key: 'occupied' },
+        { label: 'قيد التنظيف والتعقيم', count: Math.max(0, Number(stats?.cleaningRooms) || 0), key: 'cleaning' }
+      ];
+      const reserved = Math.max(0, Number(stats?.reservedRooms) || 0);
+      if (reserved > 0) statuses.push({ label: 'محجوزة', count: reserved, key: 'reserved' });
+      roomMeters.innerHTML = total > 0 ? statuses.map(item => {
+        const percentage = Math.min(100, Math.round((item.count / total) * 100));
+        return `<div class="room-status-meter room-status-meter-${item.key}">
+          <div class="room-status-meter-label"><span><i aria-hidden="true"></i>${item.label}</span><bdi>${formatMoney(item.count)} ${item.count === 1 ? 'غرفة' : 'غرف'}</bdi></div>
+          <div class="room-status-meter-track" role="progressbar" aria-label="${item.label}" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${item.count}"><span style="width:${percentage}%"></span></div>
+        </div>`;
+      }).join('') : '<p class="room-status-empty">لا توجد بيانات غرف لعرضها.</p>';
+      if (roomCount) roomCount.textContent = `${formatMoney(total)} غرفة`;
+      if (readiness) {
+        const readyCount = Math.min(total, statuses.find(item => item.key === 'available').count + statuses.find(item => item.key === 'occupied').count);
+        readiness.textContent = `${total ? Math.round((readyCount / total) * 100) : 0}% جاهز`;
       }
-
-      if (App.State.monthlyRevenueChart) {
-        App.State.monthlyRevenueChart.destroy();
-      }
-
-      App.State.monthlyRevenueChart = new Chart(revenueCtx, {
-        type: 'bar',
-        data: {
-          labels: labels,
-          datasets: [
-            {
-              label: 'المتوقع (Expected)',
-              data: expectedValues,
-              backgroundColor: '#94a3b8',
-              hoverBackgroundColor: '#64748b',
-              borderColor: '#64748b',
-              borderWidth: 1,
-              borderRadius: 6,
-              maxBarThickness: 45
-            },
-            {
-              label: 'المحصّل فعلياً (Collected)',
-              data: collectedValues,
-              backgroundColor: '#059669',
-              hoverBackgroundColor: '#047857',
-              borderColor: '#047857',
-              borderWidth: 1,
-              borderRadius: 6,
-              maxBarThickness: 45
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              display: true,
-              position: 'top',
-              labels: {
-                boxWidth: 14,
-                padding: 12,
-                color: '#475569',
-                font: { family: 'Cairo, Segoe UI, Tahoma', size: 12, weight: '700' }
-              }
-            },
-            tooltip: {
-              backgroundColor: '#0f172a',
-              titleColor: '#ffffff',
-              bodyColor: '#f8fafc',
-              borderColor: 'rgba(255, 255, 255, 0.1)',
-              borderWidth: 1,
-              padding: 10,
-              displayColors: true,
-              callbacks: {
-                label: function (ctx) {
-                  const val = ctx.parsed.y !== null ? ctx.parsed.y : 0;
-                  return ` ${ctx.dataset.label}: ${val.toLocaleString()} ريال`;
-                }
-              }
-            }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              ticks: {
-                color: '#64748b',
-                font: { size: 11 },
-                callback: function (val) {
-                  return val.toLocaleString() + ' ر.س';
-                }
-              },
-              grid: { color: 'rgba(226, 232, 240, 0.8)' }
-            },
-            x: {
-              ticks: { color: '#64748b', font: { size: 11, weight: '700' } },
-              grid: { display: false }
-            }
-          }
-        }
-      });
     }
 
-    // 2. Room Status Doughnut Chart (Light Palette)
-    const roomCtx = document.getElementById('room-status-chart');
-    if (roomCtx) {
-      const avail = stats ? stats.availableRooms : 0;
-      const occ = stats ? stats.occupiedRooms : 0;
-      const clean = stats ? stats.cleaningRooms : 0;
-
-      if (App.State.roomStatusChart) {
-        App.State.roomStatusChart.destroy();
-      }
-
-      App.State.roomStatusChart = new Chart(roomCtx, {
-        type: 'doughnut',
-        data: {
-          labels: ['متاحة (Available)', 'مشغولة (Occupied)', 'تنظيف (Cleaning)'],
-          datasets: [{
-            data: [avail, occ, clean],
-            backgroundColor: ['#059669', '#dc2626', '#d97706'],
-            borderWidth: 2.5,
-            borderColor: '#ffffff'
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              position: 'bottom',
-              labels: {
-                boxWidth: 12,
-                // FIXED: was '#cbd5e1' — too light on white glass background, invisible.
-                color: '#64748b',
-                font: { size: 11, family: 'Cairo, Segoe UI, Tahoma' }
-              }
-            }
-          },
-          cutout: '72%'
-        }
-      });
-    }
+    // These cards now render as HTML; clear any prior Chart.js instances safely.
+    ['monthlyRevenueChart', 'roomStatusChart'].forEach(key => {
+      if (App.State[key] && typeof App.State[key].destroy === 'function') App.State[key].destroy();
+      App.State[key] = null;
+    });
   }
 
   // A transparent weekly demand baseline keeps this estimate useful before the

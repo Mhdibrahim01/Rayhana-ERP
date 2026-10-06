@@ -499,25 +499,30 @@
                 <p>ملخص الإيرادات وتوزيع حالة الغرف.</p>
               </div>
             </div>
-            <section class="charts-grid">
-              <div class="chart-card">
-                <div class="chart-card-header">
+            <section class="overview-analytics-grid" dir="rtl" aria-label="تحليلات الإيرادات وحالات الغرف">
+              <article class="overview-analytics-card overview-revenue-card">
+                <header class="overview-analytics-card-header">
                   <div>
-                    <h3>الإيرادات الشهرية</h3>
-                    <p>تطور إيرادات الحجوزات شهرياً بالريال</p>
+                    <h3><span aria-hidden="true">📈</span> تطور الإيرادات الشهرية</h3>
+                    <p>إجمالي الدخل المحصل بالريال السعودي لآخر 6 أشهر</p>
                   </div>
-                </div>
-                <div class="chart-canvas-container"><canvas id="monthly-revenue-chart"></canvas></div>
-              </div>
-              <div class="chart-card">
-                <div class="chart-card-header">
+                  <span id="monthly-revenue-current" class="monthly-revenue-current">0 ر.س (الشهر الحالي)</span>
+                </header>
+                <div id="monthly-revenue-bars" class="monthly-revenue-bars" role="group" aria-label="الإيراد المحصل لكل شهر"></div>
+              </article>
+              <article class="overview-analytics-card overview-room-status-card">
+                <header class="overview-analytics-card-header overview-room-status-header">
                   <div>
-                    <h3>حالات الغرف</h3>
-                    <p>الغرف المتاحة والمشغولة وقيد التنظيف</p>
+                    <h3>توزيع حالات الغرف</h3>
+                    <p>الحالة التشغيلية الآنية لكافة وحدات الفندق (<span id="room-status-total">0 غرفة</span>)</p>
                   </div>
-                </div>
-                <div class="chart-canvas-container"><canvas id="room-status-chart"></canvas></div>
-              </div>
+                </header>
+                <div id="room-status-meters" class="room-status-meters" aria-live="polite"></div>
+                <footer class="room-status-readiness">
+                  <span>جاهزية الفندق الإجمالية:</span>
+                  <strong id="room-status-readiness">0% جاهز</strong>
+                </footer>
+              </article>
             </section>
           </section>
         </div>
