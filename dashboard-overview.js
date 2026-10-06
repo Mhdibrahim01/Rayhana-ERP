@@ -562,7 +562,7 @@
       }
 
       // 4. Load Recent Reservations into Overview Table
-      const resRes = await window.api.getReservationsPage({ page: 1, pageSize: 8, status: 'مؤكد' });
+      const resRes = await window.api.getReservationsPage({ page: 1, pageSize: 10, status: 'مؤكد' });
       if (resRes && resRes.success) {
         App.State.reservationsCache = resRes.data?.rows || [];
         const activeBookingsCount = Number(resRes.data?.total ?? App.State.reservationsCache.length);
@@ -579,87 +579,75 @@
   }
 
   function renderOverviewTable() {
-    const recent = App.State.reservationsCache.filter(r => r.status === 'مؤكد').slice(0, 8);
-
-    if (recent.length === 0) {
+    const recent = App.State.reservationsCache.filter(r => r.status === 'مؤكد').slice(0, 10);
+    if (!recent.length) {
       App.DOM.overviewTableBody.innerHTML = '';
       App.DOM.overviewEmpty.style.display = 'block';
       return;
     }
-
     App.DOM.overviewEmpty.style.display = 'none';
-
+    const e = App.Helpers.escapeHtml;
+    const today = App.Helpers.getLocalDateString();
+    const icons = {
+      checkout: '<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>',
+      payment: '<svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>',
+      extend: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>',
+      invoice: '<svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>',
+      whatsapp: '<svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>',
+      cancel: '<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>'
+    };
+    const titles = { checkout: 'تسجيل مغادرة وتسليم الغرفة', payment: 'تسجيل دفعة سداد جديدة', extend: 'تمديد فترة الإقامة', invoice: 'طباعة سند الاستلام والإقامة (فاتورة)', whatsapp: 'مراسلة النزيل عبر واتساب', cancel: 'إلغاء الحجز' };
     App.DOM.overviewTableBody.innerHTML = recent.map(r => {
-      const isConfirmed = r.status === 'مؤكد';
-      const hasStarted = r.check_in_date ? App.Helpers.getLocalDateString() > r.check_in_date : false;
-      const canCheckOut = isConfirmed && (App.Helpers.getLocalDateString() >= r.check_in_date);
-      const canCancel = isConfirmed && !hasStarted;
       const isContract = r.booking_type === 'عقد مفتوح';
-      const total = parseFloat(r.total_price || 0);
-      const paid = parseFloat((r.status === 'ملغي جزئي' && r.payment_status === 'مدفوع جزئياً' ? r.ledger_paid_amount : r.paid_amount) || 0);
-      const rawRemaining = total - paid;
-      const isCredit = rawRemaining < -0.005;
-      const remaining = isContract ? rawRemaining : Math.max(0, rawRemaining);
+      const storedTotal = Number(r.total_price || 0);
+      const paid = Number((r.status === 'ملغي جزئي' && r.payment_status === 'مدفوع جزئياً' ? r.ledger_paid_amount : r.paid_amount) || 0);
+      const rate = Number(r.custom_nightly_price || r.price_per_night || 0);
+      const checkIn = String(r.check_in_date || '').slice(0, 10);
+      const elapsedNights = isContract && checkIn && checkIn <= today
+        ? Math.max(1, Math.floor((Date.parse(today + 'T00:00:00Z') - Date.parse(checkIn + 'T00:00:00Z')) / 86400000))
+        : 0;
+      const total = isContract ? Math.max(storedTotal, elapsedNights * rate) : storedTotal;
+      const balance = total - paid;
+      const isCredit = balance < -0.005;
+      const remaining = Math.max(0, balance);
+      const canCheckOut = r.check_in_date && today >= r.check_in_date;
+      const canCancel = r.check_in_date && today <= r.check_in_date;
+      const isLate = !isContract && App.Helpers.isLateCheckout(r);
+      const paymentTone = r.payment_status === 'مدفوع بالكامل' ? 'success' : (r.payment_status === 'مدفوع جزئياً' ? 'warning' : 'danger');
+      const candidates = [];
+      if (canCheckOut) candidates.push(['checkout', true]);
+      if (remaining > 0 || isContract) candidates.push(['payment', true]);
+      if (r.check_out_date && r.check_out_date !== 'مفتوح') candidates.push(['extend', false]);
+      candidates.push(['invoice', false]);
+      if (canCancel) candidates.push(['cancel', false]);
+      else candidates.push(['whatsapp', false]);
+      const visibleActions = candidates.slice(0, 4);
+      const primaryAction = visibleActions.find(([action]) => action === 'checkout')?.[0]
+        || visibleActions.find(([action]) => action === 'payment')?.[0]
+        || visibleActions.find(([action]) => action === 'extend')?.[0]
+        || visibleActions[0]?.[0];
+      const actions = visibleActions.map(([action]) => {
+        const extra = action === 'payment' ? ' onclick="event.stopPropagation(); window.openAddPaymentModal && window.openAddPaymentModal(' + Number(r.id) + ');"' : '';
+        const handlerAction = action === 'payment' ? 'add-payment' : action;
+        const title = action === 'cancel' && r.check_in_date === today ? 'إبطال / إلغاء الحجز المباشر' : titles[action];
+        return '<button type="button" class="btn-row ' + (action === primaryAction ? 'primary' : 'icon-ghost') + '" data-action="' + handlerAction + '" data-id="' + Number(r.id) + '" title="' + title + '" aria-label="' + title + '"' + extra + '>' + icons[action] + '</button>';
+      }).join('');
       const typeBadge = App.Helpers.getBookingTypeBadge(r.booking_type);
-      const checkOutDisplay = r.check_out_date || (isContract ? 'مفتوح (غير محدد)' : '-');
-      const expectedCheckoutTime = isConfirmed && !isContract && r.check_out_date && r.check_out_date !== 'مفتوح' ? '14:00' : '';
-
-      return `
-        <tr>
-          <td style="font-family: monospace; font-weight: 800; color: var(--primary); white-space: nowrap;">#${r.id}</td>
-          <td>
-            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-              <span style="font-weight: 800; color: #1e293b; font-size: 0.92rem; white-space: nowrap;">${App.Helpers.escapeHtml(r.guest_name)}</span>
-              ${typeBadge}
-            </div>
-            ${r.guest_id_number ? `<small class="guest-id-number">هوية: ${App.Helpers.escapeHtml(r.guest_id_number)}</small>` : ''}
-          </td>
-          <td style="white-space: nowrap;">
-            <span style="font-weight: 800; color: #1a4332;">غرفة ${App.Helpers.escapeHtml(r.room_number)}</span>
-          </td>
-          <td style="font-size: 0.82rem; color: var(--text-secondary); white-space: nowrap; font-family: monospace; direction: ltr; text-align: right;">${renderDateTimeCell(r.check_in_date, r.booking_time, '-', 'الوصول')}</td>
-          <td style="font-size: 0.82rem; color: var(--text-secondary); white-space: nowrap; font-family: ${r.check_out_date ? 'monospace' : 'inherit'}; direction: ${r.check_out_date ? 'ltr' : 'rtl'}; text-align: right;">${renderDateTimeCell(r.check_out_date, expectedCheckoutTime || r.checkout_time, checkOutDisplay, expectedCheckoutTime ? 'متوقع' : (r.checkout_time ? 'فعلي' : ''))}</td>
-          <td style="white-space: nowrap;">
-            <div style="font-weight: 800; color: #1e293b; font-size: 0.9rem;">${total.toLocaleString()} ريال</div>
-            ${r.original_calculated_charge != null ? `<div style="font-size: 0.70rem; color: #64748b; font-weight: 600;" title="المبلغ الأصلي قبل تعديل الإدارة">معدل يدوياً (أصلي: ${parseFloat(r.original_calculated_charge).toLocaleString()} ريال)</div>` : ''}
-            <div style="font-size: 0.74rem; color: #059669; font-weight: 700;">مدفوع: ${paid.toLocaleString()}</div>
-            ${isCredit ? `<div style="font-size: 0.74rem; color: #2563eb; font-weight: 800;">رصيد دائن: ${Math.abs(rawRemaining).toLocaleString()} ريال</div>` : (remaining > 0 ? `<div style="font-size: 0.74rem; color: #dc2626; font-weight: 800;">متبقي: ${remaining.toLocaleString()}</div>` : '')}
-          </td>
-          <td style="white-space: nowrap;">${App.Helpers.getPaymentStatusBadge(r.payment_status)}</td>
-          <td style="white-space: nowrap;">
-            ${App.Helpers.getReservationStatusBadge(r.status)}
-            ${App.Helpers.renderOverdueBadge(r)}
-          </td>
-          <td style="text-align: center; white-space: nowrap;">
-            <div class="overview-row-actions">
-              <button type="button" class="btn-action-icon" data-action="invoice" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #f0fdf4; color: #166534; border: 1.5px solid #bbf7d0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="طباعة سند الاستلام والإقامة (فاتورة)">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-              </button>
-              ${isConfirmed && (remaining > 0 || isContract) ? `
-                <button type="button" class="btn-action-icon btn-pay" data-action="add-payment" data-id="${r.id}" onclick="event.stopPropagation(); window.openAddPaymentModal && window.openAddPaymentModal(${r.id});" style="width: 30px; height: 30px; padding: 0; background: #a67c52; color: #ffffff; border: none; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; box-shadow: 0 2px 8px rgba(166, 124, 82, 0.35);" title="تسجيل دفعة سداد جديدة">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
-                </button>
-              ` : ''}
-              ${isConfirmed ? `
-                ${r.check_out_date && r.check_out_date !== 'مفتوح' ? `
-                  <button type="button" class="btn-action-icon" data-action="extend" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #eff6ff; color: #1e40af; border: 1.5px solid #bfdbfe; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="تمديد فترة الإقامة">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                  </button>
-                ` : ''}
-                ${canCheckOut ? `<button type="button" class="btn-action-icon" data-action="checkout" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #ffffff; color: #334155; border: 1.5px solid #cbd5e1; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="تسجيل مغادرة وتسليم الغرفة">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                </button>` : ''}
-                <button type="button" class="btn-action-icon" data-action="whatsapp" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #f0fdf4; color: #16a34a; border: 1.5px solid #86efac; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="مراسلة النزيل عبر واتساب">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-                </button>
-                ${canCancel ? `<button type="button" class="btn-action-icon" data-action="cancel" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="${r.check_in_date === App.Helpers.getLocalDateString() ? 'إبطال / إلغاء الحجز المباشر' : 'إلغاء الحجز'}">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>` : ''}
-              ` : ''}
-            </div>
-          </td>
-        </tr>
-      `;
+      const dateOut = isContract ? '<strong>عقد مفتوح</strong>' : renderDateTimeCell(r.check_out_date, r.checkout_time || '14:00', r.check_out_date || '-', r.checkout_time ? 'فعلي' : 'متوقع');
+      const lateBadge = isLate ? renderDashboardStatusBadge(getCheckoutDelayLabel(r.check_out_date), 'danger') : '<span class="overview-status-dash">—</span>';
+      const balanceLine = isCredit
+        ? '<small class="overview-credit-line">رصيد دائن: ' + Math.abs(balance).toLocaleString() + ' ر.س</small>'
+        : '<small class="overview-balance-line ' + (remaining > 0 ? 'due' : 'settled') + '">' + (remaining > 0 ? 'المتبقي: ' + remaining.toLocaleString() + ' ر.س' : 'لا يوجد رصيد مستحق') + '</small>';
+      return '<tr class="' + (isLate ? 'overview-late-booking-row' : '') + '">' +
+        '<td class="overview-booking-guest-cell"><strong class="overview-booking-guest-name" title="' + e(r.guest_name || '') + '">' + e(r.guest_name || '-') + '</strong><div class="overview-booking-guest-meta">' + typeBadge + '<small>#' + e(r.id) + '</small></div>' + (r.guest_id_number ? '<small class="guest-id-number">هوية: ' + e(r.guest_id_number) + '</small>' : '') + '</td>' +
+        '<td><span class="overview-booking-room">' + e(r.room_number || '-') + '</span></td>' +
+        '<td class="overview-booking-date">' + renderDateTimeCell(r.check_in_date, r.booking_time, '-', 'الوصول') + '</td>' +
+        '<td class="overview-booking-date">' + dateOut + '</td>' +
+        '<td class="overview-booking-financial"><strong>' + total.toLocaleString() + ' ر.س</strong>' + (isContract ? '<small>' + elapsedNights + (elapsedNights === 1 ? ' ليلة' : ' ليالٍ') + ' × ' + rate.toLocaleString() + ' ر.س</small>' : '') + balanceLine + '</td>' +
+        '<td class="overview-booking-payment"><span class="status-badge ' + paymentTone + '">' + e(r.payment_status || 'غير مدفوع') + '</span><small>مدفوع: ' + paid.toLocaleString() + ' ر.س</small></td>' +
+        '<td class="overview-booking-status">' + lateBadge + '</td>' +
+        '<td class="overview-booking-actions-cell"><div class="btn-row-group overview-row-actions" role="group" aria-label="إجراءات الحجز">' + actions + '</div></td>' +
+        '</tr>';
     }).join('');
   }
 

@@ -203,3 +203,91 @@
   #widget-today-checkouts .today-checkouts-table tbody td,
   #widget-recent-bookings #overview-table-body td { padding-inline: 6px !important; }
 }
+
+/* Phase 3: latest active bookings */
+#widget-recent-bookings .recent-bookings-table-wrap {
+  max-height: none !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+}
+#widget-recent-bookings .recent-bookings-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+#widget-recent-bookings .recent-bookings-table th,
+#widget-recent-bookings .recent-bookings-table td {
+  padding: 8px 10px !important;
+  text-align: right;
+  vertical-align: middle;
+}
+#widget-recent-bookings .recent-bookings-table th:nth-child(1) { width: 20%; }
+#widget-recent-bookings .recent-bookings-table th:nth-child(2) { width: 7%; }
+#widget-recent-bookings .recent-bookings-table th:nth-child(3) { width: 11%; }
+#widget-recent-bookings .recent-bookings-table th:nth-child(4) { width: 11%; }
+#widget-recent-bookings .recent-bookings-table th:nth-child(5) { width: 15%; }
+#widget-recent-bookings .recent-bookings-table th:nth-child(6) { width: 12%; }
+#widget-recent-bookings .recent-bookings-table th:nth-child(7) { width: 6%; }
+#widget-recent-bookings .recent-bookings-table th:nth-child(8) { width: 18%; text-align: center; }
+#widget-recent-bookings .recent-bookings-table tbody tr { min-height: 64px; }
+#widget-recent-bookings .recent-bookings-table tbody tr:hover { background: #f8fafc; }
+#widget-recent-bookings .overview-late-booking-row > td { background: #fff7f7; }
+#widget-recent-bookings .overview-late-booking-row > td:first-child { border-right: 3px solid #e11d48; }
+#widget-recent-bookings .overview-booking-guest-cell { min-width: 0; }
+#widget-recent-bookings .overview-booking-guest-name {
+  display: block;
+  overflow: hidden;
+  color: #1e293b;
+  font-size: 14px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#widget-recent-bookings .overview-booking-guest-meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 4px;
+}
+#widget-recent-bookings .overview-booking-guest-meta > small,
+#widget-recent-bookings .guest-id-number,
+#widget-recent-bookings .overview-booking-payment small,
+#widget-recent-bookings .overview-booking-financial small {
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.3;
+}
+#widget-recent-bookings .overview-booking-guest-meta > small { direction: ltr; }
+#widget-recent-bookings .overview-booking-guest-meta .badge { margin: 0 !important; }
+#widget-recent-bookings .overview-booking-room { color: #1a4332; font-weight: 800; white-space: nowrap; }
+#widget-recent-bookings .overview-booking-date { color: #475569; font-size: 13px; }
+#widget-recent-bookings .overview-booking-date .table-date { direction: ltr; text-align: right; }
+#widget-recent-bookings .overview-booking-financial,
+#widget-recent-bookings .overview-booking-payment,
+#widget-recent-bookings .overview-booking-status {
+  text-align: center !important;
+}
+#widget-recent-bookings .overview-booking-financial > strong {
+  display: block;
+  color: #1e293b;
+  font-size: 13px;
+  white-space: nowrap;
+}
+#widget-recent-bookings .overview-booking-financial > small,
+#widget-recent-bookings .overview-booking-payment > small {
+  display: block;
+  margin-top: 3px;
+}
+#widget-recent-bookings .overview-balance-line.due,
+#widget-recent-bookings .overview-credit-line { color: #be123c; font-weight: 800; }
+#widget-recent-bookings .overview-balance-line.settled { color: #64748b; }
+#widget-recent-bookings .overview-booking-payment .status-badge { margin: 0 !important; }
+#widget-recent-bookings .overview-status-dash { color: #94a3b8; }
+#widget-recent-bookings .overview-booking-actions-cell { text-align: center !important; }
+#widget-recent-bookings .overview-row-actions { gap: 5px; flex-wrap: nowrap; }
+#widget-recent-bookings .overview-row-actions .btn-row { flex: 0 0 36px; }
+
+@media (max-width: 900px) {
+  #widget-recent-bookings .recent-bookings-table-wrap { overflow-x: auto !important; }
+  #widget-recent-bookings .recent-bookings-table { min-width: 1000px; }
+}
