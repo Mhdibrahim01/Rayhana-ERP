@@ -779,6 +779,85 @@ body {
   display: none !important;
 }
 
+.hotkey-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 20px;
+  padding: 0 5px;
+  border: 1px solid #dbe4e0;
+  border-radius: 6px;
+  background: #f8faf9;
+  color: #52645b;
+  font: 700 10px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.hotkey-chip-dark {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.front-desk-hotkeys-help[hidden] {
+  display: none !important;
+}
+
+.front-desk-hotkeys-help {
+  position: fixed;
+  z-index: 1100000;
+  top: 72px;
+  inset-inline-end: 20px;
+  width: min(330px, calc(100vw - 32px));
+  padding: 14px;
+  border: 1px solid #dbe5df;
+  border-radius: 14px;
+  background: #fff;
+  color: #1e293b;
+  box-shadow: 0 16px 40px rgba(15, 40, 30, 0.2);
+  direction: rtl;
+}
+
+.front-desk-hotkeys-help-heading,
+.front-desk-hotkeys-help-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.front-desk-hotkeys-help-heading {
+  padding-bottom: 9px;
+  border-bottom: 1px solid #eef2f0;
+  color: #1a4332;
+  font-size: 13px;
+}
+
+.front-desk-hotkeys-help-heading button {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 7px;
+  background: #f1f5f3;
+  color: #64748b;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.front-desk-hotkeys-help-row {
+  padding-top: 10px;
+  color: #475569;
+  font-size: 12px;
+}
+
+.front-desk-hotkeys-help-row > span:last-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .overview-table-tabs {
   display: flex;
   gap: 8px;

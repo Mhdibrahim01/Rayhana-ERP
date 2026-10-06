@@ -218,7 +218,7 @@
             </div>
             <div class="overview-welcome-actions">
               <button id="btn-open-new-reservation-modal" type="button" class="btn btn-primary">
-                + تسجيل حجز جديد
+                <span>+ تسجيل حجز جديد</span><kbd class="hotkey-chip" title="اختصار تسجيل حجز جديد">F2</kbd>
               </button>
             </div>
           </section>
@@ -322,7 +322,7 @@
               <div class="today-checkouts-toolbar" dir="rtl">
                 <label class="today-checkouts-search-wrap">
                   <span class="today-checkouts-search-icon" aria-hidden="true">⌕</span>
-                  <input id="today-checkouts-search" type="search" class="today-checkouts-search" placeholder="بحث برقم الغرفة، اسم النزيل، الجوال أو الهوية..." aria-label="بحث في مغادرات اليوم">
+                  <input id="today-checkouts-search" type="search" class="today-checkouts-search" placeholder="بحث برقم الغرفة، اسم النزيل، الجوال أو الهوية... ( / )" aria-label="بحث في مغادرات اليوم">
                 </label>
                 <div id="today-checkouts-filters" class="today-checkouts-filters" role="group" aria-label="تصفية مغادرات اليوم">
                   <button type="button" class="today-checkouts-filter active" data-checkout-filter="all" aria-pressed="true">الكل</button>
@@ -553,7 +553,7 @@
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                   </svg>
                 </span>
-                <input type="text" id="search-all-reservations" placeholder="بحث بالاسم، رقم الغرفة، الجوال...">
+                <input type="text" id="search-all-reservations" placeholder="بحث بالاسم، رقم الغرفة، الجوال... ( / )">
               </div>
 
               <!-- Action Buttons: New Reservation + Excel Import & Export Buttons -->
@@ -563,7 +563,7 @@
                     <line x1="12" y1="5" x2="12" y2="19"></line>
                     <line x1="5" y1="12" x2="19" y2="12"></line>
                   </svg>
-                  <span>+ تسجيل حجز جديد</span>
+                  <span>+ تسجيل حجز جديد</span><kbd class="hotkey-chip hotkey-chip-dark" aria-hidden="true">F2</kbd>
                 </button>
 
                 <button id="btn-export-reservations-excel" class="btn-excel-export" title="تصدير جدول الحجوزات إلى ملف Excel (.xlsx)">
@@ -664,7 +664,7 @@
                   <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"></circle>
                   <path d="m16.3 16.3 4.2 4.2" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"></path>
                 </svg>
-                <input type="search" id="search-rooms" aria-label="البحث عن غرفة" placeholder="بحث برقم الغرفة أو النوع...">
+                <input type="search" id="search-rooms" aria-label="البحث عن غرفة" placeholder="بحث برقم الغرفة أو النوع... ( / )">
               </label>
 
               <div class="rooms-filter-block">
@@ -807,7 +807,7 @@
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                   </svg>
                 </span>
-                <input type="text" id="search-guests" placeholder="بحث بالاسم، رقم الجوال، الهوية...">
+                <input type="text" id="search-guests" placeholder="بحث بالاسم، رقم الجوال، الهوية... ( / )">
               </div>
 
               <!-- Ban-status filter -->
@@ -1046,7 +1046,7 @@
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                   </svg>
                 </span>
-                <input type="text" id="search-logs" placeholder="بحث باسم الموظف أو الصلاحية...">
+                <input type="text" id="search-logs" placeholder="بحث باسم الموظف أو الصلاحية... ( / )">
               </div>
 
               <div style="display: flex; align-items: center; gap: 12px;">
@@ -2720,5 +2720,6 @@
     <script src="dashboard-rooms.js"></script>
     <script src="dashboard-reservations.js"></script>
     <script src="dashboard.js"></script>
+    <script src="hotkeys.js"></script>
 </body>
 </html>
