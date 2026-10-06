@@ -19,6 +19,40 @@
     } catch (err) {
       console.error('Load users error:', err);
     }
+    await loadBusinessDayAdminSettings();
+  }
+
+  async function loadBusinessDayAdminSettings() {
+    const form = document.getElementById('business-day-settings-form');
+    const notice = document.getElementById('business-day-pending-reconciliation');
+    if (!form) return;
+    try {
+      const [settingsResult, pendingResult, policiesResult] = await Promise.all([
+        window.api.getBusinessDaySettings(),
+        window.api.getPendingShiftReconciliationAudits(),
+        window.api.getReceiptStayPolicies()
+      ]);
+      if (settingsResult?.success && settingsResult.data) {
+        document.getElementById('business-day-cutoff-time').value = settingsResult.data.business_day_cutoff_time;
+        document.getElementById('hotel-timezone').value = settingsResult.data.hotel_timezone;
+        document.getElementById('auto-rollover-enabled').checked = settingsResult.data.auto_rollover_enabled;
+      }
+      if (policiesResult?.success && Array.isArray(policiesResult.data)) {
+        const policyInput = document.getElementById('receipt-policy-text');
+        if (policyInput) policyInput.value = policiesResult.data.join('\n');
+      }
+      const pending = pendingResult?.success && Array.isArray(pendingResult.data) ? pendingResult.data : [];
+      if (notice) {
+        notice.hidden = pending.length === 0;
+        notice.innerHTML = pending.map(audit => `
+          <div class="business-day-pending-row">
+            <div><strong>إقفال تلقائي يحتاج إلى مطابقة الوردية</strong><span>اليوم المغلق: <bdi dir="ltr">${App.Helpers.escapeHtml(audit.closed_business_date)}</bdi></span></div>
+            <button type="button" data-reconcile-audit-id="${Number(audit.id)}">تمت المراجعة والمطابقة</button>
+          </div>`).join('');
+      }
+    } catch (error) {
+      console.warn('تعذر تحميل إعدادات اليوم الفندقي:', error);
+    }
   }
 
   function renderUsersTable() {
@@ -52,6 +86,68 @@
   }
 
   App.Helpers.initAdmin = function() {
+  const businessDaySettingsForm = document.getElementById('business-day-settings-form');
+  if (businessDaySettingsForm) {
+    businessDaySettingsForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const submit = businessDaySettingsForm.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+      try {
+        const response = await window.api.updateBusinessDaySettings({
+          business_day_cutoff_time: document.getElementById('business-day-cutoff-time').value,
+          hotel_timezone: document.getElementById('hotel-timezone').value.trim(),
+          auto_rollover_enabled: document.getElementById('auto-rollover-enabled').checked
+        });
+        if (!response?.success) throw new Error(response?.error || 'تعذر حفظ الإعدادات.');
+        App.Helpers.showToast('تم حفظ إعدادات اليوم الفندقي.', 'success');
+        await loadBusinessDayAdminSettings();
+      } catch (error) {
+        App.Helpers.showToast(error.message || 'تعذر حفظ الإعدادات.', 'error');
+      } finally {
+        if (submit) submit.disabled = false;
+      }
+    });
+  }
+
+  const receiptPolicySettingsForm = document.getElementById('receipt-policy-settings-form');
+  if (receiptPolicySettingsForm) {
+    receiptPolicySettingsForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const submit = receiptPolicySettingsForm.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+      try {
+        const policies = document.getElementById('receipt-policy-text').value.split(/\r?\n/).map(value => value.trim()).filter(Boolean);
+        if (policies.length > 7) throw new Error('يمكن حفظ 7 شروط كحد أقصى.');
+        const response = await window.api.updateReceiptStayPolicies(policies);
+        if (!response?.success) throw new Error(response?.error || 'تعذر حفظ سياسة الإقامة.');
+        document.getElementById('receipt-policy-text').value = response.data.join('\n');
+        App.Helpers.showToast('تم حفظ سياسة الإقامة والشروط.', 'success');
+      } catch (error) {
+        App.Helpers.showToast(error.message || 'تعذر حفظ سياسة الإقامة.', 'error');
+      } finally {
+        if (submit) submit.disabled = false;
+      }
+    });
+  }
+
+  const reconciliationNotice = document.getElementById('business-day-pending-reconciliation');
+  if (reconciliationNotice) {
+    reconciliationNotice.addEventListener('click', async event => {
+      const button = event.target.closest('[data-reconcile-audit-id]');
+      if (!button) return;
+      button.disabled = true;
+      try {
+        const response = await window.api.reconcileShiftAudit(button.dataset.reconcileAuditId);
+        if (!response?.success) throw new Error(response?.error || 'تعذر تأكيد المصالحة.');
+        App.Helpers.showToast('تم تأكيد مصالحة الوردية.', 'success');
+        await loadBusinessDayAdminSettings();
+        if (typeof window.refreshBusinessDayReconciliationNotice === 'function') await window.refreshBusinessDayReconciliationNotice();
+      } catch (error) {
+        App.Helpers.showToast(error.message || 'تعذر تأكيد المصالحة.', 'error');
+        button.disabled = false;
+      }
+    });
+  }
   // Add User Form (Admin Only)
   App.DOM.addUserForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -241,5 +337,6 @@
   };
 
   App.Helpers.loadAdminData = loadAdminData;
+  App.Helpers.loadBusinessDayAdminSettings = loadBusinessDayAdminSettings;
 
 })(window.DashboardApp);

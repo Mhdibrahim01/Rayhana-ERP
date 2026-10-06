@@ -246,6 +246,7 @@ module.exports = function registerSystemIpc(ipcMain, { app, BrowserWindow, dialo
   // 12. Native PDF Export & Dedicated Print Preview Window
   ipcMain.handle('print:to-pdf', async (event, { html, title, defaultFilename }) => {
     try {
+      const isReceiptDocument = title === 'سند استلام';
       const defaultName = defaultFilename || `hotel_document_${helpers.getLocalDateString()}.pdf`;
       const { canceled, filePath } = await dialog.showSaveDialog(session.mainWindow, {
         title: 'تصدير وحفظ ملف PDF',
@@ -259,6 +260,9 @@ module.exports = function registerSystemIpc(ipcMain, { app, BrowserWindow, dialo
 
       // Invisible offscreen window to generate pixel-perfect A4 PDF
       const pdfWin = new BrowserWindow({
+        width: 794,
+        height: 1123,
+        useContentSize: true,
         show: false,
         webPreferences: {
           nodeIntegration: false,
@@ -273,8 +277,9 @@ module.exports = function registerSystemIpc(ipcMain, { app, BrowserWindow, dialo
           <meta charset="UTF-8">
           <title>${title || 'مستند فندقي'}</title>
           <style>
-            @page { size: A4 portrait; margin: 12mm 14mm; }
+            ${isReceiptDocument ? '' : '@page { size: A4; margin: 10mm; }'}
             * { box-sizing: border-box; margin: 0; padding: 0; }
+            html, body { margin: 0; padding: 0; }
             html { font-size: 18px; }
             body {
               font-family: "Segoe UI", Tahoma, "Cairo", Arial, sans-serif;
@@ -291,7 +296,7 @@ module.exports = function registerSystemIpc(ipcMain, { app, BrowserWindow, dialo
           </style>
         </head>
         <body>
-          <div style="padding: 10px;">
+          <div style="padding: ${isReceiptDocument ? '0' : '10px'}; width: 100%;">
             ${html}
           </div>
         </body>
@@ -299,11 +304,17 @@ module.exports = function registerSystemIpc(ipcMain, { app, BrowserWindow, dialo
       `;
 
 await pdfWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(embedAssets(fullHtml))}`);
+      let receiptScale = 1;
+      if (isReceiptDocument) {
+        const fit = await pdfWin.webContents.executeJavaScript('window.prepareReceiptForPrint ? window.prepareReceiptForPrint({ applyZoom: false }) : null');
+        receiptScale = Number(fit && fit.scale) || 0.92;
+      }
       const pdfData = await pdfWin.webContents.printToPDF({
         printBackground: true,
         pageSize: 'A4',
         landscape: false,
-        margins: { top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 }
+        preferCSSPageSize: true,
+        ...(isReceiptDocument ? { scale: Math.max(0.88, Math.min(1, receiptScale)) } : {})
       });
 
       fs.writeFileSync(filePath, pdfData);
@@ -323,6 +334,7 @@ await pdfWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(embedAss
 
   ipcMain.handle('print:open-preview-window', async (event, { html, title }) => {
     try {
+      const isReceiptDocument = String(title || '').includes('سند الاستلام');
       const previewWin = new BrowserWindow({
         width: 960,
         height: 900,
@@ -345,7 +357,7 @@ await pdfWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(embedAss
           <meta charset="UTF-8">
           <title>${title || 'معاينة الطباعة'}</title>
           <style>
-            @page { size: A4 portrait; margin: 12mm 14mm; }
+            ${isReceiptDocument ? '' : '@page { size: A4; margin: 10mm; }'}
             * { box-sizing: border-box; margin: 0; padding: 0; }
             html { font-size: 18px; }
             body {
@@ -430,9 +442,9 @@ await pdfWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(embedAss
               .sheet-card { padding: 16px; }
             }
             @media print {
-              body { background: white !important; padding: 0 !important; }
+              html, body { background: white !important; margin: 0 !important; padding: 0 !important; }
               .preview-toolbar, .preview-footer { display: none !important; }
-              .sheet-card { box-shadow: none !important; border: none !important; padding: 0 !important; max-width: 100% !important; }
+              .sheet-card { box-shadow: none !important; border: none !important; border-radius: 0 !important; padding: 0 !important; margin: 0 !important; width: 100% !important; max-width: 100% !important; }
             }
           </style>
         </head>
