@@ -2738,3 +2738,43 @@ body.login-body {
     zoom: 1 !important;
   }
 }
+
+.business-day-shift-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 7px;
+  padding: 6px 9px;
+  border: 1px solid #fbbf24;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+.business-day-shift-notice[hidden] { display: none !important; }
+.business-day-shift-notice button,
+.business-day-pending-row button {
+  border: 1px solid #d6a640;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #7c4a12;
+  padding: 5px 9px;
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}
+.business-day-settings-card { padding: 18px 22px; }
+.business-day-settings-card .card-header { margin-bottom: 14px; }
+.business-day-settings-card h2 { margin: 0; color: #1a4332; font-size: 1rem; font-weight: 900; }
+.business-day-settings-card p { margin: 4px 0 0; color: #64748b; font-size: 0.78rem; }
+.business-day-settings-form { display: flex; align-items: end; flex-wrap: wrap; gap: 14px; }
+.business-day-settings-form > label { display: flex; min-width: 190px; flex: 1 1 190px; flex-direction: column; gap: 6px; color: #334155; font-size: 0.78rem; font-weight: 800; }
+.business-day-settings-form input[type="time"],
+.business-day-settings-form input[type="text"] { min-height: 40px; width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; color: #1e293b; font: inherit; }
+.business-day-settings-form .business-day-auto-toggle { min-width: auto; flex-direction: row; align-items: center; padding-bottom: 10px; }
+.business-day-settings-form button { min-height: 40px; }
+.business-day-pending-reconciliation { display: grid; gap: 8px; margin-top: 16px; padding: 12px; border: 1px solid #fcd34d; border-radius: 10px; background: #fffbeb; }
+.business-day-pending-reconciliation[hidden] { display: none !important; }
+.business-day-pending-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #854d0e; font-size: 0.78rem; }
+.business-day-pending-row > div { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }

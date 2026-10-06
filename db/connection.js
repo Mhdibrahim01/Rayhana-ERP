@@ -214,6 +214,12 @@ async function init(dbPath) {
         FOREIGN KEY(last_audit_user_id) REFERENCES users(id)
       );
 
+      CREATE TABLE IF NOT EXISTS app_settings (
+        setting_key TEXT PRIMARY KEY,
+        setting_value TEXT NOT NULL,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE TABLE IF NOT EXISTS night_audits (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         closed_business_date TEXT NOT NULL UNIQUE,
@@ -221,6 +227,10 @@ async function init(dbPath) {
         next_business_date TEXT NOT NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         user_id INTEGER,
+        closed_by TEXT,
+        shift_reconciliation_required INTEGER NOT NULL DEFAULT 0,
+        shift_reconciled_at DATETIME,
+        shift_reconciled_by INTEGER,
         payment_count INTEGER NOT NULL DEFAULT 0,
         payment_net REAL NOT NULL DEFAULT 0,
         deposit_movement_count INTEGER NOT NULL DEFAULT 0,
@@ -272,6 +282,21 @@ async function init(dbPath) {
     try { db.run("ALTER TABLE deposit_movements ADD COLUMN created_at DATETIME"); } catch (e) {}
     try { db.run("ALTER TABLE deposit_movements ADD COLUMN business_date TEXT"); } catch (e) {}
     try { db.run("ALTER TABLE night_audits ADD COLUMN business_date TEXT"); } catch (e) {}
+    try { db.run("ALTER TABLE night_audits ADD COLUMN closed_by TEXT"); } catch (e) {}
+    try { db.run("ALTER TABLE night_audits ADD COLUMN shift_reconciliation_required INTEGER NOT NULL DEFAULT 0"); } catch (e) {}
+    try { db.run("ALTER TABLE night_audits ADD COLUMN shift_reconciled_at DATETIME"); } catch (e) {}
+    try { db.run("ALTER TABLE night_audits ADD COLUMN shift_reconciled_by INTEGER"); } catch (e) {}
+
+    const defaultSettings = [
+      ['business_day_cutoff_time', '06:00'],
+      ['hotel_timezone', Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'],
+      ['auto_rollover_enabled', 'true']
+    ];
+    for (const [key, value] of defaultSettings) {
+      const insertSetting = db.prepare('INSERT OR IGNORE INTO app_settings (setting_key, setting_value) VALUES (?, ?)');
+      insertSetting.run([key, value]);
+      insertSetting.free();
+    }
 
     // Seed the operational date only once. The legacy 06:00 rule is used solely
     // to choose the initial date for an existing installation; later date changes
@@ -558,6 +583,75 @@ function getCurrentBusinessDate() {
   return getCurrentBusinessState().current_business_date;
 }
 
+function getBusinessDaySettings() {
+  const rows = queryAll('SELECT setting_key, setting_value FROM app_settings WHERE setting_key IN (?, ?, ?)', [
+    'business_day_cutoff_time', 'hotel_timezone', 'auto_rollover_enabled'
+  ]);
+  const values = Object.fromEntries(rows.map(row => [row.setting_key, row.setting_value]));
+  return {
+    business_day_cutoff_time: values.business_day_cutoff_time || '06:00',
+    hotel_timezone: values.hotel_timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+    auto_rollover_enabled: values.auto_rollover_enabled !== 'false'
+  };
+}
+
+function updateBusinessDaySettings(input = {}) {
+  const current = getBusinessDaySettings();
+  const cutoff = input.business_day_cutoff_time ?? current.business_day_cutoff_time;
+  const timezone = input.hotel_timezone ?? current.hotel_timezone;
+  const enabled = input.auto_rollover_enabled ?? current.auto_rollover_enabled;
+  const isEnabled = enabled === true || enabled === 'true';
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(cutoff))) throw new Error('وقت بداية اليوم يجب أن يكون بصيغة HH:MM.');
+  try { new Intl.DateTimeFormat('en', { timeZone: String(timezone) }).format(new Date()); }
+  catch (_) { throw new Error('المنطقة الزمنية المحددة غير صالحة.'); }
+  const database = db;
+  const previousSnapshot = database.export();
+  database.run('BEGIN TRANSACTION');
+  try {
+    const statement = database.prepare(`
+      INSERT INTO app_settings (setting_key, setting_value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = CURRENT_TIMESTAMP
+    `);
+    statement.run(['business_day_cutoff_time', String(cutoff)]);
+    statement.run(['hotel_timezone', String(timezone)]);
+    statement.run(['auto_rollover_enabled', isEnabled ? 'true' : 'false']);
+    statement.free();
+    database.run('COMMIT');
+  } catch (error) {
+    try { database.run('ROLLBACK'); } catch (_) {}
+    throw error;
+  }
+  if (!saveToFile()) {
+    restoreInMemorySnapshot(previousSnapshot);
+    throw new Error('تعذر حفظ إعدادات اليوم الفندقي إلى قاعدة البيانات.');
+  }
+  return getBusinessDaySettings();
+}
+
+function getPendingShiftReconciliationAudits() {
+  return queryAll(`
+    SELECT id, closed_business_date, next_business_date, created_at, summary_json
+    FROM night_audits WHERE shift_reconciliation_required = 1 AND shift_reconciled_at IS NULL
+    ORDER BY id DESC
+  `);
+}
+
+function markShiftAuditReconciled(auditId, userId) {
+  const id = Number.parseInt(auditId, 10);
+  const actor = Number.parseInt(userId, 10);
+  if (!Number.isInteger(id) || id <= 0 || !Number.isInteger(actor) || actor <= 0) throw new Error('بيانات المصالحة غير صالحة.');
+  const statement = db.prepare(`
+    UPDATE night_audits SET shift_reconciled_at = CURRENT_TIMESTAMP, shift_reconciled_by = ?
+    WHERE id = ? AND shift_reconciliation_required = 1 AND shift_reconciled_at IS NULL
+  `);
+  statement.run([actor, id]);
+  statement.free();
+  const changed = queryOne('SELECT changes() AS count')?.count || 0;
+  if (Number(changed) !== 1) throw new Error('تمت المصالحة مسبقاً أو لم يعد السجل موجوداً.');
+  if (!saveToFile()) throw new Error('تعذر حفظ تأكيد المصالحة.');
+  return { success: true };
+}
+
 /**
  * Backup Database Copy to selected destination
  */
@@ -671,6 +765,10 @@ module.exports = {
   getHotelBusinessDate,
   getCurrentBusinessState,
   getCurrentBusinessDate,
+  getBusinessDaySettings,
+  updateBusinessDaySettings,
+  getPendingShiftReconciliationAudits,
+  markShiftAuditReconciled,
   createBackupCopy,
   restoreDatabaseFile,
   getDatabaseFilePath,

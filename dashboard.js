@@ -497,6 +497,7 @@
       showToast('Access Denied: Admin privileges required. (عذراً: هذا القسم مخصص لمدير النظام فقط)', 'error');
       targetView = 'overview';
     }
+    window.DashboardApp.State.activeView = targetView;
 
     // 1. INSTANT: Update navigation links active state (pure CSS class toggle — zero reflow)
     navLinks.forEach(link => {
@@ -1760,6 +1761,12 @@
         await refreshHotelBusinessState();
         btnRunNightAudit.title = `تاريخ العمل المفتوح الآن ${result.data.currentBusinessDate}`;
         showToast(`تم إقفال ${result.data.closedBusinessDate}. تاريخ العمل الجديد: ${result.data.currentBusinessDate}.`, 'success');
+        await Promise.all([
+          window.DashboardApp.Helpers.loadOverviewData?.(),
+          window.DashboardApp.Helpers.loadRoomsData?.(),
+          window.DashboardApp.Helpers.loadReservationsData?.()
+        ]);
+        if (currentUser?.role === 'Admin') await refreshBusinessDayReconciliationNotice();
         currentShiftAuditPreset = 'custom';
         const presetButtons = document.querySelectorAll('#shift-audit-filter-bar .btn-audit-preset');
         presetButtons.forEach(button => {
@@ -2602,6 +2609,7 @@
     if (currentUser) {
       try { await refreshHotelBusinessState(); }
       catch (businessDateErr) { console.warn('Hotel business date unavailable:', businessDateErr); }
+      if (currentUser.role === 'Admin') await refreshBusinessDayReconciliationNotice();
     }
 
     // Default view: overview
@@ -2610,6 +2618,44 @@
 
   // Escape HTML helper
   function escapeHtml(str) { return window.DashboardApp.Helpers.escapeHtml(str); }
+
+  async function refreshBusinessDayReconciliationNotice() {
+    const notice = document.getElementById('business-day-shift-notice');
+    const text = document.getElementById('business-day-shift-notice-text');
+    if (!notice || !text || currentUser?.role !== 'Admin') return;
+    try {
+      const response = await window.api.getPendingShiftReconciliationAudits();
+      const pending = response?.success && Array.isArray(response.data) ? response.data : [];
+      notice.hidden = pending.length === 0;
+      text.textContent = pending.length
+        ? `هناك ${pending.length} إقفال تلقائي بانتظار مطابقة الوردية (${pending[0].closed_business_date}).`
+        : '';
+    } catch (error) {
+      console.warn('Business day reconciliation notice unavailable:', error);
+    }
+  }
+
+  const openReconciliationButton = document.getElementById('btn-open-business-day-reconciliation');
+  if (openReconciliationButton) {
+    openReconciliationButton.addEventListener('click', () => window.switchView('admin'));
+  }
+
+  if (window.api?.onHotelBusinessDateChanged) {
+    window.api.onHotelBusinessDateChanged(async event => {
+      if (!currentUser || !event?.businessDate || event.businessDate === window.DashboardApp.State.businessDate) return;
+      await refreshHotelBusinessState();
+      updateSystemClock();
+      const helpers = window.DashboardApp.Helpers;
+      await Promise.all([
+        helpers.loadOverviewData?.(),
+        helpers.loadRoomsData?.(),
+        helpers.loadReservationsData?.()
+      ]);
+      if (currentUser.role === 'Admin') await refreshBusinessDayReconciliationNotice();
+      showToast(`بدأ يوم فندقي جديد: ${event.businessDate}`, 'info');
+    });
+  }
+  window.refreshBusinessDayReconciliationNotice = refreshBusinessDayReconciliationNotice;
 
   window.openInvoiceModal = openInvoiceModal;
   window.openRoomRevenueModal = window.DashboardApp.Helpers.openRoomRevenueModal;

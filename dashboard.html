@@ -137,6 +137,10 @@
             <span class="business-date-separator">|</span>
             <span>تاريخ العمل الفندقي:</span> <strong id="active-business-date">جارٍ التحميل</strong>
           </div>
+          <div id="business-day-shift-notice" class="business-day-shift-notice" data-role-required="Admin" hidden>
+            <span id="business-day-shift-notice-text"></span>
+            <button type="button" id="btn-open-business-day-reconciliation">عرض المصالحة</button>
+          </div>
         </div>
 
         <div class="topbar-actions">
@@ -857,6 +861,29 @@
              ================================================================== -->
         <div id="view-admin" class="view-section" style="display: none;">
           <div style="display: flex; flex-direction: column; gap: 24px;">
+
+            <section class="card business-day-settings-card" aria-labelledby="business-day-settings-title">
+              <div class="card-header">
+                <div>
+                  <h2 id="business-day-settings-title">إعدادات اليوم الفندقي والإقفال التلقائي</h2>
+                  <p>يتم الإقفال بعد وقت القطع مع حفظ سجل مستقل لكل يوم.</p>
+                </div>
+              </div>
+              <form id="business-day-settings-form" class="business-day-settings-form">
+                <label>وقت بداية اليوم الفندقي
+                  <input id="business-day-cutoff-time" type="time" value="06:00" required>
+                </label>
+                <label>المنطقة الزمنية
+                  <input id="hotel-timezone" type="text" value="" placeholder="Africa/Cairo" required dir="ltr">
+                </label>
+                <label class="business-day-auto-toggle">
+                  <input id="auto-rollover-enabled" type="checkbox" checked>
+                  تفعيل الإقفال التلقائي
+                </label>
+                <button type="submit" class="btn btn-primary">حفظ الإعدادات</button>
+              </form>
+              <div id="business-day-pending-reconciliation" class="business-day-pending-reconciliation" hidden></div>
+            </section>
             
             <!-- Side-by-Side Forms Grid (grid-cols-1 lg:grid-cols-2 gap-6) -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 24px;">

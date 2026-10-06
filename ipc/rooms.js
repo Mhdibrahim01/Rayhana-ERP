@@ -31,6 +31,10 @@ module.exports = function registerRoomsIpc(ipcMain, { db, session, helpers }) {
     return null;
   }
 
+  async function ensureOpenBusinessDateIsCurrent() {
+    if (typeof helpers.checkBusinessDayRollover === 'function') await helpers.checkBusinessDayRollover();
+  }
+
   // 4. Rooms
   ipcMain.handle('rooms:get-all', async () => {
     const denied = requireSession();
@@ -63,6 +67,7 @@ module.exports = function registerRoomsIpc(ipcMain, { db, session, helpers }) {
     const denied = requireSession();
     if (denied) return denied;
     try {
+      await ensureOpenBusinessDateIsCurrent();
       db.updateRoomStatus(roomId, status);
       return { success: true };
     } catch (err) {
@@ -120,6 +125,7 @@ module.exports = function registerRoomsIpc(ipcMain, { db, session, helpers }) {
     // it; it writes nothing the caller controls.
     const denied = requireSession();
     if (denied) return denied;
+    await ensureOpenBusinessDateIsCurrent();
     return helpers.updateAutomatedRoomStatuses();
   });
 };

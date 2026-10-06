@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, dialog, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, Notification, powerMonitor } = require('electron');
 
 // =============================================================================
 // GPU & RENDERING ACCELERATION FLAGS (must be called before app.whenReady)
@@ -14,12 +14,14 @@ const path = require('path');
 const fs = require('fs');
 const db = require('./db');
 const backupScheduler = require('./backupScheduler');
+const { createBusinessDayScheduler } = require('./businessDayScheduler');
 const { registerAllIpcHandlers } = require('./ipc');
 
 let mainWindow = null;
 let dbPath = '';
 let currentUser = null;
 let currentLogId = null;
+let businessDayScheduler = null;
 
 /**
  * Creates the primary application window, starting on the login view.
@@ -241,6 +243,7 @@ function registerIpcHandlers() {
     getLocalDateString,
     getHotelBusinessDate: db.getHotelBusinessDate,
     getCurrentBusinessDate: db.getCurrentBusinessDate,
+    checkBusinessDayRollover: businessDayScheduler?.checkAndClose,
     updateAutomatedRoomStatuses,
     backupDatabase
   };
@@ -266,8 +269,15 @@ app.whenReady().then(async () => {
     await db.init(dbPath);
     updateAutomatedRoomStatuses();
 
+    businessDayScheduler = createBusinessDayScheduler({
+      db,
+      powerMonitor,
+      getMainWindow: () => mainWindow
+    });
+
     registerIpcHandlers();
     createWindow();
+    businessDayScheduler.start();
 
     // Start Daily 12:00 AM Automated Backup Scheduler
     await backupScheduler.initBackupScheduler({
@@ -290,6 +300,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
+  if (businessDayScheduler) businessDayScheduler.stop();
   backupScheduler.stopBackupScheduler();
   if (currentLogId) {
     db.logEmployeeLogout(currentLogId);

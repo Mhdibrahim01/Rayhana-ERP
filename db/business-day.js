@@ -18,12 +18,15 @@ function addCalendarDay(isoDate) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
 }
 
-function runNightAudit(userId, expectedBusinessDate) {
+function runNightAudit(userId, expectedBusinessDate, options = {}) {
   const database = connection.getDb();
   if (!database) throw new Error('قاعدة البيانات غير مهيأة.');
 
-  const actorId = Number.parseInt(userId, 10);
-  if (!Number.isInteger(actorId) || actorId <= 0) throw new Error('تعذر تحديد الموظف المنفذ لإقفال اليوم.');
+  const isSystemClose = options.closedBy === 'system';
+  const actorId = isSystemClose ? null : Number.parseInt(userId, 10);
+  if (!isSystemClose && (!Number.isInteger(actorId) || actorId <= 0)) throw new Error('تعذر تحديد الموظف المنفذ لإقفال اليوم.');
+  const closedBy = isSystemClose ? 'system' : String(actorId);
+  const closedAt = options.now instanceof Date ? options.now.toISOString() : new Date().toISOString();
 
   const previousSnapshot = database.export();
   let transactionCommitted = false;
@@ -42,6 +45,15 @@ function runNightAudit(userId, expectedBusinessDate) {
     if (existingAudit) throw new Error('تم إقفال هذا اليوم الفندقي مسبقاً.');
 
     const nextDate = addCalendarDay(closedDate);
+    if (options.maxBusinessDate && nextDate > options.maxBusinessDate) {
+      database.run('ROLLBACK');
+      return { success: true, advanced: false, closedBusinessDate: closedDate, currentBusinessDate: closedDate };
+    }
+
+    const openEmployeeSessions = isSystemClose && options.markShiftReconciliation !== false
+      ? Number(connection.queryOne('SELECT COUNT(*) AS count FROM EmployeeLogs WHERE logout_time IS NULL')?.count || 0)
+      : 0;
+    const shiftReconciliationRequired = openEmployeeSessions > 0 ? 1 : 0;
     const payments = connection.queryOne(`
       SELECT COUNT(*) AS count, COALESCE(SUM(amount), 0) AS net,
         COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) AS collected,
@@ -71,18 +83,24 @@ function runNightAudit(userId, expectedBusinessDate) {
       depositMovementCount: Number(deposits?.count || 0),
       depositNet: connection.roundMoney(deposits?.net || 0)
     };
+    summary.openEmployeeSessions = openEmployeeSessions;
+    summary.shiftReconciliationRequired = Boolean(shiftReconciliationRequired);
 
     const insertAudit = database.prepare(`
       INSERT INTO night_audits (
-        closed_business_date, business_date, next_business_date, user_id,
+        closed_business_date, business_date, next_business_date, user_id, closed_by, created_at,
+        shift_reconciliation_required,
         payment_count, payment_net, deposit_movement_count, deposit_net, summary_json
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     insertAudit.run([
       closedDate,
       closedDate,
       nextDate,
       actorId,
+      closedBy,
+      closedAt,
+      shiftReconciliationRequired,
       summary.paymentCount,
       summary.paymentNet,
       summary.depositMovementCount,
@@ -93,11 +111,11 @@ function runNightAudit(userId, expectedBusinessDate) {
 
     const updateState = database.prepare(`
       UPDATE hotel_business_state
-      SET current_business_date = ?, last_audit_at = CURRENT_TIMESTAMP,
-          last_audit_user_id = ?, updated_at = CURRENT_TIMESTAMP
+      SET current_business_date = ?, last_audit_at = ?,
+          last_audit_user_id = ?, updated_at = ?
       WHERE id = 1 AND current_business_date = ?
     `);
-    updateState.run([nextDate, actorId, closedDate]);
+    updateState.run([nextDate, closedAt, actorId, closedAt, closedDate]);
     updateState.free();
 
     const changed = connection.queryOne('SELECT changes() AS count')?.count || 0;
@@ -116,6 +134,10 @@ function runNightAudit(userId, expectedBusinessDate) {
 
     return {
       success: true,
+      advanced: true,
+      closedBy,
+      shiftReconciliationRequired: Boolean(shiftReconciliationRequired),
+      openEmployeeSessions,
       closedBusinessDate: closedDate,
       currentBusinessDate: nextDate,
       audit: connection.queryOne('SELECT * FROM night_audits WHERE closed_business_date = ?', [closedDate])

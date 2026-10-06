@@ -34,6 +34,38 @@ module.exports = function registerReportsIpc(ipcMain, { db, session, helpers }) 
     }
   });
 
+  ipcMain.handle('hotel-business-day:get-settings', async () => {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
+      return { success: false, error: 'غير مصرح: إعدادات اليوم الفندقي مخصصة لمدير النظام.' };
+    }
+    try { return { success: true, data: db.getBusinessDaySettings() }; }
+    catch (err) { return { success: false, error: err.message }; }
+  });
+
+  ipcMain.handle('hotel-business-day:update-settings', async (_event, settings) => {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
+      return { success: false, error: 'غير مصرح: تعديل إعدادات اليوم الفندقي مخصص لمدير النظام.' };
+    }
+    try { return { success: true, data: db.updateBusinessDaySettings(settings) }; }
+    catch (err) { return { success: false, error: err.message }; }
+  });
+
+  ipcMain.handle('hotel-business-day:get-pending-reconciliation', async () => {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
+      return { success: false, error: 'غير مصرح.' };
+    }
+    try { return { success: true, data: db.getPendingShiftReconciliationAudits() }; }
+    catch (err) { return { success: false, error: err.message }; }
+  });
+
+  ipcMain.handle('hotel-business-day:reconcile-shift-audit', async (_event, auditId) => {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
+      return { success: false, error: 'غير مصرح: تأكيد المصالحة مخصص لمدير النظام.' };
+    }
+    try { return { success: true, data: db.markShiftAuditReconciled(auditId, session.currentUser.id) }; }
+    catch (err) { return { success: false, error: err.message }; }
+  });
+
   ipcMain.handle('hotel-business-day:run-audit', async (event, expectedBusinessDate) => {
     if (!session.currentUser || session.currentUser.role !== 'Admin') {
       return { success: false, error: 'غير مصرح: إقفال اليوم الفندقي مخصص لمدير النظام (Admin).' };
