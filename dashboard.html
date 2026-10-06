@@ -330,10 +330,10 @@
                   <input id="today-checkouts-search" type="search" class="today-checkouts-search" placeholder="بحث برقم الغرفة، اسم النزيل، الجوال أو الهوية... ( / )" aria-label="بحث في مغادرات اليوم">
                 </label>
                 <div id="today-checkouts-filters" class="today-checkouts-filters" role="group" aria-label="تصفية مغادرات اليوم">
-                  <button type="button" class="today-checkouts-filter active" data-checkout-filter="all" aria-pressed="true">الكل</button>
-                  <button type="button" class="today-checkouts-filter" data-checkout-filter="pending" aria-pressed="false">بانتظار المغادرة</button>
-                  <button type="button" class="today-checkouts-filter" data-checkout-filter="overdue" aria-pressed="false">متأخر</button>
-                  <button type="button" class="today-checkouts-filter" data-checkout-filter="completed" aria-pressed="false">تمت المغادرة</button>
+                  <button type="button" class="today-checkouts-filter active" data-checkout-filter="all" aria-pressed="true">الكل <span id="today-checkouts-filter-all-count" class="today-checkouts-filter-count">0</span></button>
+                  <button type="button" class="today-checkouts-filter" data-checkout-filter="pending" aria-pressed="false">بانتظار المغادرة <span id="today-checkouts-filter-pending-count" class="today-checkouts-filter-count">0</span></button>
+                  <button type="button" class="today-checkouts-filter" data-checkout-filter="overdue" aria-pressed="false">متأخر <span id="today-checkouts-filter-overdue-count" class="today-checkouts-filter-count">0</span></button>
+                  <button type="button" class="today-checkouts-filter" data-checkout-filter="completed" aria-pressed="false">تمت المغادرة <span id="today-checkouts-filter-completed-count" class="today-checkouts-filter-count">0</span></button>
                 </div>
               </div>
               <div class="table-responsive">
@@ -342,11 +342,12 @@
                     <col style="width: 7%;">
                     <col style="width: 9%;">
                     <col style="width: 17%;">
-                    <col style="width: 10%;">
+                    <col style="width: 11%;">
+                    <col style="width: 12%;">
                     <col style="width: 9%;">
-                    <col style="width: 8%;">
+                    <col style="width: 10%;">
+                    <col style="width: 11%;">
                     <col style="width: 14%;">
-                    <col style="width: 280px;">
                   </colgroup>
                   <thead>
                     <tr>
@@ -356,6 +357,7 @@
                       <th>رقم الجوال</th>
                       <th>تاريخ الوصول</th>
                       <th>المبلغ الإجمالي</th>
+                      <th>المتبقي</th>
                       <th>حالة الحجز</th>
                       <th style="text-align: center;">إجراء المغادرة</th>
                     </tr>
