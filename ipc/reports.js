@@ -93,6 +93,19 @@ module.exports = function registerReportsIpc(ipcMain, { db, session, helpers }) 
     catch (err) { return { success: false, error: err.message }; }
   });
 
+  ipcMain.handle('hotel-business-day:check-rollover', async () => {
+    if (!session.currentUser) return { success: false, error: 'غير مصرح: يرجى تسجيل الدخول أولاً.' };
+    try {
+      if (typeof helpers.checkBusinessDayRollover === 'function') {
+        const result = await helpers.checkBusinessDayRollover();
+        return { success: true, data: result };
+      }
+      return { success: true, data: { advancedDays: 0 } };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('hotel-business-day:run-audit', async (event, expectedBusinessDate) => {
     if (!session.currentUser || session.currentUser.role !== 'Admin') {
       return { success: false, error: 'غير مصرح: إقفال اليوم الفندقي مخصص لمدير النظام (Admin).' };

@@ -320,9 +320,19 @@
     window.DashboardApp.State.businessDate = state.current_business_date;
     if (activeBusinessDateDisplay) {
       activeBusinessDateDisplay.textContent = state.current_business_date;
-      activeBusinessDateDisplay.title = state.last_audit_at
-        ? `آخر إقفال: ${state.last_audit_at}`
-        : 'لم يتم تنفيذ إقفال فندقي بعد';
+      
+      // Calculate next rollover time and show in title
+      const settings = await window.api.getBusinessDaySettings();
+      const cutoffTime = settings?.data?.business_day_cutoff_time || '06:00';
+      const autoRollover = settings?.data?.auto_rollover_enabled !== false;
+      
+      let titleText = state.last_audit_at ? `آخر إقفال: ${state.last_audit_at}` : 'لم يتم تنفيذ إقفال فندقي بعد';
+      
+      if (autoRollover) {
+        titleText += `\n⏰ الإقفال التلقائي: كل يوم الساعة ${cutoffTime}`;
+      }
+      
+      activeBusinessDateDisplay.title = titleText;
     }
     return state;
   }
@@ -854,6 +864,13 @@
         ${receiptDocumentStyles}
         ${receiptPrintFitScript}
         <div class="receipt-document" dir="rtl">
+          <!-- Title Section for Monthly -->
+       ${isMonthly ? `
+  <div style="text-align: center; margin-bottom: 32px; margin-top: 10px; display: flex; flex-direction: column; align-items: center;">
+    <h1 style="font-family: 'Cairo', 'Tajawal', sans-serif; font-size: 1.8rem; font-weight: 700; color: #1e293b; margin: 0 0 10px 0; letter-spacing: normal; font-synthesis: none; text-rendering: optimizeLegibility;">عقد إيجار</h1>
+    <div style="height: 3px; width: 110px; background-color: #94a3b8; border-radius: 2px;"></div>
+  </div>
+` : ''}
           <!-- Top Section: Company & Receipt Info -->
           <div class="receipt-header" style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 24px; margin-bottom: 28px;">
             <!-- Company Info (Right) -->
@@ -862,7 +879,7 @@
               <div>
                 <h2 style="font-size: 1.25rem; font-weight: 800; color: #1e293b; margin: 0 0 8px 0;">${isMonthly ? 'مؤسسة مكتب شمس المنازل للخدمات العقارية' : 'ريحانة للوحدات السكنية'}</h2>
                 <div style="font-size: 0.85rem; color: #64748b; line-height: 1.6;">
-                  <div>العنوان: الخبر - الثقبة - طريق الملك خالد</div>
+                  <div>العنوان: الخبر - الثقبة </div>
                   <div>الرمز البريدي: 34625</div>
                   <div>هاتف الاستقبال: 0560631783</div>
                   ${isMonthly ? '<div>الرقم الموحد: 7038955915</div>' : ''}
@@ -906,8 +923,7 @@
               <div style="font-size: 0.85rem; line-height: 1.8; color: #475569;">
                 <div><strong style="color: #1e293b;">رقم الوحدة:</strong> ${escapeHtml(receiptDigits(inv.room_number))} (${escapeHtml(receiptDigits(inv.room_type || ''))})</div>
                 <div><strong style="color: #1e293b;">تاريخ الوصول:</strong> <bdi dir="ltr">${checkInReceiptDate}</bdi></div>
-                <div><strong style="color: #1e293b;">تاريخ المغادرة (${escapeHtml(invoiceDurationText)}):</strong> <bdi dir="ltr">${checkOutReceiptDate}</bdi></div>
-                ${showRegistrationDate ? `<div><strong style="color: #1e293b;">تاريخ التسجيل:</strong> <bdi dir="ltr">${registrationDate}</bdi></div>` : ''}
+<div><strong style="color: #1e293b;">تاريخ المغادرة${isMonthly ? '' : ` (${escapeHtml(invoiceDurationText)})`}:</strong> <bdi dir="ltr">${checkOutReceiptDate}</bdi></div>                ${showRegistrationDate ? `<div><strong style="color: #1e293b;">تاريخ التسجيل:</strong> <bdi dir="ltr">${registrationDate}</bdi></div>` : ''}
                 ${inv.checkout_time && formatReceiptDate(inv.check_out_date) === checkOutReceiptDate ? `<div><strong style="color: #1e293b;">وقت المغادرة:</strong> <bdi dir="ltr">${formatReceiptTime(inv.checkout_time)}</bdi></div>` : ''}
                 ${policyNote ? `<div style="margin-top: 8px; padding: 6px 10px; border-radius: 6px; background: #eef2ff; color: #3730a3; font-size: 0.8rem; font-weight: 700;">${policyNote}</div>` : ''}
               </div>
@@ -2773,6 +2789,11 @@
   if (window.api?.onHotelBusinessDateChanged) {
     window.api.onHotelBusinessDateChanged(async event => {
       if (!currentUser || !event?.businessDate || event.businessDate === window.DashboardApp.State.businessDate) return;
+      
+      // Show prominent notification with sound
+      showToast(`🌅 بدأ يوم فندقي جديد: ${event.businessDate}`, 'success');
+      
+      // Refresh all data
       await refreshHotelBusinessState();
       updateSystemClock();
       const helpers = window.DashboardApp.Helpers;
@@ -2781,8 +2802,18 @@
         helpers.loadRoomsData?.(),
         helpers.loadReservationsData?.()
       ]);
+      
       if (currentUser.role === 'Admin') await refreshBusinessDayReconciliationNotice();
-      showToast(`بدأ يوم فندقي جديد: ${event.businessDate}`, 'info');
+      
+      // Optional: Play a subtle notification sound if browser supports it
+      try {
+        const AudioCtor = (typeof window !== 'undefined' && window.Audio) || (typeof globalThis !== 'undefined' && globalThis.Audio);
+        if (AudioCtor) {
+          const audio = new AudioCtor('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUKrk8LNhHAU7k9n0yXYpBSh+zPLaizsKGGS66OugVBELTKXh8bllHgU1iM/z1oU3BxlqvO/knE0MD1Gn4/KyYhwGOpPY88p5KwUofszx3I4+CRdlu+rqnlIRC0yn4fG5Zh4FNIjP89aFNwcZarz05JxNDA9Rp+Lxs2IcBjqT2fPKeSsFKH7M8NyOPgkXZbzq6p5SE');
+          audio.volume = 0.3;
+          audio.play().catch(() => {});
+        }
+      } catch {}
     });
   }
   window.refreshBusinessDayReconciliationNotice = refreshBusinessDayReconciliationNotice;
@@ -2799,6 +2830,29 @@
   window.DashboardApp.Helpers.refreshHotelBusinessState = refreshHotelBusinessState;
   updateSystemClock();
   window.setInterval(updateSystemClock, 1000);
+  
+  // Periodically check if business day rollover is needed (every 2 minutes)
+  // This ensures the day changes even if the backend scheduler is delayed
+  window.setInterval(async () => {
+    if (window.api?.checkBusinessDayRollover && typeof window.api.checkBusinessDayRollover === 'function') {
+      try {
+        await window.api.checkBusinessDayRollover();
+      } catch (error) {
+        console.warn('فشل التحقق من الإقفال التلقائي:', error);
+      }
+    }
+  }, 120_000); // Check every 2 minutes
+  
+  // Check business day when window regains focus (handles sleep/wake scenarios)
+  window.addEventListener('focus', async () => {
+    if (window.api?.checkBusinessDayRollover && typeof window.api.checkBusinessDayRollover === 'function') {
+      try {
+        await window.api.checkBusinessDayRollover();
+      } catch (error) {
+        console.warn('فشل التحقق من الإقفال التلقائي عند استعادة النشاط:', error);
+      }
+    }
+  });
 
   init();
 

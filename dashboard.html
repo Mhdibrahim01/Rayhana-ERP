@@ -863,7 +863,21 @@
                   <input id="business-day-cutoff-time" type="time" value="06:00" required>
                 </label>
                 <label>المنطقة الزمنية
-                  <input id="hotel-timezone" type="text" value="" placeholder="Africa/Cairo" required dir="ltr">
+                  <select id="hotel-timezone" required dir="ltr" style="padding: 10px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.15); font-size: 0.85rem; background: white; cursor: pointer;">
+                    <option value="Asia/Riyadh" selected>Asia/Riyadh (السعودية - GMT+3)</option>
+                    <option value="Asia/Dubai">Asia/Dubai (الإمارات - GMT+4)</option>
+                    <option value="Asia/Kuwait">Asia/Kuwait (الكويت - GMT+3)</option>
+                    <option value="Asia/Qatar">Asia/Qatar (قطر - GMT+3)</option>
+                    <option value="Asia/Bahrain">Asia/Bahrain (البحرين - GMT+3)</option>
+                    <option value="Africa/Cairo">Africa/Cairo (مصر - GMT+2)</option>
+                    <option value="Europe/Istanbul">Europe/Istanbul (تركيا - GMT+3)</option>
+                    <option value="Asia/Amman">Asia/Amman (الأردن - GMT+3)</option>
+                    <option value="Asia/Beirut">Asia/Beirut (لبنان - GMT+2)</option>
+                    <option value="auto" id="timezone-auto-option">🌍 كشف تلقائي من النظام</option>
+                  </select>
+                  <small style="display: block; margin-top: 6px; font-size: 0.75rem; color: var(--text-secondary);">
+                    المنطقة الزمنية المحددة: <strong id="detected-timezone-display">Asia/Riyadh</strong>
+                  </small>
                 </label>
                 <label class="business-day-auto-toggle">
                   <input id="auto-rollover-enabled" type="checkbox" checked>

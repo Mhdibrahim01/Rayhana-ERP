@@ -1,6 +1,6 @@
 'use strict';
 
-const CHECK_INTERVAL_MS = 45_000;
+const CHECK_INTERVAL_MS = 30_000; // Check every 30 seconds for more responsive day rollover
 
 function getNow() {
   const override = process.env.RAYHANA_DEV_NOW;

@@ -34,8 +34,36 @@
       ]);
       if (settingsResult?.success && settingsResult.data) {
         document.getElementById('business-day-cutoff-time').value = settingsResult.data.business_day_cutoff_time;
-        document.getElementById('hotel-timezone').value = settingsResult.data.hotel_timezone;
+        const timezoneSelect = document.getElementById('hotel-timezone');
+        const detectedTimezone = document.getElementById('detected-timezone-display');
+        
+        // Get saved timezone or default to Asia/Riyadh
+        let savedTimezone = settingsResult.data.hotel_timezone || 'Asia/Riyadh';
+        
+        // Auto-detect system timezone if needed
+        if (savedTimezone === 'auto' || !savedTimezone) {
+          try {
+            savedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Riyadh';
+          } catch (e) {
+            savedTimezone = 'Asia/Riyadh';
+          }
+        }
+        
+        // Set the select value
+        timezoneSelect.value = savedTimezone;
+        
+        // Update the display
+        if (detectedTimezone) {
+          detectedTimezone.textContent = savedTimezone;
+        }
+        
         document.getElementById('auto-rollover-enabled').checked = settingsResult.data.auto_rollover_enabled;
+      } else {
+        // Set default timezone to Saudi Arabia if no settings exist
+        const timezoneSelect = document.getElementById('hotel-timezone');
+        const detectedTimezone = document.getElementById('detected-timezone-display');
+        if (timezoneSelect) timezoneSelect.value = 'Asia/Riyadh';
+        if (detectedTimezone) detectedTimezone.textContent = 'Asia/Riyadh';
       }
       if (policiesResult?.success && Array.isArray(policiesResult.data)) {
         const policyInput = document.getElementById('receipt-policy-text');
@@ -93,9 +121,27 @@
       const submit = businessDaySettingsForm.querySelector('button[type="submit"]');
       if (submit) submit.disabled = true;
       try {
+        const timezoneSelect = document.getElementById('hotel-timezone');
+        let timezone = timezoneSelect.value;
+        
+        // Handle auto-detection
+        if (timezone === 'auto') {
+          try {
+            timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Riyadh';
+          } catch (e) {
+            timezone = 'Asia/Riyadh';
+          }
+        }
+        
+        // Update the display
+        const detectedTimezone = document.getElementById('detected-timezone-display');
+        if (detectedTimezone) {
+          detectedTimezone.textContent = timezone;
+        }
+        
         const response = await window.api.updateBusinessDaySettings({
           business_day_cutoff_time: document.getElementById('business-day-cutoff-time').value,
-          hotel_timezone: document.getElementById('hotel-timezone').value.trim(),
+          hotel_timezone: timezone,
           auto_rollover_enabled: document.getElementById('auto-rollover-enabled').checked
         });
         if (!response?.success) throw new Error(response?.error || 'تعذر حفظ الإعدادات.');
@@ -105,6 +151,29 @@
         App.Helpers.showToast(error.message || 'تعذر حفظ الإعدادات.', 'error');
       } finally {
         if (submit) submit.disabled = false;
+      }
+    });
+  }
+  
+  // Add timezone change listener to update display
+  const timezoneSelect = document.getElementById('hotel-timezone');
+  if (timezoneSelect) {
+    timezoneSelect.addEventListener('change', function() {
+      const detectedTimezone = document.getElementById('detected-timezone-display');
+      if (!detectedTimezone) return;
+      
+      let displayValue = this.value;
+      
+      // If auto is selected, show the detected timezone
+      if (displayValue === 'auto') {
+        try {
+          displayValue = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Riyadh';
+        } catch (e) {
+          displayValue = 'Asia/Riyadh';
+        }
+        detectedTimezone.textContent = displayValue + ' (مكتشف تلقائياً)';
+      } else {
+        detectedTimezone.textContent = displayValue;
       }
     });
   }

@@ -243,7 +243,7 @@ function registerIpcHandlers() {
     getLocalDateString,
     getHotelBusinessDate: db.getHotelBusinessDate,
     getCurrentBusinessDate: db.getCurrentBusinessDate,
-    checkBusinessDayRollover: businessDayScheduler?.checkAndClose,
+    checkBusinessDayRollover: () => businessDayScheduler?.checkAndClose(),
     updateAutomatedRoomStatuses,
     backupDatabase
   };

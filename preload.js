@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('api', {
   getCurrentShiftRevenueSummary: () => ipcRenderer.invoke('reports:get-current-shift-summary'),
   getMonthlyRevenue: () => ipcRenderer.invoke('analytics:get-monthly-revenue'),
   getHotelBusinessState: () => ipcRenderer.invoke('hotel-business-day:get-state'),
+  checkBusinessDayRollover: () => ipcRenderer.invoke('hotel-business-day:check-rollover'),
   runNightAudit: (expectedBusinessDate) => ipcRenderer.invoke('hotel-business-day:run-audit', expectedBusinessDate),
   getBusinessDaySettings: () => ipcRenderer.invoke('hotel-business-day:get-settings'),
   updateBusinessDaySettings: (settings) => ipcRenderer.invoke('hotel-business-day:update-settings', settings),
