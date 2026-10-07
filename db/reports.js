@@ -94,6 +94,12 @@ function getMonthlyRevenue() {
  * Dashboard KPIs & Summary
  */
 function getDashboardStats() {
+<<<<<<< HEAD
+=======
+  // Removed autoUpdateRoomStatuses() — this function is read-only.
+  // Room status updates are triggered explicitly by the scheduler or
+  // by operations that change reservation state, not by a stats query.
+>>>>>>> origin/main
   const totalRooms = queryOne("SELECT COUNT(*) AS c FROM rooms")?.c || 0;
   const availableRooms = queryOne("SELECT COUNT(*) AS c FROM rooms WHERE status = 'متاحة'")?.c || 0;
   const occupiedRooms = queryOne("SELECT COUNT(*) AS c FROM rooms WHERE status = 'مشغولة'")?.c || 0;

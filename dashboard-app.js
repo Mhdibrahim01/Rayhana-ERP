@@ -50,8 +50,21 @@ window.DashboardApp = {
     if (checkOutDate < todayStr) return true;
     if (checkOutDate > todayStr) return false;
 
-    // Check-out is due at 14:00 hotel local time on the scheduled date.
-    return new Date().getHours() >= 14;
+    // Use the configured hotel timezone cutoff (default 14:00) instead of
+    // the server's local time, so hotels in different zones detect late
+    // checkouts at the correct wall-clock hour.
+    const cutoffHour = 14;
+    let hotelHour;
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: tz, hour: '2-digit', hourCycle: 'h23'
+      }).formatToParts(new Date());
+      hotelHour = Number(parts.find(p => p.type === 'hour')?.value || 0);
+    } catch (_) {
+      hotelHour = new Date().getHours();
+    }
+    return hotelHour >= cutoffHour;
   }
 
   function isReservationOverdue(reservation) {
