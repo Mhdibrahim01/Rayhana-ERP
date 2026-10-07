@@ -480,33 +480,18 @@
              SECTION 2: RESERVATIONS (سجل الحجوزات + تصدير واستيراد Excel)
              ================================================================== -->
         <div id="view-reservations" class="view-section" style="display: none;">
-          <div class="card">
-            <div class="table-toolbar" style="flex-wrap: wrap; gap: 12px;">
+          <div class="card reservations-page-card">
+            <div class="table-toolbar reservations-toolbar" style="flex-wrap: wrap; gap: 12px;">
               <!-- Filter Tabs -->
-              <div class="filter-tabs-bar" id="res-filter-tabs">
+              <div class="filter-tabs-bar reservations-filter-tabs" id="res-filter-tabs">
                 <button class="filter-tab-btn active" data-filter="all">جميع الحجوزات</button>
                 <button class="filter-tab-btn" data-filter="مؤكد">مؤكدة (نشطة)</button>
                 <button class="filter-tab-btn" data-filter="مكتمل">مكتملة (تم الخروج)</button>
                 <button class="filter-tab-btn" data-filter="ملغي">ملغاة</button>
               </div>
 
-              <label class="reservations-payment-type-filter" for="reservations-payment-type-filter">
-                <span>نوع الدفعة</span>
-                <select id="reservations-payment-type-filter">
-                  <option value="all">كل أنواع الدفعات</option>
-                  <option value="advance_payment">دفعة مقدمة / حجز</option>
-                  <option value="balance_payment">سداد متبقي الإقامة</option>
-                  <option value="extension_payment">دفعة تمديد الإقامة</option>
-                  <option value="late_checkout_fee">رسوم تأخير المغادرة</option>
-                  <option value="checkout_settlement">تسوية الخروج</option>
-                  <option value="refund">استرداد للنزيل</option>
-                  <option value="deposit_applied">مستقطع من التأمين</option>
-                  <option value="legacy_unclassified">دفعة قديمة غير مصنفة</option>
-                </select>
-              </label>
-
               <!-- Search -->
-              <div class="search-box">
+              <div class="search-box reservations-page-search">
                 <span class="search-icon">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="11" cy="11" r="8"></circle>
@@ -517,8 +502,8 @@
               </div>
 
               <!-- Action Buttons: New Reservation + Excel Import & Export Buttons -->
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <button id="btn-res-new-booking" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 700; background: #1a432a; color: #ffffff; padding: 7px 14px; border-radius: 8px; border: none; cursor: pointer; transition: all 0.2s;" title="تسجيل حجز فندقي جديد">
+              <div class="reservations-page-actions" style="display: flex; align-items: center; gap: 8px;">
+                <button id="btn-res-new-booking" class="btn btn-primary btn-sm reservations-new-booking" title="تسجيل حجز فندقي جديد">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
                     <line x1="5" y1="12" x2="19" y2="12"></line>
