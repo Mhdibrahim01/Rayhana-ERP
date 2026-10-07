@@ -211,5 +211,19 @@ test('open-contract creation, payments, and checkout path', async t => {
       assert.equal(refundRows.length, 1);
       assertDatabaseIntegrity(connection, 'double checkout blocked after refund');
     });
+
+    await t.test('checkoutReservation in db/reservations.js is a unified settlement engine', () => {
+      const fs = require('node:fs');
+      const path = require('node:path');
+      const src = fs.readFileSync(path.join(__dirname, '../db/reservations.js'), 'utf8');
+      assert.ok(
+        src.includes('UNIFIED SETTLEMENT ENGINE'),
+        'db/reservations.js must use the unified settlement engine'
+      );
+      assert.ok(
+        !src.includes('// OPEN-CONTRACT PATH: unchanged from before'),
+        'legacy split open contract branch must remain removed'
+      );
+    });
         });
       });
