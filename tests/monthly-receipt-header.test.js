@@ -31,7 +31,7 @@ test('monthly receipt header: renderer data layer', async t => {
         checkOut: today,
         totalPrice: 30 * rate,
         bookingType: 'حجز شهري',
-        customNightlyPrice: rate
+        monthlyPrice: 30 * rate
       });
 
       const res = appDb.getReservationById(id);
@@ -57,7 +57,7 @@ test('monthly receipt header: renderer data layer', async t => {
       assertDatabaseIntegrity(connection, 'daily booking type');
     });
 
-    await t.test('monthly subtotal = 30 x nightly rate', () => {
+    await t.test('monthly subtotal uses the configured flat monthly price', () => {
       const room = addRoom('MRH-003', rate);
       const id = createReservation({
         roomId: room.id,
@@ -65,13 +65,12 @@ test('monthly receipt header: renderer data layer', async t => {
         checkOut: today,
         totalPrice: 30 * rate,
         bookingType: 'حجز شهري',
-        customNightlyPrice: rate
+        monthlyPrice: 30 * rate
       });
 
       const res = appDb.getReservationById(id);
-      const effectiveNightlyRate = parseFloat(res.custom_nightly_price || res.price_per_night || 0);
-      const expectedSubtotal = Math.round(effectiveNightlyRate * 30 * 100) / 100;
-      assert.equal(res.total_price, expectedSubtotal, 'monthly total = 30 x rate');
+      const expectedSubtotal = Number(res.monthly_rate_snapshot);
+      assert.equal(res.total_price, expectedSubtotal, 'monthly total = saved monthly rate');
       assertDatabaseIntegrity(connection, 'monthly subtotal');
     });
 
@@ -105,9 +104,10 @@ test('monthly receipt header: renderer data layer', async t => {
       assert.ok(dashboardSrc.includes('توقيع الموظف'), 'Employee signature label present');
       assert.ok(dashboardSrc.includes('توقيع المستلم'), 'Receiver signature label present');
       assert.ok(dashboardSrc.includes('طريقة السداد:'), 'Payment method label present');
-      assert.ok(dashboardSrc.includes('يعتبر هذا المستند سند استلام رسمي ومعتمد'), 'Official document notice present');
-      assert.ok(dashboardSrc.includes('التاريخ والوقت الفعلي للتسجيل'), 'Invoice distinguishes the real registration timestamp');
-      assert.ok(dashboardSrc.includes('تاريخ الوصول (اليوم الفندقي)'), 'Invoice labels the operational arrival date');
+      assert.ok(dashboardSrc.includes('monthly_rate_snapshot'), 'invoice uses the saved monthly rate snapshot');
+      assert.ok(dashboardSrc.includes('سعر الشهر'), 'invoice labels the monthly amount as a month price');
+      assert.ok(dashboardSrc.includes('monthlyExtensionAmount'), 'invoice includes accumulated daily-rate extension charges');
+      assert.ok(dashboardSrc.includes('isActualPolicy ? baseSubtotal : monthlyPackageSubtotal'), 'actual-nights policy keeps daily-rate billing');
     });
 
     await t.test('SQLite UTC timestamps format as the actual local date and time', () => {

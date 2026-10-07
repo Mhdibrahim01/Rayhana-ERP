@@ -213,17 +213,17 @@ test('scenario matrix: booking creation across all four types', async t => {
       assertDatabaseIntegrity(connection, `day use ${id0}`);
     });
 
-    await t.test('حجز شهري — total is forced to 30 nights, a mismatched total is rejected', () => {
+    await t.test('حجز شهري — saves the flat monthly amount and rejects a mismatched total', () => {
       const id0 = tag();
       const room = addRoom(`M-${id0}`, 200);
       const g = guest();
       const created = db.createReservation({
         guestName: `Monthly ${id0}`, ...g, roomId: room.id,
         checkInDate: addDays(db.getLocalDateString(), -5),
-        bookingType: TYPES.monthly, customNightlyPrice: 150, paidAmount: 0
+        bookingType: TYPES.monthly, monthlyPrice: 4500, customNightlyPrice: 150, paidAmount: 0
       });
       const row = readRow(connection, created.reservationId);
-      assert.equal(row.total_price, 4500, '30 nights x 150');
+      assert.equal(row.total_price, 4500, 'saved monthly amount');
       assert.ok(row.check_out_date, 'monthly auto-computes a departure date');
 
       // A caller-supplied total that disagrees is refused.
@@ -231,7 +231,7 @@ test('scenario matrix: booking creation across all four types', async t => {
       assert.throws(() => db.createReservation({
         guestName: `BadMonthly ${id0}`, ...g2, roomId: addRoom(`M2-${id0}`, 200).id,
         checkInDate: db.getLocalDateString(),
-        bookingType: TYPES.monthly, customNightlyPrice: 150, totalPrice: 999
+        bookingType: TYPES.monthly, monthlyPrice: 4500, customNightlyPrice: 150, totalPrice: 999
       }), /لا تطابق القيمة المحسوبة/);
       assertDatabaseIntegrity(connection, `monthly ${id0}`);
     });
@@ -326,7 +326,7 @@ test('scenario matrix: checkout settlement modes', async t => {
       const id = db.createReservation({
         guestName: `Collected ${id0}`, ...guest(), roomId: addRoom(`CO-${id0}`, 200).id,
         checkInDate: addDays(today, -3), bookingType: TYPES.monthly,
-        customNightlyPrice: 150, paidAmount: 0
+        monthlyPrice: 4500, customNightlyPrice: 150, paidAmount: 0
       }).reservationId;
       db.checkoutReservation(id, {
         settleMode: 'collect', collectAmount: 4500, checkoutPolicy: 'contract'
@@ -453,7 +453,7 @@ test('scenario matrix: monthly early checkout policies', async t => {
       return db.createReservation({
         guestName: `Monthly ${id0}`, ...g, roomId: room.id,
         checkInDate: addDays(today, -elapsed),
-        bookingType: TYPES.monthly, customNightlyPrice: rate, paidAmount: paid,
+        bookingType: TYPES.monthly, monthlyPrice: rate * 30, customNightlyPrice: rate, paidAmount: paid,
         totalPrice: total,
         discountAmount: discount, discountReason: discount > 0 ? 'خصم' : ''
       }).reservationId;
@@ -465,12 +465,12 @@ test('scenario matrix: monthly early checkout policies', async t => {
       const p = db.computeCheckoutSettlement(id, {});
       assert.equal(p.isMonthlyEarlyCheckout, true);
       // A monthly booking spans one full calendar month, so the booked-night count is
-      // whatever that month actually holds (31 nights for Oct 2 -> Nov 2) rather than a
-      // fixed 30. What must NOT change is the contract value: it stays the closed
-      // 30-night package, which is what the stored total_price was built from.
+      // whatever that month actually holds (31 nights for Oct 2 -> Nov 2). The contract
+      // value comes from the saved flat monthly amount, while the actual-nights option
+      // continues to use the room's daily price.
       assert.equal(p.bookedNights, nightsBetween(addDays(today, -3), calendarMonthCheckOut(addDays(today, -3))));
-      assert.equal(p.contractValue, 4500, 'the 30-night package x 150, whatever the calendar span is');
-      assert.equal(p.actualValue, 450, '3 elapsed nights x 150');
+      assert.equal(p.contractValue, 4500, 'the saved monthly amount, whatever the calendar span is');
+      assert.equal(p.actualValue, 600, '3 elapsed nights x the room daily rate of 200');
       assert.equal(p.contractValueMismatch, false);
     });
 
@@ -490,13 +490,13 @@ test('scenario matrix: monthly early checkout policies', async t => {
       const id0 = tag();
       const id = makeMonthly(id0, { paid: 0, elapsed: 3 });
       const out = db.checkoutReservation(id, {
-        settleMode: 'collect', collectAmount: 450, checkoutPolicy: 'actual',
+        settleMode: 'collect', collectAmount: 600, checkoutPolicy: 'actual',
         checkoutPolicyReason: 'المغادرة قبل انتهاء العقد'
       });
       assert.equal(out.success, true);
       const { row } = assertLedgerConsistent(connection, id, `monthly actual ${id0}`);
-      assert.equal(row.total_price, 450);
-      assert.equal(row.paid_amount, 450);
+      assert.equal(row.total_price, 600);
+      assert.equal(row.paid_amount, 600);
       assert.equal(row.payment_status, 'مدفوع بالكامل');
       assertDatabaseIntegrity(connection, `monthly actual ${id0}`);
     });
@@ -527,7 +527,7 @@ test('scenario matrix: monthly early checkout policies', async t => {
     await t.test('a full-value discount collapses the contract value to zero', () => {
     // The reservation #47 shape: a stored discount equal to the whole contract value
     // makes 'قيمة العقد' read 0.00. createReservation recomputes total_price to match
-    // (30 x 100 - 3000 = 0), so the preview is internally consistent and the booking
+    // (monthly amount 3000 - 3000 = 0), so the preview is internally consistent and the booking
     // closes cleanly — the mismatch guard is NOT reached from a healthy booking.
     const id0 = tag();
     const id = makeMonthly(id0, { rate: 100, discount: 3000, elapsed: 5 });

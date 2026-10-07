@@ -223,7 +223,8 @@
               </div>
             </div>
 
-            <div class="room-card-ops-price-row"><span class="room-card-ops-price-label">السعر لليلة</span><strong>${formatRoomCardMoney(room.price_per_night)}</strong></div>
+            <div class="room-card-ops-price-row"><span class="room-card-ops-price-label">السعر اليومي</span><strong>${formatRoomCardMoney(room.price_per_night)}</strong></div>
+            <div class="room-card-ops-price-row"><span class="room-card-ops-price-label">السعر الشهري</span><strong>${room.monthly_price == null ? 'غير محدد' : formatRoomCardMoney(room.monthly_price)}</strong></div>
 
             ${activeRes ? renderRoomGuestBox(activeRes, 'المغادرة', 'مغادرة', checkOutDateVal) : ''}
             ${!activeRes && room.status === 'محجوزة' && upcomingRes
@@ -438,15 +439,16 @@
     const room_number = App.DOM.newRoomNumber.value.trim();
     const type = App.DOM.newRoomType.value.trim();
     const price_per_night = parseFloat(App.DOM.newRoomPrice.value) || 0;
+    const monthly_price = parseFloat(App.DOM.newRoomMonthlyPrice.value) || 0;
     const status = App.DOM.newRoomStatus.value;
 
-    if (!room_number || !type || !price_per_night) {
-      App.Helpers.showToast('يرجى ملء جميع بيانات الغرفة.', 'error');
+    if (!room_number || !type || price_per_night <= 0 || monthly_price <= 0) {
+      App.Helpers.showToast('يرجى إدخال السعر اليومي والسعر الشهري بقيمة أكبر من الصفر.', 'error');
       return;
     }
 
     try {
-      const res = await window.api.addRoom({ room_number, type, price_per_night, status });
+      const res = await window.api.addRoom({ room_number, type, price_per_night, monthly_price, status });
       if (res.success) {
         App.Helpers.showToast(`تمت إضافة الغرفة ${room_number} بنجاح!`, 'success');
         App.DOM.addRoomForm.reset();
@@ -471,6 +473,7 @@
     if (App.DOM.editRoomNumber) App.DOM.editRoomNumber.value = room.room_number || '';
     if (App.DOM.editRoomType) App.DOM.editRoomType.value = room.type || '';
     if (App.DOM.editRoomPrice) App.DOM.editRoomPrice.value = room.price_per_night || '';
+    if (App.DOM.editRoomMonthlyPrice) App.DOM.editRoomMonthlyPrice.value = room.monthly_price ?? '';
 
     const isOccupied = room.status === 'مشغولة';
     if (App.DOM.editRoomStatus) {
@@ -550,18 +553,19 @@
       const room_number = App.DOM.editRoomNumber.value.trim();
       const type = App.DOM.editRoomType.value.trim();
       const price_per_night = parseFloat(App.DOM.editRoomPrice.value) || 0;
+      const monthly_price = parseFloat(App.DOM.editRoomMonthlyPrice.value) || 0;
 
       const currentRoom = App.State.roomsCache.find(r => r.id === id);
       const isOccupied = currentRoom && currentRoom.status === 'مشغولة';
       const status = isOccupied ? 'مشغولة' : App.DOM.editRoomStatus.value;
 
-      if (!room_number || !type || !price_per_night) {
-        App.Helpers.showToast('يرجى ملء جميع بيانات الغرفة المطلوبة.', 'error');
+      if (!room_number || !type || price_per_night <= 0 || monthly_price <= 0) {
+        App.Helpers.showToast('يرجى إدخال السعر اليومي والسعر الشهري بقيمة أكبر من الصفر.', 'error');
         return;
       }
 
       try {
-        const res = await window.api.updateRoom({ id, room_number, type, price_per_night, status });
+        const res = await window.api.updateRoom({ id, room_number, type, price_per_night, monthly_price, status });
         if (res && res.success) {
           App.Helpers.showToast(`تم حفظ وتحديث بيانات الغرفة ${room_number} بنجاح! ✓`, 'success');
           closeEditRoomModal();

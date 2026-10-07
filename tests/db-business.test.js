@@ -15,7 +15,7 @@ function addDays(dateString, amount) {
 }
 
 function addTestRoom(number) {
-  return db.addRoom({ room_number: number, type: 'وحدة اختبار', price_per_night: 200 });
+  return db.addRoom({ room_number: number, type: 'وحدة اختبار', price_per_night: 200, monthly_price: 6000 });
 }
 
 function createTestReservation({ roomId, name, checkIn, checkOut, total = 400, paid = 0, bookingType = 'عادي' }) {

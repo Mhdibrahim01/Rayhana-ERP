@@ -238,6 +238,7 @@
   const newRoomNumber = document.getElementById('new-room-number');
   const newRoomType = document.getElementById('new-room-type');
   const newRoomPrice = document.getElementById('new-room-price');
+  const newRoomMonthlyPrice = document.getElementById('new-room-monthly-price');
   const newRoomStatus = document.getElementById('new-room-status');
 
   // Edit Room Modal Elements
@@ -247,6 +248,7 @@
   const editRoomNumber = document.getElementById('edit-room-number');
   const editRoomType = document.getElementById('edit-room-type');
   const editRoomPrice = document.getElementById('edit-room-price');
+  const editRoomMonthlyPrice = document.getElementById('edit-room-monthly-price');
   const editRoomStatus = document.getElementById('edit-room-status');
   const editRoomStatusLockedHint = document.getElementById('edit-room-status-locked-hint');
   const btnCloseEditRoomModal = document.getElementById('btn-close-edit-room-modal');
@@ -606,10 +608,8 @@
       const inv = res.data;
       currentInvoiceData = inv;
       const isContract = inv.booking_type === 'عقد مفتوح';
-      // Monthly bookings print under the institution's own letterhead (name, unified
-      // number, seal and signature) and bill the closed 30-night package rather than
-      // the night count. Kept separate from `isContract`, which is the open-contract
-      // type and is a different case entirely.
+       // Monthly bookings print under the institution's own letterhead. New rows use
+       // the saved flat-rate snapshot; legacy rows retain their 30 x daily fallback.
       const isMonthly = inv.booking_type === 'حجز شهري';
       const isCancelled = inv.status === 'ملغي';
       const total = isCancelled ? 0.0 : parseFloat(inv.total_price || 0);
@@ -681,6 +681,10 @@
           : '');
 
       const effectiveNightlyRate = parseFloat(inv.custom_nightly_price || inv.price_per_night || 0);
+      const monthlyRate = Number(inv.monthly_rate_snapshot) > 0
+        ? Number(inv.monthly_rate_snapshot)
+        : roundMoney(effectiveNightlyRate * 30);
+      const monthlyExtensionAmount = Math.max(0, roundMoney(inv.monthly_extension_amount || 0));
       const discount = parseFloat(inv.discount_amount || 0);
       const rawDiscountReason = String(inv.discount_reason || '').trim();
       const normalizedDiscountReason = rawDiscountReason.replace(/[إأآ]/g, 'ا').replace(/[()]/g, '').replace(/[\s-]+/g, ' ').trim();
@@ -707,8 +711,9 @@
       const baseSubtotal = (typeof invoiceNights === 'number' && invoiceNights > 0)
         ? (invoiceNights * effectiveNightlyRate)
         : (total + discount);
-      const monthlyPackageSubtotal = roundMoney(effectiveNightlyRate * 30);
-      const shownSubtotal = isMonthly ? monthlyPackageSubtotal : baseSubtotal;
+      const monthlyPackageSubtotal = roundMoney(monthlyRate + monthlyExtensionAmount);
+      const shownSubtotal = isMonthly ? (isActualPolicy ? baseSubtotal : monthlyPackageSubtotal) : baseSubtotal;
+      const shownRate = isMonthly && !isActualPolicy ? monthlyRate : effectiveNightlyRate;
 
       const reservationCreatedAt = window.DashboardApp.Helpers.parseStoredTimestamp(inv.created_at);
       const invoiceYear = (reservationCreatedAt || new Date()).getFullYear() || new Date().getFullYear();
@@ -921,7 +926,7 @@
               <thead>
                 <tr style="background: #1e1b4b; color: white;">
                   <th style="padding: 12px 14px; text-align: right; border-radius: 0 8px 0 0; font-weight: 700;">الوصف والخدمة</th>
-                  <th style="padding: 12px 14px; text-align: center; font-weight: 700;">سعر الليلة / اليوم</th>
+                  <th style="padding: 12px 14px; text-align: center; font-weight: 700;">${isMonthly && !isActualPolicy ? 'سعر الشهر' : 'سعر الليلة / اليوم'}</th>
                   <th style="padding: 12px 14px; text-align: center; font-weight: 700;">المدة</th>
                   <th style="padding: 12px 14px; text-align: left; border-radius: 8px 0 0 0; font-weight: 700;">المجموع</th>
                 </tr>
@@ -936,10 +941,18 @@
                         : `نوع الوحدة: ${escapeHtml(receiptDigits(inv.room_type || 'عادية'))} ${inv.custom_nightly_price ? '<span style="color: #05963d; font-weight: 700;">(سعر خاص معتمد)</span>' : ''}`}
                     </div>
                   </td>
-                    <td style="padding: 14px; text-align: center; color: #475569;">${isCancelled ? '0.00 ر.س' : `${formatReceiptMoney(effectiveNightlyRate)} ر.س`}</td>
-                  <td style="padding: 14px; text-align: center; font-weight: 700; color: #475569;">${isMonthly ? 'شهر' : invoiceDurationText}</td>
+                    <td style="padding: 14px; text-align: center; color: #475569;">${isCancelled ? '0.00 ر.س' : `${formatReceiptMoney(shownRate)} ر.س`}</td>
+                  <td style="padding: 14px; text-align: center; font-weight: 700; color: #475569;">${isMonthly && !isActualPolicy ? 'شهر' : invoiceDurationText}</td>
                   <td style="padding: 14px; text-align: left; font-weight: 800; color: #1e1b4b;">${formatReceiptMoney(isCancelled ? 0 : shownSubtotal)} ر.س</td>
                 </tr>
+                ${isMonthly && monthlyExtensionAmount > 0 && !isCancelled ? `
+                  <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 12px 14px;"><div style="font-weight: 700; color: #334155;">رسوم التمديد بالسعر اليومي</div></td>
+                    <td style="padding: 12px 14px; text-align: center; color: #475569;">${formatReceiptMoney(effectiveNightlyRate)} ر.س/يوم</td>
+                    <td style="padding: 12px 14px; text-align: center; color: #475569;">-</td>
+                    <td style="padding: 12px 14px; text-align: left; font-weight: 800; color: #334155;">+ ${formatReceiptMoney(monthlyExtensionAmount)} ر.س</td>
+                  </tr>
+                ` : ''}
                 ${discount > 0 && !isCancelled ? `
                   <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
                     <td style="padding: 12px 14px;">
@@ -2561,6 +2574,7 @@
     window.DashboardApp.DOM.newRoomNumber = document.getElementById('new-room-number');
     window.DashboardApp.DOM.newRoomType = document.getElementById('new-room-type');
     window.DashboardApp.DOM.newRoomPrice = document.getElementById('new-room-price');
+    window.DashboardApp.DOM.newRoomMonthlyPrice = document.getElementById('new-room-monthly-price');
     window.DashboardApp.DOM.newRoomStatus = document.getElementById('new-room-status');
     window.DashboardApp.DOM.editRoomModal = document.getElementById('edit-room-modal');
     window.DashboardApp.DOM.btnCloseEditRoomModal = document.getElementById('btn-close-edit-room');
@@ -2570,6 +2584,7 @@
     window.DashboardApp.DOM.editRoomNumber = document.getElementById('edit-room-number');
     window.DashboardApp.DOM.editRoomType = document.getElementById('edit-room-type');
     window.DashboardApp.DOM.editRoomPrice = document.getElementById('edit-room-price');
+    window.DashboardApp.DOM.editRoomMonthlyPrice = document.getElementById('edit-room-monthly-price');
     window.DashboardApp.DOM.editRoomStatus = document.getElementById('edit-room-status');
     window.DashboardApp.DOM.editRoomStatusLockedHint = document.getElementById('edit-room-status-locked-hint');
     window.DashboardApp.DOM.btnDeleteRoom = document.getElementById('btn-delete-room');

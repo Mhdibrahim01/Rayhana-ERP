@@ -61,6 +61,7 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
     const checkOutDate = (data.checkOutDate || data.check_out_date || '').trim();
     const totalPrice = parseFloat(data.totalPrice !== undefined ? data.totalPrice : data.total_price);
     const customNightlyPrice = data.customNightlyPrice !== undefined ? data.customNightlyPrice : data.custom_nightly_price;
+    const monthlyPrice = data.monthlyPrice !== undefined ? data.monthlyPrice : data.monthly_price;
     const discountAmount = data.discountAmount !== undefined ? data.discountAmount : data.discount_amount;
 
     // 1. Required Fields: Name, Room, Total Price
@@ -75,6 +76,13 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
       const cRate = parseFloat(customNightlyPrice);
       if (isNaN(cRate) || cRate < 0) {
         return { valid: false, error: 'سعر الليلة المخصص يجب أن يكون صفراً أو أكبر.' };
+      }
+    }
+
+    if (monthlyPrice !== undefined && monthlyPrice !== null && monthlyPrice !== '') {
+      const mRate = Number(monthlyPrice);
+      if (!Number.isFinite(mRate) || mRate <= 0) {
+        return { valid: false, error: 'السعر الشهري المخصص يجب أن يكون أكبر من الصفر.' };
       }
     }
 

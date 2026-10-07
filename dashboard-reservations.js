@@ -182,16 +182,11 @@
   return `${nextY}-${String(nextM).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`;
   }
 
-  /**
-   * A monthly booking is priced as a closed package: 30 nights at the effective rate,
-   * never the raw calendar span. July 3 -> Aug 3 spans 31 nights but still bills as one
-   * 30-night package, so a February month costs the same as a July one and the stored
-   * total_price always matches the contract value at checkout.
-   */
+  // Kept for legacy invoice display; newly created monthly bookings use a flat
+  // room-specific monthly amount saved on the reservation.
   const MONTHLY_PACKAGE_NIGHTS = 30;
   function getMonthlyPackageTotal(effectiveRate, discount) {
-    const subtotal = roundMoney(effectiveRate * MONTHLY_PACKAGE_NIGHTS);
-    return Math.max(0, roundMoney(subtotal - (discount || 0)));
+    return Math.max(0, roundMoney(effectiveRate - (discount || 0)));
   }
   function getOperationalBusinessDate() {
     return App.State.businessDate || '';
@@ -506,7 +501,22 @@
     const checkOutDayUseHint = document.getElementById('check-out-day-use-hint');
     const priceHint = document.getElementById('total-price-open-hint');
     const bookingRateLabel = document.getElementById('booking-rate-label');
-    if (bookingRateLabel) bookingRateLabel.textContent = bType === 'استخدام يومي' ? 'سعر الاستخدام اليومي (ريال) *' : 'سعر الليلة للحجز (ريال) *';
+    const bookingRateHint = document.getElementById('booking-rate-hint');
+    const selectedOption = roomSelect ? roomSelect.options[roomSelect.selectedIndex] : null;
+    const monthlyRate = selectedOption ? Number(selectedOption.dataset.monthlyPrice || 0) : 0;
+    const dailyRate = selectedOption ? Number(selectedOption.dataset.price || 0) : 0;
+    const useMonthlyRate = bType === 'حجز شهري';
+    if (bookingRateLabel) bookingRateLabel.textContent = useMonthlyRate ? 'السعر الشهري (ريال) *' : (bType === 'استخدام يومي' ? 'سعر الاستخدام اليومي (ريال) *' : 'سعر الليلة للحجز (ريال) *');
+    if (nightlyRateInput) {
+      nightlyRateInput.disabled = useMonthlyRate && !(monthlyRate > 0);
+      nightlyRateInput.value = useMonthlyRate ? (monthlyRate > 0 ? monthlyRate : '') : (dailyRate > 0 ? dailyRate : '');
+    }
+    if (bookingRateHint) {
+      bookingRateHint.textContent = useMonthlyRate && !(monthlyRate > 0)
+        ? 'يلزم ضبط السعر الشهري لهذه الغرفة من صفحة الغرف قبل حجزها شهرياً.'
+        : (useMonthlyRate ? 'يمكن تعديله لسعر شهري خاص بالنزيل' : 'قابل للتعديل لمنح سعر خاص للنزيل');
+      bookingRateHint.style.color = useMonthlyRate && !(monthlyRate > 0) ? '#b91c1c' : '#64748b';
+    }
     if (checkOutDayUseHint) checkOutDayUseHint.style.display = 'none';
 
     if (bType === 'عقد مفتوح') {
@@ -544,15 +554,9 @@
         if (calendarOut) checkOutInput.value = calendarOut;
       }
 
-      // Authoritatively price the month as a closed 30-night package from the room rate
-      const selectedOption = roomSelect ? roomSelect.options[roomSelect.selectedIndex] : null;
-      const pricePerNight = selectedOption && selectedOption.dataset.price ? parseFloat(selectedOption.dataset.price) || 0 : 0;
-      totalPriceInput.value = getMonthlyPackageTotal(pricePerNight, 0).toFixed(2);
-
-      if (paidAmountInput && (!isPaidAmountCustomized || !paidAmountInput.value || parseFloat(paidAmountInput.value) === 0)) {
-        paidAmountInput.value = totalPriceInput.value;
-      }
-      updateRemainingBalance();
+      // Use the shared calculator so the current discount and advance payment
+      // stay synchronized when switching into monthly booking mode.
+      calculatePrice(false);
     } else if (bType === 'استخدام يومي') {
       if (checkOutInput) {
         checkOutInput.disabled = false;
@@ -602,17 +606,19 @@
     const bType = bookingTypeSelect ? bookingTypeSelect.value : 'عادي';
 
     const selectedOption = roomSelect ? roomSelect.options[roomSelect.selectedIndex] : null;
-    const defaultRoomPrice = (selectedOption && selectedOption.dataset.price) ? parseFloat(selectedOption.dataset.price) || 0 : 0;
+    const defaultRoomPrice = selectedOption
+      ? Number((bType === 'حجز شهري' ? selectedOption.dataset.monthlyPrice : selectedOption.dataset.price) || 0)
+      : 0;
 
     if (roomDefaultRateBadge) {
       if (defaultRoomPrice > 0) {
-        roomDefaultRateBadge.textContent = `(الأساسي: ${defaultRoomPrice.toLocaleString()} ريال)`;
+        roomDefaultRateBadge.textContent = `(الأساسي: ${defaultRoomPrice.toLocaleString()} ${bType === 'حجز شهري' ? 'ريال/شهر' : 'ريال/يوم'})`;
       } else {
         roomDefaultRateBadge.textContent = '';
       }
     }
 
-    // Determine effective nightly price
+    // Determine the effective daily or monthly room price.
     let effectiveRate = defaultRoomPrice;
     if (nightlyRateInput && nightlyRateInput.value !== '') {
       const parsedRate = parseFloat(nightlyRateInput.value);
@@ -650,12 +656,7 @@
       if (priceCalculationBreakdown) {
         if (discount > 0) {
           priceCalculationBreakdown.style.display = 'inline';
-          // The pre-discount package price, derived rather than read from a `subtotal`
-          // local. That local used to live in this branch; moving the maths into
-          // getMonthlyPackageTotal() removed it, and referencing it here threw a
-          // ReferenceError that aborted calculatePrice() before the paid-amount sync
-          // below, leaving "Advance Paid" at the pre-discount total.
-          const packageSubtotal = roundMoney(effectiveRate * MONTHLY_PACKAGE_NIGHTS);
+          const packageSubtotal = roundMoney(effectiveRate);
           priceCalculationBreakdown.textContent = `(قبل الخصم: ${packageSubtotal.toFixed(2)} - خصم: ${discount.toFixed(2)})`;
         } else {
           priceCalculationBreakdown.style.display = 'none';
@@ -706,8 +707,18 @@
   roomSelect.addEventListener('change', () => {
     isPaidAmountCustomized = false;
     const selectedOption = roomSelect.options[roomSelect.selectedIndex];
-    if (selectedOption && selectedOption.dataset.price && nightlyRateInput) {
-      nightlyRateInput.value = selectedOption.dataset.price;
+    if (selectedOption && nightlyRateInput) {
+      const isMonthly = bookingTypeSelect?.value === 'حجز شهري';
+      const selectedRate = Number(isMonthly ? selectedOption.dataset.monthlyPrice : selectedOption.dataset.price) || 0;
+      nightlyRateInput.disabled = isMonthly && selectedRate <= 0;
+      nightlyRateInput.value = selectedRate > 0 ? selectedRate : '';
+      const rateHint = document.getElementById('booking-rate-hint');
+      if (rateHint) {
+        rateHint.textContent = isMonthly && selectedRate <= 0
+          ? 'يلزم ضبط السعر الشهري لهذه الغرفة من صفحة الغرف قبل حجزها شهرياً.'
+          : (isMonthly ? 'يمكن تعديله لسعر شهري خاص بالنزيل' : 'قابل للتعديل لمنح سعر خاص للنزيل');
+        rateHint.style.color = isMonthly && selectedRate <= 0 ? '#b91c1c' : '#64748b';
+      }
     }
     calculatePrice(true);
   });
@@ -1078,7 +1089,9 @@
     const paidAmount = parseFloat(paidAmountInput ? paidAmountInput.value : 0) || 0;
     const depositAmount = parseFloat(depositAmountInput ? depositAmountInput.value : 0) || 0;
     const paymentMethod = paymentMethodSelect ? paymentMethodSelect.value : 'نقداً';
-    const customNightlyPrice = (nightlyRateInput && nightlyRateInput.value !== '') ? parseFloat(nightlyRateInput.value) : null;
+    const selectedRate = (nightlyRateInput && nightlyRateInput.value !== '') ? parseFloat(nightlyRateInput.value) : null;
+    const monthlyPrice = bookingType === 'حجز شهري' ? selectedRate : null;
+    const customNightlyPrice = bookingType === 'حجز شهري' ? null : selectedRate;
     const discountAmount = (discountAmountInput && discountAmountInput.value !== '') ? parseFloat(discountAmountInput.value) : 0;
     const discountReason = discountReasonInput ? discountReasonInput.value.trim() : '';
 
@@ -1114,6 +1127,7 @@
         depositAmount,
         paymentMethod,
         bookingType,
+        monthlyPrice,
         customNightlyPrice,
         discountAmount,
         discountReason
@@ -1142,6 +1156,7 @@
             depositAmount,
             paymentMethod,
             bookingType,
+            monthlyPrice,
             customNightlyPrice,
             discountAmount,
             discountReason,
@@ -1273,7 +1288,8 @@
       const opt = document.createElement('option');
       opt.value = targetRoom.id;
       opt.dataset.price = targetRoom.price_per_night;
-      opt.textContent = `غرفة رقم ${targetRoom.room_number} (${targetRoom.type}) - ${targetRoom.price_per_night} ريال/ليلة`;
+      opt.dataset.monthlyPrice = targetRoom.monthly_price || '';
+      opt.textContent = `غرفة رقم ${targetRoom.room_number} (${targetRoom.type}) - ${targetRoom.price_per_night} ريال/يوم · ${targetRoom.monthly_price || 'غير محدد'} ريال/شهر`;
       roomSelect.appendChild(opt);
     }
 
@@ -1281,10 +1297,14 @@
     roomSelect.value = String(targetId);
     isPaidAmountCustomized = false;
     if (nightlyRateInput && targetRoom) {
-      nightlyRateInput.value = targetRoom.price_per_night;
+      const isMonthly = bookingTypeSelect?.value === 'حجز شهري';
+      const selectedRate = Number(isMonthly ? targetRoom.monthly_price : targetRoom.price_per_night) || 0;
+      nightlyRateInput.disabled = isMonthly && selectedRate <= 0;
+      nightlyRateInput.value = selectedRate > 0 ? selectedRate : '';
     }
     if (roomDefaultRateBadge && targetRoom) {
-      roomDefaultRateBadge.textContent = `(الأساسي: ${targetRoom.price_per_night} ريال)`;
+      const isMonthly = bookingTypeSelect?.value === 'حجز شهري';
+      roomDefaultRateBadge.textContent = `(الأساسي: ${isMonthly ? (targetRoom.monthly_price || 'غير محدد') + ' ريال/شهر' : targetRoom.price_per_night + ' ريال/يوم'})`;
     }
     if (discountAmountInput) discountAmountInput.value = '0';
     if (discountReasonInput) discountReasonInput.value = '';
@@ -2296,7 +2316,7 @@
           const isDayUse = res.booking_type === 'استخدام يومي';
           const nightsLabel = isDayUse ? 'يوم استخدام' : (s.actualNights === 1 ? 'ليلة' : 'ليالٍ');
           const rateUnit = isDayUse ? 'ريال/يوم' : 'ريال/ليلة';
-          const rateNote = res.custom_nightly_price ? ' - سعر خاص' : '';
+          const rateNote = res.booking_type === 'حجز شهري' ? ' - سعر الشهر المعتمد' : (res.custom_nightly_price ? ' - سعر خاص' : '');
           if (settleNightsCount) {
             if (settlePolicyState.applicable) {
               // Show the contract basis, not just the elapsed nights, so the
@@ -2304,9 +2324,13 @@
               const nightsWord = settlePolicyState.bookedNights === 1 ? 'ليلة' : 'ليالٍ';
               settleNightsCount.textContent =
                 `${s.actualNights} ${nightsLabel} فعلية من ${settlePolicyState.bookedNights} ${nightsWord} محجوزة ` +
-                `(بسعر ${s.effectiveNightlyRate.toLocaleString()} ${rateUnit}${rateNote})`;
+                (res.booking_type === 'حجز شهري'
+                  ? `(قيمة الشهر ${Number(settlePolicyState.contractValue || 0).toLocaleString()} ريال)`
+                  : `(بسعر ${s.effectiveNightlyRate.toLocaleString()} ${rateUnit}${rateNote})`);
             } else {
-              settleNightsCount.textContent = `${s.actualNights} ${nightsLabel} (بسعر ${s.effectiveNightlyRate.toLocaleString()} ${rateUnit}${rateNote})`;
+              settleNightsCount.textContent = res.booking_type === 'حجز شهري'
+                ? `${s.actualNights} ${nightsLabel} (قيمة الشهر ${Number(s.baseCharge || 0).toLocaleString()} ريال)`
+                : `${s.actualNights} ${nightsLabel} (بسعر ${s.effectiveNightlyRate.toLocaleString()} ${rateUnit}${rateNote})`;
             }
           }
           if (settleTotalPriceDisplay) {
@@ -2337,7 +2361,9 @@
           const [y1, m1, d1] = (res.check_in_date || todayStr).split('-').map(Number);
           const [y2, m2, d2] = todayStr.split('-').map(Number);
           const nights = Math.max(1, Math.round((Date.UTC(y2, m2-1, d2) - Date.UTC(y1, m1-1, d1)) / 86400000));
-          const base = roundMoney(nights * pricePerNight);
+          const base = res.booking_type === 'حجز شهري'
+            ? roundMoney((Number(res.monthly_rate_snapshot) || (pricePerNight * MONTHLY_PACKAGE_NIGHTS)) + Number(res.monthly_extension_amount || 0))
+            : roundMoney(nights * pricePerNight);
           const existDisc = roundMoney(res.discount_amount || 0);
           const [bookedYear, bookedMonth, bookedDay] = (res.check_out_date || '').split('-').map(Number);
           const bookedEndUtc = Date.UTC(bookedYear, bookedMonth - 1, bookedDay);
@@ -2736,8 +2762,9 @@
     const newDateStr = extendNewCheckoutDate.value;
 
     let nightlyRate = parseFloat(extendNightlyRateInput ? extendNightlyRateInput.value : NaN);
+    const isMonthlyReservation = currentExtendingReservation.booking_type === 'حجز شهري';
     if (isNaN(nightlyRate) || nightlyRate < 0) {
-      nightlyRate = (currentExtendingReservation.custom_nightly_price != null && !isNaN(Number(currentExtendingReservation.custom_nightly_price)))
+      nightlyRate = !isMonthlyReservation && currentExtendingReservation.custom_nightly_price != null && !isNaN(Number(currentExtendingReservation.custom_nightly_price))
         ? parseFloat(currentExtendingReservation.custom_nightly_price)
         : parseFloat(currentExtendingReservation.price_per_night || 0);
     }
@@ -2842,7 +2869,8 @@
     if (extendRoomPreview) extendRoomPreview.textContent = `غرفة ${res.room_number || '-'} (${res.room_type || ''})`;
     if (extendCurrentCheckoutPreview) extendCurrentCheckoutPreview.textContent = res.check_out_date;
 
-    const effectiveNightlyRate = (res.custom_nightly_price != null && !isNaN(Number(res.custom_nightly_price)))
+    const isMonthlyReservation = res.booking_type === 'حجز شهري';
+    const effectiveNightlyRate = (!isMonthlyReservation && res.custom_nightly_price != null && !isNaN(Number(res.custom_nightly_price)))
       ? parseFloat(res.custom_nightly_price)
       : parseFloat(res.price_per_night || 0);
 
@@ -2853,6 +2881,7 @@
 
     if (extendNightlyRateInput) {
       extendNightlyRateInput.value = effectiveNightlyRate > 0 ? effectiveNightlyRate.toFixed(2) : '0.00';
+      extendNightlyRateInput.readOnly = isMonthlyReservation;
     }
     if (extendDiscountInput) {
       extendDiscountInput.value = '0.00';
@@ -2918,7 +2947,9 @@
       const isHalfDay = btn.dataset.halfDay === 'true';
       if (isHalfDay) {
         const rate = parseFloat(extendNightlyRateInput?.value)
-          || Number(currentExtendingReservation.custom_nightly_price ?? currentExtendingReservation.price_per_night ?? 0);
+          || Number(currentExtendingReservation.booking_type === 'حجز شهري'
+            ? currentExtendingReservation.price_per_night
+            : (currentExtendingReservation.custom_nightly_price ?? currentExtendingReservation.price_per_night ?? 0));
         if (extendDiscountInput) extendDiscountInput.value = String(Math.round(Math.max(0, rate) * 0.5));
         halfDayPresetActive = true;
       } else if (halfDayPresetActive) {

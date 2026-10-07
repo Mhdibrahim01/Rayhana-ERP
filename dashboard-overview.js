@@ -464,8 +464,8 @@
         (roomsRes.data || []).forEach(room => {
           const isReservedLater = room.status === 'محجوزة';
           optionsHtml += `
-            <option value="${room.id}" data-price="${room.price_per_night}">
-              غرفة رقم ${App.Helpers.escapeHtml(room.room_number)} (${App.Helpers.escapeHtml(room.type)}) - ${room.price_per_night} ريال/ليلة ${isReservedLater ? '⏳ (محجوزة لفترة لاحقة)' : '✓ (متاحة)'}
+            <option value="${room.id}" data-price="${room.price_per_night}" data-monthly-price="${room.monthly_price ?? ''}">
+              غرفة رقم ${App.Helpers.escapeHtml(room.room_number)} (${App.Helpers.escapeHtml(room.type)}) - ${room.price_per_night} ريال/يوم · ${room.monthly_price ? `${room.monthly_price} ريال/شهر` : 'السعر الشهري غير محدد'} ${isReservedLater ? '⏳ (محجوزة لفترة لاحقة)' : '✓ (متاحة)'}
             </option>
           `;
         });
@@ -989,7 +989,10 @@
     const status = App.Helpers.escapeHtml(r.status || 'غير محدد');
     const statusTone = r.status === 'مؤكد' ? 'active' : (r.status === 'مكتمل' ? 'done' : 'other');
     const isOpenContract = r.booking_type === '\u0639\u0642\u062f \u0645\u0641\u062a\u0648\u062d' || !r.check_out_date || r.check_out_date === '\u0645\u0641\u062a\u0648\u062d';
-    const previewRate = Number(r.custom_nightly_price || r.price_per_night) || 0;
+    const dailyRate = Number(r.custom_nightly_price || r.price_per_night) || 0;
+    const previewRate = r.booking_type === 'حجز شهري'
+      ? (Number(r.monthly_rate_snapshot) || (dailyRate * 30))
+      : dailyRate;
     const checkIn = roomDetailsDate(r.check_in_date);
     const today = App.Helpers.getLocalDateString();
     const elapsedNights = isOpenContract && /^\d{4}-\d{2}-\d{2}$/.test(checkIn) && checkIn <= today
@@ -1008,7 +1011,7 @@
       <header class="reservation-preview-header modal-layout__header room-details-header">
         <div class="reservation-preview-heading room-details-heading">
           <div class="reservation-preview-room-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 18V8a2 2 0 0 1 2-2h3a3 3 0 0 1 3 3v2h6a4 4 0 0 1 4 4v3M3 14h18M5 18v2m14-2v2"></path></svg></div>
-          <div class="room-details-heading-copy"><div class="room-details-title-line"><h2 id="reservation-preview-title">\u062a\u0641\u0627\u0635\u064a\u0644 \u0627\u0644\u063a\u0631\u0641\u0629 ${App.Helpers.escapeHtml(westernPreviewDigits(r.room_number || '-'))}</h2><span class="reservation-preview-status is-${statusTone}">${status}</span></div><p>${App.Helpers.escapeHtml(westernPreviewDigits(`\u0631\u0642\u0645 \u0627\u0644\u062d\u062c\u0632 ${formatReservationNumber(r)} \u00b7 ${r.room_type || '\u0646\u0648\u0639 \u0627\u0644\u063a\u0631\u0641\u0629 \u063a\u064a\u0631 \u0645\u062d\u062f\u062f'} \u00b7 ${r.booking_type || '\u062d\u062c\u0632'} \u00b7 ${roomDetailsMoney(previewRate)} / \u0644\u064a\u0644\u0629`))}</p></div>
+          <div class="room-details-heading-copy"><div class="room-details-title-line"><h2 id="reservation-preview-title">\u062a\u0641\u0627\u0635\u064a\u0644 \u0627\u0644\u063a\u0631\u0641\u0629 ${App.Helpers.escapeHtml(westernPreviewDigits(r.room_number || '-'))}</h2><span class="reservation-preview-status is-${statusTone}">${status}</span></div><p>${App.Helpers.escapeHtml(westernPreviewDigits(`\u0631\u0642\u0645 \u0627\u0644\u062d\u062c\u0632 ${formatReservationNumber(r)} \u00b7 ${r.room_type || '\u0646\u0648\u0639 \u0627\u0644\u063a\u0631\u0641\u0629 \u063a\u064a\u0631 \u0645\u062d\u062f\u062f'} \u00b7 ${r.booking_type || '\u062d\u062c\u0632'} \u00b7 ${roomDetailsMoney(previewRate)} / ${r.booking_type === '\u062d\u062c\u0632 \u0634\u0647\u0631\u064a' ? '\u0634\u0647\u0631' : '\u0644\u064a\u0644\u0629'}`))}</p></div>
         </div>
         <button type="button" class="reservation-preview-close modal-layout__close" data-preview-close aria-label="\u0625\u063a\u0644\u0627\u0642">&times;</button>
       </header>
@@ -1020,7 +1023,7 @@
         </section>
         <section class="reservation-preview-section modal-section-card room-details-card room-details-stay-card">
           <div class="reservation-preview-section-title modal-section-card__header room-details-card-heading"><span class="reservation-preview-title-icon">\u25a6</span><strong>\u062a\u0641\u0627\u0635\u064a\u0644 \u0627\u0644\u0625\u0642\u0627\u0645\u0629</strong></div>
-          <div class="room-details-stay-fields">${roomDetailsField('\u0646\u0648\u0639 \u0627\u0644\u062d\u062c\u0632', r.booking_type || '\u062d\u062c\u0632 \u064a\u0648\u0645\u064a')}${roomDetailsField('\u0631\u0642\u0645 \u0627\u0644\u0633\u0646\u062f', formatReservationNumber(r), '', 'room-details-receipt-number')}${roomDetailsField('\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0648\u0635\u0648\u0644', roomDetailsDate(r.check_in_date) || '\u063a\u064a\u0631 \u0645\u062d\u062f\u062f')}${roomDetailsField('\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0645\u063a\u0627\u062f\u0631\u0629', isOpenContract ? '\u0639\u0642\u062f \u0645\u0641\u062a\u0648\u062d' : (roomDetailsDate(r.check_out_date) || '\u063a\u064a\u0631 \u0645\u062d\u062f\u062f'))}${roomDetailsField('\u0633\u0639\u0631 \u0627\u0644\u0644\u064a\u0644\u0629', roomDetailsMoney(previewRate), Number(r.discount_amount) > 0 ? `\u0627\u0644\u062e\u0635\u0645: ${roomDetailsMoney(r.discount_amount)}` : '')}${roomDetailsField('\u0639\u062f\u062f \u0627\u0644\u0644\u064a\u0627\u0644\u064a', stayNights > 0 ? `${stayNights} ${stayNights === 1 ? '\u0644\u064a\u0644\u0629' : '\u0644\u064a\u0627\u0644\u064d'}` : '\u063a\u064a\u0631 \u0645\u062a\u0648\u0641\u0631')}</div>
+          <div class="room-details-stay-fields">${roomDetailsField('\u0646\u0648\u0639 \u0627\u0644\u062d\u062c\u0632', r.booking_type || '\u062d\u062c\u0632 \u064a\u0648\u0645\u064a')}${roomDetailsField('\u0631\u0642\u0645 \u0627\u0644\u0633\u0646\u062f', formatReservationNumber(r), '', 'room-details-receipt-number')}${roomDetailsField('\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0648\u0635\u0648\u0644', roomDetailsDate(r.check_in_date) || '\u063a\u064a\u0631 \u0645\u062d\u062f\u062f')}${roomDetailsField('\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0645\u063a\u0627\u062f\u0631\u0629', isOpenContract ? '\u0639\u0642\u062f \u0645\u0641\u062a\u0648\u062d' : (roomDetailsDate(r.check_out_date) || '\u063a\u064a\u0631 \u0645\u062d\u062f\u062f'))}${roomDetailsField(r.booking_type === '\u062d\u062c\u0632 \u0634\u0647\u0631\u064a' ? '\u0627\u0644\u0633\u0639\u0631 \u0627\u0644\u0634\u0647\u0631\u064a' : '\u0633\u0639\u0631 \u0627\u0644\u0644\u064a\u0644\u0629', roomDetailsMoney(previewRate), Number(r.discount_amount) > 0 ? `\u0627\u0644\u062e\u0635\u0645: ${roomDetailsMoney(r.discount_amount)}` : '')}${roomDetailsField('\u0639\u062f\u062f \u0627\u0644\u0644\u064a\u0627\u0644\u064a', stayNights > 0 ? `${stayNights} ${stayNights === 1 ? '\u0644\u064a\u0644\u0629' : '\u0644\u064a\u0627\u0644\u064d'}` : '\u063a\u064a\u0631 \u0645\u062a\u0648\u0641\u0631')}</div>
           ${(Number(r.discount_amount) > 0 || isOpenContract || r.discount_reason) ? `<div class="room-details-note"><strong>\u0645\u0644\u0627\u062d\u0638\u0627\u062a \u0648\u062a\u0639\u0644\u064a\u0645\u0627\u062a \u0627\u0644\u0625\u0642\u0627\u0645\u0629:</strong> ${r.discount_reason ? App.Helpers.escapeHtml(westernPreviewDigits(r.discount_reason)) : (isOpenContract ? '\u0639\u0642\u062f \u0645\u0641\u062a\u0648\u062d' : '\u062e\u0635\u0645 \u0645\u0633\u062c\u0644 \u0639\u0644\u0649 \u0627\u0644\u0625\u0642\u0627\u0645\u0629')}</div>` : ''}
         </section>
         <section class="reservation-preview-section modal-section-card room-details-card room-details-financial-card">

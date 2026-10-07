@@ -94,13 +94,13 @@ test('rooms IPC: inventory changes are Admin-only', async t => {
       deps.session.currentUser = admin;
 
       const added = await ipcMain.invoke('rooms:add', {}, {
-        room_number: 'RBAC-ADMIN', type: 'اختبار', price_per_night: 500
+        room_number: 'RBAC-ADMIN', type: 'اختبار', price_per_night: 500, monthly_price: 15000
       });
       assert.equal(added.success, true);
       const id = added.data.id;
 
       const edited = await ipcMain.invoke('rooms:update', {}, {
-        id, room_number: 'RBAC-ADMIN', type: 'اختبار', price_per_night: 650
+        id, room_number: 'RBAC-ADMIN', type: 'اختبار', price_per_night: 650, monthly_price: 19500
       });
       assert.equal(edited.success, true);
       assert.equal(

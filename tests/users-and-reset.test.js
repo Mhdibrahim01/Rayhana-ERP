@@ -29,7 +29,7 @@ test('database user roles and factory reset behavior', async t => {
 
     await t.test('factory reset recreates defaults in the same test-owned file', async () => {
       db.addCustomer({ name: 'Reset Guest', phone: '0500000601', id_number: '1000000601' });
-      db.addRoom({ room_number: 'RESET-ROOM', type: 'وحدة اختبار', price_per_night: 100 });
+      db.addRoom({ room_number: 'RESET-ROOM', type: 'وحدة اختبار', price_per_night: 100, monthly_price: 3000 });
       assert.equal(connection.queryAll('SELECT COUNT(*) AS count FROM guests')[0].count, 1);
 
       const result = await db.factoryReset(databasePath);
