@@ -47,7 +47,7 @@
             <rect x="14" y="14" width="7" height="7"></rect>
             <rect x="3" y="14" width="7" height="7"></rect>
           </svg>
-          <span>لوحة التحكم الرئيسية</span>
+          <span data-subtitle="نظرة عامة وتشغيل يومي">لوحة التحكم الرئيسية</span>
         </a>
 
         <a class="nav-link" data-section="reservations">
@@ -55,7 +55,7 @@
             <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
             <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
           </svg>
-          <span>سجل الحجوزات</span>
+          <span data-subtitle="المؤكدة ومغادرات اليوم">سجل الحجوزات</span>
         </a>
 
         <a class="nav-link" data-section="rooms">
@@ -65,7 +65,7 @@
             <path d="M2 17h20"></path>
             <path d="M6 8v9"></path>
           </svg>
-          <span>الغرف الفندقية</span>
+          <span data-subtitle="الحالات والإشغال الفوري">الغرف والوحدات</span>
         </a>
 
         <a class="nav-link" data-section="guests">
@@ -75,7 +75,7 @@
             <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
             <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
           </svg>
-          <span>قائمة النزلاء</span>
+          <span data-subtitle="الملفات والحظر والتاريخ">قائمة النزلاء</span>
         </a>
 
         <!-- Admin Only Navigation Links -->
@@ -83,7 +83,7 @@
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
           </svg>
-          <span>لوحة الإدارة والمستخدمين</span>
+          <span data-subtitle="الصلاحيات والمستخدمين">لوحة الإدارة</span>
         </a>
 
         <a id="nav-logs" class="nav-link" data-section="logs" style="display: none;">
@@ -94,7 +94,7 @@
             <line x1="16" y1="17" x2="8" y2="17"></line>
             <polyline points="10 9 9 9 8 9"></polyline>
           </svg>
-          <span>سجل نشاط الموظفين</span>
+          <span data-subtitle="الرقابة وحركات النظام">سجل نشاط الموظفين</span>
         </a>
 
         <a id="nav-user-manual" class="nav-link" style="border-top: 1px solid rgba(255, 255, 255, 0.1); margin-top: 8px; padding-top: 12px; cursor: pointer;" title="دليل المستخدم والمساعدة الفورية (F1)">
@@ -102,7 +102,7 @@
             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
             <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
           </svg>
-          <span>دليل الاستخدام 📖</span>
+          <span data-subtitle="المساعدة الفورية">دليل الاستخدام (F1)</span>
         </a>
       </nav>
 
@@ -124,6 +124,8 @@
         </div>
       </div>
     </aside>
+
+    <div class="sidebar-overlay" aria-hidden="true"></div>
 
     <!-- Main Workspace -->
     <main class="dashboard-main">
