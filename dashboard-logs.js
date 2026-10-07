@@ -66,7 +66,7 @@
           </td>
           <td>
             ${isActive ? `
-              <span class="badge" style="background: #ecfdf5; color: #065f46; font-weight: 800; display: inline-flex; align-items: center; gap: 6px;">
+              <span class="badge" style="background: #ecfdf3; color: #065f28; font-weight: 800; display: inline-flex; align-items: center; gap: 6px;">
                 <span class="online-dot" style="display:inline-block; width:6px; height:6px;"></span>
                 متصل حالياً (نشط)
               </span>

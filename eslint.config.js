@@ -93,5 +93,15 @@ module.exports = [
   {
     files: ['dashboard.js', 'dashboard-*.js', 'login.js', 'renderer.js'],
     languageOptions: { sourceType: 'script', globals: browserGlobals }
+  },
+  {
+    // Playwright evaluates these callbacks in the page's browser context.
+    files: ['tests/e2e-sandbox/**/*.spec.js'],
+    languageOptions: {
+      globals: {
+        document: 'readonly',
+        window: 'readonly'
+      }
+    }
   }
 ];

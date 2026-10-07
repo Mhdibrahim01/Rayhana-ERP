@@ -19,7 +19,7 @@ const { assertDatabaseIntegrity, withSafeDatabase } = require('./helpers/safe-te
 
 test('hotel business day calculation and post-midnight operations', async t => {
   await withSafeDatabase(async (db, connection) => {
-    const today = db.getLocalDateString();
+    const today = db.getCurrentBusinessDate();
 
     await t.test('getHotelBusinessDate rolls back before cutoff hour', () => {
       // 03:30 AM on 2026-10-05 should be business date 2026-10-04
@@ -69,38 +69,27 @@ test('hotel business day calculation and post-midnight operations', async t => {
       const room = addRoom('BIZ-DAY-2', 250);
       const yesterday = addDays(today, -1);
 
-      // Simulate post-midnight operation where hotel business date is yesterday's date
-      const originalBizDate = connection.getHotelBusinessDate;
-      connection.getHotelBusinessDate = () => yesterday;
+      // Simulate post-midnight operations using the persisted operational date.
+      connection.db.run('UPDATE hotel_business_state SET current_business_date = ? WHERE id = 1', [yesterday]);
+      const resId = createReservation({
+        roomId: room.id,
+        name: 'Midnight Guest',
+        checkIn: yesterday,
+        checkOut: today,
+        totalPrice: 250,
+        paidAmount: 250
+      });
 
-      try {
-        const resId = createReservation({
-          roomId: room.id,
-          name: 'Midnight Guest',
-          checkIn: yesterday,
-          checkOut: today,
-          totalPrice: 250,
-          paidAmount: 250
-        });
+      assert.equal(connection.queryOne('SELECT status FROM rooms WHERE id = ?', [room.id]).status, 'مشغولة');
+      const result = db.cancelReservation(resId);
+      assert.equal(result.hasStarted, false);
+      assert.equal(result.refundDue, 250);
 
-        // Room is occupied
-        assert.equal(connection.queryOne('SELECT status FROM rooms WHERE id = ?', [room.id]).status, 'مشغولة');
-
-        // Attempt void: should succeed without "الإقامة بدأت بالفعل" because checkIn === hotelBizDate
-        const result = db.cancelReservation(resId);
-        assert.equal(result.hasStarted, false);
-        assert.equal(result.refundDue, 250);
-
-        const resRow = db.getReservationById(resId);
-        assert.equal(resRow.status, 'ملغي');
-        assert.equal(resRow.paid_amount, 0);
-
-        // Room restored to متاحة
-        assert.equal(connection.queryOne('SELECT status FROM rooms WHERE id = ?', [room.id]).status, 'متاحة');
-        assertDatabaseIntegrity(connection, 'post-midnight arrival void');
-      } finally {
-        connection.getHotelBusinessDate = originalBizDate;
-      }
+      const resRow = db.getReservationById(resId);
+      assert.equal(resRow.status, 'ملغي');
+      assert.equal(resRow.paid_amount, 0);
+      assert.equal(connection.queryOne('SELECT status FROM rooms WHERE id = ?', [room.id]).status, 'متاحة');
+      assertDatabaseIntegrity(connection, 'post-midnight arrival void');
     });
 
     await t.test('reservation prior to hotel business date cannot be voided', () => {
@@ -108,29 +97,18 @@ test('hotel business day calculation and post-midnight operations', async t => {
       const yesterday = addDays(today, -1);
       const pastDate = addDays(today, -3); // 3 days before today
 
-      // Simulate hotel business date as yesterday
-      const originalBizDate = connection.getHotelBusinessDate;
-      connection.getHotelBusinessDate = () => yesterday;
+      connection.db.run('UPDATE hotel_business_state SET current_business_date = ? WHERE id = 1', [yesterday]);
+      const resId = createReservation({
+        roomId: room.id,
+        name: 'Past Stay Guest',
+        checkIn: pastDate,
+        checkOut: addDays(today, 1),
+        totalPrice: 1000,
+        paidAmount: 1000
+      });
 
-      try {
-        const resId = createReservation({
-          roomId: room.id,
-          name: 'Past Stay Guest',
-          checkIn: pastDate,
-          checkOut: addDays(today, 1),
-          totalPrice: 1000,
-          paidAmount: 1000
-        });
-
-        assert.throws(
-          () => db.cancelReservation(resId),
-          /الإقامة بدأت بالفعل/
-        );
-
-        assertDatabaseIntegrity(connection, 'past stay void blocked');
-      } finally {
-        connection.getHotelBusinessDate = originalBizDate;
-      }
+      assert.throws(() => db.cancelReservation(resId), /الإقامة بدأت بالفعل/);
+      assertDatabaseIntegrity(connection, 'past stay void blocked');
     });
   });
 });

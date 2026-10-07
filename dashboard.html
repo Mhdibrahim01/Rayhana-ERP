@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="dashboard-tables.css">
   <!-- SheetJS & Chart.js Local Bundles (100% Offline Compatible) -->
   <script src="node_modules/xlsx/dist/xlsx.full.min.js"></script>
   <script src="node_modules/chart.js/dist/chart.umd.js"></script>
@@ -132,11 +133,20 @@
         <div class="topbar-title">
           <h1 id="topbar-heading">ريحانة للوحدات السكنية</h1>
           <p id="topbar-subheading">Rayhana Suites • لوحة التحكم وإدارة العمليات</p>
+          <div class="business-date-indicator" dir="rtl" aria-live="polite">
+            <span>وقت النظام:</span> <strong id="current-system-time">--:--</strong>
+            <span class="business-date-separator">|</span>
+            <span>تاريخ العمل الفندقي:</span> <strong id="active-business-date">جارٍ التحميل</strong>
+          </div>
+          <div id="business-day-shift-notice" class="business-day-shift-notice" data-role-required="Admin" hidden>
+            <span id="business-day-shift-notice-text"></span>
+            <button type="button" id="btn-open-business-day-reconciliation">عرض المصالحة</button>
+          </div>
         </div>
 
         <div class="topbar-actions">
           <!-- User Manual Button (All Roles) -->
-          <button id="btn-open-user-manual" type="button" class="btn btn-secondary btn-sm" title="دليل الاستخدام والمساعدة السريعة (F1)" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: #166534; background: #f0fdf4; border: 1.5px solid #86efac; cursor: pointer;">
+          <button id="btn-open-user-manual" type="button" class="btn btn-secondary btn-sm" title="دليل الاستخدام والمساعدة السريعة (F1)" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: #166535; background: #f0fdf5; border: 1.5px solid #86efaf; cursor: pointer;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"></circle>
               <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
@@ -213,64 +223,59 @@
             </div>
             <div class="overview-welcome-actions">
               <button id="btn-open-new-reservation-modal" type="button" class="btn btn-primary">
-                + تسجيل حجز جديد
+                <span>+ تسجيل حجز جديد</span><kbd class="hotkey-chip" title="اختصار تسجيل حجز جديد">F2</kbd>
               </button>
             </div>
           </section>
-          
-          <!-- KPI Metrics Grid -->
-          <section class="stats-grid" style="margin-bottom: 24px;">
-            <button type="button" class="stat-card overview-stat-card" onclick="window.openRoomsFiltered('متاحة')" aria-label="عرض الغرف المتاحة">
-              <div class="stat-info">
-                <p>الغرف المتاحة</p>
-                <h3 id="stat-available-rooms" style="color: var(--success);">0</h3>
-              </div>
-              <div class="stat-icon icon-emerald">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-              </div>
+
+          <section class="overview-executive-kpis" aria-label="ملخص مؤشرات التشغيل والوردية" dir="rtl">
+            <button id="overview-kpi-occupancy" type="button" class="executive-kpi executive-kpi-occupancy" aria-label="عرض الغرف المشغولة">
+              <span class="executive-kpi-topline">
+                <span class="executive-kpi-icon" aria-hidden="true">
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="m19 9-5 5-4-4-3 3"></path></svg>
+                </span>
+                <span class="executive-kpi-title">نسبة الإشغال الإجمالية</span>
+                <span id="overview-occupancy-badge" class="executive-kpi-badge">جارٍ الحساب</span>
+              </span>
+              <span id="overview-occupancy-rate" class="executive-kpi-value">—%</span>
+              <span class="executive-kpi-progress" aria-hidden="true"><span id="overview-occupancy-progress"></span></span>
+              <span class="executive-kpi-subtext"><span id="overview-occupied-count">— من — غرف مسكونة</span><span class="executive-kpi-link">عرض الغرف ←</span></span>
             </button>
 
-            <button type="button" class="stat-card overview-stat-card" onclick="window.openRoomsFiltered('مشغولة')" aria-label="عرض الغرف المشغولة">
-              <div class="stat-info">
-                <p>الغرف المشغولة</p>
-                <h3 id="stat-occupied-rooms" style="color: var(--danger);">0</h3>
-              </div>
-              <div class="stat-icon icon-rose">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="12" cy="7" r="4"></circle>
-                </svg>
-              </div>
+            <button id="overview-kpi-checkins" type="button" class="executive-kpi executive-kpi-checkins" aria-label="فتح نموذج تسجيل حجز جديد">
+              <span class="executive-kpi-topline">
+                <span class="executive-kpi-icon" aria-hidden="true">
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><path d="m10 17 5-5-5-5"></path><path d="M15 12H3"></path></svg>
+                </span>
+                <span class="executive-kpi-title">دخول اليوم المتوقع</span>
+                <span class="executive-kpi-badge">نزلاء وصول</span>
+              </span>
+              <span id="overview-checkins-count" class="executive-kpi-value">—</span>
+              <span class="executive-kpi-subtext"><span>مجدول استقبالهم خلال الوردية</span><span class="executive-kpi-link">+ تسكين فوري</span></span>
             </button>
 
-            <button type="button" class="stat-card overview-stat-card" onclick="window.openRoomsFiltered('تنظيف')" aria-label="عرض الغرف قيد التنظيف">
-              <div class="stat-info">
-                <p>قيد التنظيف</p>
-                <h3 id="stat-cleaning-rooms" style="color: var(--warning);">0</h3>
-              </div>
-              <div class="stat-icon icon-amber">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
-                </svg>
-              </div>
+            <button id="overview-kpi-checkouts" type="button" class="executive-kpi executive-kpi-checkouts" aria-label="عرض جدول مغادرات اليوم">
+              <span class="executive-kpi-topline">
+                <span class="executive-kpi-icon" aria-hidden="true">
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                </span>
+                <span class="executive-kpi-title">مغادرات اليوم المتوقعة</span>
+                <span class="executive-kpi-badge">غرف مغادرة</span>
+              </span>
+              <span id="overview-checkouts-count" class="executive-kpi-value">—</span>
+              <span class="executive-kpi-subtext"><span><bdi id="overview-pending-checkouts-count">—</bdi> بانتظار التسوية</span><span class="executive-kpi-link">جدول المغادرات ←</span></span>
             </button>
 
-            <button type="button" class="stat-card overview-stat-card" onclick="switchView('reservations')" aria-label="عرض سجل الحجوزات">
-              <div class="stat-info">
-                <p>إجمالي الحجوزات</p>
-                <h3 id="stat-total-reservations" style="color: var(--primary);">0</h3>
-              </div>
-              <div class="stat-icon icon-indigo">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                  <line x1="16" y1="2" x2="16" y2="6"></line>
-                  <line x1="8" y1="2" x2="8" y2="6"></line>
-                  <line x1="3" y1="10" x2="21" y2="10"></line>
-                </svg>
-              </div>
+            <button id="overview-kpi-shift-revenue" type="button" class="executive-kpi executive-kpi-revenue" aria-label="فتح تقرير إقفال الوردية">
+              <span class="executive-kpi-topline">
+                <span class="executive-kpi-icon" aria-hidden="true">
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"></rect><path d="M2 10h20M7 15h.01M11 15h2"></path></svg>
+                </span>
+                <span class="executive-kpi-title">إيراد الوردية الحالية</span>
+                <span class="executive-kpi-badge">ر.س</span>
+              </span>
+              <span id="overview-shift-revenue-total" class="executive-kpi-value">—</span>
+              <span class="executive-kpi-subtext"><span id="overview-shift-revenue-breakdown">كاش: — | شبكة: — ر.س</span><span class="executive-kpi-link">تقرير الوردية ←</span></span>
             </button>
           </section>
 
@@ -278,70 +283,45 @@
                WIDGET: TODAY'S CHECK-OUTS (مغادرات اليوم)
                ================================================================== -->
           <div class="overview-table-tabs" role="tablist" aria-label="جداول لوحة التحكم">
-            <button type="button" class="overview-table-tab active" id="tab-today-checkouts" role="tab" aria-selected="true" aria-controls="widget-today-checkouts" data-overview-table-tab="widget-today-checkouts">مغادرات اليوم</button>
-            <button type="button" class="overview-table-tab" id="tab-recent-bookings" role="tab" aria-selected="false" aria-controls="widget-recent-bookings" data-overview-table-tab="widget-recent-bookings">آخر الحجوزات النشطة</button>
+            <div class="overview-table-tab-switcher">
+              <button type="button" class="overview-table-tab active" id="tab-today-checkouts" role="tab" aria-selected="true" aria-controls="widget-today-checkouts" data-overview-table-tab="widget-today-checkouts">مغادرات اليوم <span id="today-checkouts-tab-count" class="overview-table-tab-count">0</span></button>
+              <button type="button" class="overview-table-tab" id="tab-recent-bookings" role="tab" aria-selected="false" aria-controls="widget-recent-bookings" data-overview-table-tab="widget-recent-bookings">آخر الحجوزات النشطة <span id="overview-recent-tab-count" class="overview-table-tab-count">0</span></button>
+            </div>
+            <button type="button" class="overview-table-full-link" onclick="switchView('reservations')" title="فتح سجل الحجوزات بالكامل">
+              <span>فتح سجل الحجوزات بالكامل</span><span aria-hidden="true">↗</span>
+            </button>
           </div>
           <div class="card overview-table-panel active" id="widget-today-checkouts" data-overview-table-panel role="tabpanel" aria-labelledby="tab-today-checkouts" style="margin-bottom: 24px; overflow: hidden;">
-            <!-- FIXED: was rgba(20,61,43,0.45) dark green with white text — broke the light theme.
-                 Now uses the standard glass card-header style (white/translucent + dark text). -->
-            <div class="card-header">
-              <div style="display: flex; align-items: center; gap: 12px;">
-                <div style="background: #a67c52; color: #ffffff; width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(166, 124, 82, 0.3); flex-shrink: 0;">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                    <polyline points="16 17 21 12 16 7"></polyline>
-                    <line x1="21" y1="12" x2="9" y2="12"></line>
-                  </svg>
-                </div>
-                <div>
-                  <h2 style="font-size: 1.05rem; color: var(--primary-forest); margin: 0; font-weight: 800; display: flex; align-items: center; gap: 8px;">
-                    <span>مغادرات اليوم</span>
-                    <span id="today-date-badge" style="font-size: 0.72rem; background: rgba(26,67,50,0.08); color: var(--primary-forest); padding: 2px 8px; border-radius: 6px; font-weight: 700;"></span>
-                  </h2>
-                  <p style="font-size: 0.78rem; color: var(--text-secondary); margin: 2px 0 0;">
-                    قائمة النزلاء المجدول مغادرتهم اليوم لتسليم الغرف وبدء أعمال التنظيف
-                  </p>
-                </div>
-              </div>
-
-              <div class="overview-operations-controls">
-                <span id="today-checkouts-count-badge" class="badge" style="background: #a67c52; color: #ffffff; font-weight: 800; font-size: 0.8rem; padding: 5px 14px; border-radius: 20px; box-shadow: 0 2px 6px rgba(166,124,82,0.25);">
-                  0 مغادرات
-                </span>
-                <button id="btn-refresh-checkouts" class="btn btn-secondary btn-sm" title="تحديث قائمة مغادرات اليوم" style="border-radius: 8px;">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="23 4 23 10 17 10"></polyline>
-                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-                  </svg>
-                  <span>تحديث</span>
-                </button>
-              </div>
-            </div>
-
-            <div class="card-body" style="padding: 0; background: transparent;">
+            <div class="card-body" style="padding: 0;">
               <div class="today-checkouts-toolbar" dir="rtl">
                 <label class="today-checkouts-search-wrap">
                   <span class="today-checkouts-search-icon" aria-hidden="true">⌕</span>
-                  <input id="today-checkouts-search" type="search" class="today-checkouts-search" placeholder="بحث برقم الغرفة، اسم النزيل، الجوال أو الهوية..." aria-label="بحث في مغادرات اليوم">
+                  <input id="today-checkouts-search" type="search" class="today-checkouts-search" placeholder="بحث برقم الغرفة، اسم النزيل، الجوال أو الهوية... ( / )" aria-label="بحث في مغادرات اليوم">
                 </label>
+                <div class="today-checkouts-toolbar-meta">
+                  <span id="today-date-badge" class="today-checkouts-date"></span>
+                  <button id="btn-refresh-checkouts" class="btn btn-secondary btn-sm today-checkouts-refresh" title="تحديث قائمة مغادرات اليوم" aria-label="تحديث قائمة مغادرات اليوم">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                  </button>
+                </div>
                 <div id="today-checkouts-filters" class="today-checkouts-filters" role="group" aria-label="تصفية مغادرات اليوم">
-                  <button type="button" class="today-checkouts-filter active" data-checkout-filter="all" aria-pressed="true">الكل</button>
-                  <button type="button" class="today-checkouts-filter" data-checkout-filter="pending" aria-pressed="false">بانتظار المغادرة</button>
-                  <button type="button" class="today-checkouts-filter" data-checkout-filter="overdue" aria-pressed="false">متأخر</button>
-                  <button type="button" class="today-checkouts-filter" data-checkout-filter="completed" aria-pressed="false">تمت المغادرة</button>
+                  <button type="button" class="today-checkouts-filter active" data-checkout-filter="all" aria-pressed="true">الكل <span id="today-checkouts-filter-all-count" class="today-checkouts-filter-count">0</span></button>
+                  <button type="button" class="today-checkouts-filter" data-checkout-filter="pending" aria-pressed="false">بانتظار المغادرة <span id="today-checkouts-filter-pending-count" class="today-checkouts-filter-count">0</span></button>
+                  <button type="button" class="today-checkouts-filter" data-checkout-filter="overdue" aria-pressed="false">متأخر <span id="today-checkouts-filter-overdue-count" class="today-checkouts-filter-count">0</span></button>
+                  <button type="button" class="today-checkouts-filter" data-checkout-filter="completed" aria-pressed="false">تمت المغادرة <span id="today-checkouts-filter-completed-count" class="today-checkouts-filter-count">0</span></button>
                 </div>
               </div>
               <div class="table-responsive">
                 <table class="today-checkouts-table" style="margin: 0;">
                   <colgroup>
-                    <col style="width: 7%;">
-                    <col style="width: 9%;">
+                    <col style="width: 6%;">
+                    <col style="width: 10%;">
                     <col style="width: 17%;">
                     <col style="width: 10%;">
+                    <col style="width: 12%;">
+                    <col style="width: 19%;">
                     <col style="width: 9%;">
-                    <col style="width: 8%;">
-                    <col style="width: 14%;">
-                    <col style="width: 280px;">
+                    <col style="width: 17%;">
                   </colgroup>
                   <thead>
                     <tr>
@@ -350,7 +330,7 @@
                       <th>اسم النزيل</th>
                       <th>رقم الجوال</th>
                       <th>تاريخ الوصول</th>
-                      <th>المبلغ الإجمالي</th>
+                      <th>المبلغ والمدفوع</th>
                       <th>حالة الحجز</th>
                       <th style="text-align: center;">إجراء المغادرة</th>
                     </tr>
@@ -376,43 +356,18 @@
 
           <!-- Main Section: Active Bookings Table (Full Width 12-Cols) -->
           <div class="card overview-table-panel" id="widget-recent-bookings" data-overview-table-panel role="tabpanel" aria-labelledby="tab-recent-bookings" hidden style="margin-bottom: 24px; overflow: hidden;">
-            <div class="card-header" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; padding: 18px 24px;">
-              <div style="display: flex; align-items: center; gap: 12px;">
-                <div style="background: rgba(26, 67, 50, 0.1); color: var(--primary-accent); width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(26,67,50,0.12);">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                    <line x1="16" y1="2" x2="16" y2="6"></line>
-                    <line x1="8" y1="2" x2="8" y2="6"></line>
-                    <line x1="3" y1="10" x2="21" y2="10"></line>
-                  </svg>
-                </div>
-                <div>
-                <h2 style="font-size: 1.15rem; font-weight: 800; color: #1e293b; margin: 0;">آخر الحجوزات النشطة</h2>
-                  <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 3px 0 0;">الحجوزات المؤكدة مع حالة السداد والإجراءات السريعة</p>
-                </div>
-              </div>
-
-              <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-                <!-- Full Reservations Link -->
-                <button type="button" class="btn btn-secondary btn-sm" onclick="switchView('reservations')" style="padding: 9px 16px; font-weight: 700; border-radius: 8px;">
-                  <span>سجل الحجوزات بالكامل &larr;</span>
-                </button>
-              </div>
-            </div>
-
-            <div class="table-responsive w-full" style="overflow-x: auto; min-height: 200px;">
-              <table style="width: 100%; border-collapse: collapse;">
+            <div class="table-responsive w-full recent-bookings-table-wrap">
+              <table class="recent-bookings-table" style="width: 100%; border-collapse: collapse;">
                 <thead>
-                  <tr style="background: rgba(0,0,0,0.02); text-align: right;">
-                    <th style="padding: 12px 16px;">رقم الحجز</th>
-                    <th style="padding: 12px 16px;">النزيل</th>
-                    <th style="padding: 12px 16px;">الغرفة</th>
-                    <th style="padding: 12px 16px;">الوصول</th>
-                    <th style="padding: 12px 16px;">المغادرة</th>
-                    <th style="padding: 12px 16px;">الإجمالي والمدفوع</th>
-                    <th style="padding: 12px 16px;">حالة السداد</th>
-                    <th style="padding: 12px 16px;">الحالة</th>
-                    <th style="padding: 12px 16px; text-align: center;">إجراءات وفواتير</th>
+                  <tr>
+                    <th>رقم الحجز</th>
+                    <th>بيانات النزيل</th>
+                    <th>الغرفة والنوع</th>
+                    <th>الوصول والمغادرة</th>
+                    <th>المبلغ والمدفوع</th>
+                    <th>طريقة السداد</th>
+                    <th>حالة السداد</th>
+                    <th class="overview-booking-actions-heading">إجراءات</th>
                   </tr>
                 </thead>
                 <tbody id="overview-table-body">
@@ -421,7 +376,7 @@
               </table>
 
               <div id="overview-empty" style="display: none; padding: 50px 24px; text-align: center;">
-                <div style="background: rgba(26, 67, 50, 0.08); color: var(--primary-accent); width: 60px; height: 60px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 14px;">
+                <div style="background: rgba(26, 67, 42, 0.08); color: var(--primary-accent); width: 60px; height: 60px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 14px;">
                   <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
                     <line x1="16" y1="2" x2="16" y2="6"></line>
@@ -431,7 +386,7 @@
                 </div>
                 <h3 style="font-size: 1.1rem; font-weight: 800; color: #1e293b; margin: 0 0 6px;">لا توجد حجوزات نشطة حالياً</h3>
                 <p style="font-size: 0.85rem; color: var(--text-secondary); max-width: 440px; margin: 0 auto 20px;">جميع الغرف متاحة أو تم إنهاء إجراءات مغادرتها. يمكنك البدء بتسجيل حجز جديد للنزلاء الآن.</p>
-                <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('btn-open-new-reservation-modal')?.click()" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; font-weight: 800; background: #1a4332; border-radius: 8px; border: none; cursor: pointer;">
+                <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('btn-open-new-reservation-modal')?.click()" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; font-weight: 800; background: #1a432a; border-radius: 8px; border: none; cursor: pointer;">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
                     <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -441,6 +396,51 @@
               </div>
             </div>
           </div>
+
+          <section class="occupancy-forecast-card" aria-labelledby="occupancy-forecast-title" dir="rtl">
+            <div class="occupancy-forecast-heading">
+              <div class="occupancy-forecast-title-group">
+                <span class="occupancy-forecast-icon" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M16 3v4M8 3v4M3 11h18"></path>
+                  </svg>
+                </span>
+                <div>
+                  <div class="occupancy-forecast-title-line">
+                    <h2 id="occupancy-forecast-title">توقعات نسبة إشغال الغرف لـ 7 أيام قادمة</h2>
+                    <span class="occupancy-forecast-source">توقع أولي</span>
+                  </div>
+                  <p>الحجوزات المؤكدة مع تقدير نمط الطلب الأسبوعي للمساعدة في التخطيط التشغيلي.</p>
+                </div>
+              </div>
+              <div class="occupancy-forecast-metrics" aria-label="ملخص توقعات الإشغال">
+                <span class="forecast-metric forecast-metric-peak"><strong>أعلى يوم طلب</strong><b id="forecast-peak-day">—</b></span>
+                <span class="forecast-metric"><strong>متوسط الأسبوع</strong><b id="forecast-average-rate">—</b></span>
+                <span class="forecast-metric forecast-metric-alert"><strong>أيام الذروة (≥80%)</strong><b id="forecast-high-demand-days">—</b></span>
+              </div>
+            </div>
+
+            <div id="occupancy-forecast-alert" class="occupancy-forecast-alert" role="status" hidden>
+              <span class="forecast-alert-icon" aria-hidden="true">⚡</span>
+              <div>
+                <strong>تنبيه تشغيلي لفريق الاستقبال والتدبير الداخلي</strong>
+                <p id="occupancy-forecast-alert-copy"></p>
+                <ul>
+                  <li>جهّز البياضات ووسائل الراحة مسبقاً.</li>
+                  <li>نسّق جداول التدبير الداخلي والورديات قبل أيام الذروة.</li>
+                  <li>راجع تسعير المخزون الشاغر وتأكد من عدم تجاوز الطاقة الاستيعابية.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="occupancy-forecast-chart-wrap">
+              <canvas id="occupancy-forecast-chart" role="img" aria-label="مخطط توقع نسبة إشغال الغرف للأيام السبعة القادمة"></canvas>
+              <div id="occupancy-forecast-tooltip" class="occupancy-forecast-tooltip" role="status" aria-live="polite" hidden></div>
+            </div>
+            <div id="occupancy-forecast-empty" class="occupancy-forecast-empty" hidden>لا تتوفر بيانات الغرف اللازمة لإنشاء التوقع.</div>
+            <div id="occupancy-forecast-days" class="occupancy-forecast-days" aria-label="تفاصيل الإشغال لكل يوم"></div>
+          </section>
+
           <section class="overview-analytics-section">
             <div class="overview-section-heading">
               <div>
@@ -448,25 +448,30 @@
                 <p>ملخص الإيرادات وتوزيع حالة الغرف.</p>
               </div>
             </div>
-            <section class="charts-grid">
-              <div class="chart-card">
-                <div class="chart-card-header">
+            <section class="overview-analytics-grid" dir="rtl" aria-label="تحليلات الإيرادات وحالات الغرف">
+              <article class="overview-analytics-card overview-revenue-card">
+                <header class="overview-analytics-card-header">
                   <div>
-                    <h3>الإيرادات الشهرية</h3>
-                    <p>تطور إيرادات الحجوزات شهرياً بالريال</p>
+                    <h3><span aria-hidden="true">📈</span> تطور الإيرادات الشهرية</h3>
+                    <p>إجمالي الدخل المحصل بالريال السعودي لآخر 6 أشهر</p>
                   </div>
-                </div>
-                <div class="chart-canvas-container"><canvas id="monthly-revenue-chart"></canvas></div>
-              </div>
-              <div class="chart-card">
-                <div class="chart-card-header">
+                  <span id="monthly-revenue-current" class="monthly-revenue-current">0 ر.س (الشهر الحالي)</span>
+                </header>
+                <div id="monthly-revenue-bars" class="monthly-revenue-bars" role="group" aria-label="الإيراد المحصل لكل شهر"></div>
+              </article>
+              <article class="overview-analytics-card overview-room-status-card">
+                <header class="overview-analytics-card-header overview-room-status-header">
                   <div>
-                    <h3>حالات الغرف</h3>
-                    <p>الغرف المتاحة والمشغولة وقيد التنظيف</p>
+                    <h3>توزيع حالات الغرف</h3>
+                    <p>الحالة التشغيلية الآنية لكافة وحدات الفندق (<span id="room-status-total">0 غرفة</span>)</p>
                   </div>
-                </div>
-                <div class="chart-canvas-container"><canvas id="room-status-chart"></canvas></div>
-              </div>
+                </header>
+                <div id="room-status-meters" class="room-status-meters" aria-live="polite"></div>
+                <footer class="room-status-readiness">
+                  <span>جاهزية الفندق الإجمالية:</span>
+                  <strong id="room-status-readiness">0% جاهز</strong>
+                </footer>
+              </article>
             </section>
           </section>
         </div>
@@ -475,10 +480,10 @@
              SECTION 2: RESERVATIONS (سجل الحجوزات + تصدير واستيراد Excel)
              ================================================================== -->
         <div id="view-reservations" class="view-section" style="display: none;">
-          <div class="card">
-            <div class="table-toolbar" style="flex-wrap: wrap; gap: 12px;">
+          <div class="card reservations-page-card">
+            <div class="table-toolbar reservations-toolbar" style="flex-wrap: wrap; gap: 12px;">
               <!-- Filter Tabs -->
-              <div class="filter-tabs-bar" id="res-filter-tabs">
+              <div class="filter-tabs-bar reservations-filter-tabs" id="res-filter-tabs">
                 <button class="filter-tab-btn active" data-filter="all">جميع الحجوزات</button>
                 <button class="filter-tab-btn" data-filter="مؤكد">مؤكدة (نشطة)</button>
                 <button class="filter-tab-btn" data-filter="مكتمل">مكتملة (تم الخروج)</button>
@@ -486,24 +491,24 @@
               </div>
 
               <!-- Search -->
-              <div class="search-box">
+              <div class="search-box reservations-page-search">
                 <span class="search-icon">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="11" cy="11" r="8"></circle>
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                   </svg>
                 </span>
-                <input type="text" id="search-all-reservations" placeholder="بحث بالاسم، رقم الغرفة، الجوال...">
+                <input type="text" id="search-all-reservations" placeholder="بحث بالاسم، رقم الغرفة، الجوال... ( / )">
               </div>
 
               <!-- Action Buttons: New Reservation + Excel Import & Export Buttons -->
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <button id="btn-res-new-booking" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 700; background: #1a4332; color: #ffffff; padding: 7px 14px; border-radius: 8px; border: none; cursor: pointer; transition: all 0.2s;" title="تسجيل حجز فندقي جديد">
+              <div class="reservations-page-actions" style="display: flex; align-items: center; gap: 8px;">
+                <button id="btn-res-new-booking" class="btn btn-primary btn-sm reservations-new-booking" title="تسجيل حجز فندقي جديد">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
                     <line x1="5" y1="12" x2="19" y2="12"></line>
                   </svg>
-                  <span>+ تسجيل حجز جديد</span>
+                  <span>+ تسجيل حجز جديد</span><kbd class="hotkey-chip hotkey-chip-dark" aria-hidden="true">F2</kbd>
                 </button>
 
                 <button id="btn-export-reservations-excel" class="btn-excel-export" title="تصدير جدول الحجوزات إلى ملف Excel (.xlsx)">
@@ -532,13 +537,11 @@
                 <thead>
                   <tr>
                     <th>رقم الحجز</th>
-                    <th>اسم النزيل</th>
+                    <th>بيانات النزيل</th>
                     <th>الغرفة والنوع</th>
-                    <th>تاريخ الوصول</th>
-                    <th>تاريخ المغادرة</th>
+                    <th>الوصول والمغادرة</th>
                     <th>المبلغ والمدفوع</th>
-                    <th>طريقة السداد</th>
-                    <th>حالة الدفع</th>
+                    <th>طريقة وحالة الدفع</th>
                     <th>حالة الحجز</th>
                     <th style="text-align: center;">إجراءات وفواتير</th>
                   </tr>
@@ -568,58 +571,70 @@
              SECTION 3: ROOMS (الغرف الفندقية)
              ================================================================== -->
         <div id="view-rooms" class="view-section" style="display: none;">
-          <!-- Row 1: Status filter tabs + Add button -->
-          <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; flex-wrap: wrap;">
-            <div class="filter-tabs-bar" id="rooms-filter-tabs">
-              <button class="filter-tab-btn active" data-room-filter="all">جميع الغرف</button>
-              <button class="filter-tab-btn" data-room-filter="متاحة">المتاحة فقط</button>
-              <button class="filter-tab-btn" data-room-filter="محجوزة">المحجوزة (قادمة)</button>
-              <button class="filter-tab-btn" data-room-filter="مشغولة">المشغولة</button>
-              <button class="filter-tab-btn" data-room-filter="تنظيف">قيد التنظيف</button>
+          <section class="rooms-filters-card" aria-labelledby="rooms-filters-heading">
+            <div class="rooms-filters-header">
+              <div>
+                <h2 id="rooms-filters-heading">تصفية الغرف</h2>
+                <p>اختر حالة الغرفة أو نوع الإقامة أو حالة الدفع</p>
+              </div>
+              <div class="rooms-filter-header-actions">
+                <span id="rooms-filter-result" class="rooms-filter-result">عرض جميع النتائج</span>
+                <!-- Adding a room is Admin-only in the main process (ipc/rooms.js), so hide the
+                     button from other roles. applyRbacUi hides .admin-only on login. -->
+                <button id="btn-toggle-add-room" class="btn btn-primary btn-sm admin-only">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  <span>إضافة غرفة جديدة</span>
+                </button>
+              </div>
+              <button id="rooms-clear-filters" class="rooms-clear-filters" type="button" aria-label="مسح الفلاتر المحددة">
+                مسح الفلاتر
+                <span id="rooms-active-filter-count" class="rooms-active-filter-count">0</span>
+              </button>
             </div>
 
-            <!-- Adding a room is Admin-only in the main process (ipc/rooms.js), so hide the
-                 button from other roles. applyRbacUi hides .admin-only on login. -->
-            <button id="btn-toggle-add-room" class="btn btn-primary btn-sm admin-only">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-              <span>إضافة غرفة جديدة</span>
-            </button>
-          </div>
+            <div class="filter-tabs-bar rooms-primary-filter" id="rooms-filter-tabs" role="group" aria-label="حالة الغرفة">
+              <button type="button" class="filter-tab-btn active" data-room-filter="all" aria-pressed="true">جميع الغرف</button>
+              <button type="button" class="filter-tab-btn" data-room-filter="متاحة" aria-pressed="false">المتاحة فقط</button>
+              <button type="button" class="filter-tab-btn" data-room-filter="محجوزة" aria-pressed="false">المحجوزة (قادمة)</button>
+              <button type="button" class="filter-tab-btn" data-room-filter="مشغولة" aria-pressed="false">المشغولة</button>
+              <button type="button" class="filter-tab-btn" data-room-filter="تنظيف" aria-pressed="false">قيد التنظيف</button>
+            </div>
 
-          <!-- Row 2: Search box + Booking-type filter -->
-          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
-            <div class="search-box" style="flex: 1; min-width: 200px;">
-              <span class="search-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            <div class="rooms-secondary-filters">
+              <label class="rooms-filter-search">
+                <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+                  <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"></circle>
+                  <path d="m16.3 16.3 4.2 4.2" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"></path>
                 </svg>
-              </span>
-              <input type="text" id="search-rooms" placeholder="بحث برقم الغرفة أو النوع...">
-            </div>
+                <input type="search" id="search-rooms" aria-label="البحث عن غرفة" placeholder="بحث برقم الغرفة أو النوع... ( / )">
+              </label>
 
-            <div class="filter-tabs-bar" id="rooms-booking-type-tabs">
-              <button class="filter-tab-btn active" data-room-booking-type="all">الكل</button>
-              <button class="filter-tab-btn" data-room-booking-type="عادي">يومي</button>
-              <button class="filter-tab-btn" data-room-booking-type="استخدام يومي">استخدام يومي</button>
-              <button class="filter-tab-btn" data-room-booking-type="حجز شهري">شهري</button>
-              <button class="filter-tab-btn" data-room-booking-type="عقد مفتوح">عقد مفتوح</button>
-            </div>
-          </div>
+              <div class="rooms-filter-block">
+                <span class="rooms-filter-label">نوع الإقامة</span>
+                <div class="filter-tabs-bar rooms-secondary-tabs" id="rooms-booking-type-tabs" role="group" aria-label="نوع الإقامة">
+                  <button type="button" class="filter-tab-btn active" data-room-booking-type="all" aria-pressed="true">الكل</button>
+                  <button type="button" class="filter-tab-btn" data-room-booking-type="عادي" aria-pressed="false">يومي</button>
+                  <button type="button" class="filter-tab-btn" data-room-booking-type="استخدام يومي" aria-pressed="false">استخدام يومي</button>
+                  <button type="button" class="filter-tab-btn" data-room-booking-type="حجز شهري" aria-pressed="false">شهري</button>
+                  <button type="button" class="filter-tab-btn" data-room-booking-type="عقد مفتوح" aria-pressed="false">عقد مفتوح</button>
+                </div>
+              </div>
 
-          <div id="rooms-payment-filter-container" style="display: none; align-items: center; gap: 10px; margin: -8px 0 18px; flex-wrap: wrap;">
-            <strong style="font-size: 0.82rem; color: var(--text-secondary);">حالة سداد النزيل الحالي:</strong>
-            <div class="filter-tabs-bar" id="rooms-payment-filter-tabs" role="group" aria-label="فلترة الغرف حسب حالة السداد">
-              <button type="button" class="filter-tab-btn active" data-room-payment-status="all">الكل</button>
-              <button type="button" class="filter-tab-btn" data-room-payment-status="غير مدفوع">غير مدفوع</button>
-              <button type="button" class="filter-tab-btn" data-room-payment-status="مدفوع جزئياً">مدفوع جزئياً</button>
-              <button type="button" class="filter-tab-btn" data-room-payment-status="مدفوع بالكامل">مدفوع بالكامل</button>
-              <button type="button" class="filter-tab-btn" data-room-payment-status="رصيد دائن">رصيد دائن</button>
+              <div class="rooms-filter-block rooms-payment-filter-panel" id="rooms-payment-filter-container">
+                <span class="rooms-filter-label">حالة الدفع</span>
+                <div id="rooms-payment-filter-tabs" class="filter-tabs-bar rooms-secondary-tabs" role="group" aria-label="حالة الدفع">
+                  <button type="button" class="filter-tab-btn active" data-room-payment-status="all" aria-pressed="true">الكل</button>
+                  <button type="button" class="filter-tab-btn" data-room-payment-status="غير مدفوع" aria-pressed="false">غير مدفوع</button>
+                  <button type="button" class="filter-tab-btn" data-room-payment-status="مدفوع جزئياً" aria-pressed="false">مدفوع جزئياً</button>
+                  <button type="button" class="filter-tab-btn" data-room-payment-status="مدفوع بالكامل" aria-pressed="false">مدفوع بالكامل</button>
+                  <button type="button" class="filter-tab-btn" data-room-payment-status="رصيد دائن" aria-pressed="false">رصيد دائن</button>
+                </div>
+              </div>
             </div>
-          </div>
+          </section>
 
           <!-- Add Room Collapsible Form -->
           <div id="add-room-panel" class="card" style="display: none; margin-bottom: 24px; border: 2px dashed #c7d2fe;">
@@ -692,8 +707,8 @@
           </div>
 
           <!-- Add Customer Collapsible Panel -->
-          <div id="add-customer-panel" class="card" style="display: none; margin-bottom: 24px; border: 2px dashed #a7f3d0;">
-            <div class="card-header" style="background: #ecfdf5;">
+          <div id="add-customer-panel" class="card" style="display: none; margin-bottom: 24px; border: 2px dashed #a7f3c4;">
+            <div class="card-header" style="background: #ecfdf3;">
               <h2>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
@@ -737,7 +752,7 @@
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                   </svg>
                 </span>
-                <input type="text" id="search-guests" placeholder="بحث بالاسم، رقم الجوال، الهوية...">
+                <input type="text" id="search-guests" placeholder="بحث بالاسم، رقم الجوال، الهوية... ( / )">
               </div>
 
               <!-- Ban-status filter -->
@@ -805,7 +820,7 @@
             <!-- Server-Side Pagination Controls -->
             <div id="guests-pagination" class="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3.5 bg-slate-50/90 border-t border-slate-200 mt-1 rounded-b-xl" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; background: #f8fafc; border-top: 1px solid #e2e8f0; flex-wrap: wrap; gap: 10px;">
               <div class="text-xs text-slate-500 font-semibold" style="font-size: 0.82rem; color: #64748b; font-weight: 600;">
-                عرض <span id="guests-page-range" class="font-bold text-slate-700" style="color: #334155; font-weight: 800;">1 - 50</span> من إجمالي <span id="guests-total-count" class="font-bold text-emerald-700" style="color: #047857; font-weight: 800;">0</span> نزيل
+                عرض <span id="guests-page-range" class="font-bold text-slate-700" style="color: #334155; font-weight: 800;">1 - 50</span> من إجمالي <span id="guests-total-count" class="font-bold " style="color: #047831; font-weight: 800;">0</span> نزيل
               </div>
               <div class="flex items-center gap-2" style="display: flex; align-items: center; gap: 8px;">
                 <button type="button" id="btn-guests-prev-page" class="px-3.5 py-1.5 text-xs font-bold rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm" style="padding: 6px 14px; font-size: 0.8rem; font-weight: 700; border-radius: 8px; border: 1px solid #cbd5e1; background: white; color: #334155; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px;">
@@ -827,6 +842,43 @@
              ================================================================== -->
         <div id="view-admin" class="view-section" style="display: none;">
           <div style="display: flex; flex-direction: column; gap: 24px;">
+
+            <section class="card business-day-settings-card" aria-labelledby="business-day-settings-title">
+              <div class="card-header">
+                <div>
+                  <h2 id="business-day-settings-title">إعدادات اليوم الفندقي والإقفال التلقائي</h2>
+                  <p>يتم الإقفال بعد وقت القطع مع حفظ سجل مستقل لكل يوم.</p>
+                </div>
+              </div>
+              <form id="business-day-settings-form" class="business-day-settings-form">
+                <label>وقت بداية اليوم الفندقي
+                  <input id="business-day-cutoff-time" type="time" value="06:00" required>
+                </label>
+                <label>المنطقة الزمنية
+                  <input id="hotel-timezone" type="text" value="" placeholder="Africa/Cairo" required dir="ltr">
+                </label>
+                <label class="business-day-auto-toggle">
+                  <input id="auto-rollover-enabled" type="checkbox" checked>
+                  تفعيل الإقفال التلقائي
+                </label>
+                <button type="submit" class="btn btn-primary">حفظ الإعدادات</button>
+              </form>
+              <div id="business-day-pending-reconciliation" class="business-day-pending-reconciliation" hidden></div>
+            </section>
+
+            <section class="card business-day-settings-card receipt-policy-settings-card" aria-labelledby="receipt-policy-settings-title">
+              <div class="card-header">
+                <div>
+                  <h2 id="receipt-policy-settings-title">سياسة الإقامة والشروط</h2>
+                  <p>تظهر هذه الشروط في سند الاستلام؛ اكتب شرطاً واحداً في كل سطر، بحد أقصى 7 شروط.</p>
+                </div>
+              </div>
+              <form id="receipt-policy-settings-form" class="receipt-policy-settings-form">
+                <label for="receipt-policy-text">شروط الإقامة</label>
+                <textarea id="receipt-policy-text" rows="6" maxlength="1279" required></textarea>
+                <button type="submit" class="btn btn-primary">حفظ الشروط</button>
+              </form>
+            </section>
             
             <!-- Side-by-Side Forms Grid (grid-cols-1 lg:grid-cols-2 gap-6) -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 24px;">
@@ -834,8 +886,8 @@
               <!-- Form: Add New User Card -->
               <div class="card" style="background: rgba(255, 255, 255, 0.92); border: 1px solid rgba(226, 232, 240, 0.85); border-radius: 16px; box-shadow: 0 10px 25px -4px rgba(15, 23, 42, 0.05), 0 4px 10px -2px rgba(15, 23, 42, 0.02); overflow: hidden;">
                 <div class="card-header" style="border-bottom: 1px solid #f1f5f9; padding: 18px 22px; background: rgba(255, 255, 255, 0.85);">
-                  <h2 style="font-size: 1.1rem; font-weight: 800; color: #1a4332; display: flex; align-items: center; gap: 10px; margin: 0;">
-                    <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(26, 67, 50, 0.08); color: #1a4332; display: flex; align-items: center; justify-content: center;">
+                  <h2 style="font-size: 1.1rem; font-weight: 800; color: #1a432a; display: flex; align-items: center; gap: 10px; margin: 0;">
+                    <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(26, 67, 42, 0.08); color: #1a432a; display: flex; align-items: center; justify-content: center;">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                         <circle cx="8.5" cy="7" r="4"></circle>
@@ -866,7 +918,7 @@
                       </select>
                     </div>
 
-                    <button type="submit" class="btn btn-primary" style="width: 100%; background: #1a4332; color: #ffffff; padding: 11px 20px; font-weight: 800; border-radius: 12px; border: none; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(26, 67, 50, 0.2);">
+                    <button type="submit" class="btn btn-primary" style="width: 100%; background: #1a432a; color: #ffffff; padding: 11px 20px; font-weight: 800; border-radius: 12px; border: none; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(26, 67, 42, 0.2);">
                       إنشاء حساب المستخدم ✓
                     </button>
                   </form>
@@ -876,8 +928,8 @@
               <!-- Form: Update My Admin Password Card -->
               <div class="card" style="background: rgba(255, 255, 255, 0.92); border: 1px solid rgba(226, 232, 240, 0.85); border-radius: 16px; box-shadow: 0 10px 25px -4px rgba(15, 23, 42, 0.05), 0 4px 10px -2px rgba(15, 23, 42, 0.02); overflow: hidden;">
                 <div class="card-header" style="border-bottom: 1px solid #f1f5f9; padding: 18px 22px; background: rgba(255, 255, 255, 0.85);">
-                  <h2 style="font-size: 1.1rem; font-weight: 800; color: #1a4332; display: flex; align-items: center; gap: 10px; margin: 0;">
-                    <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(26, 67, 50, 0.08); color: #1a4332; display: flex; align-items: center; justify-content: center;">
+                  <h2 style="font-size: 1.1rem; font-weight: 800; color: #1a432a; display: flex; align-items: center; gap: 10px; margin: 0;">
+                    <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(26, 67, 42, 0.08); color: #1a432a; display: flex; align-items: center; justify-content: center;">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                         <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
@@ -892,7 +944,7 @@
                       <label for="current-admin-new-password" style="display: block; font-weight: 700; font-size: 0.86rem; color: #1e293b; margin-bottom: 6px;">كلمة المرور الجديدة *</label>
                       <input type="password" id="current-admin-new-password" required placeholder="أدخل كلمة المرور الجديدة" style="width: 100%; background: #f8fafc; border: 1px solid #e2e8f0; color: #1e293b; border-radius: 12px; padding: 10px 14px; font-weight: 600;">
                     </div>
-                    <button type="submit" class="btn btn-primary" style="width: 100%; background: #1a4332; color: #ffffff; padding: 11px 20px; font-weight: 800; border-radius: 12px; border: none; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(26, 67, 50, 0.2); margin-top: 52px;">
+                    <button type="submit" class="btn btn-primary" style="width: 100%; background: #1a432a; color: #ffffff; padding: 11px 20px; font-weight: 800; border-radius: 12px; border: none; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(26, 67, 42, 0.2); margin-top: 52px;">
                       تحديث كلمة المرور ✓
                     </button>
                   </form>
@@ -905,7 +957,7 @@
             <div class="card" style="background: rgba(255, 255, 255, 0.92); border: 1px solid rgba(226, 232, 240, 0.85); border-radius: 16px; box-shadow: 0 10px 25px -4px rgba(15, 23, 42, 0.05), 0 4px 10px -2px rgba(15, 23, 42, 0.02); overflow: hidden;">
               <div class="card-header" style="border-bottom: 1px solid #f1f5f9; padding: 18px 22px; background: rgba(255, 255, 255, 0.85); display: flex; align-items: center; justify-content: space-between;">
                 <div>
-                  <h2 style="font-size: 1.1rem; font-weight: 800; color: #1a4332; margin: 0;">المستخدمون المسجلون في النظام</h2>
+                  <h2 style="font-size: 1.1rem; font-weight: 800; color: #1a432a; margin: 0;">المستخدمون المسجلون في النظام</h2>
                   <p style="font-size: 0.78rem; color: #64748b; margin: 2px 0 0; font-weight: 600;">إدارة الحسابات وصلاحيات الوصول (RBAC)</p>
                 </div>
                 <button id="btn-refresh-users" class="btn btn-secondary btn-sm" style="border-radius: 8px; font-weight: 700;">تحديث</button>
@@ -976,7 +1028,7 @@
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                   </svg>
                 </span>
-                <input type="text" id="search-logs" placeholder="بحث باسم الموظف أو الصلاحية...">
+                <input type="text" id="search-logs" placeholder="بحث باسم الموظف أو الصلاحية... ( / )">
               </div>
 
               <div style="display: flex; align-items: center; gap: 12px;">
@@ -1025,11 +1077,11 @@
   <!-- ==================================================================
        NEW RESERVATION MODAL / SLIDE-OVER DRAWER
        ================================================================== -->
-  <div id="new-reservation-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.65); z-index: 100000; align-items: center; justify-content: center; padding: 20px; overflow-y: auto;">
-    <div class="modal-glass-container" style="background: #ffffff; border-radius: 16px; max-width: 680px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); overflow: hidden; margin: auto; border: 1px solid #e2e8f0;">
+  <div id="new-reservation-modal" class="modal-backdrop modal-layout-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.65); z-index: 100000; align-items: center; justify-content: center; padding: 20px; overflow-y: auto;">
+    <div class="modal-glass-container modal-layout" style="background: #ffffff; border-radius: 16px; max-width: 680px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); overflow: hidden; margin: auto; border: 1px solid #e2e8f0;">
       
       <!-- Drawer Header -->
-      <div style="background: linear-gradient(135deg, #1a4332 0%, #112d22 100%); color: white; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1);">
+      <div class="modal-layout__header" style="background: linear-gradient(135deg, #1a432a 0%, #112d1c 100%); color: white; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.1);">
         <div style="display: flex; align-items: center; gap: 12px;">
           <div style="width: 38px; height: 38px; border-radius: 10px; background: rgba(255, 255, 255, 0.15); display: flex; align-items: center; justify-content: center;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -1039,17 +1091,17 @@
           </div>
           <div>
             <h2 style="font-size: 1.15rem; font-weight: 800; margin: 0; color: #ffffff;">تسجيل حجز فندقي جديد</h2>
-            <p style="font-size: 0.78rem; color: #a7f3d0; margin: 2px 0 0;">إدخال بيانات النزيل وتسكين الغرفة فورياً في النظام</p>
+            <p style="font-size: 0.78rem; color: #a7f3c4; margin: 2px 0 0;">إدخال بيانات النزيل وتسكين الغرفة فورياً في النظام</p>
           </div>
         </div>
-        <button id="btn-close-new-reservation" type="button" class="btn btn-sm" style="background: rgba(255,255,255,0.15); color: white; border: none; font-size: 1.3rem; width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer;" title="إغلاق">&times;</button>
+        <button id="btn-close-new-reservation" type="button" class="btn btn-sm modal-layout__close" style="background: rgba(255,255,255,0.15); color: white; border: none; font-size: 1.3rem; width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer;" title="إغلاق">&times;</button>
       </div>
 
       <!-- Drawer Body -->
-      <div style="padding: 24px; max-height: calc(85vh - 75px); overflow-y: auto;">
+      <div class="modal-layout__body" style="padding: 24px; max-height: calc(85vh - 75px); overflow-y: auto;">
         <form id="reservation-form">
           <!-- Returning Guest Auto-fill Banner -->
-          <div id="autofill-guest-status" style="display: none; margin-bottom: 18px; padding: 10px 14px; background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 10px; color: #065f46; font-size: 0.85rem; align-items: center; justify-content: space-between;">
+          <div id="autofill-guest-status" style="display: none; margin-bottom: 18px; padding: 10px 14px; background: #ecfdf3; border: 1px solid #6ee79d; border-radius: 10px; color: #065f28; font-size: 0.85rem; align-items: center; justify-content: space-between;">
             <div style="display: flex; align-items: center; gap: 8px;">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
@@ -1057,7 +1109,7 @@
               </svg>
               <span id="autofill-guest-msg"><strong>تم التعرف على النزيل السابق:</strong> تم ملء الاسم والبيانات تلقائياً.</span>
             </div>
-            <span id="autofill-guest-badge" class="badge" style="background: rgba(16, 185, 129, 0.2); color: #047857; border: 1px solid rgba(16, 185, 129, 0.4); font-weight: 800;">نزيل سابق</span>
+            <span id="autofill-guest-badge" class="badge" style="background: rgba(16, 185, 81, 0.2); color: #047831; border: 1px solid rgba(16, 185, 81, 0.4); font-weight: 800;">نزيل سابق</span>
           </div>
 
           <!-- Banned Guest Warning Banner -->
@@ -1074,14 +1126,15 @@
           </div>
 
           <!-- Section 1: Guest Information -->
-          <div style="font-size: 0.85rem; font-weight: 800; color: #1e293b; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px;">
+          <section class="modal-section-card">
+          <div class="modal-section-card__header" style="font-size: 0.85rem; font-weight: 800; color: #1e293b; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px;">
             <span>👤 بيانات النزيل الشخصية</span>
           </div>
 
           <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 6px;">
             <div class="form-group" style="margin-bottom: 0;">
               <label for="guest-phone" style="font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; display: block; color: #334155;">رقم الجوال *</label>
-              <input type="tel" id="guest-phone" required placeholder="05xxxxxxxx" class="form-control">
+              <input type="tel" id="guest-phone" required placeholder="05xxxxxxxx" class="form-control form-input">
               <p id="guest-phone-error" class="hidden text-rose-500 text-xs font-bold mt-1.5" style="display:none; color:#f43f5e; font-size:0.76rem; font-weight:700; margin-top:4px;"></p>
             </div>
             <div class="form-group" style="margin-bottom: 0;">
@@ -1098,9 +1151,11 @@
             <label for="guest-name" style="font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; display: block; color: #334155;">اسم النزيل الثلاثي *</label>
             <input type="text" id="guest-name" required placeholder="مثال: محمد عبدالله العمري" class="form-control">
           </div>
+          </section>
 
           <!-- Section 2: Room & Stay Details -->
-          <div style="font-size: 0.85rem; font-weight: 800; color: #1e293b; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px;">
+          <section class="modal-section-card">
+          <div class="modal-section-card__header" style="font-size: 0.85rem; font-weight: 800; color: #1e293b; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px;">
             <span>🏨 تفاصيل الغرفة والإقامة</span>
           </div>
 
@@ -1117,7 +1172,7 @@
           <div class="form-group" style="margin-bottom: 14px;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
               <label for="room-select" style="font-weight: 700; font-size: 0.82rem; margin-bottom: 0; display: block; color: #334155;">اختيار الغرفة *</label>
-              <span id="room-select-lock-badge" style="display: none; font-size: 0.76rem; font-weight: 800; color: #166534; background: #ecfdf5; border: 1px solid #86efac; border-radius: 6px; padding: 2px 8px;"></span>
+              <span id="room-select-lock-badge" style="display: none; font-size: 0.76rem; font-weight: 800; color: #166535; background: #ecfdf3; border: 1px solid #86efaf; border-radius: 6px; padding: 2px 8px;"></span>
             </div>
             <select id="room-select" required class="form-control">
               <option value="">-- اختر الغرفة --</option>
@@ -1133,12 +1188,15 @@
               <label for="check-out-date" id="check-out-label" style="font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; display: block; color: #334155;">تاريخ المغادرة <span id="check-out-required-star">*</span></label>
               <input type="date" id="check-out-date" required class="form-control">
               <span id="check-out-minimum-hint" style="display: block; font-size: 0.73rem; color: #64748b; font-weight: 600; margin-top: 4px;">الحد الأدنى للإقامة ليلة واحدة؛ المغادرة في اليوم التالي على الأقل.</span>
-              <span id="check-out-day-use-hint" style="display: none; font-size: 0.73rem; color: #047857; font-weight: 700; margin-top: 4px;">استخدام يومي: المغادرة في نفس اليوم، والموعد المعتاد الساعة 2 ظهرًا.</span>
+              <span id="check-out-day-use-hint" style="display: none; font-size: 0.73rem; color: #047831; font-weight: 700; margin-top: 4px;">استخدام يومي: المغادرة في نفس اليوم، والموعد المعتاد الساعة 2 ظهرًا.</span>
               <span id="check-out-open-hint" style="display: none; font-size: 0.73rem; color: #0284c7; font-weight: 700; margin-top: 4px;">عقد مفتوح: لا يتطلب تحديد موعد خروج</span>
             </div>
           </div>
+          </section>
 
           <!-- Flexible Pricing: Custom Nightly Rate & Discount -->
+          <section class="modal-section-card">
+          <div class="modal-section-card__header"><span>💰 التسعير والخصومات</span></div>
           <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
             <div class="form-group" style="margin-bottom: 0;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
@@ -1164,14 +1222,16 @@
           <div class="form-group" style="margin-bottom: 18px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
               <label for="total-price" id="total-price-label" style="font-weight: 700; font-size: 0.82rem; margin-bottom: 0; display: block; color: #334155;">السعر الإجمالي النهائي للإقامة (ريال) *</label>
-              <span id="price-calculation-breakdown" style="font-size: 0.74rem; font-weight: 700; color: #059669; display: none;"></span>
+              <span id="price-calculation-breakdown" style="font-size: 0.74rem; font-weight: 700; color: #05963d; display: none;"></span>
             </div>
             <input type="number" id="total-price" required min="0" step="any" placeholder="0.00" class="form-control" style="font-weight: 800; font-size: 1.05rem; color: #1e293b; background: #f8fafc;">
             <span id="total-price-open-hint" style="display: none; font-size: 0.73rem; color: #0284c7; font-weight: 700; margin-top: 4px;">يمكن تركه 0.00 للعقد المفتوح وسداد دفعات دورية لاحقاً</span>
           </div>
+          </section>
 
           <!-- Section 3: Payment & Accounting -->
-          <div style="font-size: 0.85rem; font-weight: 800; color: #1e293b; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px;">
+          <section class="modal-section-card">
+          <div class="modal-section-card__header" style="font-size: 0.85rem; font-weight: 800; color: #1e293b; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px;">
             <span>💳 المحاسبة والدفع</span>
           </div>
 
@@ -1186,7 +1246,7 @@
             </div>
             <div class="form-group" style="margin-bottom: 0;">
               <label for="paid-amount" style="font-weight: 700; font-size: 0.82rem; margin-bottom: 6px; display: block; color: #334155;">المبلغ المدفوع مقدماً *</label>
-              <input type="number" id="paid-amount" required min="0" step="0.5" placeholder="0.00" class="form-control" style="font-weight: 700; color: #047857;">
+              <input type="number" id="paid-amount" required min="0" step="0.5" placeholder="0.00" class="form-control" style="font-weight: 700; color: #047831;">
             </div>
           </div>
 
@@ -1204,13 +1264,14 @@
               </div>
             </div>
           </div>
+          </section>
 
           <!-- Drawer Action Buttons -->
-          <div style="display: flex; gap: 12px; border-top: 1px solid #e2e8f0; padding-top: 18px;">
+          <div class="modal-layout__footer" style="display: flex; gap: 12px; border-top: 1px solid #e2e8f0; padding-top: 18px;">
             <button type="button" id="btn-clear-form" class="btn btn-secondary" style="flex: 1; padding: 11px; font-weight: 700;">
               إفراغ الحقول
             </button>
-            <button type="submit" class="btn btn-primary" style="flex: 2; padding: 11px; font-weight: 800; background: #1a4332; color: white; display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
+            <button type="submit" class="btn btn-primary" style="flex: 2; padding: 11px; font-weight: 800; background: #1a432a; color: white; display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
                 <polyline points="17 21 17 13 7 13 7 21"></polyline>
@@ -1225,8 +1286,8 @@
   </div>
 
   <!-- Universal In-App Confirmation Modal (Prevents native browser confirm freezing) -->
-  <div id="app-confirm-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 999999; align-items: center; justify-content: center; padding: 20px;">
-    <div class="modal-glass-container" style="padding: 28px; max-width: 440px; width: 92%; text-align: center; margin: auto;">
+  <div id="app-confirm-modal" class="modal-backdrop modal-layout-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; z-index: 999999; align-items: center; justify-content: center; padding: 20px;">
+    <div class="modal-glass-container modal-layout" style="padding: 28px; max-width: 440px; width: 92%; text-align: center; margin: auto;">
       <div id="confirm-modal-icon-container" style="width: 52px; height: 52px; border-radius: 50%; background: rgba(239, 68, 68, 0.12); color: #dc2626; border: 1px solid rgba(239, 68, 68, 0.25); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
@@ -1244,8 +1305,8 @@
   </div>
 
   <!-- Universal In-App Prompt Modal (For Ban Reason & Text Input) -->
-  <div id="app-prompt-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 999999; align-items: center; justify-content: center; padding: 20px;">
-    <div class="modal-glass-container" style="padding: 28px; max-width: 440px; width: 92%; text-align: center; margin: auto;">
+  <div id="app-prompt-modal" class="modal-backdrop modal-layout-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; z-index: 999999; align-items: center; justify-content: center; padding: 20px;">
+    <div class="modal-glass-container modal-layout" style="padding: 28px; max-width: 440px; width: 92%; text-align: center; margin: auto;">
       <div id="prompt-modal-icon-container" style="width: 52px; height: 52px; border-radius: 50%; background: rgba(239, 68, 68, 0.12); color: #dc2626; border: 1px solid rgba(239, 68, 68, 0.25); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="10"></circle>
@@ -1264,8 +1325,8 @@
   </div>
 
   <!-- In-App Logout Confirmation Modal (Prevents native browser confirm freezing) -->
-  <div id="logout-confirm-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 99999; align-items: center; justify-content: center; padding: 20px;">
-    <div class="modal-glass-container" style="padding: 28px; max-width: 400px; width: 90%; text-align: center; margin: auto;">
+  <div id="logout-confirm-modal" class="modal-backdrop modal-layout-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; z-index: 99999; align-items: center; justify-content: center; padding: 20px;">
+    <div class="modal-glass-container modal-layout" style="padding: 28px; max-width: 400px; width: 90%; text-align: center; margin: auto;">
       <div style="width: 52px; height: 52px; border-radius: 50%; background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -1283,10 +1344,10 @@
   </div>
 
   <!-- Printable Hotel Tax Invoice Modal (Feature 1) -->
-  <div id="invoice-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100000; align-items: center; justify-content: center; overflow: hidden; padding: 12px;">
-    <div style="background: white; border-radius: 16px; max-width: 1100px; width: 96vw; max-height: calc(100vh - 24px); display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35); overflow: hidden; margin: auto;">
+  <div id="invoice-modal" class="modal-backdrop modal-layout-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100000; align-items: center; justify-content: center; overflow: hidden; padding: 12px;">
+    <div class="modal-layout" style="background: white; border-radius: 16px; max-width: 1100px; width: 96vw; max-height: calc(100vh - 24px); display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35); overflow: hidden; margin: auto;">
       <!-- Action Toolbar (No-Print) -->
-      <div class="no-print" style="background: #1e1b4b; color: white; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between;">
+      <div class="no-print modal-layout__header" style="background: #1e1b4b; color: white; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between;">
         <div style="display: flex; align-items: center; gap: 10px;">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -1298,39 +1359,39 @@
           <span style="font-weight: 800; font-size: 1.05rem;">معاينة سند الاستلام والإقامة</span>
         </div>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <button id="btn-export-pdf-invoice" type="button" class="btn btn-sm" style="background: #059669; color: white; font-weight: 700; padding: 7px 14px;">
+          <button id="btn-export-pdf-invoice" type="button" class="btn btn-sm receipt-toolbar-btn receipt-toolbar-btn--secondary" style="background: #05963d; color: white; font-weight: 700; padding: 7px 14px;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
               <polyline points="14 2 14 8 20 8"></polyline>
             </svg>
             <span>حفظ PDF 📄</span>
           </button>
-          <button id="btn-preview-window-invoice" type="button" class="btn btn-sm" style="background: #0e2e1f; color: white; font-weight: 700; padding: 7px 14px; border: 1px solid #143d2b;">
+          <button id="btn-preview-window-invoice" type="button" class="btn btn-sm receipt-toolbar-btn receipt-toolbar-btn--secondary" style="background: #0e2e1a; color: white; font-weight: 700; padding: 7px 14px; border: 1px solid #143d24;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
             <span>معاينة مستقلة 🔍</span>
           </button>
-          <button id="btn-edit-invoice" type="button" class="btn btn-sm" style="background: #4338ca; color: white; font-weight: 700; padding: 7px 14px; border: 1px solid #6366f1;">
+          <button id="btn-edit-invoice" type="button" class="btn btn-sm receipt-toolbar-btn receipt-toolbar-btn--secondary" style="background: #4338ca; color: white; font-weight: 700; padding: 7px 14px; border: 1px solid #6366f1;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
             </svg>
             <span>تعديل السند ✏️</span>
           </button>
-          <button id="btn-close-invoice-modal" type="button" class="btn btn-sm" style="background: rgba(255,255,255,0.15); color: white; border: none; font-size: 0.95rem;">
+          <button id="btn-close-invoice-modal" type="button" class="btn btn-sm receipt-toolbar-btn receipt-toolbar-btn--close" style="background: rgba(255,255,255,0.15); color: white; border: none; font-size: 0.95rem;">
             إغلاق &times;
           </button>
         </div>
       </div>
 
       <!-- Printable Area -->
-      <div id="invoice-printable-area" style="padding: 18px 24px; background: white; color: #0f172a; direction: rtl; text-align: right; flex: 1 1 auto; min-height: 0; min-width: 0; overflow: hidden;">
+      <div id="invoice-printable-area" style="padding: 14px 18px; background: white; color: #0f172a; direction: rtl; text-align: right; flex: 1 1 auto; min-height: 0; min-width: 0; overflow: auto;">
         <!-- Filled dynamically by JavaScript -->
       </div>
       <div class="no-print" style="display: flex; justify-content: flex-start; padding: 16px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0;">
-        <button id="btn-trigger-print-invoice" type="button" class="btn btn-sm" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #4338ca; color: white; font-weight: 800; padding: 10px 20px; border-radius: 8px;">
+        <button id="btn-trigger-print-invoice" type="button" class="btn btn-sm receipt-toolbar-btn receipt-toolbar-btn--primary" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #4338ca; color: white; font-weight: 800; padding: 10px 20px; border-radius: 8px;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="6 9 6 2 18 2 18 9"></polyline>
             <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
@@ -1343,16 +1404,16 @@
   </div>
 
   <!-- Modal: Room Revenue Report -->
-  <div id="room-revenue-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100000; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
-    <div style="background: white; border-radius: 16px; max-width: 840px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35); overflow: hidden; margin: auto;">
+  <div id="room-revenue-modal" class="modal-backdrop modal-layout-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100000; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
+    <div class="modal-layout" style="background: white; border-radius: 16px; max-width: 840px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35); overflow: hidden; margin: auto;">
       <!-- Action Toolbar (No-Print) -->
-      <div class="no-print" style="background: #1a4332; color: white; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between;">
+      <div class="no-print modal-layout__header" style="background: #1a432a; color: white; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between;">
         <div style="display: flex; align-items: center; gap: 10px;">
           <span style="font-size: 1.25rem;">📊</span>
           <span id="room-revenue-modal-title" style="font-weight: 800; font-size: 1.05rem;">تقرير إيرادات الغرفة</span>
         </div>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <button id="btn-close-room-revenue-modal" type="button" class="btn btn-sm" style="background: rgba(255,255,255,0.15); color: white; border: none; font-size: 0.95rem; cursor: pointer; border-radius: 6px; padding: 6px 14px; font-weight: 700;">
+          <button id="btn-close-room-revenue-modal" type="button" class="btn btn-sm modal-layout__close" style="background: rgba(255,255,255,0.15); color: white; border: none; font-size: 0.95rem; cursor: pointer; border-radius: 6px; padding: 6px 14px; font-weight: 700;">
             إغلاق &times;
           </button>
         </div>
@@ -1366,16 +1427,16 @@
   </div>
 
   <!-- Modal: Edit Receipt / Invoice -->
-  <div id="edit-invoice-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100050; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
-    <div style="background: white; border-radius: 16px; max-width: 540px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35); overflow: hidden; margin: auto;">
-      <div style="background: #1e1b4b; color: white; padding: 16px 22px; display: flex; align-items: center; justify-content: space-between;">
+  <div id="edit-invoice-modal" class="modal-backdrop modal-layout-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100050; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
+    <div class="modal-layout" style="background: white; border-radius: 16px; max-width: 540px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35); overflow: hidden; margin: auto;">
+      <div class="modal-layout__header" style="background: #1e1b4b; color: white; padding: 16px 22px; display: flex; align-items: center; justify-content: space-between;">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 1.2rem;">✏️</span>
           <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800;">تعديل بيانات السند والنزيل</h3>
         </div>
-        <button id="btn-close-edit-invoice" type="button" style="background: none; border: none; color: white; font-size: 1.3rem; cursor: pointer;">&times;</button>
+        <button id="btn-close-edit-invoice" type="button" class="modal-layout__close" style="background: none; border: none; color: white; font-size: 1.3rem; cursor: pointer;">&times;</button>
       </div>
-      <form id="edit-invoice-form" style="padding: 22px;">
+      <form id="edit-invoice-form" class="modal-layout__body" style="padding: 22px;">
         <input type="hidden" id="edit-inv-res-id">
 
         <!-- Guest Info Section -->
@@ -1404,7 +1465,7 @@
           </div>
           <div class="form-group" style="margin-bottom: 0;">
             <label for="edit-inv-paid-amount" style="display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; color: #334155;">المبلغ المدفوع (ريال) *</label>
-            <input type="number" id="edit-inv-paid-amount" required min="0" step="0.5" class="form-control" style="font-weight: 700; color: #047857;">
+            <input type="number" id="edit-inv-paid-amount" required min="0" step="0.5" class="form-control" style="font-weight: 700; color: #047831;">
           </div>
         </div>
         <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
@@ -1426,10 +1487,10 @@
         <!-- Live Remaining Preview -->
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center;">
           <span style="font-size: 0.82rem; font-weight: 700; color: #475569;">المبلغ المتبقي المحسوب:</span>
-          <span id="edit-inv-remaining-preview" style="font-size: 0.95rem; font-weight: 800; color: #059669;">0.00 ريال</span>
+          <span id="edit-inv-remaining-preview" style="font-size: 0.95rem; font-weight: 800; color: #05963d;">0.00 ريال</span>
         </div>
 
-        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <div class="modal-layout__footer" style="display: flex; gap: 10px; justify-content: flex-end;">
           <button type="button" id="btn-cancel-edit-inv" class="btn btn-secondary btn-sm" style="padding: 8px 16px;">إلغاء</button>
           <button type="submit" class="btn btn-primary btn-sm" style="background: #4338ca; border-color: #4338ca; padding: 8px 18px; font-weight: 700;">حفظ تعديلات السند ✓</button>
         </div>
@@ -1438,16 +1499,16 @@
   </div>
 
   <!-- Modal: Edit Guest Details -->
-  <div id="edit-guest-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100050; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
-    <div style="background: white; border-radius: 16px; max-width: 500px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35); overflow: hidden; margin: auto;">
-      <div style="background: #1a4332; color: white; padding: 16px 22px; display: flex; align-items: center; justify-content: space-between;">
+  <div id="edit-guest-modal" class="modal-backdrop modal-layout-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100050; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
+    <div class="modal-layout" style="background: white; border-radius: 16px; max-width: 500px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35); overflow: hidden; margin: auto;">
+      <div class="modal-layout__header" style="background: #1a432a; color: white; padding: 16px 22px; display: flex; align-items: center; justify-content: space-between;">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 1.2rem;">✏️</span>
           <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800;">تعديل بيانات النزيل</h3>
         </div>
-        <button id="btn-close-edit-guest" type="button" style="background: none; border: none; color: white; font-size: 1.3rem; cursor: pointer;">&times;</button>
+        <button id="btn-close-edit-guest" type="button" class="modal-layout__close" style="background: none; border: none; color: white; font-size: 1.3rem; cursor: pointer;">&times;</button>
       </div>
-      <form id="edit-guest-form" style="padding: 22px;">
+      <form id="edit-guest-form" class="modal-layout__body" style="padding: 22px;">
         <input type="hidden" id="edit-guest-id">
 
         <div class="form-group" style="margin-bottom: 14px;">
@@ -1465,30 +1526,32 @@
           <input type="text" id="edit-guest-id-number" class="form-control" placeholder="10 أرقام للهوية/الإقامة أو 6-9 خانات للجواز" style="font-size: 0.9rem;">
         </div>
 
-        <div style="display: flex; gap: 10px; justify-content: flex-end; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+        <div class="modal-layout__footer" style="display: flex; gap: 10px; justify-content: flex-end; border-top: 1px solid #f1f5f9; padding-top: 16px;">
           <button type="button" id="btn-cancel-edit-guest" class="btn btn-secondary btn-sm" style="padding: 8px 18px; font-weight: 700;">إلغاء</button>
-          <button type="submit" id="btn-save-edit-guest" class="btn btn-primary btn-sm" style="padding: 8px 22px; font-weight: 800; background: #1a4332; border-color: #1a4332;">حفظ التعديلات ✓</button>
+          <button type="submit" id="btn-save-edit-guest" class="btn btn-primary btn-sm" style="padding: 8px 22px; font-weight: 800; background: #1a432a; border-color: #1a432a;">حفظ التعديلات ✓</button>
         </div>
       </form>
     </div>
   </div>
 
   <!-- Modal: Extend Reservation Stay -->
-  <div id="extend-stay-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100060; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
-    <div style="background: white; border-radius: 16px; max-width: 540px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35); overflow: hidden; margin: auto;">
-      <div style="background: #1e3a8a; color: white; padding: 16px 22px; display: flex; align-items: center; justify-content: space-between;">
+  <div id="extend-stay-modal" class="modal-backdrop modal-layout-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100060; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
+    <div class="modal-layout" style="background: white; border-radius: 16px; max-width: 540px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35); overflow: hidden; margin: auto;">
+      <div class="modal-layout__header" style="background: #1e3a8a; color: white; padding: 16px 22px; display: flex; align-items: center; justify-content: space-between;">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 1.25rem;">⏳</span>
           <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800;">تمديد فترة الإقامة (Extend Stay)</h3>
         </div>
-        <button id="btn-close-extend-stay" type="button" style="background: none; border: none; color: white; font-size: 1.3rem; cursor: pointer;">&times;</button>
+        <button id="btn-close-extend-stay" type="button" class="modal-layout__close" style="background: none; border: none; color: white; font-size: 1.3rem; cursor: pointer;">&times;</button>
       </div>
 
-      <form id="extend-stay-form" style="padding: 22px;">
+      <form id="extend-stay-form" class="modal-layout__body" style="padding: 22px;">
         <input type="hidden" id="extend-res-id">
+        <div class="extend-layout-grid">
+          <div>
 
         <!-- Info Card -->
-        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; font-size: 0.85rem; line-height: 1.8;">
+        <div class="modal-section-card extend-stay-guest-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; font-size: 0.85rem; line-height: 1.8;">
           <div style="display: flex; justify-content: space-between;">
             <span style="color: #64748b;">النزيل:</span>
             <strong id="extend-guest-name-preview" style="color: #0f172a;">-</strong>
@@ -1503,14 +1566,14 @@
           </div>
           <div style="display: flex; justify-content: space-between; border-top: 1px solid #e2e8f0; margin-top: 4px; padding-top: 4px;">
             <span style="color: #64748b;">سعر الليلة المعتمد:</span>
-            <strong id="extend-nightly-rate-preview" style="color: #059669;">- ريال</strong>
+            <strong id="extend-nightly-rate-preview" style="color: #05963d;">- ريال</strong>
           </div>
         </div>
 
         <!-- Quick Extension Buttons -->
-        <div style="margin-bottom: 14px;">
-          <label style="display: block; font-size: 0.82rem; font-weight: 700; margin-bottom: 6px; color: #334155;">خيارات التمديد السريع:</label>
-          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+        <div class="modal-section-card">
+          <label class="modal-section-card__header" style="display: block; font-size: 0.82rem; font-weight: 700; margin-bottom: 6px; color: #334155;">خيارات التمديد السريع:</label>
+          <div class="quick-tag-selector" style="display: flex; gap: 6px; flex-wrap: wrap;">
             <button type="button" class="btn btn-secondary btn-sm btn-quick-extend" data-days="1" style="flex: 1; min-width: 55px; padding: 5px 0; font-weight: 700; font-size: 0.8rem;">+1 ليلة</button>
             <button type="button" class="btn btn-secondary btn-sm btn-quick-extend" data-days="2" style="flex: 1; min-width: 55px; padding: 5px 0; font-weight: 700; font-size: 0.8rem;">+2 ليلة</button>
             <button type="button" class="btn btn-secondary btn-sm btn-quick-extend" data-days="3" style="flex: 1; min-width: 55px; padding: 5px 0; font-weight: 700; font-size: 0.8rem;">+3 ليالٍ</button>
@@ -1520,13 +1583,15 @@
         </div>
 
         <!-- New Check-out Date Field -->
-        <div class="form-group" style="margin-bottom: 14px;">
+        <div class="form-group modal-section-card" style="margin-bottom: 14px;">
           <label for="extend-new-checkout-date" style="display: block; font-size: 0.85rem; font-weight: 700; margin-bottom: 6px; color: #334155;">تاريخ المغادرة الجديد *</label>
-          <input type="date" id="extend-new-checkout-date" required class="form-control" style="font-weight: 700; font-size: 0.92rem;">
+          <input type="date" id="extend-new-checkout-date" required class="form-control form-input" style="font-weight: 700; font-size: 0.92rem;">
         </div>
 
+          </div>
+          <div>
         <!-- Nightly Rate & Discount Fields -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+        <div class="modal-section-card extend-stay-pricing" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
           <div class="form-group" style="margin-bottom: 0;">
             <label for="extend-nightly-rate-input" style="display: block; font-size: 0.82rem; font-weight: 700; margin-bottom: 5px; color: #334155;">
               سعر الليلة للتمديد (ر.س)
@@ -1544,7 +1609,7 @@
         </div>
 
         <!-- Financial Calculation Summary Card -->
-        <div style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 10px; padding: 14px; margin-bottom: 18px;">
+        <div class="modal-section-card extend-stay-summary" style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 10px; padding: 14px; margin-bottom: 18px;">
           <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center;">
             <div>
               <div style="font-size: 0.72rem; color: #1e40af; font-weight: 700;">الليالي الإضافية</div>
@@ -1559,15 +1624,11 @@
               <div id="extend-additional-cost-preview" style="font-size: 1.05rem; font-weight: 900; color: #2563eb; margin-top: 2px;">0 ر.س</div>
               <div id="extend-discount-badge" style="font-size: 0.7rem; color: #dc2626; font-weight: 700; margin-top: 1px; display: none;"></div>
             </div>
-            <div>
-              <div style="font-size: 0.72rem; color: #1e40af; font-weight: 700;">إجمالي الحجز الجديد</div>
-              <div id="extend-new-total-preview" style="font-size: 1.05rem; font-weight: 900; color: #059669; margin-top: 2px;">0 ر.س</div>
-            </div>
           </div>
         </div>
 
         <!-- Payment Section -->
-        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; margin-bottom: 20px;">
+        <div class="modal-section-card extend-stay-payment" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; margin-bottom: 20px;">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
             <label style="font-size: 0.85rem; font-weight: 800; color: #0f172a; margin: 0; cursor: pointer; display: flex; align-items: center; gap: 8px;">
               <input type="checkbox" id="extend-collect-now-toggle" checked style="accent-color: #1e3a8a; width: 16px; height: 16px; cursor: pointer;">
@@ -1591,20 +1652,28 @@
             </div>
           </div>
         </div>
+          </div>
+        </div>
 
-        <div style="display: flex; gap: 10px; justify-content: flex-end; border-top: 1px solid #f1f5f9; padding-top: 16px;">
-          <button type="button" id="btn-cancel-extend-stay" class="btn btn-secondary btn-sm" style="padding: 8px 18px; font-weight: 700;">إلغاء</button>
-          <button type="submit" id="btn-confirm-extend-stay" class="btn btn-primary btn-sm" style="padding: 8px 22px; font-weight: 800; background: #1e3a8a; border-color: #1e3a8a;">تأكيد تمديد الحجز ✓</button>
+        <div class="extend-stay-footer modal-layout__footer" style="display: flex; gap: 10px; justify-content: flex-end; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+          <div class="extend-stay-actions">
+            <button type="button" id="btn-cancel-extend-stay" class="btn btn-secondary btn-sm" style="padding: 8px 18px; font-weight: 700;">إلغاء</button>
+            <button type="submit" id="btn-confirm-extend-stay" class="btn btn-primary btn-sm" style="padding: 8px 22px; font-weight: 800; background: #1e3a8a; border-color: #1e3a8a;">تأكيد تمديد الحجز ✓</button>
+          </div>
+          <div class="extend-total-footer">
+            <span>إجمالي الحجز الجديد</span>
+            <strong id="extend-new-total-preview" style="font-size: 1.05rem; font-weight: 900; color: #05963d; margin-top: 2px;">0 ر.س</strong>
+          </div>
         </div>
       </form>
     </div>
   </div>
 
   <!-- Shift Audit & Night Closing Modal (Feature 5) -->
-  <div id="shift-audit-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100000; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
-    <div style="background: white; border-radius: 16px; max-width: 860px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35); overflow: hidden; margin: auto;">
+  <div id="shift-audit-modal" class="modal-backdrop modal-layout-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100000; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
+    <div class="modal-layout" style="background: white; border-radius: 16px; max-width: 860px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35); overflow: hidden; margin: auto;">
       <!-- Action Toolbar (No-Print) -->
-      <div class="no-print" style="background: #0f172a; color: white; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between;">
+      <div class="no-print modal-layout__header" style="background: #0f172a; color: white; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between;">
         <div style="display: flex; align-items: center; gap: 10px;">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
@@ -1615,7 +1684,10 @@
           <span style="font-weight: 800; font-size: 1.05rem;">تقرير إقفال الوردية والموازنة المالية (Night Audit)</span>
         </div>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <button id="btn-print-shift-audit" type="button" class="btn btn-sm" style="background: #059669; color: white; font-weight: 700; padding: 7px 14px;">
+          <button id="btn-run-night-audit" data-role-required="Admin" type="button" class="btn btn-sm" style="background: #b45309; color: white; font-weight: 800; padding: 7px 14px; border: 1px solid #f59e0b;" title="إقفال تاريخ العمل الحالي والانتقال إلى اليوم التالي">
+            <span>إقفال اليوم الفندقي</span>
+          </button>
+          <button id="btn-print-shift-audit" type="button" class="btn btn-sm" style="background: #05963d; color: white; font-weight: 700; padding: 7px 14px;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="6 9 6 2 18 2 18 9"></polyline>
               <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
@@ -1623,7 +1695,7 @@
             </svg>
             <span>طباعة فورية 🖨️</span>
           </button>
-          <button id="btn-export-pdf-shift-audit" type="button" class="btn btn-sm" style="background: #143d2b; color: white; font-weight: 700; padding: 7px 14px;">
+          <button id="btn-export-pdf-shift-audit" type="button" class="btn btn-sm" style="background: #143d24; color: white; font-weight: 700; padding: 7px 14px;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
               <polyline points="14 2 14 8 20 8"></polyline>
@@ -1651,11 +1723,11 @@
   </div>
 
   <!-- User Manual & Help Modal (دليل المستخدم والمساعدة الفورية) -->
-  <div id="user-manual-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100015; align-items: center; justify-content: center; overflow: hidden; padding: 16px;">
-    <div style="background: #ffffff; border-radius: 16px; max-width: 1020px; width: 100%; height: 90vh; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.45); overflow: hidden; margin: auto; border: 1.5px solid rgba(166, 124, 82, 0.3);">
+  <div id="user-manual-modal" class="modal-backdrop modal-layout-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100015; align-items: center; justify-content: center; overflow: hidden; padding: 16px;">
+    <div class="modal-layout" style="background: #ffffff; border-radius: 16px; max-width: 1020px; width: 100%; height: 90vh; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.45); overflow: hidden; margin: auto; border: 1.5px solid rgba(166, 124, 82, 0.3);">
       
       <!-- Modal Header -->
-      <div class="no-print" style="background: linear-gradient(135deg, #1a4332 0%, #0e2e1f 100%); color: #ffffff; padding: 14px 22px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #a67c52; flex-shrink: 0; flex-wrap: wrap; gap: 12px;">
+      <div class="no-print modal-layout__header" style="background: linear-gradient(135deg, #1a432a 0%, #0e2e1a 100%); color: #ffffff; padding: 14px 22px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #a67c52; flex-shrink: 0; flex-wrap: wrap; gap: 12px;">
         <div style="display: flex; align-items: center; gap: 12px;">
           <div style="background: rgba(255,255,255,0.15); width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
             📖
@@ -1708,14 +1780,14 @@
 
         <!-- 1. Quick Start -->
         <section id="man-sec-quickstart" class="manual-section" style="margin-bottom: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
-          <h2 style="color: #1a4332; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px; margin-top: 0;">
+          <h2 style="color: #1a432a; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px; margin-top: 0;">
             <span>🏠</span> 1. البدء السريع وتسجيل الدخول
           </h2>
           <p>نظام ريحانة لإدارة الفنادق والشقق الفندقية هو منصة متكاملة مخصصة لإدارة العمليات اليومية من تسكين، خروج، جرد مالي، وإصدار الفواتير الضريبية.</p>
           <div style="background: #f8fafc; border-radius: 10px; padding: 14px 18px; border: 1px solid #e2e8f0; margin-top: 10px;">
             <strong>الصلاحيات وأدوار النظام:</strong>
             <ul style="margin: 6px 0 0 20px; padding: 0;">
-              <li><strong style="color: #047857;">مدير النظام (Admin):</strong> صلاحيات كاملة تشمل تسعير الغرف، التقارير المالية والإيرادات، إدارة حسابات الموظفين، والنسخ الاحتياطي.</li>
+              <li><strong style="color: #047831;">مدير النظام (Admin):</strong> صلاحيات كاملة تشمل تسعير الغرف، التقارير المالية والإيرادات، إدارة حسابات الموظفين، والنسخ الاحتياطي.</li>
               <li><strong style="color: #0284c7;">موظف الاستقبال (Staff):</strong> عمليات التسكين، تسجيل الخروج، سندات القبض، طباعة الفواتير، وتقفيل الوردية.</li>
             </ul>
           </div>
@@ -1723,14 +1795,14 @@
 
         <!-- 2. Room States -->
         <section id="man-sec-rooms" class="manual-section" style="margin-bottom: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
-          <h2 style="color: #1a4332; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+          <h2 style="color: #1a432a; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
             <span>🟢</span> 2. الواجهة الرئيسية ودلالات ألوان الغرف
           </h2>
           <p>تعتمد الواجهة الرئيسية على بطاقات تفاعلية فورية لكل غرفة تعكس حالتها التشغيلية بدقة:</p>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 12px;">
-            <div style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 10px; padding: 12px 14px;">
-              <strong style="color: #166534; font-size: 1rem;">🟢 متاحة (جاهزة)</strong>
-              <p style="margin: 4px 0 0; font-size: 0.85rem; color: #14532d;">الغرفة نظيفة وجاهزة تماماً لاستقبال نزيل جديد فوراً بنقرة واحدة.</p>
+            <div style="background: #f0fdf5; border: 1.5px solid #86efaf; border-radius: 10px; padding: 12px 14px;">
+              <strong style="color: #166535; font-size: 1rem;">🟢 متاحة (جاهزة)</strong>
+              <p style="margin: 4px 0 0; font-size: 0.85rem; color: #14532c;">الغرفة نظيفة وجاهزة تماماً لاستقبال نزيل جديد فوراً بنقرة واحدة.</p>
             </div>
             <div style="background: #fef2f2; border: 1.5px solid #fca5a5; border-radius: 10px; padding: 12px 14px;">
               <strong style="color: #991b1b; font-size: 1rem;">🔴 مشغولة</strong>
@@ -1749,7 +1821,7 @@
 
         <!-- 3. Check-in & Booking Types -->
         <section id="man-sec-checkin" class="manual-section" style="margin-bottom: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
-          <h2 style="color: #1a4332; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+          <h2 style="color: #1a432a; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
             <span>🛏️</span> 3. دليل التسكين وأنواع الحجوزات
           </h2>
           <p>عند فتح نافذة الحجز عبر الضغط على أي غرفة متاحة أو زر "حجز جديد"، يجب اختيار نوع الحجز المناسب بدقة:</p>
@@ -1757,7 +1829,7 @@
           <div style="overflow-x: auto; margin-top: 10px;">
             <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem; text-align: right;">
               <thead>
-                <tr style="background: #1a4332; color: white;">
+                <tr style="background: #1a432a; color: white;">
                   <th style="padding: 10px 14px; border: 1px solid #cbd5e1;">نوع الحجز</th>
                   <th style="padding: 10px 14px; border: 1px solid #cbd5e1;">تاريخ الوصول والمغادرة</th>
                   <th style="padding: 10px 14px; border: 1px solid #cbd5e1;">الغرض التشغيلي</th>
@@ -1770,7 +1842,7 @@
                   <td style="padding: 10px 14px; border: 1px solid #cbd5e1;">المبيت الليلي المعتاد لليلة واحدة أو أكثر حتى موعد الخروج 14:00.</td>
                 </tr>
                 <tr style="background: #f8fafc;">
-                  <td style="padding: 10px 14px; border: 1px solid #cbd5e1; font-weight: 700; color: #047857;">استخدام يومي (Day Use)</td>
+                  <td style="padding: 10px 14px; border: 1px solid #cbd5e1; font-weight: 700; color: #047831;">استخدام يومي (Day Use)</td>
                   <td style="padding: 10px 14px; border: 1px solid #cbd5e1;">تاريخ الوصول = تاريخ المغادرة (نفس اليوم)</td>
                   <td style="padding: 10px 14px; border: 1px solid #cbd5e1;">راحة نهارية لساعات محددة (ترانزيت) دون مبيت ليلي.</td>
                 </tr>
@@ -1788,7 +1860,7 @@
             </table>
           </div>
 
-          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 12px 16px; margin-top: 14px; font-size: 0.88rem;">
+          <div style="background: #f0fdf5; border: 1px solid #bbf7d2; border-radius: 10px; padding: 12px 16px; margin-top: 14px; font-size: 0.88rem;">
             <strong>💡 متطلبات الحجز والتحقق الآلي:</strong>
             <ul style="margin: 4px 0 0 18px; padding: 0;">
               <li><strong>رقم الجوال:</strong> يبحث النظام تلقائياً عن النزيل بمجرد كتابة رقمه ويملأ بياناته إن كان مسجلاً سابقاً.</li>
@@ -1800,7 +1872,7 @@
 
         <!-- 4. Post-Midnight Business Day -->
         <section id="man-sec-night" class="manual-section" style="margin-bottom: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
-          <h2 style="color: #1a4332; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+          <h2 style="color: #1a432a; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
             <span>🌙</span> 4. اليوم التشغيلي الفندقي لما بعد منتصف الليل
           </h2>
           <div style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 12px; padding: 16px 20px;">
@@ -1818,7 +1890,7 @@
 
         <!-- 5. Checkout & Settlement -->
         <section id="man-sec-checkout" class="manual-section" style="margin-bottom: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
-          <h2 style="color: #1a4332; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+          <h2 style="color: #1a432a; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
             <span>🚪</span> 5. تسجيل الخروج والتسوية المالية الذكية
           </h2>
           <p>عند مغادرة النزيل، اضغط على زر <strong>"تسجيل الخروج"</strong> للدخول إلى شاشة التسوية المالية الشاملة:</p>
@@ -1845,7 +1917,7 @@
 
         <!-- 6. Same-Day Void -->
         <section id="man-sec-void" class="manual-section" style="margin-bottom: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
-          <h2 style="color: #1a4332; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+          <h2 style="color: #1a432a; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
             <span>❌</span> 6. إبطال الحجز المباشر في نفس اليوم (Same-Day Void)
           </h2>
           <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 16px 20px;">
@@ -1862,7 +1934,7 @@
 
         <!-- 7. Shift Audit -->
         <section id="man-sec-audit" class="manual-section" style="margin-bottom: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
-          <h2 style="color: #1a4332; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+          <h2 style="color: #1a432a; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
             <span>📊</span> 7. تقارير الوردية والجرد المالي اليومي (Shift Audit)
           </h2>
           <p>في نهاية كل مناوبة، يفتح موظف الاستقبال نافذة <strong>"تقرير الوردية"</strong> لمطابقة العهدة:</p>
@@ -1877,25 +1949,25 @@
 
         <!-- 8. Invoices & WhatsApp -->
         <section id="man-sec-invoices" class="manual-section" style="margin-bottom: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
-          <h2 style="color: #1a4332; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+          <h2 style="color: #1a432a; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
             <span>🧾</span> 8. الفواتير وسندات القبض ومشاركتها عبر الواتساب
           </h2>
           <p>يولد النظام فواتير ضريبية إلكترونية متوافقة مع الأنظمة المعتمدة:</p>
           <div style="display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px;">
             <div style="flex: 1; min-width: 250px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; padding: 14px 16px;">
-              <strong style="color: #1a4332;">🖨️ الطباعة والحفظ PDF:</strong>
+              <strong style="color: #1a432a;">🖨️ الطباعة والحفظ PDF:</strong>
               <p style="margin: 4px 0 0; font-size: 0.85rem; color: #475569;">تتضمن الفاتورة رمز الاستجابة السريع (QR Code)، تفصيل الليالي والأسعار والخصومات، والمبالغ المسددة والمتبقية.</p>
             </div>
-            <div style="flex: 1; min-width: 250px; background: #f0fdf4; border: 1px solid #86efac; border-radius: 10px; padding: 14px 16px;">
-              <strong style="color: #166534;">💬 إرسال عبر واتساب:</strong>
-              <p style="margin: 4px 0 0; font-size: 0.85rem; color: #14532d;">بنقرة واحدة على زر "إرسال واتساب"، تُفتح محادثة مباشرة مع النزيل تتضمن رسالة ترحيبية مهذبة وملخص كامل للحجز.</p>
+            <div style="flex: 1; min-width: 250px; background: #f0fdf5; border: 1px solid #86efaf; border-radius: 10px; padding: 14px 16px;">
+              <strong style="color: #166535;">💬 إرسال عبر واتساب:</strong>
+              <p style="margin: 4px 0 0; font-size: 0.85rem; color: #14532c;">بنقرة واحدة على زر "إرسال واتساب"، تُفتح محادثة مباشرة مع النزيل تتضمن رسالة ترحيبية مهذبة وملخص كامل للحجز.</p>
             </div>
           </div>
         </section>
 
         <!-- 9. Guests & Blacklist -->
         <section id="man-sec-guests" class="manual-section" style="margin-bottom: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
-          <h2 style="color: #1a4332; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+          <h2 style="color: #1a432a; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
             <span>⛔</span> 9. سجل النزلاء والقائمة السوداء (الحظر)
           </h2>
           <p>يتيح قسم <strong>"قائمة النزلاء"</strong> البحث الفوري برقم الهوية أو الجوال وتتبع سجل الإقامات السابقة:</p>
@@ -1909,23 +1981,23 @@
 
         <!-- 10. FAQs -->
         <section id="man-sec-faqs" class="manual-section" style="margin-bottom: 20px;">
-          <h2 style="color: #1a4332; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+          <h2 style="color: #1a432a; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
             <span>❓</span> 10. الأسئلة الشائعة والأخطاء التشغيلية
           </h2>
           
           <div style="margin-top: 14px; display: flex; flex-direction: column; gap: 14px;">
-            <div style="background: #f8fafc; border-right: 4px solid #1a4332; border-radius: 8px; padding: 12px 16px;">
-              <strong style="color: #1a4332;">س: النزيل يريد استئجار غرفة لعدة ساعات فقط في النهار بدون مبيت، ماذا أختار؟</strong>
+            <div style="background: #f8fafc; border-right: 4px solid #1a432a; border-radius: 8px; padding: 12px 16px;">
+              <strong style="color: #1a432a;">س: النزيل يريد استئجار غرفة لعدة ساعات فقط في النهار بدون مبيت، ماذا أختار؟</strong>
               <p style="margin: 4px 0 0; font-size: 0.88rem; color: #334155;">ج: اختر نوع الحجز <strong>"استخدام يومي (Day Use)"</strong>. هذا النوع يسمح بأن يكون تاريخ الوصول وتاريخ المغادرة في نفس اليوم تماماً.</p>
             </div>
 
-            <div style="background: #f8fafc; border-right: 4px solid #1a4332; border-radius: 8px; padding: 12px 16px;">
-              <strong style="color: #1a4332;">س: شاشة تسوية الخروج تظهر تنبيه "تضارب قيمة العقد" والزر معطل؟</strong>
+            <div style="background: #f8fafc; border-right: 4px solid #1a432a; border-radius: 8px; padding: 12px 16px;">
+              <strong style="color: #1a432a;">س: شاشة تسوية الخروج تظهر تنبيه "تضارب قيمة العقد" والزر معطل؟</strong>
               <p style="margin: 4px 0 0; font-size: 0.88rem; color: #334155;">ج: هذه حماية أمان تمنع تسجيل الخروج إذا كان سعر الليلة أو الخصم المسجل قديماً لا يطابق المعادلة الحسابية. اضغط على تعديل الحجز لمطابقة الإجمالي أولاً وستفتح لك شاشة التسوية فوراً.</p>
             </div>
 
-            <div style="background: #f8fafc; border-right: 4px solid #1a4332; border-radius: 8px; padding: 12px 16px;">
-              <strong style="color: #1a4332;">س: كيف أحصل على نسخة احتياطية من قاعدة البيانات يومياً؟</strong>
+            <div style="background: #f8fafc; border-right: 4px solid #1a432a; border-radius: 8px; padding: 12px 16px;">
+              <strong style="color: #1a432a;">س: كيف أحصل على نسخة احتياطية من قاعدة البيانات يومياً؟</strong>
               <p style="margin: 4px 0 0; font-size: 0.88rem; color: #334155;">ج: يقوم النظام بنسخ تلقائي يومياً عند الساعة 12:00 منتصف الليل، ويمكنك أيضاً النقر على زر "نسخ احتياطي" في الشريط العلوي لتصدير نسخة فورية إلى فلاش ميموري خارجي.</p>
             </div>
           </div>
@@ -1936,7 +2008,7 @@
       <!-- Modal Footer -->
       <div class="no-print" style="background: #f1f5f9; border-top: 1px solid #cbd5e1; padding: 10px 22px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;">
         <span style="font-size: 0.8rem; color: #64748b;">💡 اختصار سريع: يمكنك فتح دليل المستخدم في أي وقت بالضغط على مفتاح <kbd style="background: #ffffff; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px; font-weight: 700;">F1</kbd> في لوحة المفاتيح.</span>
-        <button id="btn-close-user-manual-footer" type="button" class="btn btn-secondary btn-sm" style="padding: 6px 18px; font-weight: 700; border-radius: 8px; background: #1a4332; color: #ffffff; border: none; cursor: pointer;">
+        <button id="btn-close-user-manual-footer" type="button" class="btn btn-secondary btn-sm" style="padding: 6px 18px; font-weight: 700; border-radius: 8px; background: #1a432a; color: #ffffff; border: none; cursor: pointer;">
           تم، إغلاق الدليل
         </button>
       </div>
@@ -1945,10 +2017,10 @@
   </div>
 
   <!-- Daily 12:00 AM Automated Backup Management Modal -->
-  <div id="daily-backup-modal" data-role-required="Admin" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 100000; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
-    <div class="modal-glass-container" style="max-width: 860px; width: 100%; overflow: hidden; margin: auto;">
+  <div id="daily-backup-modal" data-role-required="Admin" class="modal-backdrop modal-layout-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; z-index: 100000; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
+    <div class="modal-glass-container modal-layout" style="max-width: 860px; width: 100%; overflow: hidden; margin: auto;">
       <!-- Header -->
-      <div style="background: linear-gradient(135deg, rgba(20, 61, 43, 0.85) 0%, rgba(14, 46, 31, 0.95) 100%); color: white; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--glass-border);">
+      <div class="modal-layout__header" style="background: linear-gradient(135deg, rgba(20, 61, 36, 0.85) 0%, rgba(14, 46, 26, 0.95) 100%); color: white; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--glass-border);">
         <div style="display: flex; align-items: center; gap: 12px;">
           <div style="background: rgba(255,255,255,0.15); width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1965,20 +2037,20 @@
       </div>
 
       <!-- Modal Body -->
-      <div style="padding: 24px; background: transparent;">
+      <div class="modal-layout__body" style="padding: 24px; background: transparent;">
         <!-- Status KPI Cards -->
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px;">
           <!-- Card 1: Schedule -->
           <div class="card" style="padding: 14px 16px;">
             <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">⏰ موعد الجدولة اليومي</div>
             <div style="font-size: 1.1rem; font-weight: 800; color: #1e293b;">12:00 ص (منتصف الليل)</div>
-            <div style="font-size: 0.75rem; color: #10b981; margin-top: 4px; font-weight: 600;">كل 24 ساعة تلقائياً</div>
+            <div style="font-size: 0.75rem; color: #10b951; margin-top: 4px; font-weight: 600;">كل 24 ساعة تلقائياً</div>
           </div>
 
           <!-- Card 2: Status & Next Run -->
           <div class="card" style="padding: 14px 16px;">
             <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">🟢 حالة النظام الآن</div>
-            <div id="daily-backup-status-badge" style="font-size: 1.05rem; font-weight: 800; color: #059669;">مفعّل ونشط ✅</div>
+            <div id="daily-backup-status-badge" style="font-size: 1.05rem; font-weight: 800; color: #05963d;">مفعّل ونشط ✅</div>
             <div id="daily-backup-next-run" style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">النسخة القادمة: الليلة 12:00 ص</div>
           </div>
 
@@ -1986,7 +2058,7 @@
           <div class="card" style="padding: 14px 16px;">
             <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px;">💾 آخر نسخة تم حفظها</div>
             <div id="daily-backup-last-time" style="font-size: 0.95rem; font-weight: 800; color: var(--gold-text);">جاري التحميل...</div>
-            <div id="daily-backup-last-file" style="font-size: 0.72rem; color: #059669; font-weight: 600; margin-top: 4px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">-</div>
+            <div id="daily-backup-last-file" style="font-size: 0.72rem; color: #05963d; font-weight: 600; margin-top: 4px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">-</div>
           </div>
 
           <!-- Card 4: Total Backups Count -->
@@ -2001,7 +2073,7 @@
         <div class="card" style="padding: 14px 18px; margin-bottom: 16px; background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(226, 232, 240, 0.9); border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);">
           <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 8px;">
             <div style="display: flex; align-items: center; gap: 8px;">
-              <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(26, 67, 50, 0.1); color: var(--primary-accent); display: flex; align-items: center; justify-content: center;">
+              <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(26, 67, 42, 0.1); color: var(--primary-accent); display: flex; align-items: center; justify-content: center;">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
                 </svg>
@@ -2093,8 +2165,8 @@
         </div>
 
         <!-- Explanatory Guarantees Card -->
-        <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 10px; padding: 12px 16px; font-size: 0.82rem; color: #d1fae5; line-height: 1.6;">
-          <div style="font-weight: 800; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; color: #34d399;">
+        <div style="background: rgba(16, 185, 81, 0.12); border: 1px solid rgba(16, 185, 81, 0.3); border-radius: 10px; padding: 12px 16px; font-size: 0.82rem; color: #d1fae1; line-height: 1.6;">
+          <div style="font-weight: 800; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; color: #34d372;">
             <span>🛡️ كيفية عمل نظام النسخ التلقائي في الفندق:</span>
           </div>
           <ul style="margin: 0; padding-right: 20px; list-style-type: disc;">
@@ -2108,9 +2180,9 @@
   </div>
 
   <!-- Edit Room Modal -->
-  <div id="edit-room-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 100000; align-items: center; justify-content: center; padding: 20px;">
-    <div class="modal-glass-container" style="max-width: 520px; width: 100%; overflow: hidden; margin: auto;">
-      <div style="background: linear-gradient(135deg, rgba(20, 61, 43, 0.85) 0%, rgba(14, 46, 31, 0.95) 100%); color: white; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--glass-border);">
+  <div id="edit-room-modal" class="modal-backdrop modal-layout-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; z-index: 100000; align-items: center; justify-content: center; padding: 20px;">
+    <div class="modal-glass-container modal-layout" style="max-width: 520px; width: 100%; overflow: hidden; margin: auto;">
+      <div class="modal-layout__header" style="background: linear-gradient(135deg, rgba(20, 61, 36, 0.85) 0%, rgba(14, 46, 26, 0.95) 100%); color: white; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--glass-border);">
         <div style="display: flex; align-items: center; gap: 10px;">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -2118,9 +2190,9 @@
           </svg>
           <span style="font-weight: 800; font-size: 1.1rem;">تعديل بيانات الغرفة الفندقية</span>
         </div>
-        <button id="btn-close-edit-room-modal" type="button" class="btn btn-sm" style="background: rgba(255,255,255,0.15); color: white; border: none; font-size: 1.1rem; cursor: pointer; padding: 4px 10px;">&times;</button>
+        <button id="btn-close-edit-room-modal" type="button" class="btn btn-sm modal-layout__close" style="background: rgba(255,255,255,0.15); color: white; border: none; font-size: 1.1rem; cursor: pointer; padding: 4px 10px;">&times;</button>
       </div>
-      <form id="edit-room-form" style="padding: 24px;">
+      <form id="edit-room-form" class="modal-layout__body" style="padding: 24px;">
         <input type="hidden" id="edit-room-id">
         <div class="form-group" style="margin-bottom: 16px;">
           <label for="edit-room-number" style="font-weight: 700; margin-bottom: 6px; display: block; color: #1e293b;">رقم الغرفة *</label>
@@ -2145,7 +2217,7 @@
             🔒 الغرفة مشغولة بنزيل حالياً. الحالة مقفلة ولا يمكن تعديلها يدوياً إلا بعد تسجيل المغادرة (Check-out).
           </p>
         </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--glass-border); padding-top: 18px;">
+        <div class="modal-layout__footer" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--glass-border); padding-top: 18px;">
           <button type="button" id="btn-delete-room" class="btn btn-danger btn-sm" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; font-weight: 700; border-radius: 8px; cursor: pointer;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="3 6 5 6 21 6"></polyline>
@@ -2163,11 +2235,11 @@
   </div>
 
   <!-- Modern Import Result & Audit Modal -->
-  <div id="import-result-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 100000; align-items: center; justify-content: center; padding: 20px;">
-    <div class="modal-glass-container" style="max-width: 640px; width: 100%; overflow: hidden; margin: auto;">
+  <div id="import-result-modal" class="modal-backdrop modal-layout-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; z-index: 100000; align-items: center; justify-content: center; padding: 20px;">
+    <div class="modal-glass-container modal-layout" style="max-width: 640px; width: 100%; overflow: hidden; margin: auto;">
       
       <!-- Modal Header -->
-      <div style="background: linear-gradient(135deg, rgba(20, 61, 43, 0.85) 0%, rgba(14, 46, 31, 0.95) 100%); color: white; padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #b0834d;">
+      <div class="modal-layout__header" style="background: linear-gradient(135deg, rgba(20, 61, 36, 0.85) 0%, rgba(14, 46, 26, 0.95) 100%); color: white; padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #b0834d;">
         <div style="display: flex; align-items: center; gap: 12px;">
           <div style="width: 40px; height: 40px; border-radius: 10px; background: rgba(255, 255, 255, 0.15); display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
             📋
@@ -2177,27 +2249,27 @@
             <p style="margin: 2px 0 0; font-size: 0.78rem; color: var(--gold-text);">ملخص استيراد الملف ومنع تكرار السجلات</p>
           </div>
         </div>
-        <button id="btn-close-import-result-modal" type="button" style="background: rgba(255,255,255,0.12); color: white; border: none; font-size: 1.3rem; border-radius: 8px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">&times;</button>
+        <button id="btn-close-import-result-modal" type="button" class="modal-layout__close" style="background: rgba(255,255,255,0.12); color: white; border: none; font-size: 1.3rem; border-radius: 8px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">&times;</button>
       </div>
 
       <!-- Modal Body -->
-      <div style="padding: 24px; max-height: calc(85vh - 140px); overflow-y: auto;">
+      <div class="modal-layout__body" style="padding: 24px; max-height: calc(85vh - 140px); overflow-y: auto;">
         
         <!-- Top Status Banner -->
-        <div style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-          <div style="width: 32px; height: 32px; border-radius: 50%; background: #10b981; color: white; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.1rem; flex-shrink: 0;">✓</div>
+        <div style="background: rgba(16, 185, 81, 0.15); border: 1px solid rgba(16, 185, 81, 0.35); border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+          <div style="width: 32px; height: 32px; border-radius: 50%; background: #10b951; color: white; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.1rem; flex-shrink: 0;">✓</div>
           <div>
-            <div style="font-weight: 800; font-size: 0.95rem; color: #34d399;">اكتملت معالجة ملف البيانات بنجاح تام</div>
-            <div id="import-modal-message" style="font-size: 0.8rem; color: #a7f3d0; margin-top: 2px;">تم تحديث وحفظ سجلات النزلاء بقاعدة بيانات الفندق.</div>
+            <div style="font-weight: 800; font-size: 0.95rem; color: #34d372;">اكتملت معالجة ملف البيانات بنجاح تام</div>
+            <div id="import-modal-message" style="font-size: 0.8rem; color: #a7f3c4; margin-top: 2px;">تم تحديث وحفظ سجلات النزلاء بقاعدة بيانات الفندق.</div>
           </div>
         </div>
 
         <!-- 3 Stats Cards Grid -->
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;">
           <!-- Card 1: New Inserted -->
-          <div class="card" style="border: 1.5px solid rgba(16, 185, 129, 0.4); padding: 14px 12px; text-align: center;">
-            <div style="font-size: 0.75rem; font-weight: 700; color: #34d399; margin-bottom: 4px;">عملاء جدد مضافين</div>
-            <div id="import-modal-inserted" style="font-size: 1.6rem; font-weight: 900; color: #34d399; line-height: 1.2;">0</div>
+          <div class="card" style="border: 1.5px solid rgba(16, 185, 81, 0.4); padding: 14px 12px; text-align: center;">
+            <div style="font-size: 0.75rem; font-weight: 700; color: #34d372; margin-bottom: 4px;">عملاء جدد مضافين</div>
+            <div id="import-modal-inserted" style="font-size: 1.6rem; font-weight: 900; color: #34d372; line-height: 1.2;">0</div>
             <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 4px;">تم تسجيلهم بالكامل</div>
           </div>
 
@@ -2270,11 +2342,11 @@
   </div>
 
   <!-- Add Subsequent Payment Modal (تسجيل سداد دفعة جديدة للحجز) -->
-  <div id="add-payment-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; z-index: 100000; align-items: center; justify-content: center; padding: 20px;">
-    <div class="modal-glass-container" style="max-width: 520px; width: 100%; overflow: hidden; margin: auto;">
+  <div id="add-payment-modal" class="modal-backdrop modal-layout-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; z-index: 100000; align-items: center; justify-content: center; padding: 20px;">
+    <div class="modal-glass-container modal-layout" style="max-width: 520px; width: 100%; overflow: hidden; margin: auto;">
       
-      <!-- Modal Header (Forest Green #1a4332 with Gold #a67c52 border) -->
-      <div style="background: linear-gradient(135deg, rgba(26, 67, 50, 0.9) 0%, rgba(14, 46, 31, 0.95) 100%); color: white; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #a67c52;">
+      <!-- Modal Header (Forest Green #1a432a with Gold #a67c52 border) -->
+      <div class="modal-layout__header" style="background: linear-gradient(135deg, rgba(26, 67, 42, 0.9) 0%, rgba(14, 46, 26, 0.95) 100%); color: white; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #a67c52;">
         <div style="display: flex; align-items: center; gap: 12px;">
           <div style="width: 40px; height: 40px; border-radius: 10px; background: rgba(255, 255, 255, 0.15); display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
             💳
@@ -2284,15 +2356,15 @@
             <p style="margin: 2px 0 0; font-size: 0.76rem; color: var(--gold-text);">ريحانة للوحدات السكنية - سند سداد حجز</p>
           </div>
         </div>
-        <button id="btn-close-payment-modal" type="button" style="background: rgba(255,255,255,0.12); color: white; border: none; font-size: 1.3rem; border-radius: 8px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">&times;</button>
+        <button id="btn-close-payment-modal" type="button" class="modal-layout__close" style="background: rgba(255,255,255,0.12); color: white; border: none; font-size: 1.3rem; border-radius: 8px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;">&times;</button>
       </div>
 
       <!-- Modal Body / Form -->
-      <form id="add-payment-form" style="padding: 24px;">
+      <form id="add-payment-form" class="modal-layout__body" style="padding: 24px;">
         <input type="hidden" id="payment-reservation-id">
 
         <!-- Reservation & Guest Info Header Card -->
-        <div class="card" style="padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
+        <div class="card modal-section-card" style="padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
           <div>
             <span style="font-size: 0.72rem; color: var(--text-secondary); display: block;">النزيل:</span>
             <strong id="payment-modal-guest-name" style="font-size: 0.95rem; color: #1e293b;">-</strong>
@@ -2313,10 +2385,10 @@
           </div>
 
           <!-- Metric 2: Already Paid -->
-          <div class="card" style="border: 1px solid rgba(16, 185, 129, 0.4); padding: 10px; text-align: center;">
-            <div style="font-size: 0.72rem; font-weight: 700; color: #059669; margin-bottom: 4px;">المسدد مسبقاً</div>
-            <div id="payment-modal-paid-amount" style="font-size: 1.05rem; font-weight: 800; color: #059669;">0 ريال</div>
-            <div style="font-size: 0.68rem; color: #059669;">(Already Paid)</div>
+          <div class="card" style="border: 1px solid rgba(16, 185, 81, 0.4); padding: 10px; text-align: center;">
+            <div style="font-size: 0.72rem; font-weight: 700; color: #05963d; margin-bottom: 4px;">المسدد مسبقاً</div>
+            <div id="payment-modal-paid-amount" style="font-size: 1.05rem; font-weight: 800; color: #05963d;">0 ريال</div>
+            <div style="font-size: 0.68rem; color: #05963d;">(Already Paid)</div>
           </div>
 
           <!-- Metric 3: Remaining Balance -->
@@ -2356,7 +2428,7 @@
         </div>
 
         <!-- Modal Actions Footer -->
-        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--glass-border); padding-top: 18px;">
+        <div class="modal-layout__footer" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--glass-border); padding-top: 18px;">
           <button type="button" id="btn-cancel-payment-modal" class="btn btn-secondary btn-sm" style="padding: 9px 18px; border-radius: 8px; font-weight: 700;">
             إلغاء
           </button>
@@ -2370,11 +2442,11 @@
   </div>
 
   <!-- Modal: Open Contract Settlement & Checkout (تصفية حساب وتسجيل مغادرة - عقد مفتوح) -->
-  <div id="open-contract-settle-modal" class="modal-backdrop checkout-settle-backdrop" style="display: none; position: fixed; inset: 0; z-index: 100010; align-items: center; justify-content: center; padding: 20px;">
-    <div class="modal-glass-container checkout-settle-card" style="max-width: 580px; width: 100%; overflow: hidden; margin: auto; background: white; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35);">
+  <div id="open-contract-settle-modal" class="modal-backdrop modal-layout-backdrop checkout-settle-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; z-index: 100010; align-items: center; justify-content: center; padding: 20px;">
+    <div class="modal-glass-container modal-layout checkout-settle-card" style="max-width: 580px; width: 100%; overflow: hidden; margin: auto; background: white; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35);">
       
       <!-- Modal Header -->
-      <div style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); color: white; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #818cf8;">
+      <div class="modal-layout__header" style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); color: white; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #818cf8;">
         <div style="display: flex; align-items: center; gap: 12px;">
           <div style="width: 42px; height: 42px; border-radius: 10px; background: rgba(255, 255, 255, 0.15); display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
             🏨
@@ -2384,16 +2456,16 @@
             <p style="margin: 2px 0 0; font-size: 0.76rem; color: #c7d2fe;">ريحانة للوحدات السكنية - احتساب الليالي وتصفية المستحقات والخصم</p>
           </div>
         </div>
-        <button id="btn-close-settle-modal" type="button" style="background: rgba(255,255,255,0.12); color: white; border: none; font-size: 1.3rem; border-radius: 8px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer;">&times;</button>
+        <button id="btn-close-settle-modal" type="button" class="modal-layout__close" style="background: rgba(255,255,255,0.12); color: white; border: none; font-size: 1.3rem; border-radius: 8px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer;">&times;</button>
       </div>
 
       <!-- Modal Form -->
-      <form id="open-contract-settle-form" class="checkout-settle-form" style="padding: 22px;">
+      <form id="open-contract-settle-form" class="checkout-settle-form modal-layout__body" style="padding: 22px;">
         <input type="hidden" id="settle-reservation-id">
         <input type="hidden" id="settle-price-per-night">
 
         <!-- Guest & Room Summary Card -->
-        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+        <div class="modal-section-card checkout-summary-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
           <div>
             <span style="font-size: 0.72rem; color: #64748b; display: block;">النزيل:</span>
             <strong id="settle-guest-name" style="font-size: 0.95rem; color: #1e293b;">-</strong>
@@ -2405,7 +2477,7 @@
         </div>
 
         <!-- Stay Days & Rate Calculation Box -->
-        <div style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 12px; padding: 14px 18px; margin-bottom: 18px;">
+        <div class="modal-section-card checkout-stay-card" style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 12px; padding: 14px 18px; margin-bottom: 18px;">
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 0.82rem; margin-bottom: 10px; color: #1e3a8a;">
             <div><strong>تاريخ الوصول:</strong> <span id="settle-checkin-date">-</span></div>
             <div><strong>تاريخ المغادرة (اليوم):</strong> <span id="settle-checkout-date">-</span></div>
@@ -2417,7 +2489,7 @@
         </div>
 
         <!-- Financial Summary Grid -->
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px;">
+        <div class="modal-section-card checkout-financial-card" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px;">
           <!-- Metric 1: Calculated Total -->
           <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px; text-align: center;">
             <div style="font-size: 0.72rem; font-weight: 700; color: #64748b; margin-bottom: 4px;">إجمالي الإقامة الفعلي</div>
@@ -2426,10 +2498,10 @@
           </div>
 
           <!-- Metric 2: Already Paid -->
-          <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 10px; padding: 10px; text-align: center;">
-            <div style="font-size: 0.72rem; font-weight: 700; color: #166534; margin-bottom: 4px;">المسدد سابقاً</div>
-            <div id="settle-paid-amount-display" style="font-size: 1.05rem; font-weight: 900; color: #15803d;">0.00 ريال</div>
-            <div style="font-size: 0.68rem; color: #16a34a;">(Paid So Far)</div>
+          <div style="background: #f0fdf5; border: 1px solid #86efaf; border-radius: 10px; padding: 10px; text-align: center;">
+            <div style="font-size: 0.72rem; font-weight: 700; color: #166535; margin-bottom: 4px;">المسدد سابقاً</div>
+            <div id="settle-paid-amount-display" style="font-size: 1.05rem; font-weight: 900; color: #15803e;">0.00 ريال</div>
+            <div style="font-size: 0.68rem; color: #16a34d;">(Paid So Far)</div>
           </div>
 
           <!-- Metric 3: Net Balance Due or Credit -->
@@ -2506,7 +2578,7 @@
         </div>
 
         <!-- Net total (read-only for non-contract – value set by JS from backend preview) -->
-        <div class="form-group" style="margin-bottom: 14px;">
+        <div class="form-group modal-section-card" style="margin-bottom: 14px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
             <label for="settle-final-total-input" style="font-weight: 700; font-size: 0.82rem; color: #334155;">الإجمالي الصافي المعتمد للحساب (ريال)</label>
             <span id="settle-breakdown-hint" style="font-size: 0.72rem; color: #64748b;">(الأساس - الخصم)</span>
@@ -2515,11 +2587,11 @@
         </div>
 
         <!-- Settle Payment Input (Active when balance > 0) -->
-        <div id="settle-payment-section" style="margin-bottom: 18px;">
+        <div id="settle-payment-section" class="modal-section-card" style="margin-bottom: 18px;">
           <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
             <div class="form-group" style="margin-bottom: 0;">
               <label for="settle-pay-now-input" style="font-weight: 700; font-size: 0.82rem; color: #334155; margin-bottom: 4px; display: block;">المبلغ المحصل الآن (ريال)</label>
-              <input type="number" id="settle-pay-now-input" min="0" step="any" class="form-control" placeholder="0.00" style="font-weight: 800; font-size: 1rem; color: #047857;">
+              <input type="number" id="settle-pay-now-input" min="0" step="any" class="form-control" placeholder="0.00" style="font-weight: 800; font-size: 1rem; color: #047831;">
             </div>
             <div class="form-group" style="margin-bottom: 0;">
               <label for="settle-payment-method-select" style="font-weight: 700; font-size: 0.82rem; color: #334155; margin-bottom: 4px; display: block;">طريقة السداد</label>
@@ -2557,13 +2629,13 @@
         </div>
 
         <!-- Actions Footer -->
-        <div style="display: flex; gap: 10px; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 16px;">
+        <div class="modal-layout__footer" style="display: flex; gap: 10px; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 16px;">
           <button type="button" id="btn-cancel-settle" class="btn btn-secondary btn-sm" style="padding: 9px 18px; border-radius: 8px; font-weight: 700;">إلغاء</button>
           <div style="display: flex; gap: 10px;">
             <button type="button" id="btn-checkout-without-settle" class="btn btn-sm" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; font-weight: 700; padding: 9px 14px;" title="تسجيل مغادرة وترحيل المبلغ كدين متبقي">
               مغادرة بدون تحصيل (آجل)
             </button>
-            <button type="submit" id="btn-confirm-settle-checkout" class="btn btn-primary btn-sm" style="background: #15803d; border-color: #15803d; color: white; font-weight: 800; padding: 9px 20px; box-shadow: 0 4px 12px rgba(21, 128, 61, 0.3);">
+            <button type="submit" id="btn-confirm-settle-checkout" class="btn btn-primary btn-sm" style="background: #15803e; border-color: #15803e; color: white; font-weight: 800; padding: 9px 20px; box-shadow: 0 4px 12px rgba(21, 128, 62, 0.3);">
               تأكيد السداد وتسجيل المغادرة ✓
             </button>
           </div>
@@ -2575,11 +2647,11 @@
   <!-- ==================================================================
        FACTORY RESET CONFIRMATION MODAL (Admin & Password Required)
        ================================================================== -->
-  <div id="factory-reset-modal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); z-index: 100000; align-items: center; justify-content: center; padding: 20px;">
-    <div class="modal-glass-container" style="background: #ffffff; border-radius: 16px; max-width: 520px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3); overflow: hidden; border: 1.5px solid #fecaca;">
+  <div id="factory-reset-modal" class="modal-backdrop modal-layout-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); z-index: 100000; align-items: center; justify-content: center; padding: 20px;">
+    <div class="modal-glass-container modal-layout" style="background: #ffffff; border-radius: 16px; max-width: 520px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3); overflow: hidden; border: 1.5px solid #fecaca;">
       
       <!-- Modal Header -->
-      <div style="background: linear-gradient(135deg, #b91c1c 0%, #7f1d1d 100%); color: white; padding: 18px 22px; display: flex; align-items: center; justify-content: space-between;">
+      <div class="modal-layout__header" style="background: linear-gradient(135deg, #b91c1c 0%, #7f1d1d 100%); color: white; padding: 18px 22px; display: flex; align-items: center; justify-content: space-between;">
         <div style="display: flex; align-items: center; gap: 10px;">
           <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(255, 255, 255, 0.2); display: flex; align-items: center; justify-content: center;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
@@ -2593,11 +2665,11 @@
             <span style="font-size: 0.75rem; opacity: 0.9;">مطلوب تحقق كلمة مرور حساب مدير النظام (Admin)</span>
           </div>
         </div>
-        <button id="btn-close-factory-reset" type="button" style="background: rgba(255,255,255,0.2); color: white; border: none; font-size: 1.2rem; width: 32px; height: 32px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;">&times;</button>
+        <button id="btn-close-factory-reset" type="button" class="modal-layout__close" style="background: rgba(255,255,255,0.2); color: white; border: none; font-size: 1.2rem; width: 32px; height: 32px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;">&times;</button>
       </div>
 
       <!-- Modal Body / Form -->
-      <form id="factory-reset-form" style="padding: 22px;">
+      <form id="factory-reset-form" class="modal-layout__body" style="padding: 22px;">
         <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 14px; margin-bottom: 18px;">
           <p style="margin: 0; font-size: 0.84rem; color: #991b1b; line-height: 1.6; font-weight: 600;">
             ⚠️ <strong>تحذير نهائي:</strong> سيتم مسح كافة النزلاء، والحجوزات، وسندات القبض المالية، وسجلات النشاط نهائياً. وسيتم إعادة ضبط الغرف الافتراضية وحسابات الإدارة.
@@ -2630,5 +2702,6 @@
     <script src="dashboard-rooms.js"></script>
     <script src="dashboard-reservations.js"></script>
     <script src="dashboard.js"></script>
+    <script src="hotkeys.js"></script>
 </body>
 </html>

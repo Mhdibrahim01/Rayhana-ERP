@@ -43,6 +43,27 @@
     return role === 'Admin';
   }
 
+  function setActiveRoomFilterButton(buttons, selectedButton) {
+    buttons.forEach(button => {
+      const isSelected = button === selectedButton;
+      button.classList.toggle('active', isSelected);
+      button.setAttribute('aria-pressed', String(isSelected));
+    });
+  }
+
+  function updateRoomFilterSummary() {
+    const activeCount = [
+      currentRoomFilter !== 'all',
+      currentRoomBookingType !== 'all',
+      currentRoomPaymentFilter !== 'all',
+      currentRoomSearch.trim() !== ''
+    ].filter(Boolean).length;
+
+    if (App.DOM.roomsFilterResult) App.DOM.roomsFilterResult.hidden = activeCount > 0;
+    if (App.DOM.roomsActiveFilterCount) App.DOM.roomsActiveFilterCount.textContent = String(activeCount);
+    if (App.DOM.roomsClearFiltersButton) App.DOM.roomsClearFiltersButton.classList.toggle('visible', activeCount > 0);
+  }
+
   function renderRoomsGrid() {
     const searchTerm = currentRoomSearch.trim().toLowerCase();
     const today = App.Helpers.getLocalDateString();
@@ -58,10 +79,6 @@
         futureReservationByRoom.set(reservation.room_id, reservation);
       }
     });
-
-    if (App.DOM.roomsPaymentFilterContainer) {
-      App.DOM.roomsPaymentFilterContainer.style.display = currentRoomFilter === 'مشغولة' ? 'flex' : 'none';
-    }
 
     const filtered = App.State.roomsCache.filter(room => {
       // 1. Status tab filter (unchanged behaviour)
@@ -82,15 +99,20 @@
       }
 
       if (currentRoomPaymentFilter !== 'all') {
-        const currentGuestReservation = room.status === 'مشغولة' ? (room.active_reservations || [])[0] : null;
-        const paymentStatus = currentGuestReservation?.payment_status === 'مكتمل'
+        const currentGuestReservation = room.status === 'مشغولة'
+          ? (room.active_reservations || [])[0]
+          : (room.status === 'محجوزة' ? futureReservationByRoom.get(room.id) : null);
+        if (!currentGuestReservation) return false;
+        const paymentStatus = currentGuestReservation.payment_status === 'مكتمل'
           ? 'مدفوع بالكامل'
-          : (currentGuestReservation?.payment_status || 'غير مدفوع');
+          : (currentGuestReservation.payment_status || 'غير مدفوع');
         if (paymentStatus !== currentRoomPaymentFilter) return false;
       }
 
       return true;
     });
+
+    updateRoomFilterSummary();
 
     if (filtered.length === 0) {
       App.DOM.roomsGridContainer.innerHTML = `
@@ -111,6 +133,7 @@
       const activeReservations = room.active_reservations || [];
       const activeRes = room.status === 'مشغولة' ? activeReservations[0] || null : null;
       const nextActiveRes = room.status === 'مشغولة' ? activeReservations[1] || null : null;
+      const activeLateCheckout = activeRes ? App.Helpers.isLateCheckout(activeRes) : false;
 
       // Future reservations remain a separate lookup; cleaning rooms show the next arrival too.
       const futureReservation = futureReservationByRoom.get(room.id) || null;
@@ -121,7 +144,17 @@
         ? activeReservations[0] || futureReservation
         : null;
 
-      const renderReservationPaymentSummary = reservation => {
+      const formatRoomCardMoney = value => `${Number(value || 0).toLocaleString('ar-SA-u-nu-latn')} ر.س`;
+      const formatRoomCardDate = value => {
+        const raw = String(value || '').slice(0, 10).replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
+        return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : App.Helpers.escapeHtml(String(value || ''));
+      };
+      const splitRoomType = value => {
+        const match = String(value || '').match(/^\s*(.*?)\s*\(([^()]*)\)\s*$/);
+        return { arabic: match?.[1] || String(value || 'نوع الغرفة'), english: match?.[2] || '' };
+      };
+
+      const renderRoomGuestBox = (reservation, label, dateLabel, dateValue) => {
         if (!reservation) return '';
         const total = Math.max(0, Number(reservation.total_price || 0));
         const paid = Math.max(0, Number(reservation.paid_amount || 0));
@@ -132,156 +165,95 @@
         const legacyDeposit = Number(reservation.deposit_legacy_unreconciled || 0) === 1
           ? Number(reservation.deposit_amount || 0) : 0;
         const deposit = Math.max(0, ledgerDeposit || legacyDeposit);
+        const isOpenContract = reservation.booking_type === 'عقد مفتوح' || !reservation.check_out_date;
+        const currentRoom = App.State.roomsCache.find(item => item.id === reservation.room_id) || room;
+        const nightlyRate = Number(reservation.custom_nightly_price || reservation.price_per_night || currentRoom.price_per_night || 0);
+        const start = String(reservation.check_in_date || today).slice(0, 10).split('-').map(Number);
+        const end = today.split('-').map(Number);
+        const elapsedNights = Math.max(1, Math.round((Date.UTC(end[0], end[1] - 1, end[2]) - Date.UTC(start[0], start[1] - 1, start[2])) / 86400000));
+        const runningCharge = Math.max(0, Math.round((elapsedNights * nightlyRate - Number(reservation.discount_amount || 0)) * 100) / 100);
+        const paymentStatus = isOpenContract
+          ? (runningCharge <= 0 ? (paid > 0 ? 'مدفوع بالكامل' : 'غير مدفوع') : (paid >= runningCharge ? 'مدفوع بالكامل' : (paid > 0 ? 'مدفوع جزئياً' : 'غير مدفوع')))
+          : (isCredit ? 'مدفوع بالكامل' : (reservation.payment_status || 'غير مدفوع'));
+        const financialLine = isOpenContract
+          ? `مدفوع مقدماً: ${formatRoomCardMoney(paid)} · المستحق حتى الآن: ${formatRoomCardMoney(runningCharge)} · التأمين: ${formatRoomCardMoney(deposit)}`
+          : `مدفوع: ${formatRoomCardMoney(paid)} · ${isCredit ? `مدفوع مقدماً: ${formatRoomCardMoney(Math.abs(rawRemaining))}` : `متبقي: ${formatRoomCardMoney(remaining)}`} · التأمين: ${formatRoomCardMoney(deposit)}`;
+        const safeName = App.Helpers.escapeHtml(reservation.guest_name || 'نزيل');
         return `
-          <div style="display:flex; flex-wrap:wrap; gap:5px 12px; margin-top:6px; font-size:0.72rem; line-height:1.5;">
-            <span style="color:#047857;">مدفوع: <strong>${paid.toLocaleString()} ريال</strong></span>
-            ${isCredit
-              ? `<span style="color:#2563eb; font-weight:700;">له رصيد: <strong>${Math.abs(rawRemaining).toLocaleString()} ريال</strong></span>`
-              : `<span style="color:${remaining > 0 ? '#dc2626' : '#64748b'};">متبقي: <strong>${remaining.toLocaleString()} ريال</strong></span>`
-            }
-            ${deposit > 0 ? `<span style="color:#7c3aed;">التأمين: <strong>${deposit.toLocaleString()} ريال</strong></span>` : ''}
+          <div class="room-card-guest-box" dir="rtl">
+            <div class="room-card-guest-heading">
+              <strong class="room-card-guest-name" title="${safeName}">${safeName}</strong>
+              <span class="room-card-guest-booking">#${String(reservation.id).replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))}</span>
+              ${App.Helpers.getPaymentStatusBadge(paymentStatus)}
+            </div>
+            <div class="room-card-guest-date">${App.Helpers.escapeHtml(label)}: <strong>${dateValue ? formatRoomCardDate(dateValue) : (isOpenContract ? 'عقد مفتوح' : 'غير محدد')}</strong></div>
+            <div class="room-card-guest-financials">${financialLine}</div>
+            <button type="button" class="room-card-guest-details" data-action="preview-reservation" data-id="${reservation.id}" data-no-card-click>التفاصيل ←</button>
           </div>
         `;
       };
 
+      const typeNames = splitRoomType(room.type);
       const checkOutDateVal = (activeRes && activeRes.check_out_date) || room.check_out_date;
       const hasCheckOut = checkOutDateVal && String(checkOutDateVal).trim() !== '';
+      const overflowItems = [
+        `<button type="button" class="room-card-overflow-item" data-action="room-revenue" data-room-id="${room.id}" title="تقرير إيرادات الغرفة">إيرادات الغرفة</button>`,
+        ...(room.status === 'مشغولة' && activeRes && hasCheckOut && String(checkOutDateVal) !== 'مفتوح' ? [`<button type="button" class="room-card-overflow-item" data-action="extend" data-id="${activeRes.id}" title="تمديد فترة الإقامة">تمديد الإقامة</button>`] : []),
+        ...(room.status === 'محجوزة' && upcomingRes ? [`<button type="button" class="room-card-overflow-item is-danger" data-action="cancel" data-id="${upcomingRes.id}" aria-label="إلغاء الحجز" title="إلغاء الحجز">إلغاء الحجز</button>`] : []),
+        ...((room.status === 'متاحة' || room.status === 'تنظيف') ? [`<label class="room-card-overflow-status">تغيير الحالة<select class="room-status-select" data-room-id="${room.id}"><option value="متاحة" ${room.status === 'متاحة' ? 'selected' : ''}>متاحة</option><option value="تنظيف" ${room.status === 'تنظيف' ? 'selected' : ''}>تنظيف</option></select></label>`] : [])
+      ].join('');
 
       return `
-        <div class="room-card room-card-redesigned ${borderClass}" data-room-id="${room.id}">
-          <div class="room-card-content">
-            <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 6px;">
-              <div>
-                <div style="font-size: 1.5rem; font-weight: 900; color: #1a4332; line-height: 1.2; letter-spacing: -0.01em;">
-                  غرفة ${App.Helpers.escapeHtml(room.room_number)}
-                </div>
-                <p style="font-size: 0.84rem; font-weight: 600; color: #64748b; margin-top: 2px;">${App.Helpers.escapeHtml(room.type)}</p>
+        <div class="room-card room-card-redesigned room-card-ops-refined ${room.status === 'مشغولة' && activeRes ? 'room-card-ops-clickable' : ''} ${borderClass}" data-room-id="${room.id}" data-room-status="${App.Helpers.escapeHtml(room.status)}" ${room.status === 'مشغولة' && activeRes ? `tabindex="0" role="button" aria-label="تفاصيل الغرفة ${App.Helpers.escapeHtml(String(room.room_number))}"` : ''}>
+          <div class="room-card-content room-card-ops-content">
+            <div class="room-card-ops-header" data-room-card-header>
+              <div class="room-card-ops-title">
+                <div class="room-card-number">غرفة ${App.Helpers.escapeHtml(String(room.room_number).replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit))))}</div>
+                <div class="room-card-type-ar">${App.Helpers.escapeHtml(typeNames.arabic)}</div>
+                ${typeNames.english ? `<div class="room-card-type-en">${App.Helpers.escapeHtml(typeNames.english)}</div>` : ''}
               </div>
-              <div style="flex-shrink: 0;">
-                ${App.Helpers.getRoomStatusBadge(room.status)}
+              <div class="room-card-ops-header-actions">
+                <div class="room-card-ops-badges">${App.Helpers.getRoomStatusBadge(room.status)}</div>
+                ${room.status === 'مشغولة' && activeRes ? `<button type="button" class="btn-row icon-ghost room-card-view-action" data-action="preview-reservation" data-id="${activeRes.id}" aria-label="تفاصيل الغرفة ${App.Helpers.escapeHtml(String(room.room_number))}" title="تفاصيل الغرفة">${App.Helpers.icons?.eye || '◉'}</button>` : ''}
+                ${isCurrentUserAdmin() ? `<button type="button" class="btn-row icon-ghost room-card-edit-action" data-action="edit-room" data-room-id="${room.id}" aria-label="تعديل الغرفة ${App.Helpers.escapeHtml(String(room.room_number))}" title="تعديل تفاصيل الغرفة">✎</button>` : ''}
+                <div class="room-card-overflow" data-no-card-click>
+                  <button type="button" class="btn-row icon-ghost room-card-overflow-toggle" aria-label="إجراءات إضافية للغرفة ${App.Helpers.escapeHtml(String(room.room_number))}" aria-expanded="false" title="إجراءات إضافية">⋯</button>
+                  <div class="overflow-menu room-card-overflow-menu" role="menu" hidden>${overflowItems}</div>
+                </div>
               </div>
             </div>
 
-            <div style="font-size: 1.1rem; font-weight: 900; color: #a67c52; margin-top: 8px;">
-              ${parseFloat(room.price_per_night || 0).toLocaleString()} <span style="font-size: 0.75rem; font-weight: 600; color: #94a3b8;">ريال / ليلة</span>
-            </div>
+            <div class="room-card-ops-price-row"><span class="room-card-ops-price-label">السعر لليلة</span><strong>${formatRoomCardMoney(room.price_per_night)}</strong></div>
 
-            <!-- Active Stay Box (Occupied Today) -->
-            ${activeRes ? `
-              <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 9px 12px; margin-top: 10px;">
-                <div style="font-weight: 700; color: #166534; font-size: 0.82rem; display: flex; align-items: center; justify-content: space-between;">
-                  <span>👤 ${App.Helpers.escapeHtml(activeRes.guest_name)}</span>
-                  <span style="display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end;">
-                    <span style="font-size: 0.72rem; color: #a67c52; font-weight: 800;">حجز نشط #${activeRes.id}</span>
-                    ${App.Helpers.getPaymentStatusBadge(activeRes.payment_status)}
-                  </span>
-                </div>
-                ${App.Helpers.renderOverdueBadge(activeRes)}
-                <div style="font-size: 0.74rem; color: #475569; margin-top: 4px;">
-                  ${hasCheckOut 
-                    ? `المغادرة: <strong style="color: #0f172a;">${App.Helpers.escapeHtml(checkOutDateVal)}</strong>` 
-                    : `<span style="color: #0284c7; font-weight: 700;">المغادرة: عقد مفتوح (بدون تاريخ)</span>`}
-                </div>
-                ${renderReservationPaymentSummary(activeRes)}
-              </div>
-            ` : ''}
-
-            ${nextActiveRes ? `
-              <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 9px 12px; margin-top: 8px;">
-                <div style="font-weight: 700; color: #1e40af; font-size: 0.82rem; display: flex; align-items: center; justify-content: space-between;">
-                  <span>📅 ${App.Helpers.escapeHtml(nextActiveRes.guest_name)}</span>
-                  <span style="font-size: 0.72rem; color: #2563eb; font-weight: 800;">قادم اليوم #${nextActiveRes.id}</span>
-                </div>
-                ${App.Helpers.renderOverdueBadge(nextActiveRes)}
-                ${renderReservationPaymentSummary(nextActiveRes)}
-              </div>
-            ` : ''}
-
-            <!-- Upcoming Reservation Box (Future Booking) -->
-            ${(!activeRes && (upcomingRes || cleaningIncomingRes)) ? (() => {
+            ${activeRes ? renderRoomGuestBox(activeRes, 'المغادرة', 'مغادرة', checkOutDateVal) : ''}
+            ${!activeRes && room.status === 'محجوزة' && upcomingRes
+              ? renderRoomGuestBox(upcomingRes, 'حجز قادم', 'الوصول', upcomingRes.check_in_date)
+              : ''}
+            ${nextActiveRes ? `<div class="room-card-incoming-note"><strong>${App.Helpers.escapeHtml(nextActiveRes.guest_name || 'نزيل')}</strong><span>قادم اليوم #${String(nextActiveRes.id)}</span><small>الوصول: ${formatRoomCardDate(nextActiveRes.check_in_date)}</small></div>` : ''}
+            ${!activeRes && room.status !== 'محجوزة' && (upcomingRes || cleaningIncomingRes) ? (() => {
               const cardReservation = cleaningIncomingRes || upcomingRes;
-              const cardLabel = room.status === 'تنظيف'
-                ? (cardReservation.check_in_date === App.Helpers.getLocalDateString() ? 'قادم اليوم' : 'بانتظار جاهزية الغرفة')
+              const arrivalLabel = room.status === 'تنظيف'
+                ? (cardReservation.check_in_date === today ? 'قادم اليوم' : 'بانتظار جاهزية الغرفة')
                 : 'حجز قادم';
-              return `
-              <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 9px 12px; margin-top: 10px;">
-                <div style="font-weight: 700; color: #1e40af; font-size: 0.82rem; display: flex; align-items: center; justify-content: space-between;">
-                  <span>📅 ${App.Helpers.escapeHtml(cardReservation.guest_name)}</span>
-                  <span style="font-size: 0.72rem; color: #2563eb; font-weight: 800;">${cardLabel} #${cardReservation.id}</span>
-                </div>
-                ${App.Helpers.renderOverdueBadge(cardReservation)}
-                <div style="font-size: 0.74rem; color: #475569; margin-top: 4px;">
-                  الوصول: <strong style="color: #1e3a8a;">${App.Helpers.escapeHtml(cardReservation.check_in_date)}</strong> | ${cardReservation.check_out_date ? `المغادرة: <strong>${App.Helpers.escapeHtml(cardReservation.check_out_date)}</strong>` : 'المغادرة: <strong style="color: #0284c7;">عقد مفتوح (بدون تاريخ)</strong>'}
-                </div>
-                ${renderReservationPaymentSummary(cardReservation)}
-              </div>
-              `;
+              return `<div class="room-card-incoming-note"><strong>${App.Helpers.escapeHtml(cardReservation.guest_name || 'نزيل')}</strong><span>${arrivalLabel} #${String(cardReservation.id)}</span><small>الوصول: ${formatRoomCardDate(cardReservation.check_in_date)}</small></div>`;
             })() : ''}
+            ${activeLateCheckout ? '<div class="room-late-checkout-alert">⚠️ تأخر بالمغادرة بعد الساعة 14:00 ظهراً - مطلوب إجراء فوري</div>' : ''}
+          </div>
 
-            <!-- Quick Action Buttons -->
-            <div class="room-card-quick-actions">
-              ${(room.status === 'متاحة' || room.status === 'محجوزة') ? `
-                <button type="button" class="btn-room-action" data-action="quick-book" data-room-id="${room.id}" style="border: none; border-radius: 8px; padding: 7px 14px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: #1a4332; color: #ffffff; box-shadow: 0 2px 6px rgba(26,67,50,0.25);">
-                  <span>حجز الغرفة ➕</span>
-                </button>
-              ` : ''}
-
-              ${room.status === 'تنظيف' ? `
-                <button type="button" class="btn-room-action" data-action="quick-ready" data-room-id="${room.id}" style="border: none; border-radius: 8px; padding: 7px 14px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: #059669; color: #ffffff; box-shadow: 0 2px 6px rgba(5,150,105,0.25);">
-                  <span>تم التنظيف (جاهزة) ✓</span>
-                </button>
-              ` : ''}
-
+          <footer class="room-card-footer room-card-ops-footer">
+            <div class="room-card-footer-actions">
+              ${room.status === 'متاحة' ? `<button type="button" class="btn-row primary room-card-state-action" data-action="quick-book" data-room-id="${room.id}">+ تسكين وحجز فوري</button>` : ''}
+              ${room.status === 'تنظيف' ? `<button type="button" class="btn-row primary room-card-state-action room-card-ready-action" data-action="quick-ready" data-room-id="${room.id}">اكتمال النظافة (جاهزة)</button>` : ''}
               ${room.status === 'مشغولة' && activeRes ? `
-                <button type="button" class="btn-room-action" data-action="checkout" data-id="${activeRes.id}" style="border: none; border-radius: 8px; padding: 7px 12px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: #dc2626; color: #ffffff;">
-                  <span>تسجيل خروج &larr;</span>
-                </button>
-                ${activeRes.check_out_date && activeRes.check_out_date !== 'مفتوح' ? `
-                  <button type="button" class="btn-room-action" data-action="extend" data-id="${activeRes.id}" style="border: none; border-radius: 8px; padding: 7px 12px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: #1e3a8a; color: #ffffff;" title="تمديد فترة الإقامة">
-                    <span>تمديد ⏳</span>
-                  </button>
-                ` : ''}
-                <button type="button" class="btn-room-action" data-action="invoice" data-id="${activeRes.id}" style="border: none; border-radius: 8px; padding: 7px 12px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: #1a4332; color: #ffffff;">
-                  <span>فاتورة 🖨️</span>
-                </button>
+                <button type="button" class="btn-row primary room-card-checkout-action" data-action="checkout" data-id="${activeRes.id}">${activeLateCheckout ? '🚪 ' : ''}تسوية وخروج</button>
+                <button type="button" class="btn-row icon-ghost room-card-invoice-action" data-action="invoice" data-id="${activeRes.id}" aria-label="الفاتورة" title="الفاتورة">▤</button>
               ` : ''}
-
               ${room.status === 'محجوزة' && upcomingRes ? `
-                <button type="button" class="btn-room-action" data-action="invoice" data-id="${upcomingRes.id}" style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 12px; font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: all 0.15s; background: #ffffff; color: #1e293b;">
-                  <span>فاتورة الحجز 🖨️</span>
-                </button>
-                <button type="button" class="btn-room-action" data-action="cancel" data-id="${upcomingRes.id}" aria-label="إلغاء الحجز" title="إلغاء الحجز" style="border: 1px solid #fecaca; border-radius: 8px; padding: 7px 12px; font-size: 0.8rem; font-weight: 800; cursor: pointer; transition: all 0.15s; background: #fef2f2; color: #b91c1c;">
-                  <span>إلغاء الحجز ✕</span>
-                </button>
-              ` : ''}
-
-              <button type="button" class="btn-room-action" data-action="room-revenue" data-room-id="${room.id}" style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 12px; font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: all 0.15s; background: #f8fafc; color: #334155;">
-                <span>إيرادات 📊</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Seamless Acrylic Footer -->
-                    <div class="room-card-footer">
-            <div class="room-card-footer-status">
-              ${room.status !== 'مشغولة' && room.status !== 'محجوزة' ? `
-                <select class="room-status-select" data-room-id="${room.id}" style="width: auto; padding: 4px 8px; font-size: 0.8rem; font-weight: 700; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; color: #0f172a;">
-                  <option value="متاحة" ${room.status === 'متاحة' ? 'selected' : ''}>متاحة</option>
-                  <option value="تنظيف" ${room.status === 'تنظيف' ? 'selected' : ''}>تنظيف</option>
-                </select>
+                <button type="button" class="btn-row primary room-card-state-action" data-action="quick-book" data-room-id="${room.id}">تأكيد الوصول الآن</button>
+                <button type="button" class="btn-row secondary room-card-state-action" data-action="invoice" data-id="${upcomingRes.id}">فاتورة الحجز</button>
               ` : ''}
             </div>
-            <!-- Editing a room changes its nightly price, so the main process refuses it for
-                             anyone but an Admin (ipc/rooms.js). Gated with an inline role check,
-                             not the .admin-only class: this markup is rebuilt on every grid render,
-                             whereas applyRbacUi only runs at login. The status <select> above stays
-                             visible for every role — marking a room cleaning is front-desk work and
-                             is allowed over IPC. -->
-                        ${isCurrentUserAdmin() ? `
-                        <button type="button" class="btn-room-action" data-action="edit-room" data-room-id="${room.id}" style="background: #ffffff; color: #1e293b; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: 700; font-size: 0.78rem; padding: 5px 12px; cursor: pointer; transition: all 0.15s;" title="تعديل تفاصيل الغرفة (الرقم، النوع، السعر)">
-                          <span>تعديل ✏️</span>
-                        </button>` : ''}
-          </div>
+          </footer>
         </div>
       `;
     }).join('');
@@ -290,25 +262,33 @@
   App.Helpers.initRooms = function() {
   App.DOM.roomsFilterTabs.forEach(btn => {
     btn.addEventListener('click', () => {
-      App.DOM.roomsFilterTabs.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+      setActiveRoomFilterButton(App.DOM.roomsFilterTabs, btn);
       currentRoomFilter = btn.dataset.roomFilter;
-      if (currentRoomFilter !== 'مشغولة') {
-        currentRoomPaymentFilter = 'all';
-        App.DOM.roomsPaymentFilterTabs.forEach(tab => tab.classList.toggle('active', tab.dataset.roomPaymentStatus === 'all'));
-      }
       renderRoomsGrid();
     });
   });
 
   App.DOM.roomsPaymentFilterTabs.forEach(btn => {
     btn.addEventListener('click', () => {
-      App.DOM.roomsPaymentFilterTabs.forEach(tab => tab.classList.remove('active'));
-      btn.classList.add('active');
+      setActiveRoomFilterButton(App.DOM.roomsPaymentFilterTabs, btn);
       currentRoomPaymentFilter = btn.dataset.roomPaymentStatus;
       renderRoomsGrid();
     });
   });
+
+  if (App.DOM.roomsClearFiltersButton) {
+    App.DOM.roomsClearFiltersButton.addEventListener('click', () => {
+      currentRoomFilter = 'all';
+      currentRoomBookingType = 'all';
+      currentRoomPaymentFilter = 'all';
+      currentRoomSearch = '';
+      if (App.DOM.searchRoomsInput) App.DOM.searchRoomsInput.value = '';
+      setActiveRoomFilterButton(App.DOM.roomsFilterTabs, App.DOM.roomsFilterTabs[0]);
+      setActiveRoomFilterButton(App.DOM.roomsBookingTypeTabs, App.DOM.roomsBookingTypeTabs[0]);
+      setActiveRoomFilterButton(App.DOM.roomsPaymentFilterTabs, App.DOM.roomsPaymentFilterTabs[0]);
+      renderRoomsGrid();
+    });
+  }
 
   window.openRoomsFiltered = function (status) {
     window.switchView('rooms');
@@ -327,24 +307,89 @@
   // Booking-type filter tabs
   App.DOM.roomsBookingTypeTabs.forEach(btn => {
     btn.addEventListener('click', () => {
-      App.DOM.roomsBookingTypeTabs.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+      setActiveRoomFilterButton(App.DOM.roomsBookingTypeTabs, btn);
       currentRoomBookingType = btn.dataset.roomBookingType;
       renderRoomsGrid();
     });
   });
 
-  // Room Card Click: Clicking an available or reserved room card initiates booking with auto-fill
+  // Delegated room-card interactions. Occupied cards reuse the existing reservation preview;
+  // existing quick-book clicks on available/reserved cards remain intact.
+  let roomPreviewOpening = false;
+  const openOccupiedRoomPreview = async card => {
+    const modal = document.getElementById('reservation-preview-modal');
+    if (roomPreviewOpening || modal?.style.display === 'flex') return;
+
+    const targetRoom = App.State.roomsCache.find(room => room.id === parseInt(card.dataset.roomId, 10));
+    const reservation = targetRoom?.status === 'مشغولة' ? targetRoom.active_reservations?.[0] : null;
+    if (!reservation) return;
+
+    roomPreviewOpening = true;
+    try {
+      await App.Helpers.openReservationPreview(reservation.id);
+      roomPreviewOpening = false;
+      const openedModal = document.getElementById('reservation-preview-modal');
+      if (!openedModal || openedModal.style.display !== 'flex') {
+        if (card.isConnected) card.focus();
+        return;
+      }
+      const observer = new MutationObserver(() => {
+        if (openedModal.style.display === 'flex') return;
+        observer.disconnect();
+        if (card.isConnected) card.focus();
+      });
+      observer.observe(openedModal, { attributes: true, attributeFilter: ['style'] });
+    } catch (error) {
+      roomPreviewOpening = false;
+      if (card.isConnected) card.focus();
+      console.error('Unable to open room reservation preview:', error);
+    }
+  };
+
   App.DOM.roomsGridContainer.addEventListener('click', (e) => {
-    if (e.target.closest('button, select, input, a')) return;
-    const card = e.target.closest('.room-card');
+    const card = e.target.closest('.room-card-ops-refined');
+    const toggle = e.target.closest('.room-card-overflow-toggle');
+    if (toggle && card) {
+      const menu = card.querySelector('.room-card-overflow-menu');
+      const opening = menu?.hidden;
+      App.DOM.roomsGridContainer.querySelectorAll('.room-card-overflow-menu:not([hidden])').forEach(openMenu => {
+        if (openMenu !== menu) {
+          openMenu.hidden = true;
+          openMenu.closest('.room-card-overflow')?.querySelector('.room-card-overflow-toggle')?.setAttribute('aria-expanded', 'false');
+        }
+      });
+      if (menu) menu.hidden = !opening;
+      toggle.setAttribute('aria-expanded', String(Boolean(opening)));
+      return;
+    }
+    if (e.target.closest('button, a, [data-no-card-click], .overflow-menu, select, input')) {
+      const containingMenu = e.target.closest('.room-card-overflow-menu');
+      if (containingMenu && !e.target.closest('select')) {
+        containingMenu.hidden = true;
+        containingMenu.closest('.room-card-overflow')?.querySelector('.room-card-overflow-toggle')?.setAttribute('aria-expanded', 'false');
+      }
+      return;
+    }
+    App.DOM.roomsGridContainer.querySelectorAll('.room-card-overflow-menu:not([hidden])').forEach(openMenu => {
+      openMenu.hidden = true;
+      openMenu.closest('.room-card-overflow')?.querySelector('.room-card-overflow-toggle')?.setAttribute('aria-expanded', 'false');
+    });
     if (!card) return;
 
     const roomId = card.dataset.roomId;
     const targetRoom = App.State.roomsCache.find(r => r.id === parseInt(roomId, 10));
-    if (targetRoom && (targetRoom.status === 'متاحة' || targetRoom.status === 'محجوزة')) {
+    if (targetRoom?.status === 'مشغولة') {
+      openOccupiedRoomPreview(card);
+    } else if (targetRoom && (targetRoom.status === 'متاحة' || targetRoom.status === 'محجوزة')) {
       window.DashboardApp.Helpers.initiateRoomBooking(roomId);
     }
+  });
+
+  App.DOM.roomsGridContainer.addEventListener('keydown', e => {
+    const card = e.target.closest('.room-card-ops-clickable');
+    if (!card || e.target !== card || !['Enter', ' '].includes(e.key)) return;
+    e.preventDefault();
+    openOccupiedRoomPreview(card);
   });
 
   App.DOM.roomsGridContainer.addEventListener('change', async (e) => {
@@ -590,7 +635,7 @@
     if (App.DOM.roomRevenueContent) {
       App.DOM.roomRevenueContent.innerHTML = `
         <div style="text-align: center; padding: 40px; color: #64748b;">
-          <div class="spinner" style="margin: 0 auto 16px; border: 3px solid #cbd5e1; border-top: 3px solid #1a4332; border-radius: 50%; width: 32px; height: 32px; animation: spin 1s linear infinite;"></div>
+          <div class="spinner" style="margin: 0 auto 16px; border: 3px solid #cbd5e1; border-top: 3px solid #1a432a; border-radius: 50%; width: 32px; height: 32px; animation: spin 1s linear infinite;"></div>
           جاري استخراج تقرير إيرادات وحجوزات الغرفة...
         </div>
       `;
@@ -627,7 +672,7 @@
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
             <div>
               <div style="display: flex; align-items: center; gap: 10px;">
-                <h3 style="margin: 0; font-size: 1.4rem; font-weight: 900; color: #1a4332;">غرفة ${App.Helpers.escapeHtml(room.room_number)}</h3>
+                <h3 style="margin: 0; font-size: 1.4rem; font-weight: 900; color: #1a432a;">غرفة ${App.Helpers.escapeHtml(room.room_number)}</h3>
                 <span style="font-size: 0.85rem; color: #64748b; font-weight: 600;">${App.Helpers.escapeHtml(room.type)}</span>
                 ${App.Helpers.getRoomStatusBadge(room.status)}
               </div>
@@ -651,9 +696,9 @@
               </div>
             </div>
 
-            <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 14px; text-align: center;">
-              <div style="font-size: 0.8rem; color: #047857; font-weight: 700;">محصّل فعلياً</div>
-              <div style="font-size: 1.35rem; font-weight: 900; color: #065f46; margin-top: 4px;">
+            <div style="background: #ecfdf3; border: 1px solid #a7f3c4; border-radius: 8px; padding: 14px; text-align: center;">
+              <div style="font-size: 0.8rem; color: #047831; font-weight: 700;">محصّل فعلياً</div>
+              <div style="font-size: 1.35rem; font-weight: 900; color: #065f28; margin-top: 4px;">
                 ${totalCollected.toLocaleString()} <span style="font-size: 0.75rem;">ريال</span>
               </div>
             </div>
@@ -707,7 +752,7 @@
                         <td style="padding: 9px 12px; text-align: center; font-family: monospace; color: #334155;">${App.Helpers.escapeHtml(r.check_in_date || '-')}</td>
                         <td style="padding: 9px 12px; text-align: center; font-family: monospace; color: #334155;">${checkOutDisplay}</td>
                         <td style="padding: 9px 12px; text-align: left; font-weight: 700; color: #1e1b4b;">${price.toLocaleString()} ريال</td>
-                        <td style="padding: 9px 12px; text-align: left; font-weight: 700; color: #059669;">${collected.toLocaleString()} ريال</td>
+                        <td style="padding: 9px 12px; text-align: left; font-weight: 700; color: #05963d;">${collected.toLocaleString()} ريال</td>
                         <td style="padding: 9px 12px; text-align: left; font-weight: 700; color: ${isCredit ? '#2563eb' : (remaining > 0 ? '#dc2626' : '#64748b')};">
                           ${isCredit ? `له رصيد: ${Math.abs(rawRemaining).toLocaleString()} ريال` : (remaining > 0 ? `${remaining.toLocaleString()} ريال` : '0 ريال')}
                         </td>

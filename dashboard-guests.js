@@ -127,6 +127,25 @@
     }
   }
 
+  function openEditGuestModal(guestId) {
+    const targetId = parseInt(guestId, 10);
+    if (!targetId || isNaN(targetId)) return;
+
+    const guest = (App.State.guestsCache || []).find(g => g.id === targetId);
+    if (!guest) {
+      App.Helpers.showToast('بيانات النزيل غير متوفرة في الصفحة الحالية.', 'error');
+      return;
+    }
+
+    if (App.DOM.editGuestId) App.DOM.editGuestId.value = guest.id;
+    if (App.DOM.editGuestName) App.DOM.editGuestName.value = guest.name || '';
+    if (App.DOM.editGuestPhone) App.DOM.editGuestPhone.value = guest.phone || '';
+    if (App.DOM.editGuestIdNumber) App.DOM.editGuestIdNumber.value = guest.id_number || '';
+
+    if (App.DOM.editGuestModal) App.DOM.editGuestModal.style.display = 'flex';
+    if (App.DOM.editGuestName) App.DOM.editGuestName.focus();
+  }
+
   App.Helpers.initGuests = function() {
   if (App.DOM.btnGuestsPrevPage) {
     App.DOM.btnGuestsPrevPage.addEventListener('click', () => {
@@ -243,25 +262,6 @@
   // =========================================================================
   // EDIT GUEST MODAL
   // =========================================================================
-  function openEditGuestModal(guestId) {
-    const targetId = parseInt(guestId, 10);
-    if (!targetId || isNaN(targetId)) return;
-
-    const guest = (App.State.guestsCache || []).find(g => g.id === targetId);
-    if (!guest) {
-      App.Helpers.showToast('بيانات النزيل غير متوفرة في الصفحة الحالية.', 'error');
-      return;
-    }
-
-    if (App.DOM.editGuestId) App.DOM.editGuestId.value = guest.id;
-    if (App.DOM.editGuestName) App.DOM.editGuestName.value = guest.name || '';
-    if (App.DOM.editGuestPhone) App.DOM.editGuestPhone.value = guest.phone || '';
-    if (App.DOM.editGuestIdNumber) App.DOM.editGuestIdNumber.value = guest.id_number || '';
-
-    if (App.DOM.editGuestModal) App.DOM.editGuestModal.style.display = 'flex';
-    if (App.DOM.editGuestName) App.DOM.editGuestName.focus();
-  }
-
   function closeEditGuestModal() {
     if (App.DOM.editGuestModal) App.DOM.editGuestModal.style.display = 'none';
     if (App.DOM.editGuestForm) App.DOM.editGuestForm.reset();

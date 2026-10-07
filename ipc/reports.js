@@ -14,10 +14,92 @@ module.exports = function registerReportsIpc(ipcMain, { db, session, helpers }) 
     }
   });
 
+  // Logged-in staff can see the current shift totals on the overview. Return only
+  // aggregate amounts here; guest and transaction details remain Admin-only.
+  ipcMain.handle('reports:get-current-shift-summary', async () => {
+    if (!session.currentUser) {
+      return { success: false, error: 'غير مصرح: يرجى تسجيل الدخول أولاً.' };
+    }
+    try {
+      return { success: true, data: db.getCurrentShiftRevenueSummary() };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('analytics:get-monthly-revenue', async () => {
     try {
       const monthlyData = db.getMonthlyRevenue();
       return { success: true, data: monthlyData };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('hotel-business-day:get-state', async () => {
+    if (!session.currentUser) {
+      return { success: false, error: 'غير مصرح: يرجى تسجيل الدخول أولاً.' };
+    }
+    try {
+      return { success: true, data: db.getCurrentBusinessState() };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('hotel-business-day:get-settings', async () => {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
+      return { success: false, error: 'غير مصرح: إعدادات اليوم الفندقي مخصصة لمدير النظام.' };
+    }
+    try { return { success: true, data: db.getBusinessDaySettings() }; }
+    catch (err) { return { success: false, error: err.message }; }
+  });
+
+  ipcMain.handle('hotel-business-day:update-settings', async (_event, settings) => {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
+      return { success: false, error: 'غير مصرح: تعديل إعدادات اليوم الفندقي مخصص لمدير النظام.' };
+    }
+    try { return { success: true, data: db.updateBusinessDaySettings(settings) }; }
+    catch (err) { return { success: false, error: err.message }; }
+  });
+
+  ipcMain.handle('receipt-stay-policies:get', async () => {
+    if (!session.currentUser) return { success: false, error: 'غير مصرح: يرجى تسجيل الدخول أولاً.' };
+    try { return { success: true, data: db.getReceiptStayPolicies() }; }
+    catch (err) { return { success: false, error: err.message }; }
+  });
+
+  ipcMain.handle('receipt-stay-policies:update', async (_event, policies) => {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
+      return { success: false, error: 'غير مصرح: تعديل سياسات الإقامة مخصص لمدير النظام.' };
+    }
+    try { return { success: true, data: db.updateReceiptStayPolicies(policies) }; }
+    catch (err) { return { success: false, error: err.message }; }
+  });
+
+  ipcMain.handle('hotel-business-day:get-pending-reconciliation', async () => {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
+      return { success: false, error: 'غير مصرح.' };
+    }
+    try { return { success: true, data: db.getPendingShiftReconciliationAudits() }; }
+    catch (err) { return { success: false, error: err.message }; }
+  });
+
+  ipcMain.handle('hotel-business-day:reconcile-shift-audit', async (_event, auditId) => {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
+      return { success: false, error: 'غير مصرح: تأكيد المصالحة مخصص لمدير النظام.' };
+    }
+    try { return { success: true, data: db.markShiftAuditReconciled(auditId, session.currentUser.id) }; }
+    catch (err) { return { success: false, error: err.message }; }
+  });
+
+  ipcMain.handle('hotel-business-day:run-audit', async (event, expectedBusinessDate) => {
+    if (!session.currentUser || session.currentUser.role !== 'Admin') {
+      return { success: false, error: 'غير مصرح: إقفال اليوم الفندقي مخصص لمدير النظام (Admin).' };
+    }
+    try {
+      const result = db.runNightAudit(session.currentUser.id, expectedBusinessDate);
+      return { success: true, data: result };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -37,7 +119,7 @@ module.exports = function registerReportsIpc(ipcMain, { db, session, helpers }) 
         end = customDate.endDate;
       }
 
-      const date = start || helpers.getLocalDateString();
+      const date = start || (db.getCurrentBusinessDate ? db.getCurrentBusinessDate() : helpers.getLocalDateString());
       const report = db.getShiftAuditReport(date, end);
       return { success: true, data: report, currentUser: session.currentUser };
     } catch (err) {

@@ -2,6 +2,7 @@ window.DashboardApp = {
   State: {
     testVar: 0,
     currentUser: null,
+    businessDate: null,
     roomsCache: [],
     guestsCache: [],
     usersCache: [],
@@ -40,7 +41,7 @@ window.DashboardApp = {
     return getLocalDateString(date);
   }
 
-  function isReservationOverdue(reservation) {
+  function isLateCheckout(reservation) {
     if (!reservation || reservation.status !== 'مؤكد') return false;
     const checkOutDate = String(reservation.check_out_date || '').slice(0, 10);
     if (!checkOutDate || checkOutDate === 'مفتوح') return false;
@@ -49,13 +50,17 @@ window.DashboardApp = {
     if (checkOutDate < todayStr) return true;
     if (checkOutDate > todayStr) return false;
 
-    const now = new Date();
-    return now.getHours() > 14 || (now.getHours() === 14 && (now.getMinutes() > 0 || now.getSeconds() > 0 || now.getMilliseconds() > 0));
+    // Check-out is due at 14:00 hotel local time on the scheduled date.
+    return new Date().getHours() >= 14;
+  }
+
+  function isReservationOverdue(reservation) {
+    return isLateCheckout(reservation);
   }
 
   function renderOverdueBadge(reservation, label = 'متأخر عن المغادرة') {
-    return isReservationOverdue(reservation)
-      ? `<span class="badge" style="display: inline-block; margin-top: 4px; background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; font-size: 0.7rem; font-weight: 800;">${escapeHtml(label)}</span>`
+    return isLateCheckout(reservation)
+      ? `<span class="late-checkout-badge"><span aria-hidden="true">⚠️</span>${escapeHtml(label)}</span>`
       : '';
   }
 
@@ -116,7 +121,7 @@ window.DashboardApp = {
     } else if (type === 'حجز شهري') {
       return `<span class="badge" style="background: rgba(168, 85, 247, 0.12); color: #9333ea; border: 1px solid rgba(168, 85, 247, 0.3); font-size: 0.72rem; font-weight: 800; padding: 2px 7px;">حجز شهري 📅</span>`;
     } else if (type === 'استخدام يومي') {
-      return `<span class="badge" style="background: rgba(16, 185, 129, 0.12); color: #047857; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; font-weight: 800; padding: 2px 7px;">استخدام يومي ☀️</span>`;
+      return `<span class="badge" style="background: rgba(16, 185, 81, 0.12); color: #047831; border: 1px solid rgba(16, 185, 81, 0.3); font-size: 0.72rem; font-weight: 800; padding: 2px 7px;">استخدام يومي ☀️</span>`;
     }
     return '';
   }
@@ -153,11 +158,29 @@ window.DashboardApp = {
     return `${d1} ${ARABIC_MONTHS[m1 - 1] || ''} ${y1} - ${d2} ${ARABIC_MONTHS[m2 - 1] || ''} ${y2}`;
   }
 
+  function parseStoredTimestamp(timestamp) {
+    if (!timestamp) return null;
+    const raw = String(timestamp).trim();
+    if (!raw) return null;
+
+    // SQLite CURRENT_TIMESTAMP values are UTC but omit a timezone marker.
+    // Parsing "YYYY-MM-DD HH:mm:ss" directly makes JavaScript treat it as
+    // local time, which shifts the displayed date for post-midnight bookings.
+    let normalized = raw.replace(' ', 'T');
+    const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized);
+    if (!hasTimezone && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(normalized)) {
+      normalized += 'Z';
+    }
+
+    const date = new Date(normalized);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
   function formatArabicDateTime(isoString) {
     if (!isoString) return '-';
     try {
-      const d = new Date(isoString);
-      if (isNaN(d.getTime())) return isoString;
+      const d = parseStoredTimestamp(isoString);
+      if (!d) return isoString;
       return d.toLocaleDateString('ar-EG', {
         year: 'numeric',
         month: 'short',
@@ -193,6 +216,7 @@ window.DashboardApp = {
   App.Helpers.getLocalDateString = getLocalDateString;
   App.Helpers.getHotelBusinessDate = getHotelBusinessDate;
   window.getHotelBusinessDate = getHotelBusinessDate;
+  App.Helpers.isLateCheckout = isLateCheckout;
   App.Helpers.isReservationOverdue = isReservationOverdue;
   App.Helpers.renderOverdueBadge = renderOverdueBadge;
   App.Helpers.showToast = showToast;
@@ -202,6 +226,7 @@ window.DashboardApp = {
   App.Helpers.getRoomStatusBadge = getRoomStatusBadge;
   App.Helpers.formatArabicDateRange = formatArabicDateRange;
   App.Helpers.formatArabicDateTime = formatArabicDateTime;
+  App.Helpers.parseStoredTimestamp = parseStoredTimestamp;
   App.Helpers.escapeHtml = escapeHtml;
 
 })(window.DashboardApp);

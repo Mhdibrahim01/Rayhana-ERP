@@ -19,7 +19,21 @@ contextBridge.exposeInMainWorld('api', {
 
   // Analytics & Statistics
   getDashboardStats: () => ipcRenderer.invoke('dashboard:get-stats'),
+  getCurrentShiftRevenueSummary: () => ipcRenderer.invoke('reports:get-current-shift-summary'),
   getMonthlyRevenue: () => ipcRenderer.invoke('analytics:get-monthly-revenue'),
+  getHotelBusinessState: () => ipcRenderer.invoke('hotel-business-day:get-state'),
+  runNightAudit: (expectedBusinessDate) => ipcRenderer.invoke('hotel-business-day:run-audit', expectedBusinessDate),
+  getBusinessDaySettings: () => ipcRenderer.invoke('hotel-business-day:get-settings'),
+  updateBusinessDaySettings: (settings) => ipcRenderer.invoke('hotel-business-day:update-settings', settings),
+  getReceiptStayPolicies: () => ipcRenderer.invoke('receipt-stay-policies:get'),
+  updateReceiptStayPolicies: (policies) => ipcRenderer.invoke('receipt-stay-policies:update', policies),
+  getPendingShiftReconciliationAudits: () => ipcRenderer.invoke('hotel-business-day:get-pending-reconciliation'),
+  reconcileShiftAudit: (auditId) => ipcRenderer.invoke('hotel-business-day:reconcile-shift-audit', auditId),
+  onHotelBusinessDateChanged: (callback) => {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('hotel-business-day:changed', handler);
+    return () => ipcRenderer.removeListener('hotel-business-day:changed', handler);
+  },
 
   // Rooms
   getAllRooms: () => ipcRenderer.invoke('rooms:get-all'),

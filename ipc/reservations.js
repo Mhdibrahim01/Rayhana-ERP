@@ -17,6 +17,10 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
       : { success: false, error: 'غير مصرح: يرجى تسجيل الدخول أولاً.' };
   }
 
+  async function ensureOpenBusinessDateIsCurrent() {
+    if (typeof helpers.checkBusinessDayRollover === 'function') await helpers.checkBusinessDayRollover();
+  }
+
   // 5. Reservations
   ipcMain.handle('reservations:get-all', async () => {
     const denied = requireSession();
@@ -43,7 +47,7 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
   // =========================================================================
   // Strict Backend Data Validations
   // =========================================================================
-  function validateReservationData(data, getLocalDateString) {
+  function validateReservationData(data, getLocalDateString, currentBusinessDate) {
     if (!data || typeof data !== 'object') {
       return { valid: false, error: 'بيانات الحجز غير صالحة.' };
     }
@@ -111,8 +115,9 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
     }
 
     const todayStr = getLocalDateString ? getLocalDateString(new Date()) : new Date().toISOString().split('T')[0];
-    if (checkInDate < todayStr) {
-      return { valid: false, error: 'تاريخ الوصول لا يمكن أن يكون في الماضي (يجب أن يكون اليوم أو تاريخاً مستقبلياً).' };
+    const minimumAllowedDate = currentBusinessDate || todayStr;
+    if (checkInDate < minimumAllowedDate) {
+      return { valid: false, error: 'تاريخ الوصول لا يمكن أن يسبق تاريخ العمل الفندقي الحالي.' };
     }
 
     if (bookingType === 'عقد مفتوح') {
@@ -143,7 +148,11 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
     const denied = requireSession();
     if (denied) return denied;
     try {
-      const validation = validateReservationData(data, helpers.getLocalDateString);
+      await ensureOpenBusinessDateIsCurrent();
+      const currentBusinessDate = typeof db.getCurrentBusinessDate === 'function'
+        ? db.getCurrentBusinessDate()
+        : (helpers.getHotelBusinessDate ? helpers.getHotelBusinessDate(new Date()) : helpers.getLocalDateString());
+      const validation = validateReservationData(data, helpers.getLocalDateString, currentBusinessDate);
       if (!validation.valid) {
         return { success: false, error: validation.error };
       }
@@ -172,6 +181,7 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
     const denied = requireSession();
     if (denied) return denied;
     try {
+      await ensureOpenBusinessDateIsCurrent();
       let id = arg1;
       let options = arg2 || {};
       if (arg1 && typeof arg1 === 'object') {
@@ -265,6 +275,7 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
       return { success: false, error: 'غير مصرح: يرجى تسجيل الدخول أولاً.' };
     }
     try {
+      await ensureOpenBusinessDateIsCurrent();
       const activeUserId = data?.userId || session.currentUser.id;
       const result = db.extendReservation({
         ...data,
@@ -280,6 +291,7 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
     const denied = requireSession();
     if (denied) return denied;
     try {
+      await ensureOpenBusinessDateIsCurrent();
       let reservationId = arg1;
       let actualDepartureDate = arg2;
       let manualOverrideAmount = arg3;
@@ -310,6 +322,7 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
     const denied = requireSession();
     if (denied) return denied;
     try {
+      await ensureOpenBusinessDateIsCurrent();
       const { reservationId, newAmount, amount, paymentMethod, userId, notes } = data || {};
       const targetId = parseInt(reservationId, 10);
       const payVal = db.roundMoney(newAmount !== undefined ? newAmount : amount);
@@ -370,6 +383,7 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
     const denied = requireSession();
     if (denied) return denied;
     try {
+      await ensureOpenBusinessDateIsCurrent();
       return db.reconcileLegacyDeposit({
         ...data,
         userId: session.currentUser.id
@@ -437,6 +451,7 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
     const denied = requireSession();
     if (denied) return denied;
     try {
+      await ensureOpenBusinessDateIsCurrent();
       // Editing a receipt rewrites total_price, paid_amount and the guest details on an
       // existing reservation, and it can create exactly the total_price divergence that
       // the monthly contract guard later refuses. That is an Admin decision, so it is

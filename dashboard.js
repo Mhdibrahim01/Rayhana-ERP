@@ -27,6 +27,8 @@
   };
   const topbarHeading = document.getElementById('topbar-heading');
   const topbarSubheading = document.getElementById('topbar-subheading');
+  const currentSystemTimeDisplay = document.getElementById('current-system-time');
+  const activeBusinessDateDisplay = document.getElementById('active-business-date');
 
   const btnOpenFactoryReset = document.getElementById('btn-open-factory-reset');
   const factoryResetModal = document.getElementById('factory-reset-modal');
@@ -87,6 +89,7 @@
   const bannedGuestMsg = document.getElementById('banned-guest-msg');
   const overviewTableBody = document.getElementById('overview-table-body');
   const overviewEmpty = document.getElementById('overview-empty');
+  const overviewRecentTabCount = document.getElementById('overview-recent-tab-count');
 
   // New Reservation Modal Elements
   const newReservationModal = document.getElementById('new-reservation-modal');
@@ -106,6 +109,7 @@
 
   // Topbar Actions (Backup, Restore, Shift Audit)
   const btnOpenShiftAudit = document.getElementById('btn-open-shift-audit');
+  const btnRunNightAudit = document.getElementById('btn-run-night-audit');
   const btnBackupDb = document.getElementById('btn-backup-db');
   const btnRestoreDb = document.getElementById('btn-restore-db');
 
@@ -224,6 +228,9 @@
   const roomsBookingTypeTabs = document.querySelectorAll('#rooms-booking-type-tabs .filter-tab-btn');
   const roomsPaymentFilterTabs = document.querySelectorAll('#rooms-payment-filter-tabs .filter-tab-btn');
   const roomsPaymentFilterContainer = document.getElementById('rooms-payment-filter-container');
+  const roomsFilterResult = document.getElementById('rooms-filter-result');
+  const roomsClearFiltersButton = document.getElementById('rooms-clear-filters');
+  const roomsActiveFilterCount = document.getElementById('rooms-active-filter-count');
   const btnToggleAddRoom = document.getElementById('btn-toggle-add-room');
   const addRoomPanel = document.getElementById('add-room-panel');
   const addRoomForm = document.getElementById('add-room-form');
@@ -296,6 +303,28 @@
    */
   function getLocalDateString(date) { return window.DashboardApp.Helpers.getLocalDateString(date); }
 
+  function updateSystemClock() {
+    if (!currentSystemTimeDisplay) return;
+    currentSystemTimeDisplay.textContent = new Date().toLocaleTimeString('ar-EG', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+  }
+
+  async function refreshHotelBusinessState() {
+    if (!window.api || typeof window.api.getHotelBusinessState !== 'function') return null;
+    const result = await window.api.getHotelBusinessState();
+    if (!result || !result.success || !result.data) return null;
+    const state = result.data;
+    window.DashboardApp.State.businessDate = state.current_business_date;
+    if (activeBusinessDateDisplay) {
+      activeBusinessDateDisplay.textContent = state.current_business_date;
+      activeBusinessDateDisplay.title = state.last_audit_at
+        ? `آخر إقفال: ${state.last_audit_at}`
+        : 'لم يتم تنفيذ إقفال فندقي بعد';
+    }
+    return state;
+  }
+
   function isReservationOverdue(res) { return window.DashboardApp.Helpers.isReservationOverdue(res); }
 
   function renderOverdueBadge(isOverdue) { return window.DashboardApp.Helpers.renderOverdueBadge(isOverdue); }
@@ -350,13 +379,13 @@
           }
         } else {
           btnConfirm.className = 'btn btn-primary';
-          btnConfirm.style.background = 'var(--primary-accent, #1a4332)';
+          btnConfirm.style.background = 'var(--primary-accent, #1a432a)';
           btnConfirm.style.color = '#ffffff';
           btnConfirm.style.border = 'none';
           if (iconContainer) {
-            iconContainer.style.background = 'rgba(26, 67, 50, 0.12)';
-            iconContainer.style.color = 'var(--primary-accent, #1a4332)';
-            iconContainer.style.borderColor = 'rgba(26, 67, 50, 0.25)';
+            iconContainer.style.background = 'rgba(26, 67, 42, 0.12)';
+            iconContainer.style.color = 'var(--primary-accent, #1a432a)';
+            iconContainer.style.borderColor = 'rgba(26, 67, 42, 0.25)';
           }
         }
       }
@@ -469,6 +498,7 @@
       showToast('Access Denied: Admin privileges required. (عذراً: هذا القسم مخصص لمدير النظام فقط)', 'error');
       targetView = 'overview';
     }
+    window.DashboardApp.State.activeView = targetView;
 
     // 1. INSTANT: Update navigation links active state (pure CSS class toggle — zero reflow)
     navLinks.forEach(link => {
@@ -479,7 +509,7 @@
     Object.keys(viewSections).forEach(key => {
       const section = viewSections[key];
       if (section) {
-        section.style.display = key === targetView ? 'block' : 'none';
+        section.style.display = key === targetView ? (key === 'overview' ? 'flex' : 'block') : 'none';
       }
     });
 
@@ -523,24 +553,36 @@
   });
   // OFFICIAL HOTEL TAX INVOICE & RECEIPT (FEATURE 1)
   // =========================================================================
+  function fitReceiptToA4Page(receipt, { applyZoom = true } = {}) {
+    if (!receipt) return null;
+    const printableHeight = (297 - 20) * 96 / 25.4;
+    receipt.classList.add('receipt-print-mode');
+    receipt.style.zoom = '1';
+    let contentHeight = Math.max(receipt.scrollHeight, receipt.getBoundingClientRect().height);
+    if (contentHeight > printableHeight) {
+      receipt.classList.add('receipt-print-policy-compact');
+      contentHeight = Math.max(receipt.scrollHeight, receipt.getBoundingClientRect().height);
+    }
+    // Leave a little headroom because Chromium's print media rules are slightly
+    // taller than the screen measurement (notably on monthly receipts).
+    let scale = Math.max(0.88, Math.min(1, printableHeight * 0.94 / Math.max(1, contentHeight)));
+    if (applyZoom) receipt.style.zoom = String(scale);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const renderedHeight = Math.max(receipt.scrollHeight * scale, receipt.getBoundingClientRect().height);
+      if (renderedHeight <= printableHeight) break;
+      scale = Math.max(0.88, scale * printableHeight / renderedHeight * 0.995);
+      if (applyZoom) receipt.style.zoom = String(scale);
+    }
+    return { scale, contentHeight, printableHeight };
+  }
+
   function fitInvoicePreviewToViewport() {
     if (!invoicePrintableArea || !invoiceModal || invoiceModal.style.display === 'none') return;
-    const invoiceCard = invoicePrintableArea.firstElementChild;
+    const invoiceCard = invoicePrintableArea.querySelector('.receipt-document');
     if (!invoiceCard) return;
 
-    // Keep the complete receipt visible in the preview. Printed/PDF receipts use
-    // the unscaled HTML, so this only adapts the on-screen modal to the window.
+    // The preview pane may scroll; keep receipt text at its intended readable size.
     invoiceCard.style.zoom = '1';
-    const availableHeight = invoicePrintableArea.clientHeight;
-    const availableWidth = invoicePrintableArea.clientWidth;
-    if (!availableHeight || !availableWidth) return;
-
-    const scale = Math.min(
-      1,
-      availableHeight / invoiceCard.scrollHeight,
-      availableWidth / invoiceCard.scrollWidth
-    );
-    invoiceCard.style.zoom = String(scale);
   }
 
   window.addEventListener('resize', fitInvoicePreviewToViewport);
@@ -564,6 +606,11 @@
       const inv = res.data;
       currentInvoiceData = inv;
       const isContract = inv.booking_type === 'عقد مفتوح';
+      // Monthly bookings print under the institution's own letterhead (name, unified
+      // number, seal and signature) and bill the closed 30-night package rather than
+      // the night count. Kept separate from `isContract`, which is the open-contract
+      // type and is a different case entirely.
+      const isMonthly = inv.booking_type === 'حجز شهري';
       const isCancelled = inv.status === 'ملغي';
       const total = isCancelled ? 0.0 : parseFloat(inv.total_price || 0);
       const paid = parseFloat(inv.paid_amount || 0);
@@ -615,28 +662,32 @@
       const isContractPolicy = inv.checkout_policy === 'contract';
       const isActualPolicy = inv.checkout_policy === 'actual';
       let bookedNights = null;
-      let checkOutDisplay;
-      if (isCancelled) {
-        checkOutDisplay = `${escapeHtml(inv.check_out_date || '-')} (حجز ملغي)`;
-      } else if (isContractPolicy && inv.booked_check_out_date) {
+      if (isContractPolicy && inv.booked_check_out_date) {
         const b1 = inv.check_in_date ? new Date(inv.check_in_date) : null;
         const b2 = new Date(inv.booked_check_out_date);
         if (b1 && b2 > b1) bookedNights = Math.max(1, Math.round((b2 - b1) / (1000 * 60 * 60 * 24)));
-        const bookedWord = bookedNights === 1 ? 'ليلة' : 'ليالٍ';
-        checkOutDisplay = `${escapeHtml(inv.check_out_date)} (غادر مبكراً — ${bookedNights} ${bookedWord} محجوزة حتى ${escapeHtml(inv.booked_check_out_date)})`;
-      } else {
-        checkOutDisplay = inv.check_out_date ? `${escapeHtml(inv.check_out_date)} (${stayDurationText})` : 'مفتوح (غير محدد)';
       }
 
+      const receiptDigits = value => String(value ?? '').replace(/[٠-٩۰-۹]/g, digit => {
+        const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
+        const persianDigits = '۰۱۲۳۴۵۶۷۸۹';
+        const arabicIndex = arabicDigits.indexOf(digit);
+        return String(arabicIndex >= 0 ? arabicIndex : persianDigits.indexOf(digit));
+      });
       const policyNote = isContractPolicy
         ? 'تم الاحتساب بقيمة العقد الكاملة (لا يشمل استرداد الليالي غير المستخدمة).'
         : (isActualPolicy
-          ? `تم الاحتساب بالليالي الفعلية بناء على استثناء معتمد: ${escapeHtml(inv.checkout_policy_reason || 'بدون سبب مذكور')}`
+          ? `تم الاحتساب بالليالي الفعلية بناء على استثناء معتمد: ${escapeHtml(receiptDigits(inv.checkout_policy_reason || 'بدون سبب مذكور'))}`
           : '');
 
       const effectiveNightlyRate = parseFloat(inv.custom_nightly_price || inv.price_per_night || 0);
       const discount = parseFloat(inv.discount_amount || 0);
-      const discountReasonText = inv.discount_reason ? ` (${escapeHtml(inv.discount_reason)})` : '';
+      const rawDiscountReason = String(inv.discount_reason || '').trim();
+      const normalizedDiscountReason = rawDiscountReason.replace(/[إأآ]/g, 'ا').replace(/[()]/g, '').replace(/[\s-]+/g, ' ').trim();
+      const displayDiscountReason = /^اقامة طويلة شهري$/.test(normalizedDiscountReason)
+        ? 'إقامة طويلة - شهري'
+        : receiptDigits(rawDiscountReason);
+      const discountReasonText = displayDiscountReason ? ` (${escapeHtml(displayDiscountReason)})` : '';
       const lateFee = parseFloat(inv.late_checkout_fee || 0);
 
       // "تعديل السند" rewrites the reservation total and paid amount. The main process
@@ -656,45 +707,175 @@
       const baseSubtotal = (typeof invoiceNights === 'number' && invoiceNights > 0)
         ? (invoiceNights * effectiveNightlyRate)
         : (total + discount);
+      const monthlyPackageSubtotal = roundMoney(effectiveNightlyRate * 30);
+      const shownSubtotal = isMonthly ? monthlyPackageSubtotal : baseSubtotal;
 
-      const invoiceYear = (inv.created_at ? new Date(inv.created_at) : new Date()).getFullYear() || new Date().getFullYear();
+      const reservationCreatedAt = window.DashboardApp.Helpers.parseStoredTimestamp(inv.created_at);
+      const invoiceYear = (reservationCreatedAt || new Date()).getFullYear() || new Date().getFullYear();
       const invoiceNum = `SND-${invoiceYear}-${String(inv.id).padStart(5, '0')}`;
       const issuedAt = new Date();
-      const printDate = issuedAt.toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
-      const printTime = issuedAt.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+      const formatReceiptDate = value => {
+        const match = receiptDigits(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+        return match ? `${match[1]}-${match[2]}-${match[3]}` : '-';
+      };
+      const formatReceiptTime = value => {
+        const match = receiptDigits(value).match(/(?:^|\s)(\d{1,2}):(\d{2})/);
+        return match ? `${String(match[1]).padStart(2, '0')}:${match[2]}` : '-';
+      };
+      const formatReceiptMoney = value => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value) || 0);
+      const formatReceiptDateTime = value => {
+        const raw = String(value || '');
+        const date = formatReceiptDate(raw);
+        const time = formatReceiptTime(raw.replace('T', ' '));
+        return time === '-' ? date : `${date} ${time}`;
+      };
+      const printDate = `${issuedAt.getFullYear()}-${String(issuedAt.getMonth() + 1).padStart(2, '0')}-${String(issuedAt.getDate()).padStart(2, '0')}`;
+      const printTime = `${String(issuedAt.getHours()).padStart(2, '0')}:${String(issuedAt.getMinutes()).padStart(2, '0')}`;
+      const checkInReceiptDate = formatReceiptDate(inv.check_in_date);
+      const receiptScheduledCheckoutDate = isContractPolicy && inv.booked_check_out_date
+        ? inv.booked_check_out_date
+        : (inv.check_out_date || inv.booked_check_out_date);
+      const checkOutReceiptDate = receiptScheduledCheckoutDate
+        ? formatReceiptDate(receiptScheduledCheckoutDate)
+        : 'غير محدد';
+      const registrationDate = formatReceiptDateTime(inv.created_at);
+      const showRegistrationDate = registrationDate !== '-' && registrationDate.slice(0, 10) !== checkInReceiptDate;
+      let receiptPolicies = [];
+      try {
+        const policiesResult = await window.api.getReceiptStayPolicies();
+        if (policiesResult?.success && Array.isArray(policiesResult.data)) receiptPolicies = policiesResult.data;
+      } catch (_) { /* the receipt can render without policy settings */ }
+      const displayedPolicies = receiptPolicies
+        .map(value => String(value || '').trim())
+        .filter(Boolean)
+        .filter((_, index) => isMonthly || index !== 2)
+        .slice(0, 7);
+      const receiptDocumentStyles = `
+        <style>
+          .receipt-document{box-sizing:border-box;width:100%;max-width:100%;min-height:0;padding:16px;border:1px solid #dbe3ec;border-radius:12px;background:#fff;color:#0f172a;display:flex;flex-direction:column;gap:12px;font:13px/1.45 "Segoe UI",Tahoma,"Cairo",Arial,sans-serif;direction:rtl;text-align:right;overflow-wrap:anywhere}
+          .receipt-document.receipt-print-mode{width:190mm!important;max-width:190mm!important;min-height:0!important;height:auto!important;padding:0!important;border:0!important;border-radius:0!important;box-shadow:none!important;gap:6px!important;font-size:10pt!important;line-height:1.35!important;overflow:visible!important}
+          .receipt-print-mode .receipt-header{padding-bottom:6px!important;margin:0!important}
+          .receipt-print-mode .receipt-details-grid{gap:8px!important;padding-bottom:6px!important;margin:0!important}
+          .receipt-print-mode .receipt-items-wrap{margin:0!important}
+          .receipt-print-mode .receipt-items-table th,.receipt-print-mode .receipt-items-table td{padding:6px!important}
+          .receipt-print-mode .receipt-policy-card,.receipt-print-mode .receipt-totals-card{padding:8px!important}
+          .receipt-print-mode .receipt-signature-row{gap:8px!important}
+          .receipt-print-mode .receipt-seal{width:80px!important;height:42px!important}
+          .receipt-print-mode .receipt-signature-line{height:50px!important}
+          .receipt-print-mode .receipt-payment-notice{padding:0!important;border:0!important;line-height:1.35!important}
+          .receipt-print-mode.receipt-print-policy-compact .receipt-policy-card ol{line-height:1.1!important}
+          .receipt-print-mode.receipt-print-policy-compact .receipt-policy-card li{padding-bottom:0!important}
+          .receipt-document *{box-sizing:border-box}
+          .receipt-header{padding:0 0 12px!important;margin:0!important;border-bottom:1px solid #e2e8f0!important;gap:16px}
+          .receipt-header h2{font-size:18px!important;margin-bottom:4px!important}
+          .receipt-header>div:first-child>div{font-size:12px!important;line-height:1.45!important}
+          .receipt-header>div:last-child{min-width:190px!important;padding:10px 12px!important}
+          .receipt-header>div:last-child>div{font-size:12px!important;line-height:1.45!important}
+          .receipt-details-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:16px!important;padding-bottom:12px!important;margin:0!important}
+          .receipt-details-grid h3{font-size:13px!important;margin-bottom:6px!important;padding-bottom:5px!important}
+          .receipt-details-grid>div>div{font-size:12px!important;line-height:1.55!important}
+          .receipt-details-grid strong{color:#64748b!important}
+          .receipt-details-grid>div>div{color:#334155!important}
+          .receipt-items-wrap{margin:0!important;overflow:visible!important}
+          .receipt-items-table{font-size:12px!important}
+          .receipt-items-table th,.receipt-items-table td{padding:7px 8px!important}
+          .receipt-items-table td>div{font-size:12px!important}
+          .receipt-summary-row{display:flex;align-items:stretch;gap:12px;break-inside:avoid;page-break-inside:avoid}
+          .receipt-policy-card{flex:0 0 60%;min-width:0;border:1px solid #dbe3ec;border-radius:9px;background:#f8fafc;padding:10px 12px}
+          .receipt-policy-card h3{margin:0 0 6px;padding-bottom:5px;border-bottom:1px solid #e2e8f0;color:#334155;font-size:13px;font-weight:800}
+          .receipt-policy-card ol{margin:0;padding:0;color:#475569;font-size:10px;line-height:1.45;list-style:none}
+          .receipt-policy-card li{display:flex;gap:5px;padding:0 0 2px}
+          .receipt-policy-number{flex:0 0 15px;color:#64748b;font-weight:700;text-align:left}
+          .receipt-totals-card{flex:1;min-width:0;border:1px solid #e2e8f0;border-radius:9px;background:#f8fafc;padding:10px 12px;font-size:12px;break-inside:avoid;page-break-inside:avoid}
+          .receipt-total-line{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 0 5px;color:#475569}
+          .receipt-total-line>span:last-child{color:#1e293b;font-weight:700;white-space:nowrap}
+          .receipt-total-discount{padding:3px 5px;border-radius:5px;background:#f1f5f9;color:#334155}
+          .receipt-total-net{padding-top:5px;border-top:1px solid #e2e8f0;color:#0f172a;font-weight:800}
+          .receipt-total-paid{color:#047831;font-weight:700}
+          .receipt-total-remaining{padding:6px 5px 0;border-top:1px dashed #cbd5e1;font-weight:800}
+          .receipt-signature-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;text-align:center;break-inside:avoid;page-break-inside:avoid}
+          .receipt-signature-monthly{grid-template-columns:repeat(3,minmax(0,1fr))}
+          .receipt-signature-cell{min-width:0;display:flex;flex-direction:column;align-items:center;gap:5px;color:#334155;font-size:12px}
+          .receipt-signature-cell strong{font-size:12px}
+          .receipt-signature-line{width:70%;height:28px;border-bottom:1px dashed #94a3b8}
+          .receipt-staff-signature-line img{max-width:100%;max-height:100%;object-fit:contain}
+          .receipt-seal{display:block;width:74px;height:42px;object-fit:contain}
+          .receipt-receiver-signature small{max-width:100%;color:#64748b;font-size:12px;line-height:1.35}
+          .receipt-payment-notice{display:flex;justify-content:space-between;gap:12px;padding-top:8px;border-top:1px solid #e2e8f0;color:#475569;font-size:12px}
+          .receipt-deposit-movements{margin-top:0;padding-top:8px;border-top:1px solid #ddd6fe;break-inside:avoid;page-break-inside:avoid}
+          .receipt-deposit-movements h4{margin:0 0 5px!important;font-size:12px!important}
+          .receipt-deposit-movements table{font-size:12px!important}
+          .receipt-deposit-movements th,.receipt-deposit-movements td{padding:4px!important}
+          @media(max-width:760px){.receipt-details-grid{grid-template-columns:1fr!important}.receipt-summary-row{flex-direction:column}.receipt-policy-card{flex-basis:auto}.receipt-header{flex-direction:column}.receipt-header>div:last-child{width:100%}}
+          @page{size:A4;margin:10mm}
+          @media print{
+            html,body{width:100%;height:auto;margin:0!important;padding:0!important;overflow:visible!important}
+            *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+            .receipt-document{width:100%;max-width:100%;min-height:0;height:auto;padding:0;border:0;border-radius:0;box-shadow:none;gap:6px;font-size:10pt;line-height:1.35;overflow:visible}
+            .receipt-header{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;justify-content:space-between!important;align-items:flex-start!important;gap:10px!important;padding-bottom:6px!important;margin:0 0 6px!important}
+            .receipt-header>div:first-child{flex:1 1 auto!important;min-width:0!important}
+            .receipt-header>div:last-child{flex:0 0 55mm!important;width:55mm!important;min-width:55mm!important;padding:8px!important}
+            .receipt-header h2{font-size:14pt!important}
+            .receipt-header>div:first-child>div,.receipt-header>div:last-child>div{font-size:10pt!important}
+            .receipt-details-grid{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:8px!important;padding-bottom:6px!important;margin:0 0 6px!important}
+            .receipt-details-grid>div{min-width:0!important}
+            .receipt-details-grid h3{font-size:10pt!important;margin:0 0 2px!important;padding:0 0 2px!important;border-bottom:0!important}
+            .receipt-details-grid>div>div{font-size:10pt!important;line-height:1.3!important}
+            .receipt-details-grid>div>div:not(h3){display:flex!important;flex-direction:column!important;gap:2px!important}
+            .receipt-items-table{font-size:10pt!important}
+            .receipt-items-table th,.receipt-items-table td{padding:6px!important}
+            .receipt-items-table td>div{font-size:10pt!important}
+            .receipt-summary-row{display:grid!important;grid-template-columns:minmax(0,3fr) minmax(0,2fr)!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:stretch!important;gap:8px!important;margin:0!important;break-inside:avoid!important;page-break-inside:avoid!important}
+            .receipt-policy-card,.receipt-totals-card{min-width:0!important;width:auto!important;break-inside:avoid!important;page-break-inside:avoid!important}
+            .receipt-policy-card{padding:8px!important}
+            .receipt-policy-card h3{font-size:10pt}
+            .receipt-policy-card ol{font-size:9pt!important;line-height:1.25!important}
+            .receipt-totals-card{padding:8px!important;font-size:10pt!important}
+            .receipt-total-line{margin-bottom:3px}
+            .receipt-payment-notice{margin:0 0 4px!important;padding:0!important;border:0!important;font-size:10pt!important}
+            .receipt-signature-row{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important;margin:0!important;break-inside:avoid!important;page-break-inside:avoid!important}
+            .receipt-signature-row:not(.receipt-signature-monthly){grid-template-columns:repeat(2,minmax(0,1fr))!important}
+            .receipt-signature-line{height:50px!important}
+            .receipt-signature-cell,.receipt-signature-cell strong{font-size:10pt}
+            .receipt-seal{width:80px!important;height:50px!important;object-fit:contain!important}
+            .receipt-receiver-signature small{font-size:9pt}
+            .receipt-deposit-movements table{font-size:9pt!important}
+            .receipt-deposit-movements th,.receipt-deposit-movements td{padding:3px!important}
+          }
+        </style>`;
+      const receiptPrintFitScript = `<script>(function(){window.prepareReceiptForPrint=function(){const receipt=document.querySelector('.receipt-document');return receipt?(${fitReceiptToA4Page.toString()})(receipt):null;};window.addEventListener('beforeprint',window.prepareReceiptForPrint);})();</script>`;
 
       invoicePrintableArea.innerHTML = `
-        <div style="border: 2px solid #e2e8f0; border-radius: 12px; padding: 28px; background: white;">
-          <!-- Header -->
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #4338ca; padding-bottom: 20px; margin-bottom: 24px;">
-            <div>
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <div style="width: 44px; height: 44px; border-radius: 10px; background: #4338ca; color: white; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.3rem;">
-                  ر
+        ${receiptDocumentStyles}
+        ${receiptPrintFitScript}
+        <div class="receipt-document" dir="rtl">
+          <!-- Top Section: Company & Receipt Info -->
+          <div class="receipt-header" style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 24px; margin-bottom: 28px;">
+            <!-- Company Info (Right) -->
+            <div style="display: flex; gap: 16px; align-items: flex-start;">
+             
+              <div>
+                <h2 style="font-size: 1.25rem; font-weight: 800; color: #1e293b; margin: 0 0 8px 0;">${isMonthly ? 'مؤسسة مكتب شمس المنازل للخدمات العقارية' : 'ريحانة للوحدات السكنية'}</h2>
+                <div style="font-size: 0.85rem; color: #64748b; line-height: 1.6;">
+                  <div>العنوان: الخبر - الثقبة - طريق الملك خالد</div>
+                  <div>الرمز البريدي: 34625</div>
+                  <div>هاتف الاستقبال: 0560631783</div>
+                  ${isMonthly ? '<div>الرقم الموحد: 7038955915</div>' : ''}
                 </div>
-                <div>
-                  <h1 style="font-size: 1.5rem; font-weight: 800; color: #1e1b4b; margin: 0;">ريحانة للوحدات السكنية</h1>
-                </div>
-              </div>
-              <div style="font-size: 0.82rem; color: #475569; margin-top: 10px; line-height: 1.6;">
-                <div>العنوان: الخبر - الثقبة - طريق الملك خالد</div>
-                <div>الرمز البريدي: 34625</div>
-                <div>هاتف الاستقبال: 0560631783</div>
               </div>
             </div>
 
-            <div style="text-align: left; direction: ltr;">
-              <div style="background: ${isCancelled ? '#fef2f2; color: #dc2626; border: 1px solid #fecaca;' : '#eef2ff; color: #3730a3;'}; padding: 6px 18px; border-radius: 8px; font-weight: 800; font-size: 1.15rem; display: inline-block;">
+            <!-- Receipt Info (Left) -->
+            <div style="background: #eff6ff; border: 1px solid #dbeafe; border-radius: 10px; padding: 14px 18px; text-align: right; min-width: 220px;">
+              <div style="display: inline-block; background: #dbeafe; color: #1e40af; padding: 4px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: 800; margin-bottom: 10px;">
                 ${isCancelled ? 'سند حجز ملغي' : 'سند'}
               </div>
-              <div style="font-size: 0.85rem; color: #334155; margin-top: 8px; font-weight: 700; direction: rtl; text-align: left;">
-                رقم السند: <span style="font-family: monospace; color: #4338ca;">${invoiceNum}</span>
+              <div style="font-size: 0.85rem; color: #475569; line-height: 1.7;">
+                <div><span style="font-weight: 700; color: #1e293b;">رقم السند:</span> <span style="font-family: monospace; color: #4338ca; font-weight: 700;">${invoiceNum}</span></div>
+                <div>تاريخ الإصدار: <bdi dir="ltr" style="white-space: nowrap;">${printDate}</bdi></div>
+                <div>الوقت: <bdi dir="ltr" style="white-space: nowrap;">${escapeHtml(printTime)}</bdi></div>
               </div>
-              <div style="font-size: 0.8rem; color: #64748b; margin-top: 4px; direction: rtl; text-align: left; line-height: 1.6;">
-                <div>تاريخ الإصدار: <bdi dir="auto" style="white-space: nowrap; unicode-bidi: isolate;">${escapeHtml(printDate)}</bdi></div>
-                <div>الوقت: <bdi dir="ltr" style="white-space: nowrap; unicode-bidi: isolate;">${escapeHtml(printTime)}</bdi></div>
-              </div>
-              <div style="margin-top: 6px; direction: rtl; text-align: left;">
+              <div style="margin-top: 10px;">
                 ${isCancelled
                   ? '<span class="badge badge-cancelled" style="font-size: 0.8rem; padding: 4px 10px;">حجز ملغي</span>'
                   : window.DashboardApp.Helpers.getPaymentStatusBadge(inv.payment_status)}
@@ -702,162 +883,182 @@
             </div>
           </div>
 
-          <!-- Guest & Reservation Info Box -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin-bottom: 24px;">
+          <!-- Details Section -->
+          <div class="receipt-details-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 28px; border-bottom: 2px solid #e2e8f0; padding-bottom: 24px; margin-bottom: 28px;">
+            <!-- Guest Details -->
             <div>
-              <h4 style="font-size: 0.9rem; font-weight: 800; color: #334155; margin-bottom: 10px; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px;">بيانات النزيل (Guest Details)</h4>
-              <div style="font-size: 0.85rem; line-height: 1.7; color: #1e293b;">
-                <div><strong>اسم النزيل:</strong> ${escapeHtml(inv.guest_name)}</div>
-                <div><strong>رقم الجوال:</strong> ${escapeHtml(inv.guest_phone || '-')}</div>
-                <div><strong>رقم الهوية / الإقامة:</strong> ${escapeHtml(inv.guest_id_number || 'غير مسجل')}</div>
+              <h3 style="font-size: 0.95rem; font-weight: 800; color: #1e293b; margin: 0 0 12px 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">بيانات النزيل (Guest Details)</h3>
+                <div style="font-size: 0.85rem; line-height: 1.8; color: #475569;">
+                <div><strong style="color: #1e293b;">اسم النزيل:</strong> ${escapeHtml(receiptDigits(inv.guest_name))}</div>
+                <div><strong style="color: #1e293b;">رقم الجوال:</strong> ${escapeHtml(receiptDigits(inv.guest_phone || '-'))}</div>
+                <div><strong style="color: #1e293b;">رقم الهوية / الإقامة:</strong> ${escapeHtml(receiptDigits(inv.guest_id_number || 'غير مسجل'))}</div>
               </div>
             </div>
 
+            <!-- Stay Details -->
             <div>
-              <h4 style="font-size: 0.9rem; font-weight: 800; color: #334155; margin-bottom: 10px; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px;">بيانات الإقامة والوحدة (Stay Details)</h4>
-              <div style="font-size: 0.85rem; line-height: 1.7; color: #1e293b;">
-                <div><strong>رقم الوحدة:</strong> ${escapeHtml(inv.room_number)} (${escapeHtml(inv.room_type || '')})</div>
-                <div><strong>تاريخ الوصول:</strong> ${escapeHtml(inv.check_in_date)}</div>
-                <div><strong>وقت الحجز:</strong> <span style="font-family: monospace;">${escapeHtml(inv.booking_time || '-')}</span></div>
-                <div><strong>تاريخ المغادرة:</strong> ${checkOutDisplay}</div>
-                ${inv.checkout_time ? `<div><strong>وقت المغادرة:</strong> <span style="font-family: monospace;">${escapeHtml(inv.checkout_time)}</span></div>` : ''}
-                ${policyNote ? `<div style="margin-top:6px; padding:6px 8px; border-radius:6px; background:#eef2ff; color:#3730a3; font-size:0.8rem; font-weight:700;">${policyNote}</div>` : ''}
+              <h3 style="font-size: 0.95rem; font-weight: 800; color: #1e293b; margin: 0 0 12px 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">بيانات الإقامة والوحدة (Stay Details)</h3>
+              <div style="font-size: 0.85rem; line-height: 1.8; color: #475569;">
+                <div><strong style="color: #1e293b;">رقم الوحدة:</strong> ${escapeHtml(receiptDigits(inv.room_number))} (${escapeHtml(receiptDigits(inv.room_type || ''))})</div>
+                <div><strong style="color: #1e293b;">تاريخ الوصول:</strong> <bdi dir="ltr">${checkInReceiptDate}</bdi></div>
+                <div><strong style="color: #1e293b;">تاريخ المغادرة (${escapeHtml(invoiceDurationText)}):</strong> <bdi dir="ltr">${checkOutReceiptDate}</bdi></div>
+                ${showRegistrationDate ? `<div><strong style="color: #1e293b;">تاريخ التسجيل:</strong> <bdi dir="ltr">${registrationDate}</bdi></div>` : ''}
+                ${inv.checkout_time && formatReceiptDate(inv.check_out_date) === checkOutReceiptDate ? `<div><strong style="color: #1e293b;">وقت المغادرة:</strong> <bdi dir="ltr">${formatReceiptTime(inv.checkout_time)}</bdi></div>` : ''}
+                ${policyNote ? `<div style="margin-top: 8px; padding: 6px 10px; border-radius: 6px; background: #eef2ff; color: #3730a3; font-size: 0.8rem; font-weight: 700;">${policyNote}</div>` : ''}
               </div>
             </div>
           </div>
 
           <!-- Items Table -->
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 0.88rem; table-layout: fixed; word-break: break-word;">
-          <colgroup>
-          <!-- Fixed widths so the amount column can never be pushed out of view by
-          a long room description. Without table-layout:fixed the first column
-          expands to fit its text and the total column is clipped off the card. -->
-          <col style="width: 52%;">
-          <col style="width: 15%;">
-          <col style="width: 13%;">
-          <col style="width: 20%;">
-          </colgroup>
-          <thead>
-              <tr style="background: #1e1b4b; color: white;">
-                <th style="padding: 10px 14px; text-align: right; border-radius: 0 6px 0 0;">الوصف والخدمة</th>
-                <th style="padding: 10px 14px; text-align: center;">سعر الليلة / اليوم</th>
-                <th style="padding: 10px 14px; text-align: center;">المدة</th>
-                <th style="padding: 10px 14px; text-align: left; border-radius: 6px 0 0 0;">المجموع</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr style="border-bottom: 1px solid #e2e8f0; ${isCancelled ? 'background: #fff8f8;' : ''}">
-                <td style="padding: 12px 14px;">
-                  <strong>إقامة سكنية - وحدة ${escapeHtml(inv.room_number)} ${isContract ? '(عقد مفتوح)' : ''}</strong>
-                  <div style="font-size: 0.78rem; color: #64748b;">
-                    ${isCancelled
-                      ? '<span style="color: #dc2626; font-weight: 700;">(تم إبطال / إلغاء هذا الحجز بالكامل ولا توجد رسوم إقامة مستحقة)</span>'
-                      : `نوع الوحدة: ${escapeHtml(inv.room_type || 'عادية')} ${inv.custom_nightly_price ? '<span style="color:#166534; font-weight:700;">(سعر خاص معتمد)</span>' : ''}`}
-                  </div>
-                </td>
-                <td style="padding: 12px 14px; text-align: center;">${isCancelled ? '0 ريال' : `${effectiveNightlyRate.toLocaleString()} ريال`}</td>
-                <td style="padding: 12px 14px; text-align: center; font-weight: 700;">${invoiceDurationText}</td>
-                <td style="padding: 12px 14px; text-align: left; font-weight: 800; color: #1e1b4b;">${(isCancelled ? 0 : baseSubtotal).toLocaleString()} ريال</td>
-              </tr>
-              ${discount > 0 && !isCancelled ? `
-                <tr style="border-bottom: 1px solid #e2e8f0; background: #fff1f2;">
-                  <td style="padding: 10px 14px;">
-                    <strong style="color: #b91c1c;">خصم وتخفيض معتمد${discountReasonText}</strong>
-                    <div style="font-size: 0.75rem; color: #991b1b;">تخفيض ممنوح على إجمالي قيمة الإقامة</div>
+          <div class="receipt-items-wrap" style="margin-bottom: 28px; overflow-x: auto;">
+            <table class="receipt-items-table" style="width: 100%; border-collapse: collapse; font-size: 0.88rem; table-layout: fixed; word-break: break-word;">
+              <colgroup>
+                <col style="width: 48%;">
+                <col style="width: 18%;">
+                <col style="width: 14%;">
+                <col style="width: 20%;">
+              </colgroup>
+              <thead>
+                <tr style="background: #1e1b4b; color: white;">
+                  <th style="padding: 12px 14px; text-align: right; border-radius: 0 8px 0 0; font-weight: 700;">الوصف والخدمة</th>
+                  <th style="padding: 12px 14px; text-align: center; font-weight: 700;">سعر الليلة / اليوم</th>
+                  <th style="padding: 12px 14px; text-align: center; font-weight: 700;">المدة</th>
+                  <th style="padding: 12px 14px; text-align: left; border-radius: 8px 0 0 0; font-weight: 700;">المجموع</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="border-bottom: 1px solid #e2e8f0; ${isCancelled ? 'background: #fff8f8;' : ''}">
+                  <td style="padding: 14px;">
+                    <div style="font-weight: 700; color: #1e293b;">إقامة سكنية - وحدة ${escapeHtml(receiptDigits(inv.room_number))} ${isContract ? '(عقد مفتوح)' : ''}</div>
+                    <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">
+                      ${isCancelled
+                        ? '<span style="color: #dc2626; font-weight: 700;">(تم إبطال / إلغاء هذا الحجز بالكامل ولا توجد رسوم إقامة مستحقة)</span>'
+                        : `نوع الوحدة: ${escapeHtml(receiptDigits(inv.room_type || 'عادية'))} ${inv.custom_nightly_price ? '<span style="color: #05963d; font-weight: 700;">(سعر خاص معتمد)</span>' : ''}`}
+                    </div>
                   </td>
-                  <td style="padding: 10px 14px; text-align: center;">-</td>
-                  <td style="padding: 10px 14px; text-align: center;">-</td>
-                  <td style="padding: 10px 14px; text-align: left; font-weight: 800; color: #b91c1c;">- ${discount.toFixed(2)} ريال</td>
+                    <td style="padding: 14px; text-align: center; color: #475569;">${isCancelled ? '0.00 ر.س' : `${formatReceiptMoney(effectiveNightlyRate)} ر.س`}</td>
+                  <td style="padding: 14px; text-align: center; font-weight: 700; color: #475569;">${isMonthly ? 'شهر' : invoiceDurationText}</td>
+                  <td style="padding: 14px; text-align: left; font-weight: 800; color: #1e1b4b;">${formatReceiptMoney(isCancelled ? 0 : shownSubtotal)} ر.س</td>
                 </tr>
-              ` : ''}
-              ${lateFee > 0 && !isCancelled ? `
-                <tr style="border-bottom: 1px solid #e2e8f0; background: #fff7ed;">
-                  <td style="padding: 10px 14px;"><strong style="color: #9a3412;">مبلغ إضافي لتأخير المغادرة</strong><div style="font-size: 0.75rem; color: #9a3412;">تم اعتماده يدويًا عند التسوية</div></td>
-                  <td style="padding: 10px 14px; text-align: center;">-</td>
-                  <td style="padding: 10px 14px; text-align: center;">-</td>
-                  <td style="padding: 10px 14px; text-align: left; font-weight: 800; color: #9a3412; white-space: nowrap;">+ ${lateFee.toFixed(2)} ريال</td>
-                </tr>
-              ` : ''}
-              ${hasCancellationAdjustment ? `
-                <tr style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
-                  <td style="padding: 10px 14px;">
-                    <strong style="color: #4338ca;">تعديل إداري معتمد لمبلغ الإلغاء</strong>
-                    <div style="font-size: 0.75rem; color: #64748b;">الحساب التلقائي الأصلي قبل التعديل: ${parseFloat(inv.original_calculated_charge).toLocaleString()} ريال</div>
-                  </td>
-                  <td style="padding: 10px 14px; text-align: center;">-</td>
-                  <td style="padding: 10px 14px; text-align: center;">-</td>
-                  <td style="padding: 10px 14px; text-align: left; font-weight: 800; color: #4338ca;">${parseFloat(inv.total_price || 0).toLocaleString()} ريال</td>
-                </tr>
-              ` : ''}
-              ${deposit > 0 ? `
-                <tr style="border-bottom: 1px solid #e2e8f0; background: #fdf4ff;">
-                  <td style="padding: 10px 14px;">
-                    <strong>رصيد التأمين المسجل (Deposit Balance)</strong>
-                    <div style="font-size: 0.75rem; color: #64748b;">${legacyDeposit ? 'قيمة تاريخية بلا سند حركة، وتحتاج مراجعة قبل ردها' : 'مبلغ محفوظ للتأمين ويتطلب تسوية عند المغادرة'}</div>
-                  </td>
-                  <td style="padding: 10px 14px; text-align: center;">-</td>
-                  <td style="padding: 10px 14px; text-align: center;">-</td>
-                  <td style="padding: 10px 14px; text-align: left; font-weight: 700; color: #701a75;">${deposit.toLocaleString()} ريال</td>
-                </tr>
-              ` : ''}
-            </tbody>
-          </table>
+                ${discount > 0 && !isCancelled ? `
+                  <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 12px 14px;">
+                      <div style="font-weight: 700; color: #334155;">خصم وتخفيض معتمد${discountReasonText}</div>
+                      <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">تخفيض ممنوح على إجمالي قيمة الإقامة</div>
+                    </td>
+                    <td style="padding: 12px 14px; text-align: center; color: #475569;">-</td>
+                    <td style="padding: 12px 14px; text-align: center; color: #475569;">-</td>
+                    <td style="padding: 12px 14px; text-align: left; font-weight: 800; color: #334155;" dir="ltr">- ${formatReceiptMoney(discount)} ر.س</td>
+                  </tr>
+                ` : ''}
+                ${lateFee > 0 && !isCancelled ? `
+                  <tr style="background: #fff7ed; border-bottom: 1px solid #ffedd5;">
+                    <td style="padding: 12px 14px;">
+                      <div style="font-weight: 700; color: #c2410c;">مبلغ إضافي لتأخير المغادرة</div>
+                      <div style="font-size: 0.75rem; color: #ea580c; margin-top: 2px;">تم اعتماده يدويًا عند التسوية</div>
+                    </td>
+                    <td style="padding: 12px 14px; text-align: center; color: #ea580c;">-</td>
+                    <td style="padding: 12px 14px; text-align: center; color: #ea580c;">-</td>
+                    <td style="padding: 12px 14px; text-align: left; font-weight: 800; color: #c2410c; white-space: nowrap;">+ ${formatReceiptMoney(lateFee)} ر.س</td>
+                  </tr>
+                ` : ''}
+                ${hasCancellationAdjustment ? `
+                  <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 12px 14px;">
+                      <div style="font-weight: 700; color: #4338ca;">تعديل إداري معتمد لمبلغ الإلغاء</div>
+                      <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">الحساب التلقائي الأصلي قبل التعديل: ${formatReceiptMoney(inv.original_calculated_charge)} ر.س</div>
+                    </td>
+                    <td style="padding: 12px 14px; text-align: center;">-</td>
+                    <td style="padding: 12px 14px; text-align: center;">-</td>
+                    <td style="padding: 12px 14px; text-align: left; font-weight: 800; color: #4338ca;">${formatReceiptMoney(inv.total_price || 0)} ر.س</td>
+                  </tr>
+                ` : ''}
+                ${deposit > 0 ? `
+                  <tr style="background: #fdf4ff; border-bottom: 1px solid #fae8ff;">
+                    <td style="padding: 12px 14px;">
+                      <div style="font-weight: 700; color: #701a75;">رصيد التأمين المسجل (Deposit Balance)</div>
+                      <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">${legacyDeposit ? 'قيمة تاريخية بلا سند حركة، وتحتاج مراجعة قبل ردها' : 'مبلغ محفوظ للتأمين ويتطلب تسوية عند المغادرة'}</div>
+                    </td>
+                    <td style="padding: 12px 14px; text-align: center;">-</td>
+                    <td style="padding: 12px 14px; text-align: center;">-</td>
+                    <td style="padding: 12px 14px; text-align: left; font-weight: 700; color: #701a75;">${formatReceiptMoney(deposit)} ر.س</td>
+                  </tr>
+                ` : ''}
+              </tbody>
+            </table>
+          </div>
 
-          <!-- Financial Breakdown & Totals -->
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px;">
-            <div style="max-width: 340px; font-size: 0.82rem; color: #64748b; line-height: 1.6;">
-              <div style="font-weight: 700; color: #334155; margin-bottom: 4px;">طريقة السداد: ${escapeHtml(inv.payment_method || 'نقداً')}</div>
-              <div>* يعتبر هذا المستند سند استلام رسمي ومعتمد.</div>
+          <div class="receipt-payment-notice">
+            <div>
+              <span style="font-weight: 700; color: #1e293b;">طريقة السداد:</span>
+              <span style="color: #475569; margin-right: 4px;">${escapeHtml(receiptDigits(inv.payment_method || 'نقداً'))}</span>
             </div>
+            <div>
+              هذا المستند سند استلام رسمي ومعتمد
+            </div>
+          </div>
 
-            <div style="width: 280px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; font-size: 0.88rem;">
+          <!-- Policies and totals stay together below the items table. -->
+          <div class="receipt-summary-row" dir="rtl">
+            <section class="receipt-policy-card" aria-label="سياسة الإقامة والشروط">
+              <h3>سياسة الإقامة والشروط</h3>
+              <ol>${displayedPolicies.map((policy, index) => `<li><span class="receipt-policy-number" dir="ltr">${index + 1}.</span><span>${escapeHtml(receiptDigits(policy))}</span></li>`).join('')}</ol>
+            </section>
+            <div class="receipt-totals-card">
               ${discount > 0 && !isCancelled ? `
-                <div style="display: flex; justify-content: space-between; margin-bottom: 6px; color: #64748b; font-size: 0.85rem;">
+                <div class="receipt-total-line">
                   <span>المجموع قبل الخصم:</span>
-                  <span>${(total + discount).toFixed(2)} ريال</span>
+                  <span dir="ltr">${formatReceiptMoney(total + discount)} ر.س</span>
                 </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 6px; color: #b91c1c; font-size: 0.85rem; font-weight: 700;">
+                <div class="receipt-total-line receipt-total-discount">
                   <span>الخصم المعتمد:</span>
-                  <span>- ${discount.toFixed(2)} ريال</span>
+                  <span dir="ltr">- ${formatReceiptMoney(discount)} ر.س</span>
                 </div>
               ` : ''}
-              <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: 800; font-size: 1rem; color: #1e1b4b;">
+              <div class="receipt-total-line receipt-total-net">
                 <span>الإجمالي الصافي:</span>
-                <span>${total.toFixed(2)} ريال</span>
+                <span dir="ltr">${formatReceiptMoney(total)} ر.س</span>
               </div>
               ${(originalCollected > paid && refundedTotal > 0) ? `
-                <div style="display: flex; justify-content: space-between; margin-bottom: 6px; color: #64748b; font-size: 0.85rem;">
-                  <span>المبلغ المسدد أصلاً:</span>
-                  <span>${originalCollected.toFixed(2)} ريال</span>
+                <div class="receipt-total-line">
+                  <span>المبلغ المسدد مسبقا:</span>
+                  <span dir="ltr">${formatReceiptMoney(originalCollected)} ر.س</span>
                 </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 6px; color: #1d4ed8; font-size: 0.85rem; font-weight: 700;">
+                <div class="receipt-total-line">
                   <span>المبلغ المسترد:</span>
-                  <span>- ${refundedTotal.toFixed(2)} ريال</span>
+                  <span dir="ltr">- ${formatReceiptMoney(refundedTotal)} ر.س</span>
                 </div>
               ` : (refundedTotal > 0 ? `
-                <div style="display: flex; justify-content: space-between; margin-bottom: 8px; color: #1d4ed8; font-weight: 700;">
+                <div class="receipt-total-line">
                   <span>المبلغ المسترد:</span>
-                  <span>- ${refundedTotal.toFixed(2)} ريال</span>
+                  <span dir="ltr">- ${formatReceiptMoney(refundedTotal)} ر.س</span>
                 </div>
               ` : '')}
-              <div style="display: flex; justify-content: space-between; margin-bottom: 8px; color: #059669; font-weight: 700;">
+              <div class="receipt-total-line receipt-total-paid">
                 <span>${refundedTotal > 0 ? 'صافي المدفوع:' : 'المبلغ المدفوع:'}</span>
-                <span>${paid.toFixed(2)} ريال</span>
+                <span dir="ltr">${formatReceiptMoney(paid)} ر.س</span>
               </div>
-              <div style="display: flex; justify-content: space-between; padding-top: 6px; border-top: 1px dashed #cbd5e1; font-weight: 800; color: ${isCancelled ? '#059669' : (isCredit ? '#1d4ed8' : (remaining > 0 ? '#dc2626' : '#059669'))}; ${isCredit ? 'background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 6px 10px; margin-top: 6px;' : ''}">
+              <div class="receipt-total-line receipt-total-remaining" style="color: ${isCancelled ? '#05963d' : (isCredit ? '#1d4ed8' : (remaining > 0 ? '#dc2626' : '#05963d'))};">
                 <span>${isCancelled ? 'المبلغ المتبقي:' : (isCredit ? 'رصيد دائن للنزيل (مستحق له):' : 'المبلغ المتبقي:')}</span>
-                <span>${isCancelled ? '0.00 ريال' : (isCredit ? `${Math.abs(rawRemaining).toFixed(2)} ريال` : `${remaining.toFixed(2)} ريال`)}</span>
+                <span dir="ltr">${formatReceiptMoney(isCancelled ? 0 : (isCredit ? Math.abs(rawRemaining) : remaining))} ر.س</span>
               </div>
             </div>
           </div>
+
+          <div class="receipt-signature-row ${isMonthly ? 'receipt-signature-monthly' : ''}" dir="rtl">
+            ${isMonthly ? `<div class="receipt-signature-cell"><strong>ختم المؤسسة</strong><img class="receipt-seal" src="assets/seal.svg" alt="الختم" onerror="this.style.display='none'"></div>` : ''}
+            <div class="receipt-signature-cell"><strong>توقيع الموظف</strong><div class="receipt-signature-line receipt-staff-signature-line">${isMonthly ? '<img src="assets/signature.svg" alt="التوقيع" onerror="this.style.display=\'none\'">' : ''}</div></div>
+            <div class="receipt-signature-cell receipt-receiver-signature"><strong>توقيع المستلم</strong><div class="receipt-signature-line"></div><small>بتوقيعي أقر بالاطلاع على الشروط أعلاه والموافقة عليها.</small></div>
+          </div>
+
           ${invoiceDepositMovements.length ? `
-            <div style="margin-top:18px; padding-top:12px; border-top:1px solid #ddd6fe;">
-              <h4 style="font-size:.9rem; font-weight:800; color:#5b21b6; margin-bottom:8px;">سجل حركات التأمين</h4>
-              <table style="width:100%; border-collapse:collapse; font-size:.78rem;">
-                <thead><tr style="background:#f5f3ff;"><th style="padding:6px; text-align:right;">التاريخ</th><th style="padding:6px; text-align:center;">الحركة</th><th style="padding:6px; text-align:center;">المبلغ</th><th style="padding:6px; text-align:center;">الطريقة</th><th style="padding:6px; text-align:right;">السبب / الموظف</th></tr></thead>
+            <div class="receipt-deposit-movements">
+              <h4 style="font-size: 0.9rem; font-weight: 800; color: #5b21b6; margin-bottom: 8px;">سجل حركات التأمين</h4>
+              <table style="width: 100%; border-collapse: collapse; font-size: 0.78rem;">
+                <thead><tr style="background: #f5f3ff;"><th style="padding: 6px; text-align: right;">التاريخ</th><th style="padding: 6px; text-align: center;">الحركة</th><th style="padding: 6px; text-align: center;">المبلغ</th><th style="padding: 6px; text-align: center;">الطريقة</th><th style="padding: 6px; text-align: right;">السبب / الموظف</th></tr></thead>
                 <tbody>${invoiceDepositMovements.map(m => {
                   const labels = { collected: 'استلام', reconciled: 'مطابقة رصيد قديم', refunded: 'رد', applied: 'تسوية على الإقامة', retained: 'احتفاظ' };
-                  return `<tr style="border-bottom:1px solid #ede9fe;"><td style="padding:6px;">${escapeHtml(String(m.movement_date || '').slice(0, 16))}</td><td style="padding:6px; text-align:center;">${labels[m.movement_type] || escapeHtml(m.movement_type)}</td><td style="padding:6px; text-align:center;">${Number(m.amount || 0).toLocaleString()} ريال</td><td style="padding:6px; text-align:center;">${escapeHtml(m.payment_method || 'نقداً')}</td><td style="padding:6px;">${escapeHtml(m.reason || '')}${m.staff_username ? ` - ${escapeHtml(m.staff_username)}` : ''}</td></tr>`;
+                  return `<tr style="border-bottom: 1px solid #ede9fe;"><td style="padding: 6px;"><bdi dir="ltr">${formatReceiptDateTime(m.movement_date)}</bdi></td><td style="padding: 6px; text-align: center;">${labels[m.movement_type] || escapeHtml(receiptDigits(m.movement_type))}</td><td style="padding: 6px; text-align: center;">${formatReceiptMoney(m.amount)} ر.س</td><td style="padding: 6px; text-align: center;">${escapeHtml(receiptDigits(m.payment_method || 'نقداً'))}</td><td style="padding: 6px;">${escapeHtml(receiptDigits(m.reason || ''))}${m.staff_username ? ` - ${escapeHtml(receiptDigits(m.staff_username))}` : ''}</td></tr>`;
                 }).join('')}</tbody>
               </table>
             </div>
@@ -887,8 +1088,8 @@
   function formatArabicDateRange(startDateStr, endDateStr) { return window.DashboardApp.Helpers.formatArabicDateRange(startDateStr, endDateStr); }
 
   function getShiftAuditPresetDates(preset) {
-    const todayObj = new Date();
-    const todayStr = getLocalDateString(todayObj);
+    const todayStr = window.DashboardApp.State.businessDate || getLocalDateString(new Date());
+    const todayObj = new Date(`${todayStr}T12:00:00`);
 
     switch (preset) {
       case 'today':
@@ -933,7 +1134,7 @@
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
           <span style="font-weight: 700; font-size: 0.85rem; color: #94a3b8;">فترة التقرير:</span>
           <div class="audit-preset-pills" style="display: inline-flex; gap: 4px; background: rgba(0,0,0,0.3); padding: 4px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
-            <button type="button" class="btn-audit-preset" data-preset="today" style="border: none; background: #1a4332; color: #a7f3d0; padding: 6px 14px; border-radius: 6px; font-weight: 800; font-size: 0.82rem; cursor: pointer; transition: all 0.15s;">اليوم</button>
+            <button type="button" class="btn-audit-preset" data-preset="today" style="border: none; background: #1a432a; color: #a7f3c4; padding: 6px 14px; border-radius: 6px; font-weight: 800; font-size: 0.82rem; cursor: pointer; transition: all 0.15s;">اليوم</button>
             <button type="button" class="btn-audit-preset" data-preset="week" style="border: none; background: transparent; color: #cbd5e1; padding: 6px 14px; border-radius: 6px; font-weight: 600; font-size: 0.82rem; cursor: pointer; transition: all 0.15s;">هذا الأسبوع</button>
             <button type="button" class="btn-audit-preset" data-preset="month" style="border: none; background: transparent; color: #cbd5e1; padding: 6px 14px; border-radius: 6px; font-weight: 600; font-size: 0.82rem; cursor: pointer; transition: all 0.15s;">هذا الشهر</button>
             <button type="button" class="btn-audit-preset" data-preset="quarter" style="border: none; background: transparent; color: #cbd5e1; padding: 6px 14px; border-radius: 6px; font-weight: 600; font-size: 0.82rem; cursor: pointer; transition: all 0.15s;">هذا الربع</button>
@@ -945,7 +1146,7 @@
           <input type="date" id="shift-audit-custom-start" style="padding: 5px 8px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: white; font-size: 0.82rem; font-family: monospace;">
           <span style="font-size: 0.8rem; color: #cbd5e1;">إلى:</span>
           <input type="date" id="shift-audit-custom-end" style="padding: 5px 8px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: white; font-size: 0.82rem; font-family: monospace;">
-          <button type="button" id="btn-apply-audit-custom" class="btn btn-sm" style="background: #1a4332; color: #a7f3d0; border: 1px solid #34d399; font-weight: 800; padding: 5px 12px; border-radius: 6px; cursor: pointer;">تطبيق</button>
+          <button type="button" id="btn-apply-audit-custom" class="btn btn-sm" style="background: #1a432a; color: #a7f3c4; border: 1px solid #34d372; font-weight: 800; padding: 5px 12px; border-radius: 6px; cursor: pointer;">تطبيق</button>
         </div>
       `;
 
@@ -964,18 +1165,18 @@
 
           presetButtons.forEach(b => {
             const isActive = b === btn;
-            b.style.background = isActive ? '#1a4332' : 'transparent';
-            b.style.color = isActive ? '#a7f3d0' : '#cbd5e1';
+            b.style.background = isActive ? '#1a432a' : 'transparent';
+            b.style.color = isActive ? '#a7f3c4' : '#cbd5e1';
             b.style.fontWeight = isActive ? '800' : '600';
           });
 
           if (preset === 'custom') {
             if (customDatesBox) customDatesBox.style.display = 'flex';
             if (customStartInput && !customStartInput.value) {
-              customStartInput.value = currentShiftAuditStartDate || getLocalDateString();
+              customStartInput.value = currentShiftAuditStartDate || window.DashboardApp.State.businessDate || getLocalDateString();
             }
             if (customEndInput && !customEndInput.value) {
-              customEndInput.value = currentShiftAuditEndDate || getLocalDateString();
+              customEndInput.value = currentShiftAuditEndDate || window.DashboardApp.State.businessDate || getLocalDateString();
             }
           } else {
             if (customDatesBox) customDatesBox.style.display = 'none';
@@ -1005,7 +1206,7 @@
 
   async function renderShiftAuditData(startDate, endDate) {
     try {
-      const start = startDate || getLocalDateString();
+      const start = startDate || window.DashboardApp.State.businessDate || getLocalDateString();
       const end = endDate || start;
       const res = await window.api.getShiftAuditReport({ startDate: start, endDate: end });
       if (!res || !res.success || !res.data) {
@@ -1055,9 +1256,10 @@
               <div style="font-size: 0.78rem; color: #4338ca; font-weight: 700;">إجمالي المقبوضات</div>
               <div style="font-size: 1.25rem; font-weight: 900; color: #1e1b4b; margin-top: 4px;">${parseFloat(fin.totalRevenue || 0).toLocaleString()} <span style="font-size: 0.75rem;">ريال</span></div>
             </div>
-            <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 12px; text-align: center;">
-              <div style="font-size: 0.78rem; color: #047857; font-weight: 700;">مقبوضات نقداً (كاش)</div>
-              <div style="font-size: 1.25rem; font-weight: 900; color: #065f46; margin-top: 4px;">${parseFloat(fin.cashTotal || 0).toLocaleString()} <span style="font-size: 0.75rem;">ريال</span></div>
+            <div style="background: #ecfdf3; border: 1px solid #a7f3c4; border-radius: 8px; padding: 12px; text-align: center;">
+              <div style="font-size: 0.78rem; color: #047831; font-weight: 700;">مقبوضات نقداً (كاش)</div>
+              <div style="font-size: 1.25rem; font-weight: 900; color: #065f28; margin-top: 4px;">${parseFloat(fin.cashTotal || 0).toLocaleString()} <span style="font-size: 0.75rem;">ريال</span></div>
+              <div style="font-size: 0.68rem; color: #64748b; margin-top: 3px;">${parseFloat(fin.cashCollected || 0).toLocaleString()} مستلم - ${parseFloat(fin.cashRefunded || 0).toLocaleString()} مردود</div>
             </div>
             <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px; text-align: center;">
               <div style="font-size: 0.78rem; color: #1d4ed8; font-weight: 700;">مقبوضات مدى / شبكة</div>
@@ -1071,9 +1273,10 @@
 
           <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 16px; margin: -10px 0 24px; font-size: 0.84rem; color: #334155;">
             <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
-              <span>صافي كاش التأمين: <strong style="color: ${Number(fin.netCashDeposit || 0) < 0 ? '#dc2626' : '#047857'};">${Number(fin.netCashDeposit || 0) > 0 ? '+' : ''}${parseFloat(fin.netCashDeposit || 0).toLocaleString()} ريال</strong></span>
+              <span>صافي كاش التأمين: <strong style="color: ${Number(fin.netCashDeposit || 0) < 0 ? '#dc2626' : '#047831'};">${Number(fin.netCashDeposit || 0) > 0 ? '+' : ''}${parseFloat(fin.netCashDeposit || 0).toLocaleString()} ريال</strong></span>
               <span style="color: #64748b;">(${parseFloat(fin.depositCashCollected || 0).toLocaleString()} مستلم - ${parseFloat(fin.depositCashRefunded || 0).toLocaleString()} مردود${Number(fin.depositCashRetained || 0) ? ` - ${parseFloat(fin.depositCashRetained).toLocaleString()} محتفَظ به ومدرج ضمن المقبوضات` : ''})</span>
               <span>إجمالي النقد المتوقع بالخزينة: <strong style="color: #0f172a;">${parseFloat(fin.expectedCashInDrawer || 0).toLocaleString()} ريال</strong> <span style="color: #64748b;">(كاش المقبوضات + صافي كاش التأمين)</span></span>
+              <span>رسوم التأخير المسددة كسند مستقل: <strong>${parseFloat(fin.lateCheckoutFeesCollected || 0).toLocaleString()} ريال</strong></span>
             </div>
           </div>
 
@@ -1087,7 +1290,7 @@
               <div style="font-size: 0.84rem; line-height: 1.8; color: #1e293b;">
                 <div style="display: flex; justify-content: space-between;"><span>إجمالي غرف الفندق:</span> <strong>${rm.totalRooms || 0} غرف</strong></div>
                 <div style="display: flex; justify-content: space-between;"><span>الغرف المشغولة حالياً:</span> <strong style="color: #dc2626;">${rm.occupiedCount || 0}</strong></div>
-                <div style="display: flex; justify-content: space-between;"><span>الغرف المتاحة حالياً:</span> <strong style="color: #059669;">${rm.availableCount || 0}</strong></div>
+                <div style="display: flex; justify-content: space-between;"><span>الغرف المتاحة حالياً:</span> <strong style="color: #05963d;">${rm.availableCount || 0}</strong></div>
                 <div style="display: flex; justify-content: space-between;"><span>الغرف قيد التنظيف:</span> <strong style="color: #d97706;">${rm.cleaningCount || 0}</strong></div>
                 <div style="display: flex; justify-content: space-between; border-top: 1px solid #e2e8f0; padding-top: 4px; font-weight: 800; color: #4338ca;">
                   <span>نسبة الإشغال اللحظية:</span>
@@ -1103,7 +1306,7 @@
               <div style="font-size: 0.84rem; line-height: 1.8; color: #1e293b;">
                 <div style="display: flex; justify-content: space-between;">
                   <span>${isMultiDay ? 'إجمالي تسجيلات الدخول في الفترة (Check-ins):' : 'عمليات تسجيل الدخول اليوم (Check-ins):'}</span>
-                  <strong style="color: #059669;">${mov.checkinsToday || 0}</strong>
+                  <strong style="color: #05963d;">${mov.checkinsToday || 0}</strong>
                 </div>
                 <div style="display: flex; justify-content: space-between;">
                   <span>${isMultiDay ? 'إجمالي تسجيلات المغادرة في الفترة (Check-outs):' : 'عمليات تسجيل الخروج اليوم (Check-outs):'}</span>
@@ -1134,7 +1337,7 @@
                   ${rep.dailyBreakdown.map(day => `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
                       <td style="padding: 7px 12px; font-family: monospace; font-weight: 700; color: #334155;">${day.date}</td>
-                      <td style="padding: 7px 12px; text-align: center; color: #059669; font-weight: 700;">${day.check_ins_count}</td>
+                      <td style="padding: 7px 12px; text-align: center; color: #05963d; font-weight: 700;">${day.check_ins_count}</td>
                       <td style="padding: 7px 12px; text-align: center; color: #d97706; font-weight: 700;">${day.check_outs_count}</td>
                       <td style="padding: 7px 12px; text-align: left; font-weight: 800; color: #1e1b4b;">${Number(day.revenue).toLocaleString()} ريال</td>
                     </tr>
@@ -1156,11 +1359,12 @@
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 0.82rem;">
               <thead>
                 <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
-                  <th style="padding: 8px 10px; text-align: right;">الوقت</th>
+                  <th style="padding: 8px 10px; text-align: right;">وقت العملية / تاريخ العمل</th>
                   <th style="padding: 8px 10px; text-align: right;">رقم السند</th>
                   <th style="padding: 8px 10px; text-align: right;">الحجز / النزيل</th>
                   <th style="padding: 8px 10px; text-align: right;">الغرفة</th>
                   <th style="padding: 8px 10px; text-align: center;">نوع السند</th>
+                  <th style="padding: 8px 10px; text-align: center;">تصنيف الدفعة</th>
                   <th style="padding: 8px 10px; text-align: center;">طريقة الدفع</th>
                   <th style="padding: 8px 10px; text-align: center;">المبلغ</th>
                   <th style="padding: 8px 10px; text-align: right;">البيان / الموظف</th>
@@ -1170,18 +1374,29 @@
                 ${payments.map(p => {
                   const amt = roundMoney(p.amount || 0);
                   const isRefund = amt < -0.005;
-                  const amtColor = isRefund ? '#dc2626' : '#059669';
+                  const amtColor = isRefund ? '#dc2626' : '#05963d';
                   const formattedAmt = isRefund ? `- ${Math.abs(amt).toLocaleString()} ريال` : `+ ${amt.toLocaleString()} ريال`;
+                  const paymentPurpose = ({
+                    advance_payment: 'دفعة مقدمة',
+                    balance_payment: 'سداد رصيد',
+                    extension_payment: 'تمديد إقامة',
+                    late_checkout_fee: 'رسوم تأخير مغادرة',
+                    checkout_settlement: 'تسوية مغادرة',
+                    refund: 'استرداد',
+                    deposit_applied: 'تطبيق تأمين',
+                    legacy_unclassified: 'قديم / غير مصنف'
+                  })[p.payment_type] || 'قديم / غير مصنف';
                   const typeBadge = isRefund
                     ? '<span style="background: #fef2f2; color: #b91c1c; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 0.78rem;">استرداد / صرف</span>'
-                    : '<span style="background: #ecfdf5; color: #047857; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 0.78rem;">تحصيل / قبض</span>';
+                    : '<span style="background: #ecfdf3; color: #047831; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 0.78rem;">تحصيل / قبض</span>';
                   return `
                     <tr style="border-bottom: 1px solid #e2e8f0; ${isRefund ? 'background: #fffafa;' : ''}">
-                      <td style="padding: 8px 10px; font-family: monospace; color: #64748b;">${escapeHtml(String(p.payment_date || '').slice(0, 16))}</td>
+                      <td style="padding: 8px 10px; color: #64748b;"><div style="font-family: monospace;">${escapeHtml(String(p.payment_date || p.created_at || '').slice(0, 16))}</div><small style="display:block; margin-top:3px; color:#1a432a;">تاريخ العمل: ${escapeHtml(p.business_date || '-')}</small></td>
                       <td style="padding: 8px 10px; font-family: monospace; font-weight: 700; color: #4338ca;">${escapeHtml(p.receipt_number || ('#' + p.id))}</td>
                       <td style="padding: 8px 10px; font-weight: 700;">#${p.reservation_id} - ${escapeHtml(p.guest_name || 'نزيل')}</td>
                       <td style="padding: 8px 10px;">غرفة ${escapeHtml(p.room_number || '-')}</td>
                       <td style="padding: 8px 10px; text-align: center;">${typeBadge}</td>
+                      <td style="padding: 8px 10px; text-align: center;">${escapeHtml(paymentPurpose)}</td>
                       <td style="padding: 8px 10px; text-align: center;">${escapeHtml(p.payment_method || 'نقداً')}</td>
                       <td style="padding: 8px 10px; text-align: center; font-weight: 800; color: ${amtColor}; font-size: 0.88rem;">${formattedAmt}</td>
                       <td style="padding: 8px 10px; font-size: 0.78rem; color: #475569;">${escapeHtml(p.notes || '-')}${p.staff_username ? ` <span style="color:#94a3b8;">(${escapeHtml(p.staff_username)})</span>` : ''}</td>
@@ -1229,7 +1444,7 @@
                     <td style="padding: 8px 10px;">غرفة ${escapeHtml(t.room_number)}</td>
                     <td style="padding: 8px 10px; text-align: center; font-size: 0.78rem; direction: ltr;">${stayText}</td>
                     <td style="padding: 8px 10px; text-align: center;">${escapeHtml(t.payment_method || 'نقداً')}</td>
-                    <td style="padding: 8px 10px; text-align: center; font-weight: 700; color: #059669;">${parseFloat(t.paid_amount || 0).toLocaleString()} ريال</td>
+                    <td style="padding: 8px 10px; text-align: center; font-weight: 700; color: #05963d;">${parseFloat(t.paid_amount || 0).toLocaleString()} ريال</td>
                     <td style="padding: 8px 10px; text-align: center; color: #701a75;">${parseFloat(t.deposit_ledger_balance || 0).toLocaleString()} ريال</td>
                     <td style="padding: 8px 10px; text-align: center;">${window.DashboardApp.Helpers.getReservationStatusBadge(t.status)}</td>
                     <td style="padding: 8px 10px; text-align: center;">${window.DashboardApp.Helpers.getPaymentStatusBadge(t.payment_status)}</td>
@@ -1245,11 +1460,11 @@
           ` : `
             <table style="width:100%; border-collapse:collapse; margin-bottom:22px; font-size:.8rem;">
               <thead><tr style="background:#f5f3ff; border-bottom:2px solid #ddd6fe;">
-                <th style="padding:7px; text-align:right;">التاريخ</th><th style="padding:7px; text-align:right;">الحجز / النزيل</th><th style="padding:7px; text-align:center;">الحركة</th><th style="padding:7px; text-align:center;">المبلغ</th><th style="padding:7px; text-align:center;">الطريقة</th><th style="padding:7px; text-align:right;">السبب / الموظف</th>
+                <th style="padding:7px; text-align:right;">وقت الحركة / تاريخ العمل</th><th style="padding:7px; text-align:right;">الحجز / النزيل</th><th style="padding:7px; text-align:center;">الحركة</th><th style="padding:7px; text-align:center;">المبلغ</th><th style="padding:7px; text-align:center;">الطريقة</th><th style="padding:7px; text-align:right;">السبب / الموظف</th>
               </tr></thead><tbody>
                 ${depositTxs.map(d => {
                   const labels = { collected: 'استلام', reconciled: 'مطابقة رصيد قديم', refunded: 'رد', applied: 'تسوية على الإقامة', retained: 'احتفاظ' };
-                  return `<tr style="border-bottom:1px solid #ede9fe;"><td style="padding:7px; font-family:monospace;">${escapeHtml(String(d.movement_date || '').slice(0, 16))}</td><td style="padding:7px;">#${d.reservation_id} - ${escapeHtml(d.guest_name)} / غرفة ${escapeHtml(d.room_number)}</td><td style="padding:7px; text-align:center;">${labels[d.movement_type] || escapeHtml(d.movement_type)}</td><td style="padding:7px; text-align:center; font-weight:800;">${Number(d.amount || 0).toLocaleString()} ريال</td><td style="padding:7px; text-align:center;">${escapeHtml(d.payment_method || 'نقداً')}</td><td style="padding:7px;">${escapeHtml(d.reason || '')}${d.staff_username ? ` - ${escapeHtml(d.staff_username)}` : ''}</td></tr>`;
+                  return `<tr style="border-bottom:1px solid #ede9fe;"><td style="padding:7px; color:#64748b;"><div style="font-family:monospace;">${escapeHtml(String(d.movement_date || d.created_at || '').slice(0, 16))}</div><small style="display:block; margin-top:3px; color:#1a432a;">تاريخ العمل: ${escapeHtml(d.business_date || '-')}</small></td><td style="padding:7px;">#${d.reservation_id} - ${escapeHtml(d.guest_name)} / غرفة ${escapeHtml(d.room_number)}</td><td style="padding:7px; text-align:center;">${labels[d.movement_type] || escapeHtml(d.movement_type)}</td><td style="padding:7px; text-align:center; font-weight:800;">${Number(d.amount || 0).toLocaleString()} ريال</td><td style="padding:7px; text-align:center;">${escapeHtml(d.payment_method || 'نقداً')}</td><td style="padding:7px;">${escapeHtml(d.reason || '')}${d.staff_username ? ` - ${escapeHtml(d.staff_username)}` : ''}</td></tr>`;
                 }).join('')}
               </tbody>
             </table>
@@ -1280,6 +1495,7 @@
 
   async function openShiftAuditModal(targetDateOrOptions) {
     try {
+      await refreshHotelBusinessState();
       ensureShiftAuditFilterBar();
 
       let startDate = null;
@@ -1292,7 +1508,7 @@
       } else if (typeof targetDateOrOptions === 'string' && targetDateOrOptions.trim() !== '') {
         startDate = targetDateOrOptions.trim();
         endDate = startDate;
-        currentShiftAuditPreset = (startDate === getLocalDateString()) ? 'today' : 'custom';
+        currentShiftAuditPreset = (startDate === (window.DashboardApp.State.businessDate || getLocalDateString())) ? 'today' : 'custom';
       } else {
         currentShiftAuditPreset = 'today';
         const dates = getShiftAuditPresetDates('today');
@@ -1308,8 +1524,8 @@
         const presetButtons = filterBar.querySelectorAll('.btn-audit-preset');
         presetButtons.forEach(b => {
           const isActive = b.dataset.preset === currentShiftAuditPreset;
-          b.style.background = isActive ? '#1a4332' : 'transparent';
-          b.style.color = isActive ? '#a7f3d0' : '#cbd5e1';
+          b.style.background = isActive ? '#1a432a' : 'transparent';
+          b.style.color = isActive ? '#a7f3c4' : '#cbd5e1';
           b.style.fontWeight = isActive ? '800' : '600';
         });
         const customDatesBox = filterBar.querySelector('#shift-audit-custom-dates');
@@ -1323,6 +1539,10 @@
       }
 
       await renderShiftAuditData(startDate, endDate);
+
+      if (btnRunNightAudit && window.DashboardApp.State.businessDate) {
+        btnRunNightAudit.title = `إقفال تاريخ العمل ${window.DashboardApp.State.businessDate} والانتقال إلى اليوم التالي`;
+      }
 
       if (shiftAuditModal) {
         shiftAuditModal.style.display = 'flex';
@@ -1359,6 +1579,9 @@
       printFrame.style.visibility = 'hidden';
       document.body.appendChild(printFrame);
     }
+    // Match the CSS viewport used by A4 portrait printing before print media activates.
+    printFrame.style.width = isInvoice ? '794px' : '0';
+    printFrame.style.height = isInvoice ? '1123px' : '0';
 
     const doc = printFrame.contentWindow.document;
     doc.open();
@@ -1369,7 +1592,7 @@
         <meta charset="UTF-8">
         <title>${documentTitle}</title>
         <style>
-          @page { size: A4 portrait; margin: 10mm 12mm; }
+          ${isInvoice ? '' : '@page { size: A4; margin: 10mm; }'}
           * { box-sizing: border-box; margin: 0; padding: 0; }
           body {
             font-family: "Segoe UI", Tahoma, "Cairo", Arial, sans-serif;
@@ -1386,11 +1609,14 @@
         </style>
       </head>
       <body>
-        <div style="padding: 10px; width: 100%;">${contentHtml}</div>
+        <div style="padding: ${isInvoice ? '0' : '10px'}; width: 100%;">${contentHtml}</div>
       </body>
       </html>
     `);
     doc.close();
+    if (isInvoice && typeof printFrame.contentWindow.prepareReceiptForPrint === 'function') {
+      printFrame.contentWindow.prepareReceiptForPrint();
+    }
 
     setTimeout(() => {
       try {
@@ -1398,6 +1624,9 @@
         printFrame.contentWindow.print();
       } catch (e) {
         console.error('Iframe print error, falling back to window.print():', e);
+        if (isInvoice && invoicePrintableArea) {
+          fitReceiptToA4Page(invoicePrintableArea.querySelector('.receipt-document'));
+        }
         window.print();
       } finally {
         setTimeout(() => {
@@ -1495,7 +1724,7 @@
       } else {
         const displayRemaining = Math.max(0, remaining);
         editInvRemainingPreview.textContent = `${displayRemaining.toFixed(2)} ريال`;
-        editInvRemainingPreview.style.color = displayRemaining > 0 ? '#dc2626' : '#059669';
+        editInvRemainingPreview.style.color = displayRemaining > 0 ? '#dc2626' : '#05963d';
       }
     }
   }
@@ -1612,6 +1841,69 @@
   // Shift Audit Handlers
   if (btnOpenShiftAudit) {
     btnOpenShiftAudit.addEventListener('click', () => openShiftAuditModal());
+  }
+  if (btnRunNightAudit) {
+    btnRunNightAudit.addEventListener('click', async () => {
+      const state = await refreshHotelBusinessState();
+      const activeDate = state?.current_business_date || window.DashboardApp.State.businessDate;
+      if (!activeDate) {
+        showToast('تعذر قراءة تاريخ العمل الحالي.', 'error');
+        return;
+      }
+      if (currentShiftAuditStartDate !== activeDate || currentShiftAuditEndDate !== activeDate) {
+        showToast(`اختر تقرير اليوم المفتوح (${activeDate}) قبل إقفاله.`, 'warning');
+        return;
+      }
+
+      const confirmed = await showConfirmDialog({
+        title: 'إقفال اليوم الفندقي',
+        message: `سيتم إقفال تاريخ العمل ${activeDate} وحفظ ملخص المقبوضات والتأمين، ثم فتح تاريخ العمل التالي. هذا الإجراء لا يمكن التراجع عنه من داخل النظام. إذا لم تكن متأكداً، اختر «مراجعة التقرير».`,
+        confirmText: 'إقفال اليوم والانتقال',
+        cancelText: 'مراجعة التقرير',
+        isDanger: true
+      });
+      if (!confirmed) return;
+
+      btnRunNightAudit.disabled = true;
+      try {
+        const result = await window.api.runNightAudit(activeDate);
+        if (!result || !result.success || !result.data) {
+          showToast(result?.error || 'تعذر إقفال اليوم الفندقي.', 'error');
+          return;
+        }
+
+        await refreshHotelBusinessState();
+        btnRunNightAudit.title = `تاريخ العمل المفتوح الآن ${result.data.currentBusinessDate}`;
+        showToast(`تم إقفال ${result.data.closedBusinessDate}. تاريخ العمل الجديد: ${result.data.currentBusinessDate}.`, 'success');
+        await Promise.all([
+          window.DashboardApp.Helpers.loadOverviewData?.(),
+          window.DashboardApp.Helpers.loadRoomsData?.(),
+          window.DashboardApp.Helpers.loadReservationsData?.()
+        ]);
+        if (currentUser?.role === 'Admin') await refreshBusinessDayReconciliationNotice();
+        currentShiftAuditPreset = 'custom';
+        const presetButtons = document.querySelectorAll('#shift-audit-filter-bar .btn-audit-preset');
+        presetButtons.forEach(button => {
+          const isActive = button.dataset.preset === 'custom';
+          button.style.background = isActive ? '#1a432a' : 'transparent';
+          button.style.color = isActive ? '#a7f3c4' : '#cbd5e1';
+          button.style.fontWeight = isActive ? '800' : '600';
+        });
+        const customDates = document.getElementById('shift-audit-custom-dates');
+        const customStart = document.getElementById('shift-audit-custom-start');
+        const customEnd = document.getElementById('shift-audit-custom-end');
+        if (customDates) customDates.style.display = 'flex';
+        if (customStart) customStart.value = result.data.closedBusinessDate;
+        if (customEnd) customEnd.value = result.data.closedBusinessDate;
+        currentShiftAuditStartDate = result.data.closedBusinessDate;
+        currentShiftAuditEndDate = result.data.closedBusinessDate;
+        await renderShiftAuditData(currentShiftAuditStartDate, currentShiftAuditEndDate);
+      } catch (err) {
+        showToast(`تعذر إقفال اليوم: ${err.message}`, 'error');
+      } finally {
+        btnRunNightAudit.disabled = false;
+      }
+    });
   }
   if (btnCloseShiftAudit) {
     btnCloseShiftAudit.addEventListener('click', () => {
@@ -1758,9 +2050,9 @@
       if (targetEl && manualContentContainer) {
         targetEl.style.display = '';
         targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        pill.style.background = '#1a4332';
+        pill.style.background = '#1a432a';
         pill.style.color = '#ffffff';
-        pill.style.borderColor = '#1a4332';
+        pill.style.borderColor = '#1a432a';
         setTimeout(() => {
           pill.style.background = '#ffffff';
           pill.style.color = '#1e293b';
@@ -1814,6 +2106,7 @@
         if (res && res.canceled) return;
         if (res && res.success) {
           showToast(res.message || 'تمت استعادة قاعدة البيانات بنجاح!', 'success');
+          await refreshHotelBusinessState();
           await window.DashboardApp.Helpers.loadOverviewData();
           await window.DashboardApp.Helpers.loadReservationsData();
           await window.DashboardApp.Helpers.loadRoomsData();
@@ -1850,7 +2143,7 @@
       // Update KPIs
       if (dailyBackupStatusBadge) {
         dailyBackupStatusBadge.textContent = data.enabled ? 'مفعّل ونشط ✅' : 'معطّل ⚠️';
-        dailyBackupStatusBadge.style.color = data.enabled ? '#047857' : '#dc2626';
+        dailyBackupStatusBadge.style.color = data.enabled ? '#047831' : '#dc2626';
       }
 
       if (dailyBackupNextRun) {
@@ -1917,7 +2210,7 @@
             if (isLatest) {
               badgeHtml = `<span style="background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 0.75rem;">الأحدث (Latest)</span>`;
             } else if (isDaily) {
-              badgeHtml = `<span style="background: #dcfce7; color: #15803d; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 0.75rem;">يومي 12:00 ص 🕛</span>`;
+              badgeHtml = `<span style="background: #dcfce8; color: #15803e; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 0.75rem;">يومي 12:00 ص 🕛</span>`;
             } else {
               badgeHtml = `<span style="background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 6px; font-size: 0.75rem;">نسخة يدوية 📁</span>`;
             }
@@ -1956,6 +2249,7 @@
                 if (restoreRes && restoreRes.success) {
                   showToast('تمت استعادة قاعدة البيانات بنجاح من النسخة المحددة!', 'success');
                   dailyBackupModal.style.display = 'none';
+                  await refreshHotelBusinessState();
                   await window.DashboardApp.Helpers.loadOverviewData();
                   await window.DashboardApp.Helpers.loadReservationsData();
                   await window.DashboardApp.Helpers.loadRoomsData();
@@ -2253,7 +2547,10 @@
     window.DashboardApp.DOM.btnRefreshRooms = document.getElementById('btn-refresh-rooms');
     window.DashboardApp.DOM.roomsFilterTabs = document.querySelectorAll('#rooms-filter-tabs .filter-tab-btn');
     window.DashboardApp.DOM.roomsPaymentFilterTabs = document.querySelectorAll('#rooms-payment-filter-tabs .filter-tab-btn');
-    window.DashboardApp.DOM.roomsPaymentFilterContainer = document.getElementById('rooms-payment-filter-tabs');
+    window.DashboardApp.DOM.roomsPaymentFilterContainer = roomsPaymentFilterContainer;
+    window.DashboardApp.DOM.roomsFilterResult = roomsFilterResult;
+    window.DashboardApp.DOM.roomsClearFiltersButton = roomsClearFiltersButton;
+    window.DashboardApp.DOM.roomsActiveFilterCount = roomsActiveFilterCount;
     window.DashboardApp.DOM.searchRoomsInput = document.getElementById('search-rooms');
     window.DashboardApp.DOM.roomsBookingTypeTabs = document.querySelectorAll('#rooms-booking-type-tabs .filter-tab-btn');
     window.DashboardApp.DOM.roomsGridContainer = document.getElementById('rooms-grid-container');
@@ -2350,6 +2647,7 @@
     window.DashboardApp.DOM.roomSelect = roomSelect;
     window.DashboardApp.DOM.overviewTableBody = overviewTableBody;
     window.DashboardApp.DOM.overviewEmpty = overviewEmpty;
+    window.DashboardApp.DOM.overviewRecentTabCount = overviewRecentTabCount;
     window.DashboardApp.DOM.todayDateBadge = todayDateBadge;
     window.DashboardApp.DOM.todayCheckoutsTableBody = todayCheckoutsTableBody;
     window.DashboardApp.DOM.todayCheckoutsCountBadge = todayCheckoutsCountBadge;
@@ -2423,12 +2721,56 @@
       console.warn('App info error:', err);
     }
 
+    if (currentUser) {
+      try { await refreshHotelBusinessState(); }
+      catch (businessDateErr) { console.warn('Hotel business date unavailable:', businessDateErr); }
+      if (currentUser.role === 'Admin') await refreshBusinessDayReconciliationNotice();
+    }
+
     // Default view: overview
     window.switchView('overview');
   }
 
   // Escape HTML helper
   function escapeHtml(str) { return window.DashboardApp.Helpers.escapeHtml(str); }
+
+  async function refreshBusinessDayReconciliationNotice() {
+    const notice = document.getElementById('business-day-shift-notice');
+    const text = document.getElementById('business-day-shift-notice-text');
+    if (!notice || !text || currentUser?.role !== 'Admin') return;
+    try {
+      const response = await window.api.getPendingShiftReconciliationAudits();
+      const pending = response?.success && Array.isArray(response.data) ? response.data : [];
+      notice.hidden = pending.length === 0;
+      text.textContent = pending.length
+        ? `هناك ${pending.length} إقفال تلقائي بانتظار مطابقة الوردية (${pending[0].closed_business_date}).`
+        : '';
+    } catch (error) {
+      console.warn('Business day reconciliation notice unavailable:', error);
+    }
+  }
+
+  const openReconciliationButton = document.getElementById('btn-open-business-day-reconciliation');
+  if (openReconciliationButton) {
+    openReconciliationButton.addEventListener('click', () => window.switchView('admin'));
+  }
+
+  if (window.api?.onHotelBusinessDateChanged) {
+    window.api.onHotelBusinessDateChanged(async event => {
+      if (!currentUser || !event?.businessDate || event.businessDate === window.DashboardApp.State.businessDate) return;
+      await refreshHotelBusinessState();
+      updateSystemClock();
+      const helpers = window.DashboardApp.Helpers;
+      await Promise.all([
+        helpers.loadOverviewData?.(),
+        helpers.loadRoomsData?.(),
+        helpers.loadReservationsData?.()
+      ]);
+      if (currentUser.role === 'Admin') await refreshBusinessDayReconciliationNotice();
+      showToast(`بدأ يوم فندقي جديد: ${event.businessDate}`, 'info');
+    });
+  }
+  window.refreshBusinessDayReconciliationNotice = refreshBusinessDayReconciliationNotice;
 
   window.openInvoiceModal = openInvoiceModal;
   window.openRoomRevenueModal = window.DashboardApp.Helpers.openRoomRevenueModal;
@@ -2439,6 +2781,9 @@
   window.showPromptDialog = showPromptDialog;
   window.sendReservationWhatsApp = sendReservationWhatsApp;
   window.openUserManualModal = openUserManualModal;
+  window.DashboardApp.Helpers.refreshHotelBusinessState = refreshHotelBusinessState;
+  updateSystemClock();
+  window.setInterval(updateSystemClock, 1000);
 
   init();
 

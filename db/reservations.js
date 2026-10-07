@@ -107,7 +107,7 @@ const RESERVATION_LIST_SQL = `
   JOIN rooms rm ON r.room_id = rm.id
 `;
 
-function buildReservationListFilter({ search = '', status = 'all' } = {}) {
+function buildReservationListFilter({ search = '', status = 'all', paymentType = 'all' } = {}) {
   const conditions = [];
   const params = [];
 
@@ -116,6 +116,15 @@ function buildReservationListFilter({ search = '', status = 'all' } = {}) {
   } else if (['مؤكد', 'مكتمل'].includes(status)) {
     conditions.push('r.status = ?');
     params.push(status);
+  }
+
+  const allowedPaymentTypes = new Set([
+    'advance_payment', 'balance_payment', 'extension_payment', 'late_checkout_fee',
+    'checkout_settlement', 'refund', 'deposit_applied', 'legacy_unclassified'
+  ]);
+  if (allowedPaymentTypes.has(paymentType)) {
+    conditions.push('EXISTS (SELECT 1 FROM payments p WHERE p.reservation_id = r.id AND p.payment_type = ?)');
+    params.push(paymentType);
   }
 
   const normalizedSearch = String(search || '').trim().slice(0, 120);
@@ -145,10 +154,10 @@ function getAllReservations() {
   return queryAll(`${RESERVATION_LIST_SQL} ORDER BY r.id DESC`);
 }
 
-function getReservationsPage({ page = 1, pageSize = 50, search = '', status = 'all', exportAll = false } = {}) {
+function getReservationsPage({ page = 1, pageSize = 50, search = '', status = 'all', paymentType = 'all', exportAll = false } = {}) {
   const normalizedPageSize = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 50));
   const normalizedPage = Math.max(1, parseInt(page, 10) || 1);
-  const filter = buildReservationListFilter({ search, status });
+  const filter = buildReservationListFilter({ search, status, paymentType });
   const count = queryOne(
     `SELECT COUNT(*) AS total FROM reservations r JOIN guests g ON r.guest_id = g.id JOIN rooms rm ON r.room_id = rm.id ${filter.sql}`,
     filter.params
@@ -319,7 +328,7 @@ function createReservation({
     }
 
     const effectiveRate = normCustomNightlyPrice !== null ? normCustomNightlyPrice : roomRow.price_per_night;
-    const baseTotal = roundMoney(effectiveRate * 30);
+    const baseTotal = roundMoney(effectiveRate * MONTHLY_PACKAGE_NIGHTS);
     total = Math.max(0, roundMoney(baseTotal - normDiscountAmount));
 
     // A monthly booking has an authoritative total: booked nights x rate - discount.
@@ -341,9 +350,8 @@ function createReservation({
     }
 
     if (!computedCheckOutDate) {
-      const [y, m, d] = checkInDate.split('-').map(Number);
-      const outDateObj = new Date(y, m - 1, d + 30);
-      computedCheckOutDate = getLocalDateString(outDateObj);
+      // One full calendar month, clamped at month end, rather than a fixed 30-day span.
+      computedCheckOutDate = getCalendarMonthCheckOut(checkInDate);
     } else if (computedCheckOutDate <= checkInDate) {
       throw new Error('تاريخ المغادرة يجب أن يكون بعد تاريخ الوصول بشكل محدد.');
     }
@@ -476,8 +484,8 @@ function createReservation({
     if (paid > 0) {
       receiptNumber = generateReceiptNumber(newReservationId);
       const payStmt = db.prepare(`
-        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
-        VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, 'دفعة الحجز المبدئية عند تسجيل الوصول')
+        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes)
+        VALUES (?, ?, ?, ?, 'advance_payment', datetime('now', 'localtime'), ?, 'دفعة الحجز المبدئية عند تسجيل الوصول')
       `);
       payStmt.run([
         receiptNumber,
@@ -504,7 +512,7 @@ function createReservation({
     // Dynamic Room Status Evaluation:
     // Only mark room as 'مشغولة' if CURRENT_DATE >= check_in_date AND CURRENT_DATE < effectiveNewCheckout.
     // If check_in_date is in the future, mark as 'محجوزة' (unless it is already occupied today by another guest).
-    const todayStr = getLocalDateString();
+    const todayStr = connection.getCurrentBusinessDate();
     let assignedRoomStatus = 'متاحة';
     const currentRoom = queryOne("SELECT status FROM rooms WHERE id = ?", [parsedRoomId]);
 
@@ -555,6 +563,32 @@ function countNights(startDate, endDate) {
   return Math.round((endUtc - startUtc) / 86400000);
 }
 
+  /**
+   * A monthly ("حجز شهري") booking is priced as a closed package of 30 nights at the
+   * effective rate, independent of how many calendar days the month happens to contain.
+   * Both createReservation (stored total_price) and computeContractValue (the amount due
+   * at checkout) derive their figures from this, so a 28-day February and a 31-day July
+   * cost the same and the contract value never drifts from the stored total.
+   */
+  const MONTHLY_PACKAGE_NIGHTS = 30;
+
+  /**
+   * The checkout date that ends one full calendar month after the given check-in, with
+   * month-end clamping: 2026-07-03 -> 2026-08-03, 2026-01-31 -> 2026-02-28,
+   * 2028-01-31 -> 2028-02-29 (leap year). Returns '' for anything unparseable.
+   */
+  function getCalendarMonthCheckOut(checkInDateStr) {
+    const value = String(checkInDateStr || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return '';
+    const [y, m, d] = value.split('-').map(Number);
+    // m is the 1-based check-in month, so the next month is 0-based index m.
+    const lastDayOfNextMonth = new Date(y, m + 1, 0).getDate();
+    const clampedDay = Math.min(d, lastDayOfNextMonth);
+    // Let Date roll month index 12 over into January of the following year.
+    const nextMonthStart = new Date(y, m, 1);
+    return `${nextMonthStart.getFullYear()}-${String(nextMonthStart.getMonth() + 1).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`;
+  }
+
 /**
  * Is this a MONTHLY booking being checked out before its stored departure date?
  * The stored check_out_date must be a real date (never '' / 'مفتوح'), and the actual
@@ -591,7 +625,7 @@ function computeContractValue(res) {
   if (!bookedNights) {
     throw new Error('تعذر حساب قيمة العقد: تواريخ الإقامة غير صالحة.');
   }
-  const base = roundMoney(bookedNights * storedRate);
+  const base = roundMoney((res.booking_type === 'حجز شهري' ? MONTHLY_PACKAGE_NIGHTS : bookedNights) * storedRate);
   const fullDiscount = Math.max(0, roundMoney(res.discount_amount || 0));
   return {
     bookedNights,
@@ -876,7 +910,7 @@ function checkoutReservation(reservationId, {
       if (openAddPay > 0) {
         openNewPaid = roundMoney(currentPaid + openAddPay);
         openReceiptNumber = generateReceiptNumber(targetId);
-        const ps = db.prepare(`INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes) VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)`);
+        const ps = db.prepare(`INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes) VALUES (?, ?, ?, ?, 'checkout_settlement', datetime('now', 'localtime'), ?, ?)`);
         ps.run([openReceiptNumber, targetId, openAddPay, paymentMethod || 'نقداً', userId ? parseInt(userId, 10) : null, notes || 'سداد تصفية حساب مغادرة']);
         ps.free();
       }
@@ -898,7 +932,7 @@ function checkoutReservation(reservationId, {
         openNewPaid = roundMoney(openNewPaid + openDepositApplied);
         recordDepositMovement({ reservationId: targetId, type: 'applied', amount: openDepositApplied, paymentMethod: depositRefundMethod, userId, reason: `تسوية من التأمين على الإقامة #${targetId}` });
         const applyReceipt = generateReceiptNumber(targetId);
-        const applyStmt = db.prepare(`INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes) VALUES (?, ?, ?, 'من التأمين', datetime('now', 'localtime'), ?, ?)`);
+        const applyStmt = db.prepare(`INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes) VALUES (?, ?, ?, 'من التأمين', 'deposit_applied', datetime('now', 'localtime'), ?, ?)`);
         applyStmt.run([applyReceipt, targetId, openDepositApplied, userId ? parseInt(userId, 10) : null, `تسوية من التأمين #${targetId}`]);
         applyStmt.free();
       }
@@ -943,7 +977,7 @@ function checkoutReservation(reservationId, {
           );
         }
         openRefundReceiptNumber = generateReceiptNumber(targetId);
-        const refundStmt = db.prepare(`INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes) VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)`);
+        const refundStmt = db.prepare(`INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes) VALUES (?, ?, ?, ?, 'refund', datetime('now', 'localtime'), ?, ?)`);
         refundStmt.run([openRefundReceiptNumber, targetId, -openRawRefund, paymentMethod || 'نقداً', userId ? parseInt(userId, 10) : null, `استرداد - تسوية مغادرة #${targetId}`]);
         refundStmt.free();
         openNewPaid = roundMoney(openNewPaid - openRawRefund);
@@ -1195,8 +1229,8 @@ function checkoutReservation(reservationId, {
       });
       const applyReceipt = generateReceiptNumber(targetId);
       const applyStmt = db.prepare(`
-        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
-        VALUES (?, ?, ?, 'من التأمين', datetime('now', 'localtime'), ?, ?)
+        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes)
+        VALUES (?, ?, ?, 'من التأمين', 'deposit_applied', datetime('now', 'localtime'), ?, ?)
       `);
       applyStmt.run([applyReceipt, targetId, depositApplied, actingUser, `تسوية من التأمين #${targetId}`]);
       applyStmt.free();
@@ -1230,11 +1264,18 @@ function checkoutReservation(reservationId, {
       }
       newPaid = roundMoney(adjustedCurrentPaid + rawCollect);
       collectionReceiptNumber = generateReceiptNumber(targetId);
+      // A receipt can only have one purpose label. Mark it as a late-fee payment
+      // only when accommodation was already fully settled before this collection.
+      // Mixed accommodation/fee collections stay checkout_settlement to avoid
+      // misreporting the whole receipt as a late fee.
+      const collectionType = normalizedLateCheckoutFee > 0 && adjustedCurrentPaid >= accommodationNetTotal - 0.005
+        ? 'late_checkout_fee'
+        : 'checkout_settlement';
       const ps = db.prepare(`
-        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
-        VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
+        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes)
+        VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
       `);
-      ps.run([collectionReceiptNumber, targetId, rawCollect, effMethod, actingUser,
+      ps.run([collectionReceiptNumber, targetId, rawCollect, effMethod, collectionType, actingUser,
         normalizedLateCheckoutFee > 0
           ? `تحصيل عند المغادرة #${targetId} (يشمل مبلغ تأخير ${normalizedLateCheckoutFee} ريال)`
           : `تحصيل عند المغادرة #${targetId}`]);
@@ -1279,8 +1320,8 @@ function checkoutReservation(reservationId, {
       }
       refundReceiptNumber = generateReceiptNumber(targetId);
       const ps = db.prepare(`
-        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
-        VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
+        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes)
+        VALUES (?, ?, ?, ?, 'refund', datetime('now', 'localtime'), ?, ?)
       `);
       ps.run([refundReceiptNumber, targetId, -rawRefund, effMethod, actingUser,
         `استرداد - تسوية مغادرة #${targetId}`]);
@@ -1496,8 +1537,8 @@ function extendReservation({
       newPaid = roundMoney(currentPaid + payAmount);
       receiptNumber = generateReceiptNumber(targetId);
       const payStmt = db.prepare(`
-        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
-        VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
+        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes)
+        VALUES (?, ?, ?, ?, 'extension_payment', datetime('now', 'localtime'), ?, ?)
       `);
       payStmt.run([
         receiptNumber,
@@ -1586,8 +1627,8 @@ function cancelReservation(reservationId, actualDepartureDate = null, manualOver
   }
   // Cancellation / Void is allowed before arrival or on the arrival date (immediate void of walk-in/same-day booking).
   // Once arrival day has passed (guest stayed overnight), use the checkout settlement flow so the stay keeps one lifecycle.
-  const hotelBizDate = connection.getHotelBusinessDate ? connection.getHotelBusinessDate() : today;
-  const isArrivalDate = res.check_in_date >= today || res.check_in_date === hotelBizDate;
+  const hotelBizDate = connection.getCurrentBusinessDate();
+  const isArrivalDate = res.check_in_date >= hotelBizDate;
   const hasStarted = !isArrivalDate;
   if (hasStarted) {
     throw new Error('الإقامة بدأت بالفعل. استخدم تسجيل الخروج لتصفية الحساب بدلاً من إلغاء الحجز.');
@@ -1634,8 +1675,8 @@ function cancelReservation(reservationId, actualDepartureDate = null, manualOver
           ? 'استرداد كامل - إلغاء قبل الوصول #' + targetId
           : 'استرداد كامل - إبطال الحجز المباشر #' + targetId;
         const refundStmt = db.prepare(`
-          INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
-          VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
+          INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes)
+          VALUES (?, ?, ?, ?, 'refund', datetime('now', 'localtime'), ?, ?)
         `);
         refundStmt.run([
           refundReceiptNumber,
@@ -1715,8 +1756,8 @@ function cancelReservation(reservationId, actualDepartureDate = null, manualOver
       if (refundDue > 0) {
         const refundReceiptNumber = generateReceiptNumber(targetId);
         const refundStmt = db.prepare(`
-          INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
-          VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
+          INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes)
+          VALUES (?, ?, ?, ?, 'refund', datetime('now', 'localtime'), ?, ?)
         `);
         refundStmt.run([
           refundReceiptNumber,
@@ -1850,8 +1891,8 @@ function addPaymentToReservation({ reservationId, amount, paymentMethod = 'نق�
 
     // 1. Insert entry into payments ledger table
     const payStmt = db.prepare(`
-      INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
-      VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
+      INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes)
+      VALUES (?, ?, ?, ?, 'balance_payment', datetime('now', 'localtime'), ?, ?)
     `);
     payStmt.run([
       receiptNumber,
@@ -1911,7 +1952,10 @@ function getReservationPayments(reservationId) {
       p.reservation_id,
       p.amount,
       p.payment_method,
+      p.payment_type,
       p.payment_date,
+      p.created_at,
+      p.business_date,
       p.notes,
       p.user_id,
       u.username AS staff_username
@@ -1928,7 +1972,7 @@ function getReservationDepositMovements(reservationId) {
   if (!targetId || isNaN(targetId)) return [];
   return queryAll(`
     SELECT dm.id, dm.reservation_id, dm.movement_type, dm.amount, dm.payment_method,
-      dm.movement_date, dm.user_id, dm.reason, u.username AS staff_username
+      dm.movement_date, dm.created_at, dm.business_date, dm.user_id, dm.reason, u.username AS staff_username
     FROM deposit_movements dm
     LEFT JOIN users u ON u.id = dm.user_id
     WHERE dm.reservation_id = ?
@@ -1948,7 +1992,10 @@ function getPaymentReceipt(receiptIdentifier) {
       p.reservation_id,
       p.amount,
       p.payment_method,
+      p.payment_type,
       p.payment_date,
+      p.created_at,
+      p.business_date,
       p.notes,
       r.total_price,
       r.paid_amount,
@@ -2171,8 +2218,8 @@ function updateReservationReceipt({
     } else if (paid > 0) {
       const receiptNumber = generateReceiptNumber(targetId);
       const insertPayStmt = db.prepare(`
-        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_date, user_id, notes)
-        VALUES (?, ?, ?, ?, datetime('now', 'localtime'), NULL, 'دفعة الحجز عند تعديل السند')
+        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes)
+        VALUES (?, ?, ?, ?, 'advance_payment', datetime('now', 'localtime'), NULL, 'دفعة الحجز عند تعديل السند')
       `);
       insertPayStmt.run([receiptNumber, targetId, paid, method]);
       insertPayStmt.free();

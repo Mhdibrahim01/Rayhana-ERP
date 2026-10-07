@@ -24,6 +24,26 @@
  */
 
 const assert = require('node:assert/strict');
+/**
+ * The departure date for a monthly booking: the same calendar day next month, clamped
+ * to that month's last day when it is shorter (2026-01-31 -> 2026-02-28).
+ */
+function calendarMonthCheckOut(checkInDateStr) {
+  const [y, m, d] = String(checkInDateStr).split('-').map(Number);
+  const lastDayOfNextMonth = new Date(y, m + 1, 0).getDate();
+  const clampedDay = Math.min(d, lastDayOfNextMonth);
+  const nextMonth = new Date(y, m, 1);
+  return nextMonth.getFullYear() + '-' +
+    String(nextMonth.getMonth() + 1).padStart(2, '0') + '-' +
+    String(clampedDay).padStart(2, '0');
+}
+
+/** Whole nights between two YYYY-MM-DD dates. */
+function nightsBetween(from, to) {
+  const [fy, fm, fd] = String(from).split('-').map(Number);
+  const [ty, tm, td] = String(to).split('-').map(Number);
+  return Math.max(1, Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86400000));
+}
 const test = require('node:test');
 const { addDays, addRoom } = require('./helpers/fixtures');
 const { assertDatabaseIntegrity, withSafeDatabase } = require('./helpers/safe-temp-db');
@@ -444,8 +464,12 @@ test('scenario matrix: monthly early checkout policies', async t => {
       const id = makeMonthly(id0, { elapsed: 3 });
       const p = db.computeCheckoutSettlement(id, {});
       assert.equal(p.isMonthlyEarlyCheckout, true);
-      assert.equal(p.bookedNights, 30);
-      assert.equal(p.contractValue, 4500, '30 booked nights x 150');
+      // A monthly booking spans one full calendar month, so the booked-night count is
+      // whatever that month actually holds (31 nights for Oct 2 -> Nov 2) rather than a
+      // fixed 30. What must NOT change is the contract value: it stays the closed
+      // 30-night package, which is what the stored total_price was built from.
+      assert.equal(p.bookedNights, nightsBetween(addDays(today, -3), calendarMonthCheckOut(addDays(today, -3))));
+      assert.equal(p.contractValue, 4500, 'the 30-night package x 150, whatever the calendar span is');
       assert.equal(p.actualValue, 450, '3 elapsed nights x 150');
       assert.equal(p.contractValueMismatch, false);
     });

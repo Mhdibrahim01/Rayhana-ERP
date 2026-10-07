@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, dialog, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, Notification, powerMonitor } = require('electron');
 
 // =============================================================================
 // GPU & RENDERING ACCELERATION FLAGS (must be called before app.whenReady)
@@ -14,12 +14,14 @@ const path = require('path');
 const fs = require('fs');
 const db = require('./db');
 const backupScheduler = require('./backupScheduler');
+const { createBusinessDayScheduler } = require('./businessDayScheduler');
 const { registerAllIpcHandlers } = require('./ipc');
 
 let mainWindow = null;
 let dbPath = '';
 let currentUser = null;
 let currentLogId = null;
+let businessDayScheduler = null;
 
 /**
  * Creates the primary application window, starting on the login view.
@@ -209,13 +211,13 @@ function backupDatabase() {
 
 /**
  * Automated Room Status updater function in main.js
- * Checks Reservations table against the current date:
+ * Checks Reservations table against the currently open hotel business date:
  * - If today's date falls between check_in_date and check_out_date -> update room to 'مشغولة' (Occupied)
  * - If check_out_date has passed -> update room to 'تنظيف' (Cleaning)
  */
 function updateAutomatedRoomStatuses() {
   try {
-    const today = getLocalDateString();
+    const today = db.getCurrentBusinessDate();
     const result = db.autoUpdateRoomStatuses(today);
     return result;
   } catch (err) {
@@ -239,6 +241,9 @@ function registerIpcHandlers() {
 
   const helpers = {
     getLocalDateString,
+    getHotelBusinessDate: db.getHotelBusinessDate,
+    getCurrentBusinessDate: db.getCurrentBusinessDate,
+    checkBusinessDayRollover: businessDayScheduler?.checkAndClose,
     updateAutomatedRoomStatuses,
     backupDatabase
   };
@@ -264,8 +269,15 @@ app.whenReady().then(async () => {
     await db.init(dbPath);
     updateAutomatedRoomStatuses();
 
+    businessDayScheduler = createBusinessDayScheduler({
+      db,
+      powerMonitor,
+      getMainWindow: () => mainWindow
+    });
+
     registerIpcHandlers();
     createWindow();
+    businessDayScheduler.start();
 
     // Start Daily 12:00 AM Automated Backup Scheduler
     await backupScheduler.initBackupScheduler({
@@ -288,6 +300,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
+  if (businessDayScheduler) businessDayScheduler.stop();
   backupScheduler.stopBackupScheduler();
   if (currentLogId) {
     db.logEmployeeLogout(currentLogId);
