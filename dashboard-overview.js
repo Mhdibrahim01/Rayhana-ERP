@@ -580,6 +580,8 @@
 
   function renderOverviewTable() {
     const recent = App.State.reservationsCache.filter(r => r.status === 'مؤكد').slice(0, 10);
+    const recentCount = document.getElementById('overview-recent-tab-count');
+    if (recentCount) recentCount.textContent = String(recent.length);
     if (!recent.length) {
       App.DOM.overviewTableBody.innerHTML = '';
       App.DOM.overviewEmpty.style.display = 'block';
@@ -589,6 +591,7 @@
     const e = App.Helpers.escapeHtml;
     const today = App.Helpers.getLocalDateString();
     const icons = {
+      preview: '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>',
       checkout: '<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>',
       payment: '<svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>',
       extend: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>',
@@ -596,7 +599,7 @@
       whatsapp: '<svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>',
       cancel: '<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>'
     };
-    const titles = { checkout: 'تسجيل مغادرة وتسليم الغرفة', payment: 'تسجيل دفعة سداد جديدة', extend: 'تمديد فترة الإقامة', invoice: 'طباعة سند الاستلام والإقامة (فاتورة)', whatsapp: 'مراسلة النزيل عبر واتساب', cancel: 'إلغاء الحجز' };
+    const titles = { preview: 'معاينة تفاصيل الحجز', checkout: 'تسجيل مغادرة وتسليم الغرفة', payment: 'تسجيل دفعة سداد جديدة', extend: 'تمديد فترة الإقامة', invoice: 'طباعة سند الاستلام والإقامة (فاتورة)', whatsapp: 'مراسلة النزيل عبر واتساب', cancel: 'إلغاء الحجز' };
     App.DOM.overviewTableBody.innerHTML = recent.map(r => {
       const isContract = r.booking_type === 'عقد مفتوح';
       const storedTotal = Number(r.total_price || 0);
@@ -614,41 +617,49 @@
       const canCancel = r.check_in_date && today <= r.check_in_date;
       const isLate = !isContract && App.Helpers.isLateCheckout(r);
       const paymentTone = r.payment_status === 'مدفوع بالكامل' ? 'success' : (r.payment_status === 'مدفوع جزئياً' ? 'warning' : 'danger');
-      const candidates = [];
+      // Build actions independently, then cap the row at four slots. A balance
+      // must not suppress extension, cancellation, or guest contact actions.
+      const candidates = [['preview', false]];
       if (canCheckOut) candidates.push(['checkout', true]);
-      if (remaining > 0 || isContract) candidates.push(['payment', true]);
       if (r.check_out_date && r.check_out_date !== 'مفتوح') candidates.push(['extend', false]);
-      candidates.push(['invoice', false]);
+      if (remaining > 0 || isContract) candidates.push(['payment', false]);
       if (canCancel) candidates.push(['cancel', false]);
-      else candidates.push(['whatsapp', false]);
+      if (r.guest_phone) candidates.push(['whatsapp', false]);
+      candidates.push(['invoice', false]);
       const visibleActions = candidates.slice(0, 4);
-      const primaryAction = visibleActions.find(([action]) => action === 'checkout')?.[0]
-        || visibleActions.find(([action]) => action === 'payment')?.[0]
-        || visibleActions.find(([action]) => action === 'extend')?.[0]
-        || visibleActions[0]?.[0];
       const actions = visibleActions.map(([action]) => {
         const extra = action === 'payment' ? ' onclick="event.stopPropagation(); window.openAddPaymentModal && window.openAddPaymentModal(' + Number(r.id) + ');"' : '';
-        const handlerAction = action === 'payment' ? 'add-payment' : action;
+        const handlerAction = action === 'payment' ? 'add-payment' : (action === 'preview' ? 'preview-reservation' : action);
         const title = action === 'cancel' && r.check_in_date === today ? 'إبطال / إلغاء الحجز المباشر' : titles[action];
-        return '<button type="button" class="btn-row ' + (action === primaryAction ? 'primary' : 'icon-ghost') + '" data-action="' + handlerAction + '" data-id="' + Number(r.id) + '" title="' + title + '" aria-label="' + title + '"' + extra + '>' + icons[action] + '</button>';
+        const buttonClass = action === 'checkout' ? 'btn-row primary overview-row-checkout' : 'btn-row icon-ghost';
+        const buttonText = action === 'checkout' ? '<span>خروج</span>' : '';
+        return '<button type="button" class="' + buttonClass + '" data-action="' + handlerAction + '" data-id="' + Number(r.id) + '" title="' + title + '" aria-label="' + title + '"' + extra + '>' + icons[action] + buttonText + '</button>';
       }).join('');
-      const typeBadge = App.Helpers.getBookingTypeBadge(r.booking_type);
-      const dateOut = isContract ? '<strong>عقد مفتوح</strong>' : renderDateTimeCell(r.check_out_date, r.checkout_time || '14:00', r.check_out_date || '-', r.checkout_time ? 'فعلي' : 'متوقع');
       const lateBadge = isLate ? renderDashboardStatusBadge(getCheckoutDelayLabel(r.check_out_date), 'danger') : '<span class="overview-status-dash">—</span>';
+      const reservationYear = getReservationYear(r);
+      const bookingNumber = 'RYH-' + reservationYear + '-' + String(r.id).padStart(5, '0');
       const balanceLine = isCredit
         ? '<small class="overview-credit-line">رصيد دائن: ' + Math.abs(balance).toLocaleString() + ' ر.س</small>'
         : '<small class="overview-balance-line ' + (remaining > 0 ? 'due' : 'settled') + '">' + (remaining > 0 ? 'المتبقي: ' + remaining.toLocaleString() + ' ر.س' : 'لا يوجد رصيد مستحق') + '</small>';
       return '<tr class="' + (isLate ? 'overview-late-booking-row' : '') + '">' +
-        '<td class="overview-booking-guest-cell"><strong class="overview-booking-guest-name" title="' + e(r.guest_name || '') + '">' + e(r.guest_name || '-') + '</strong><div class="overview-booking-guest-meta">' + typeBadge + '<small>#' + e(r.id) + '</small></div>' + (r.guest_id_number ? '<small class="guest-id-number">هوية: ' + e(r.guest_id_number) + '</small>' : '') + '</td>' +
-        '<td><span class="overview-booking-room">' + e(r.room_number || '-') + '</span></td>' +
-        '<td class="overview-booking-date">' + renderDateTimeCell(r.check_in_date, r.booking_time, '-', 'الوصول') + '</td>' +
-        '<td class="overview-booking-date">' + dateOut + '</td>' +
+        '<td class="overview-booking-number-cell"><bdi class="overview-booking-number" dir="ltr">' + e(bookingNumber) + '</bdi></td>' +
+        '<td class="overview-booking-guest-cell"><strong class="overview-booking-guest-name" title="' + e(r.guest_name || '') + '">' + e(r.guest_name || '-') + '</strong><small class="overview-booking-guest-phone" dir="ltr">' + e(r.guest_phone || '—') + '</small></td>' +
+        '<td class="overview-booking-room-cell"><span class="overview-booking-room">' + e(r.room_number || '-') + '</span><small class="overview-booking-room-type" title="' + e(r.room_type || '') + '">' + e(r.room_type || '-') + '</small></td>' +
+        '<td class="overview-booking-date"><span class="overview-date-line"><small>من</small><bdi>' + e(String(r.check_in_date || '-').slice(0, 10)) + '</bdi></span><span class="overview-date-line"><small>إلى</small>' + (isContract ? '<strong class="overview-open-contract">عقد مفتوح</strong>' : '<bdi>' + e(String(r.check_out_date || '-').slice(0, 10)) + '</bdi>') + '</span></td>' +
         '<td class="overview-booking-financial"><strong>' + total.toLocaleString() + ' ر.س</strong>' + (isContract ? '<small>' + elapsedNights + (elapsedNights === 1 ? ' ليلة' : ' ليالٍ') + ' × ' + rate.toLocaleString() + ' ر.س</small>' : '') + balanceLine + '</td>' +
-        '<td class="overview-booking-payment"><span class="status-badge ' + paymentTone + '">' + e(r.payment_status || 'غير مدفوع') + '</span><small>مدفوع: ' + paid.toLocaleString() + ' ر.س</small></td>' +
-        '<td class="overview-booking-status">' + lateBadge + '</td>' +
+        '<td class="overview-booking-method">' + e(r.payment_method || '—') + '</td>' +
+        '<td class="overview-booking-status"><span class="status-badge ' + paymentTone + '">' + e(r.payment_status || 'غير مدفوع') + '</span><small>مدفوع: ' + paid.toLocaleString() + ' ر.س</small>' + (isLate ? '<span class="overview-late-inline">' + lateBadge + '</span>' : '') + '</td>' +
         '<td class="overview-booking-actions-cell"><div class="btn-row-group overview-row-actions" role="group" aria-label="إجراءات الحجز">' + actions + '</div></td>' +
         '</tr>';
     }).join('');
+  }
+
+  function getReservationYear(reservation) {
+    for (const value of [reservation?.created_at, reservation?.check_in_date]) {
+      const match = String(value || '').match(/^(\d{4})/);
+      if (match) return match[1];
+    }
+    return '0000';
   }
 
   function renderDateTimeCell(dateValue, timeValue, fallback = '-', timeLabel = '') {
@@ -766,9 +777,9 @@
     if (App.DOM.todayCheckoutsCountBadge) {
       const count = checkouts.length;
       App.DOM.todayCheckoutsCountBadge.textContent = `${count} ${count === 1 ? 'مغادرة' : 'مغادرات'}`;
-      const todayCheckoutsTabCount = document.getElementById('today-checkouts-tab-count');
-      if (todayCheckoutsTabCount) todayCheckoutsTabCount.textContent = String(count);
     }
+    const todayCheckoutsTabCount = document.getElementById('today-checkouts-tab-count');
+    if (todayCheckoutsTabCount) todayCheckoutsTabCount.textContent = String(checkouts.length);
     const filterCounts = {
       all: checkouts.length,
       pending: checkouts.filter(row => row.status === 'مؤكد' && !App.Helpers.isLateCheckout(row)).length,
@@ -848,12 +859,10 @@
           <td class="checkout-date-cell">
             <div class="checkout-cell-stack checkout-date-stack">${renderDateTimeCell(r.check_in_date, r.booking_time, '-', 'الوصول')}</div>
           </td>
-          <td class="checkout-money-cell">${total.toLocaleString('en-US')} ر.س</td>
-          <td>
-            <div class="checkout-balance-cell">
-              <strong>${balance.toLocaleString('en-US')} ر.س</strong>
-              ${App.Helpers.getPaymentStatusBadge(r.payment_status)}
-            </div>
+          <td class="checkout-money-cell">
+            <strong>${total.toLocaleString('en-US')} ر.س</strong>
+            <small>مدفوع: ${paid.toLocaleString('en-US')} ر.س</small>
+            <small class="${balance > 0 ? 'checkout-balance-due' : 'checkout-balance-settled'}">${balance > 0 ? `المتبقي: ${balance.toLocaleString('en-US')} ر.س` : 'لا يوجد رصيد مستحق'}</small>
           </td>
           <td>
             <div class="checkouts-status-stack">
@@ -864,23 +873,18 @@
           <td style="text-align: center;">
             ${isConfirmed ? `
               <div class="overview-row-actions ${isLateCheckout ? 'overview-row-actions-late-checkout' : ''}" role="group" aria-label="إجراءات الحجز">
-                ${isLateCheckout ? `
-                  <button type="button" class="btn-row icon-ghost checkout-row-action checkout-row-action-preview" data-action="preview-reservation" data-id="${r.id}" title="معاينة تفاصيل الحجز" aria-label="معاينة تفاصيل الحجز">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                  </button>
-                  <button type="button" class="btn-row primary late-checkout-button late-checkout-button-primary" data-action="checkout" data-id="${r.id}" title="تسوية فورية وتسجيل المغادرة" aria-label="تسوية فورية وتسجيل المغادرة">🚪 خروج فوري</button>
-                  <button type="button" class="btn-row secondary late-checkout-button late-checkout-button-secondary" data-action="extend" data-id="${r.id}" title="تمديد فترة الإقامة" aria-label="تمديد فترة الإقامة">⏳ تمديد الإقامة</button>
-                ` : `
-                  <button type="button" class="btn-row icon-ghost checkout-row-action checkout-row-action-preview" data-action="preview-reservation" data-id="${r.id}" title="معاينة تفاصيل الحجز" aria-label="معاينة تفاصيل الحجز">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                  </button>
-                  <button type="button" class="btn-row secondary checkout-row-action checkout-row-action-extend" data-action="extend" data-id="${r.id}" title="تمديد فترة الإقامة" aria-label="تمديد فترة الإقامة">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg><span>تمديد</span>
-                  </button>
-                  <button type="button" class="btn-row primary checkout-row-action checkout-row-action-primary" data-action="checkout" data-id="${r.id}" title="تسجيل مغادرة النزيل وتسليم الغرفة" aria-label="تسجيل مغادرة النزيل وتسليم الغرفة">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H5v14h4M14 8l4 4-4 4M18 12H9"></path></svg><span>تسجيل المغادرة</span>
-                  </button>
-                `}
+                <button type="button" class="btn-row icon-ghost checkout-row-action checkout-row-action-preview" data-action="preview-reservation" data-id="${r.id}" title="معاينة تفاصيل الحجز" aria-label="معاينة تفاصيل الحجز">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                </button>
+                <button type="button" class="btn-row secondary checkout-row-action checkout-row-action-extend" data-action="extend" data-id="${r.id}" title="تمديد فترة الإقامة" aria-label="تمديد فترة الإقامة">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+                </button>
+                <button type="button" class="btn-row icon-ghost checkout-row-action" data-action="invoice" data-id="${r.id}" title="معاينة سند الاستلام والإقامة" aria-label="معاينة سند الاستلام والإقامة">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h7"></path></svg>
+                </button>
+                <button type="button" class="btn-row primary checkout-row-action checkout-row-action-primary" data-action="checkout" data-id="${r.id}" title="تسوية فورية وتسجيل المغادرة" aria-label="تسوية فورية وتسجيل المغادرة">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H5v14h4M14 8l4 4-4 4M18 12H9"></path></svg><span>خروج</span>
+                </button>
               </div>
             ` : isCompleted ? `
               ${renderDashboardStatusBadge('تمت المغادرة ✓', 'success')}
@@ -940,7 +944,7 @@
       </header>
       <div class="reservation-preview-body modal-layout__body"><div class="reservation-preview-column">
         <section class="reservation-preview-section modal-section-card"><div class="reservation-preview-section-title modal-section-card__header"><span class="reservation-preview-title-icon">♙</span><div><strong>بيانات النزيل المقيم حالياً</strong><small>Guest Profile</small></div><div class="reservation-preview-contact-actions">${r.guest_phone ? `<a class="reservation-preview-contact" href="tel:${App.Helpers.escapeHtml(r.guest_phone)}">اتصال <span>☎</span></a>` : ''}<button type="button" class="reservation-preview-contact reservation-preview-whatsapp" data-action="whatsapp" data-id="${App.Helpers.escapeHtml(r.id)}">مراسلة واتساب <span>⌯</span></button></div></div><div class="reservation-preview-grid reservation-preview-grid-guest">${previewField('اسم النزيل الثنائي', r.guest_name, 'نزيل مسجل في النظام')}${previewField('رقم الجوال', r.guest_phone, 'متاح للإشعارات والاتصال')}${previewField('رقم الهوية / الإقامة', r.guest_id_number, 'إثبات ساري ومطابق للنظام')}</div></section>
-        <section class="reservation-preview-section modal-section-card"><div class="reservation-preview-section-title modal-section-card__header"><span class="reservation-preview-title-icon">▦</span><div><strong>تفاصيل ومواعيد الإقامة</strong><small>Stay &amp; Contract Details</small></div><span class="reservation-preview-reference">رقم السند: RYH-${new Date().getFullYear()}-${String(r.id).padStart(5, '0')}</span></div><div class="reservation-preview-grid">${previewField('نوع الحجز', r.booking_type || 'حجز يومي', r.booking_type === 'عقد مفتوح' ? 'عقد إقامة مفتوح' : '')}${previewField('تاريخ الدخول', formatPreviewDate(r.check_in_date), r.booking_time ? `تسجيل: ${r.booking_time}` : '')}${previewField('تاريخ المغادرة المقررة', formatPreviewDate(r.check_out_date), r.checkout_time ? `تسليم المفتاح: ${r.checkout_time}` : '')}${previewField('سعر الليلة المتفق عليه', money(r.custom_nightly_price || r.price_per_night), Number(r.discount_amount) > 0 ? `خصم ${money(r.discount_amount)}` : '')}</div>${Number(r.discount_amount) > 0 || r.booking_type === 'عقد مفتوح' ? `<div class="reservation-preview-note"><strong>ملاحظات وتعليمات الإقامة:</strong> ${r.discount_reason ? App.Helpers.escapeHtml(r.discount_reason) : 'تطبق شروط العقد المسجلة على هذه الإقامة.'}</div>` : ''}</section>
+        <section class="reservation-preview-section modal-section-card"><div class="reservation-preview-section-title modal-section-card__header"><span class="reservation-preview-title-icon">▦</span><div><strong>تفاصيل ومواعيد الإقامة</strong><small>Stay &amp; Contract Details</small></div><span class="reservation-preview-reference">رقم السند: RYH-${getReservationYear(r)}-${String(r.id).padStart(5, '0')}</span></div><div class="reservation-preview-grid">${previewField('نوع الحجز', r.booking_type || 'حجز يومي', r.booking_type === 'عقد مفتوح' ? 'عقد إقامة مفتوح' : '')}${previewField('تاريخ الدخول', formatPreviewDate(r.check_in_date), r.booking_time ? `تسجيل: ${r.booking_time}` : '')}${previewField('تاريخ المغادرة المقررة', formatPreviewDate(r.check_out_date), r.checkout_time ? `تسليم المفتاح: ${r.checkout_time}` : '')}${previewField('سعر الليلة المتفق عليه', money(r.custom_nightly_price || r.price_per_night), Number(r.discount_amount) > 0 ? `خصم ${money(r.discount_amount)}` : '')}</div>${Number(r.discount_amount) > 0 || r.booking_type === 'عقد مفتوح' ? `<div class="reservation-preview-note"><strong>ملاحظات وتعليمات الإقامة:</strong> ${r.discount_reason ? App.Helpers.escapeHtml(r.discount_reason) : 'تطبق شروط العقد المسجلة على هذه الإقامة.'}</div>` : ''}</section>
         </div><div class="reservation-preview-column">
         <section class="reservation-preview-section modal-section-card"><div class="reservation-preview-section-title modal-section-card__header"><span class="reservation-preview-title-icon financial">ر.س</span><div><strong>المحاسبة والموقف المالي</strong><small>Financial Summary</small></div><span class="reservation-preview-paid-badge">${balance <= 0 ? 'مدفوع بالكامل' : 'مطلوب تحصيل'}</span></div><div class="reservation-preview-grid">${previewField('إجمالي الإقامة', money(total))}${previewField('إجمالي المبالغ المسددة', money(paid), r.payment_method || '')}${previewField('المبلغ المتبقي', money(balance), balance > 0 ? 'يستحق قبل المغادرة' : 'لا يوجد مبلغ مستحق')}${previewField('مبلغ التأمين', money(r.deposit_ledger_balance ?? r.deposit_amount), 'حسب سجل التأمين')}</div><div class="reservation-preview-payment-bar"><span style="width:${total > 0 ? Math.min(100, Math.round((paid / total) * 100)) : (paid > 0 ? 100 : 0)}%"></span></div></section>
         </div></div>
