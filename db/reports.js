@@ -4,7 +4,6 @@
  */
 
 const { db, queryOne, queryAll, roundMoney, getLocalDateString, getCurrentBusinessDate } = require('./connection');
-const { autoUpdateRoomStatuses } = require('./rooms');
 
 /**
  * Queries reservations where check_out_date strictly equals today's date.
@@ -95,7 +94,6 @@ function getMonthlyRevenue() {
  * Dashboard KPIs & Summary
  */
 function getDashboardStats() {
-  autoUpdateRoomStatuses();
   const totalRooms = queryOne("SELECT COUNT(*) AS c FROM rooms")?.c || 0;
   const availableRooms = queryOne("SELECT COUNT(*) AS c FROM rooms WHERE status = 'متاحة'")?.c || 0;
   const occupiedRooms = queryOne("SELECT COUNT(*) AS c FROM rooms WHERE status = 'مشغولة'")?.c || 0;
