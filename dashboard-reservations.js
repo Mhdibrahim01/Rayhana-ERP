@@ -77,7 +77,6 @@
   const checkOutDayUseHint = document.getElementById('check-out-day-use-hint');
   const priceHint = document.getElementById('total-price-open-hint');
   const bookingRateLabel = document.getElementById('booking-rate-label');
-  const linkUnlock = document.getElementById('link-unlock-room');
   const addPaymentModal = document.getElementById('add-payment-modal');
   const addPaymentForm = document.getElementById('add-payment-form');
   const paymentReservationId = document.getElementById('payment-reservation-id');
@@ -1244,11 +1243,6 @@
     roomSelect.style.background = '';
     roomSelect.style.color = '';
     roomSelect.style.fontWeight = '';
-    const lockBadge = document.getElementById('room-select-lock-badge');
-    if (lockBadge) {
-      lockBadge.style.display = 'none';
-      lockBadge.innerHTML = '';
-    }
   }
 
   function initiateRoomBooking(roomId) {
@@ -1296,20 +1290,6 @@
     roomSelect.style.background = '#f0fdf5';
     roomSelect.style.color = '#166535';
     roomSelect.style.fontWeight = '800';
-
-    const lockBadge = document.getElementById('room-select-lock-badge');
-    if (lockBadge && targetRoom) {
-      lockBadge.style.display = 'inline-flex';
-      lockBadge.innerHTML = `🔒 محددة: غرفة ${escapeHtml(targetRoom.room_number)} (${escapeHtml(targetRoom.type)}) <a href="#" id="link-unlock-room" style="color: #dc2626; margin-right: 6px; text-decoration: underline; font-weight: 700;">[تغيير]</a>`;
-      
-      const linkUnlock = document.getElementById('link-unlock-room');
-      if (linkUnlock) {
-        linkUnlock.addEventListener('click', (e) => {
-          e.preventDefault();
-          unlockRoomSelect();
-        });
-      }
-    }
 
     // 5. Auto-focus next field
     setTimeout(() => {

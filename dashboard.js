@@ -760,7 +760,7 @@
           .receipt-print-mode .receipt-items-table th,.receipt-print-mode .receipt-items-table td{padding:6px!important}
           .receipt-print-mode .receipt-policy-card,.receipt-print-mode .receipt-totals-card{padding:8px!important}
           .receipt-print-mode .receipt-signature-row{gap:8px!important}
-          .receipt-print-mode .receipt-seal{width:80px!important;height:42px!important}
+          .receipt-print-mode .receipt-seal{width:110px!important;height:62px!important}
           .receipt-print-mode .receipt-signature-line{height:50px!important}
           .receipt-print-mode .receipt-payment-notice{padding:0!important;border:0!important;line-height:1.35!important}
           .receipt-print-mode.receipt-print-policy-compact .receipt-policy-card ol{line-height:1.1!important}
@@ -799,7 +799,7 @@
           .receipt-signature-cell strong{font-size:12px}
           .receipt-signature-line{width:70%;height:28px;border-bottom:1px dashed #94a3b8}
           .receipt-staff-signature-line img{max-width:100%;max-height:100%;object-fit:contain}
-          .receipt-seal{display:block;width:74px;height:42px;object-fit:contain}
+          .receipt-seal{display:block;width:110px;height:62px;object-fit:contain}
           .receipt-receiver-signature small{max-width:100%;color:#64748b;font-size:12px;line-height:1.35}
           .receipt-payment-notice{display:flex;justify-content:space-between;gap:12px;padding-top:8px;border-top:1px solid #e2e8f0;color:#475569;font-size:12px}
           .receipt-deposit-movements{margin-top:0;padding-top:8px;border-top:1px solid #ddd6fe;break-inside:avoid;page-break-inside:avoid}
@@ -837,7 +837,7 @@
             .receipt-signature-row:not(.receipt-signature-monthly){grid-template-columns:repeat(2,minmax(0,1fr))!important}
             .receipt-signature-line{height:50px!important}
             .receipt-signature-cell,.receipt-signature-cell strong{font-size:10pt}
-            .receipt-seal{width:80px!important;height:50px!important;object-fit:contain!important}
+            .receipt-seal{width:110px!important;height:62px!important;object-fit:contain!important}
             .receipt-receiver-signature small{font-size:9pt}
             .receipt-deposit-movements table{font-size:9pt!important}
             .receipt-deposit-movements th,.receipt-deposit-movements td{padding:3px!important}
@@ -1048,7 +1048,7 @@
           <div class="receipt-signature-row ${isMonthly ? 'receipt-signature-monthly' : ''}" dir="rtl">
             ${isMonthly ? `<div class="receipt-signature-cell"><strong>ختم المؤسسة</strong><img class="receipt-seal" src="assets/seal.svg" alt="الختم" onerror="this.style.display='none'"></div>` : ''}
             <div class="receipt-signature-cell"><strong>توقيع الموظف</strong><div class="receipt-signature-line receipt-staff-signature-line">${isMonthly ? '<img src="assets/signature.svg" alt="التوقيع" onerror="this.style.display=\'none\'">' : ''}</div></div>
-            <div class="receipt-signature-cell receipt-receiver-signature"><strong>توقيع المستلم</strong><div class="receipt-signature-line"></div><small>بتوقيعي أقر بالاطلاع على الشروط أعلاه والموافقة عليها.</small></div>
+            <div class="receipt-signature-cell receipt-receiver-signature"><strong>توقيع المستأجر</strong><div class="receipt-signature-line"></div><small>بتوقيعي أقر بالاطلاع على الشروط أعلاه والموافقة عليها.</small></div>
           </div>
 
           ${invoiceDepositMovements.length ? `
