@@ -22,7 +22,7 @@ const { registerReservationsIpc } = require('../ipc/index');
  */
 function createEarlyMonthly(appDb, { paid = 0, roomPrice = 200, rate = 150, discount = 0, tag = 'M1' }) {
   const today = appDb.getLocalDateString();
-  const room = addRoom(`MC-${tag}`, roomPrice);
+  const room = addRoom(`MC-${tag}`, rate);
   const created = appDb.createReservation({
     guestName: `Monthly Early ${tag}`,
     guestPhone: '0500000401',
@@ -30,7 +30,7 @@ function createEarlyMonthly(appDb, { paid = 0, roomPrice = 200, rate = 150, disc
     roomId: room.id,
     checkInDate: addDays(today, -10),
     bookingType: 'حجز شهري',
-    customNightlyPrice: rate,
+    monthlyPrice: rate * 30,
     paidAmount: paid,
     discountAmount: discount,
     discountReason: discount > 0 ? 'خصم عقد' : ''
@@ -299,7 +299,7 @@ test('monthly early checkout: bookings that are NOT early are unaffected', async
         roomId: room.id,
         checkInDate: addDays(today, -30),
         bookingType: 'حجز شهري',
-        customNightlyPrice: 150,
+        monthlyPrice: 4500,
         paidAmount: 4500
       });
       const preview = appDb.computeCheckoutSettlement(created.reservationId, {});
@@ -330,12 +330,13 @@ test('monthly early checkout: a legacy closed reservation is left untouched', as
         totalPrice: 4500,
         paidAmount: 4500,
         bookingType: 'حجز شهري',
-        customNightlyPrice: 150
+        monthlyPrice: 4500
       });
       const id = created.reservationId;
-      // Simulate a row closed before this feature existed.
+      // Simulate a row closed before this feature existed: keep the original
+      // nightly-rate fallback rather than a monthly-rate snapshot.
       connection.getDb().run(
-        "UPDATE reservations SET status = 'مكتمل', checkout_policy = NULL, checkout_policy_reason = NULL, booked_check_out_date = NULL WHERE id = ?",
+        "UPDATE reservations SET status = 'مكتمل', monthly_rate_snapshot = NULL, custom_nightly_price = 150, checkout_policy = NULL, checkout_policy_reason = NULL, booked_check_out_date = NULL WHERE id = ?",
         [id]
       );
 
@@ -359,7 +360,7 @@ test('monthly early checkout: helpers and the invoice projection', async t => {
     await t.test('isMonthlyEarlyCheckout and computeContractValue agree with the preview', () => {
       const id = createEarlyMonthly(appDb, { discount: 300, paid: 0, tag: 'HELP' });
       const row = connection.queryOne(
-        'SELECT booking_type, check_in_date, check_out_date, custom_nightly_price, discount_amount FROM reservations WHERE id = ?',
+        'SELECT booking_type, check_in_date, check_out_date, custom_nightly_price, monthly_rate_snapshot, monthly_extension_amount, discount_amount, price_per_night FROM reservations r JOIN rooms rm ON rm.id = r.room_id WHERE r.id = ?',
         [id]
       );
 
@@ -381,8 +382,8 @@ test('monthly early checkout: helpers and the invoice projection', async t => {
       // The room rate is 200 and the booking carries no custom rate, so once the
       // stored 0 falls back to the room rate the contract value is 30 x 200 = 6000
       // and total_price must match it for the default path to be allowed.
-      const id = createEarlyMonthly(appDb, { paid: 0, roomPrice: 200, tag: 'ZERORATE' });
-      connection.getDb().run('UPDATE reservations SET custom_nightly_price = 0, total_price = 6000 WHERE id = ?', [id]);
+      const id = createEarlyMonthly(appDb, { paid: 0, rate: 200, tag: 'ZERORATE' });
+      connection.getDb().run('UPDATE reservations SET monthly_rate_snapshot = NULL, custom_nightly_price = 0, total_price = 6000 WHERE id = ?', [id]);
       const row = connection.queryOne(
         `SELECT r.check_in_date, r.check_out_date, r.custom_nightly_price, rm.price_per_night, r.discount_amount
          FROM reservations r JOIN rooms rm ON rm.id = r.room_id
@@ -418,7 +419,7 @@ test('monthly early checkout: helpers and the invoice projection', async t => {
       );
     });
 
-    await t.test('extending with a zero nightly rate is rejected instead of stored', () => {
+    await t.test('monthly extensions use the room daily rate', () => {
       const today = appDb.getLocalDateString();
       const room = addRoom('MC-EXTZERO', 200);
       const id = appDb.createReservation({
@@ -428,26 +429,23 @@ test('monthly early checkout: helpers and the invoice projection', async t => {
         roomId: room.id,
         checkInDate: today,
         bookingType: 'حجز شهري',
-        customNightlyPrice: 150,
+        monthlyPrice: 4500,
         totalPrice: 4500,
         paidAmount: 0
       }).reservationId;
       const bookedOut = connection.queryOne('SELECT check_out_date FROM reservations WHERE id = ?', [id]).check_out_date;
 
-      // This is what the Extend Stay modal sent when its rate box was left at 0.
-      assert.throws(
-        () => appDb.extendReservation({ reservationId: id, newCheckOutDate: addDays(bookedOut, 15), customNightlyPrice: 0 }),
-        /سعر الليلة يجب أن يكون أكبر من الصفر/
-      );
-
-      // Nothing may have moved: the booking keeps its rate, total and dates.
+      // A stale zero override cannot change the monthly contract's extension rate.
+      appDb.extendReservation({ reservationId: id, newCheckOutDate: addDays(bookedOut, 15), customNightlyPrice: 0 });
       const after = connection.queryOne(
-        'SELECT check_out_date, total_price, custom_nightly_price, status FROM reservations WHERE id = ?',
+        'SELECT check_out_date, total_price, custom_nightly_price, monthly_rate_snapshot, monthly_extension_amount, status FROM reservations WHERE id = ?',
         [id]
       );
-      assert.equal(after.custom_nightly_price, 150, 'the 0 must not overwrite the stored rate');
-      assert.equal(after.total_price, 4500, 'the extra nights must not be billed at 0');
-      assert.equal(after.check_out_date, bookedOut, 'the extension must not have applied');
+      assert.equal(after.custom_nightly_price, null, 'extension rate does not replace the monthly snapshot');
+      assert.equal(after.monthly_rate_snapshot, 4500);
+      assert.equal(after.monthly_extension_amount, 3000, '15 extra nights x the 200 daily room rate');
+      assert.equal(after.total_price, 7500);
+      assert.equal(after.check_out_date, addDays(bookedOut, 15));
       assert.equal(after.status, 'مؤكد');
     });
 

@@ -52,9 +52,12 @@ function updateRoomStatus(roomId, status) {
   return true;
 }
 
-function addRoom({ room_number, type, price_per_night, status = 'متاحة' }) {
-  if (!room_number || !type || !price_per_night) {
-    throw new Error('يرجى ملء جميع بيانات الغرفة (رقم الغرفة، النوع، والسعر).');
+function addRoom({ room_number, type, price_per_night, monthly_price, status = 'متاحة' }) {
+  if (!room_number || !type || price_per_night === undefined || price_per_night === '' || Number(price_per_night) <= 0) {
+    throw new Error('يرجى إدخال رقم الغرفة والنوع وسعر يومي صحيح أكبر من الصفر.');
+  }
+  if (monthly_price === undefined || monthly_price === null || monthly_price === '' || !Number.isFinite(Number(monthly_price)) || Number(monthly_price) <= 0) {
+    throw new Error('يرجى إدخال سعر شهري صحيح أكبر من الصفر.');
   }
 
   const existing = queryOne("SELECT id FROM rooms WHERE room_number = ?", [room_number.trim()]);
@@ -64,21 +67,24 @@ function addRoom({ room_number, type, price_per_night, status = 'متاحة' }) 
   // roundMoney keeps the nightly rate at 2dp. This price feeds every derived figure
   // for a booking, so a raw parseFloat would let 33.333 propagate into contracts,
   // checkouts and invoices.
-  const stmt = db.prepare("INSERT INTO rooms (room_number, type, price_per_night, status) VALUES (?, ?, ?, ?)");
-  stmt.run([room_number.trim(), type.trim(), roundMoney(parseFloat(price_per_night) || 0.0), status]);
+  const stmt = db.prepare("INSERT INTO rooms (room_number, type, price_per_night, monthly_price, status) VALUES (?, ?, ?, ?, ?)");
+  stmt.run([room_number.trim(), type.trim(), roundMoney(parseFloat(price_per_night)), roundMoney(parseFloat(monthly_price)), status]);
   stmt.free();
   saveToFile();
 
   return queryOne("SELECT * FROM rooms WHERE room_number = ?", [room_number.trim()]);
 }
 
-function updateRoom({ id, room_number, type, price_per_night, status = 'متاحة' }) {
+function updateRoom({ id, room_number, type, price_per_night, monthly_price, status = 'متاحة' }) {
   const targetId = parseInt(id, 10);
   if (!targetId || isNaN(targetId)) {
     throw new Error('معرف الغرفة غير صالح.');
   }
-  if (!room_number || !type || price_per_night === undefined || price_per_night === '') {
-    throw new Error('يرجى ملء جميع بيانات الغرفة (رقم الغرفة، النوع، والسعر).');
+  if (!room_number || !type || price_per_night === undefined || price_per_night === '' || !Number.isFinite(Number(price_per_night)) || Number(price_per_night) <= 0) {
+    throw new Error('يرجى إدخال رقم الغرفة والنوع وسعر يومي صحيح أكبر من الصفر.');
+  }
+  if (monthly_price === undefined || monthly_price === null || monthly_price === '' || !Number.isFinite(Number(monthly_price)) || Number(monthly_price) <= 0) {
+    throw new Error('يرجى إدخال سعر شهري صحيح أكبر من الصفر.');
   }
 
   const cleanNum = room_number.trim();
@@ -107,8 +113,8 @@ function updateRoom({ id, room_number, type, price_per_night, status = 'متاح
   }
   // roundMoney keeps the nightly rate at 2dp here too: editing a room changes the
   // price every future booking is charged at.
-  const stmt = db.prepare("UPDATE rooms SET room_number = ?, type = ?, price_per_night = ?, status = ? WHERE id = ?");
-  stmt.run([cleanNum, type.trim(), roundMoney(parseFloat(price_per_night) || 0.0), finalStatus, targetId]);
+  const stmt = db.prepare("UPDATE rooms SET room_number = ?, type = ?, price_per_night = ?, monthly_price = ?, status = ? WHERE id = ?");
+  stmt.run([cleanNum, type.trim(), roundMoney(parseFloat(price_per_night)), roundMoney(parseFloat(monthly_price)), finalStatus, targetId]);
   stmt.free();
   saveToFile();
 
@@ -248,7 +254,7 @@ function getRoomRevenueStats(roomId) {
     throw new Error('معرف الغرفة غير صالح.');
   }
 
-  const room = queryOne("SELECT id, room_number, type, price_per_night, status FROM rooms WHERE id = ?", [targetId]);
+  const room = queryOne("SELECT id, room_number, type, price_per_night, monthly_price, status FROM rooms WHERE id = ?", [targetId]);
   if (!room) {
     throw new Error('الغرفة غير موجودة.');
   }

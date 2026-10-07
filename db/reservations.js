@@ -85,6 +85,8 @@ const RESERVATION_LIST_SQL = `
     r.status,
     r.booking_type,
     r.custom_nightly_price,
+    r.monthly_rate_snapshot,
+    r.monthly_extension_amount,
     r.discount_amount,
     r.discount_reason,
     r.late_checkout_fee,
@@ -201,6 +203,8 @@ function getReservationById(reservationId) {
       r.status, 
       r.booking_type,
       r.custom_nightly_price,
+      r.monthly_rate_snapshot,
+      r.monthly_extension_amount,
       r.discount_amount,
       r.discount_reason,
       r.late_checkout_fee,
@@ -250,6 +254,8 @@ function createReservation({
   userId = null,
   bookingType = 'عادي',
   booking_type,
+  monthlyPrice = null,
+  monthly_price = null,
   customNightlyPrice = null,
   custom_nightly_price = null,
   discountAmount = 0,
@@ -264,6 +270,15 @@ function createReservation({
   const normCustomNightlyPrice = rawCustomPrice !== null && !isNaN(parseFloat(rawCustomPrice)) && parseFloat(rawCustomPrice) >= 0
     ? roundMoney(rawCustomPrice)
     : null;
+  const rawMonthlyPrice = monthlyPrice !== null && monthlyPrice !== undefined && monthlyPrice !== ''
+    ? monthlyPrice
+    : (monthly_price !== null && monthly_price !== undefined && monthly_price !== '' ? monthly_price : null);
+  const normMonthlyPrice = rawMonthlyPrice !== null && Number.isFinite(Number(rawMonthlyPrice)) && Number(rawMonthlyPrice) > 0
+    ? roundMoney(rawMonthlyPrice)
+    : null;
+  if (rawMonthlyPrice !== null && normMonthlyPrice === null) {
+    throw new Error('السعر الشهري يجب أن يكون رقماً أكبر من الصفر.');
+  }
 
   const rawDiscount = discountAmount !== undefined && discountAmount !== null && discountAmount !== ''
     ? discountAmount
@@ -295,6 +310,7 @@ function createReservation({
   let total;
   const paid = roundMoney(paidAmount);
   const deposit = roundMoney(depositAmount);
+  let monthlyRateSnapshot = null;
 
   if (paid < 0) {
     throw new Error('المبلغ المدفوع لا يمكن أن يكون سالباً.');
@@ -317,21 +333,27 @@ function createReservation({
     }
     // Upfront credit/overpayment is permitted for open contracts
   } else if (normBookingType === 'حجز شهري') {
-    // Monthly Booking: auto-calculate checkOutDate as checkInDate + 30 days if not set
+    // Monthly bookings use the room's flat calendar-month price. The rate is
+    // snapshotted so later room edits cannot reprice an existing reservation.
     if (!checkInDate) {
       throw new Error('تاريخ الوصول مطلوب لحساب موعد الإقامة الشهرية.');
     }
 
-    const roomRow = queryOne("SELECT price_per_night FROM rooms WHERE id = ?", [parsedRoomId]);
+    const roomRow = queryOne("SELECT price_per_night, monthly_price FROM rooms WHERE id = ?", [parsedRoomId]);
     if (!roomRow) {
       throw new Error('الغرفة المحددة غير موجودة.');
     }
 
-    const effectiveRate = normCustomNightlyPrice !== null ? normCustomNightlyPrice : roomRow.price_per_night;
-    const baseTotal = roundMoney(effectiveRate * MONTHLY_PACKAGE_NIGHTS);
+    const roomMonthlyPrice = Number(roomRow.monthly_price);
+    if (!Number.isFinite(roomMonthlyPrice) || roomMonthlyPrice <= 0) {
+      throw new Error('لم يتم تحديد السعر الشهري لهذه الغرفة. يرجى ضبط السعر من بيانات الغرفة أولاً.');
+    }
+    const effectiveRate = normMonthlyPrice !== null ? normMonthlyPrice : roomMonthlyPrice;
+    monthlyRateSnapshot = roundMoney(effectiveRate);
+    const baseTotal = monthlyRateSnapshot;
     total = Math.max(0, roundMoney(baseTotal - normDiscountAmount));
 
-    // A monthly booking has an authoritative total: booked nights x rate - discount.
+    // A monthly booking has an authoritative total: flat monthly rate - discount.
     // A caller-supplied total used to silently replace it, which is how total_price
     // drifted away from the stored dates and rate and later tripped the
     // contract-value guard at checkout. Accept a supplied total only when it agrees.
@@ -342,7 +364,7 @@ function createReservation({
       }
       if (Math.abs(passedTotal - total) > 0.005) {
         throw new Error(
-          `قيمة الحجز المُدخلة (${passedTotal} ريال) لا تطابق القيمة المحسوبة من الليالي والسعر والخصم (${total} ريال). ` +
+          `قيمة الحجز المُدخلة (${passedTotal} ريال) لا تطابق القيمة المحسوبة من السعر الشهري والخصم (${total} ريال). ` +
           'يرجى مراجعة البيانات المدخلة.'
         );
       }
@@ -455,9 +477,10 @@ function createReservation({
       INSERT INTO reservations (
         guest_id, room_id, check_in_date, check_out_date,
         total_price, paid_amount, deposit_amount, payment_method, payment_status, status,
-        booking_type, custom_nightly_price, discount_amount, discount_reason
+        booking_type, custom_nightly_price, monthly_rate_snapshot, monthly_extension_amount,
+        discount_amount, discount_reason
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'مؤكد', ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'مؤكد', ?, ?, ?, ?, ?, ?)
     `);
     resStmt.run([
       guestId,
@@ -470,7 +493,9 @@ function createReservation({
       method,
       paymentStatus,
       normBookingType,
-      normCustomNightlyPrice,
+      normBookingType === 'حجز شهري' ? null : normCustomNightlyPrice,
+      monthlyRateSnapshot,
+      0,
       normDiscountAmount,
       normDiscountReason
     ]);
@@ -564,11 +589,8 @@ function countNights(startDate, endDate) {
 }
 
   /**
-   * A monthly ("حجز شهري") booking is priced as a closed package of 30 nights at the
-   * effective rate, independent of how many calendar days the month happens to contain.
-   * Both createReservation (stored total_price) and computeContractValue (the amount due
-   * at checkout) derive their figures from this, so a 28-day February and a 31-day July
-   * cost the same and the contract value never drifts from the stored total.
+   * Legacy monthly rows without monthly_rate_snapshot retain their original 30 x nightly
+   * rate calculation. New monthly rows use a saved flat monthly-rate snapshot.
    */
   const MONTHLY_PACKAGE_NIGHTS = 30;
 
@@ -604,7 +626,8 @@ function isMonthlyEarlyCheckout(res, departureDate) {
 /**
  * Single source of truth for the monthly contract value.
  *
- *   contractValue = max(0, bookedNights x storedRate - storedDiscountInFull)
+ *   contractValue = max(0, savedMonthlyRate + extensionCharges - storedDiscount)
+ * or, for legacy monthly rows, 30 x storedRate - discount.
  *
  * bookedNights come from the STORED check_in_date / check_out_date pair (so extensions
  * are included), never from total_price or any renderer-supplied value. The stored
@@ -625,12 +648,20 @@ function computeContractValue(res) {
   if (!bookedNights) {
     throw new Error('تعذر حساب قيمة العقد: تواريخ الإقامة غير صالحة.');
   }
-  const base = roundMoney((res.booking_type === 'حجز شهري' ? MONTHLY_PACKAGE_NIGHTS : bookedNights) * storedRate);
+  const isMonthly = res.booking_type === 'حجز شهري';
+  const extensionAmount = isMonthly ? roundMoney(res.monthly_extension_amount || 0) : 0;
+  // New monthly records use a flat price snapshot. Old records keep their
+  // original 30 x nightly-rate calculation, including after later room edits.
+  const base = isMonthly
+    ? roundMoney((Number(res.monthly_rate_snapshot) > 0 ? Number(res.monthly_rate_snapshot) : MONTHLY_PACKAGE_NIGHTS * storedRate) + extensionAmount)
+    : roundMoney(bookedNights * storedRate);
   const fullDiscount = Math.max(0, roundMoney(res.discount_amount || 0));
   return {
     bookedNights,
     storedRate,
     baseCharge: base,
+    monthlyRateSnapshot: Number(res.monthly_rate_snapshot) > 0 ? roundMoney(res.monthly_rate_snapshot) : null,
+    extensionAmount,
     discountAppliedInFull: fullDiscount,
     contractValue: Math.max(0, roundMoney(base - fullDiscount))
   };
@@ -685,8 +716,8 @@ function computeCheckoutSettlement(reservationId, {
 
   const res = queryOne(`
     SELECT r.id, r.booking_type, r.check_in_date, r.check_out_date, r.total_price, r.paid_amount, r.deposit_amount,
-           r.custom_nightly_price, r.discount_amount, r.discount_reason, r.status,
-           rm.price_per_night
+            r.custom_nightly_price, r.monthly_rate_snapshot, r.monthly_extension_amount,
+            r.discount_amount, r.discount_reason, r.status, rm.price_per_night
     FROM reservations r
     LEFT JOIN rooms rm ON r.room_id = rm.id
     WHERE r.id = ?
@@ -756,6 +787,18 @@ function computeCheckoutSettlement(reservationId, {
         contractValueMismatch = roundMoney(contract.contractValue) > storedTotal + 0.005;
       }
   }
+  const actualValue = netCharge;
+
+  // At the scheduled monthly checkout, collect the saved package price plus
+  // any daily-rate extension charges. The early-checkout policy still exposes
+  // its existing actual-nights alternative above; daily and day-use bookings
+  // continue using the actual-nights calculation unchanged.
+  if (res.booking_type === 'حجز شهري' && !monthlyEarly) {
+    const contract = computeContractValue({ ...res, discount_amount: normDiscount });
+    baseCharge = contract.baseCharge;
+    appliedDiscount = contract.discountAppliedInFull;
+    netCharge = contract.contractValue;
+  }
 
   const normalizedLateCheckoutFee = roundMoney(lateCheckoutFee);
   if (!Number.isFinite(normalizedLateCheckoutFee) || normalizedLateCheckoutFee < 0) {
@@ -786,7 +829,7 @@ function computeCheckoutSettlement(reservationId, {
     bookedNights,
     contractValue,
     contractValueMismatch,
-    actualValue: netCharge,
+    actualValue,
     paidAmount,
     depositAvailable,
     depositLegacyUnreconciled: !depositLedger.movementCount && roundMoney(res.deposit_amount || 0) > 0,
@@ -840,7 +883,8 @@ function checkoutReservation(reservationId, {
   const res = queryOne(`
     SELECT r.id, r.room_id, r.total_price, r.paid_amount, r.deposit_amount, r.payment_method, r.payment_status, r.booking_type,
            r.check_in_date, r.check_out_date, r.original_calculated_charge, r.status,
-           r.custom_nightly_price, r.discount_amount, r.discount_reason,
+            r.custom_nightly_price, r.monthly_rate_snapshot, r.monthly_extension_amount,
+            r.discount_amount, r.discount_reason,
            r.checkout_policy, r.checkout_policy_reason, r.booked_check_out_date,
            rm.price_per_night
     FROM reservations r
@@ -1139,6 +1183,12 @@ function checkoutReservation(reservationId, {
       accommodationNetTotal = contract.contractValue;
       bookedCheckOutForWrite = res.check_out_date;
     }
+  } else if (res.booking_type === 'حجز شهري') {
+    const contract = computeContractValue({ ...res, discount_amount: requestedDiscount });
+    baseCharge = contract.baseCharge;
+    effectiveDiscount = contract.discountAppliedInFull;
+    accommodationNetTotal = contract.contractValue;
+    bookedCheckOutForWrite = res.check_out_date;
   } else {
     baseCharge = actualBaseCharge;
     effectiveDiscount = actualDiscount;
@@ -1469,11 +1519,13 @@ function extendReservation({
   }
 
   // Calculate additional cost using custom rate if specified, otherwise existing custom or room rate
-  const normCustomNightlyPrice = (customNightlyPrice !== undefined && customNightlyPrice !== null && customNightlyPrice !== '' && !isNaN(Number(customNightlyPrice)))
-    ? roundMoney(customNightlyPrice)
-    : ((res.custom_nightly_price !== null && res.custom_nightly_price !== undefined && !isNaN(Number(res.custom_nightly_price)))
+  const normCustomNightlyPrice = res.booking_type === 'حجز شهري'
+    ? roundMoney(res.price_per_night || 0)
+    : ((customNightlyPrice !== undefined && customNightlyPrice !== null && customNightlyPrice !== '' && !isNaN(Number(customNightlyPrice)))
+      ? roundMoney(customNightlyPrice)
+      : ((res.custom_nightly_price !== null && res.custom_nightly_price !== undefined && !isNaN(Number(res.custom_nightly_price)))
         ? roundMoney(res.custom_nightly_price)
-        : roundMoney(res.price_per_night || 0));
+        : roundMoney(res.price_per_night || 0)));
 
   if (normCustomNightlyPrice < 0) {
     throw new Error('سعر الليلة لا يمكن أن يكون سالباً.');
@@ -1494,9 +1546,11 @@ function extendReservation({
   const baseCost = roundMoney(extraNights * normCustomNightlyPrice);
   const calculatedCost = Math.max(0, roundMoney(baseCost - normDiscountAmount));
 
-  const calcAdditionalCost = (additionalCost !== undefined && additionalCost !== null && !isNaN(Number(additionalCost)))
-    ? roundMoney(additionalCost)
-    : calculatedCost;
+  const calcAdditionalCost = res.booking_type === 'حجز شهري'
+    ? calculatedCost
+    : ((additionalCost !== undefined && additionalCost !== null && !isNaN(Number(additionalCost)))
+      ? roundMoney(additionalCost)
+      : calculatedCost);
 
   // Check room availability for the extension period (oldCheckOut to cleanNewCheckOut)
   const conflict = queryOne(`
@@ -1560,9 +1614,11 @@ function extendReservation({
       newPaymentStatus = 'غير مدفوع';
     }
 
-    const updatedCustomRate = (customNightlyPrice !== undefined && customNightlyPrice !== null && customNightlyPrice !== '' && !isNaN(Number(customNightlyPrice)))
-      ? roundMoney(customNightlyPrice)
-      : res.custom_nightly_price;
+    const updatedCustomRate = res.booking_type === 'حجز شهري'
+      ? res.custom_nightly_price
+      : ((customNightlyPrice !== undefined && customNightlyPrice !== null && customNightlyPrice !== '' && !isNaN(Number(customNightlyPrice)))
+        ? roundMoney(customNightlyPrice)
+        : res.custom_nightly_price);
 
     const newCumulativeDiscount = roundMoney((res.discount_amount || 0) + normDiscountAmount);
 
@@ -1573,10 +1629,11 @@ function extendReservation({
           paid_amount = ?,
           payment_status = ?,
           custom_nightly_price = ?,
-          discount_amount = ?
+          discount_amount = ?,
+          monthly_extension_amount = CASE WHEN booking_type = 'حجز شهري' THEN COALESCE(monthly_extension_amount, 0) + ? ELSE monthly_extension_amount END
       WHERE id = ?
     `);
-    stmt.run([cleanNewCheckOut, newTotal, newPaid, newPaymentStatus, updatedCustomRate, newCumulativeDiscount, targetId]);
+    stmt.run([cleanNewCheckOut, newTotal, newPaid, newPaymentStatus, updatedCustomRate, newCumulativeDiscount, res.booking_type === 'حجز شهري' ? baseCost : 0, targetId]);
     stmt.free();
 
     db.run("COMMIT;");
@@ -2097,7 +2154,7 @@ function updateReservationReceipt({
     throw new Error('معرف الحجز أو السند غير صالح.');
   }
 
-  const res = queryOne("SELECT id, guest_id, room_id, status, booking_type, check_in_date, check_out_date FROM reservations WHERE id = ?", [targetId]);
+  const res = queryOne("SELECT id, guest_id, room_id, status, booking_type, check_in_date, check_out_date, total_price, discount_amount, monthly_extension_amount FROM reservations WHERE id = ?", [targetId]);
   if (!res) {
     throw new Error('الحجز غير موجود.');
   }
@@ -2113,13 +2170,17 @@ function updateReservationReceipt({
   const normCustomNightlyPrice = (customNightlyPrice !== undefined && customNightlyPrice !== null && customNightlyPrice !== '')
     ? roundMoney(customNightlyPrice)
     : null;
+  const existingDiscount = roundMoney(res.discount_amount || 0);
+  const monthlySnapshotToWrite = res.booking_type === 'حجز شهري'
+    ? Math.max(0, roundMoney(total + (normDiscountAmount ?? existingDiscount) - Number(res.monthly_extension_amount || 0)))
+    : null;
 
   if (normDiscountAmount > 0 && !normDiscountReason) {
     throw new Error('سبب الخصم مطلوب ولا يمكن إتمام العملية بدونه.');
   }
 
   if (!isContract) {
-    if (normCustomNightlyPrice !== null && res.check_in_date && res.check_out_date && res.check_out_date !== '—' && res.check_out_date !== 'ـ') {
+    if (res.booking_type !== 'حجز شهري' && normCustomNightlyPrice !== null && res.check_in_date && res.check_out_date && res.check_out_date !== '—' && res.check_out_date !== 'ـ') {
       const [sy, sm, sd] = res.check_in_date.slice(0, 10).split('-').map(Number);
       const [ey, em, ed] = res.check_out_date.slice(0, 10).split('-').map(Number);
       const sUtc = Date.UTC(sy, sm - 1, sd);
@@ -2191,7 +2252,8 @@ function updateReservationReceipt({
           payment_status = ?,
           discount_amount = CASE WHEN ? IS NOT NULL THEN ? ELSE discount_amount END,
           discount_reason = CASE WHEN ? IS NOT NULL THEN ? ELSE discount_reason END,
-          custom_nightly_price = CASE WHEN ? IS NOT NULL THEN ? ELSE custom_nightly_price END
+          custom_nightly_price = CASE WHEN ? IS NOT NULL THEN ? ELSE custom_nightly_price END,
+          monthly_rate_snapshot = CASE WHEN ? IS NOT NULL THEN ? ELSE monthly_rate_snapshot END
       WHERE id = ?
     `);
     updateResStmt.run([
@@ -2205,6 +2267,8 @@ function updateReservationReceipt({
       normDiscountReason,
       normCustomNightlyPrice,
       normCustomNightlyPrice,
+      monthlySnapshotToWrite,
+      monthlySnapshotToWrite,
       targetId
     ]);
     updateResStmt.free();

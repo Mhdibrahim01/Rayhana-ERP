@@ -126,6 +126,7 @@ async function init(dbPath) {
         room_number TEXT UNIQUE NOT NULL,
         type TEXT NOT NULL,
         price_per_night REAL NOT NULL,
+        monthly_price REAL,
         status TEXT DEFAULT 'متاحة',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
@@ -145,6 +146,8 @@ async function init(dbPath) {
         status TEXT DEFAULT 'مؤكد',
         booking_type TEXT DEFAULT 'عادي',
         custom_nightly_price REAL,
+        monthly_rate_snapshot REAL,
+        monthly_extension_amount REAL DEFAULT 0,
         discount_amount REAL DEFAULT 0,
         discount_reason TEXT,
         late_checkout_fee REAL DEFAULT 0,
@@ -259,6 +262,9 @@ async function init(dbPath) {
     // Add compatibility columns only when they are absent. Checking the schema
     // first keeps startup quiet and makes this migration safe to run repeatedly.
     const migrations = [
+      { table: 'rooms', column: 'monthly_price', sql: 'ALTER TABLE rooms ADD COLUMN monthly_price REAL' },
+      { table: 'reservations', column: 'monthly_rate_snapshot', sql: 'ALTER TABLE reservations ADD COLUMN monthly_rate_snapshot REAL' },
+      { table: 'reservations', column: 'monthly_extension_amount', sql: 'ALTER TABLE reservations ADD COLUMN monthly_extension_amount REAL DEFAULT 0' },
       { table: 'payments', column: 'payment_type', sql: "ALTER TABLE payments ADD COLUMN payment_type TEXT NOT NULL DEFAULT 'legacy_unclassified'" },
       { table: 'reservations', column: 'paid_amount', sql: 'ALTER TABLE reservations ADD COLUMN paid_amount REAL DEFAULT 0' },
       { table: 'reservations', column: 'deposit_amount', sql: 'ALTER TABLE reservations ADD COLUMN deposit_amount REAL DEFAULT 0' },

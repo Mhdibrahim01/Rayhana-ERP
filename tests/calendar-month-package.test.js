@@ -7,9 +7,9 @@
  *
  *   1. The departure date is the same calendar day of the next month, clamped to that
  *      month's last day when it is shorter.
- *   2. The price is a flat package of 30 nights at the effective rate, so a 28-day
- *      February and a 31-day July cost the same. It is never rate x calendar-days.
- *   3. The contract value at checkout stays the same flat package, which is what the
+   *   2. The configured room monthly price is a flat amount, so a February and July
+   *      booking cost the same regardless of their day counts.
+   *   3. The contract value at checkout stays the saved flat package, which is what the
  *      stored total_price was derived from - so a 31-day month does not report a false
  *      contractValueMismatch against its own total.
  */
@@ -100,13 +100,13 @@ test('calendar month: the booking form uses the calendar month, not +30 days', (
   assert.ok(!inlineThirtyDay.test(src),
     'dashboard-reservations.js still derives a monthly departure as +30 days');
 
-  // The renderer must price the month as the package, not rate x 30 inline.
+  // The renderer must price the month from its selected room/override flat amount.
   assert.match(src, /getMonthlyPackageTotal\(/,
     'the renderer must price the month through the package helper');
   assert.match(src, /function getMonthlyPackageTotal\(effectiveRate, discount\)/,
     'getMonthlyPackageTotal must exist in the renderer');
   assert.match(src, /const MONTHLY_PACKAGE_NIGHTS = 30;/,
-    'the renderer must declare the 30-night package size');
+    'the renderer keeps the legacy monthly fallback size');
 });
 
 test('calendar month: renderer and backend agree on the same month boundary', () => {
@@ -129,7 +129,7 @@ test('calendar month: renderer and backend agree on the same month boundary', ()
   assert.equal((back.match(roll) || []).length, 1,
     'the backend must roll the month index through Date');
 
-  // Both package sizes must be 30 so the price the form shows is the price stored.
+  // The backend retains 30 only for legacy rows without a monthly snapshot.
   assert.match(dash, /const MONTHLY_PACKAGE_NIGHTS = 30;/);
   assert.match(back, /const MONTHLY_PACKAGE_NIGHTS = 30;/);
 });
@@ -172,10 +172,11 @@ test('calendar month: the price breakdown must not reference an out-of-scope sub
     declares.length + ' time(s); an undeclared reference throws at runtime and aborts ' +
     'the advance-paid sync');
 
-  // The pre-discount amount the breakdown shows must come from the shared package
-  // constant, so it cannot drift from the total that gets stored.
-  assert.match(monthlyBranch, /roundMoney\(effectiveRate \* MONTHLY_PACKAGE_NIGHTS\)/,
-    'the breakdown must derive the pre-discount total from MONTHLY_PACKAGE_NIGHTS');
+  // New monthly bookings treat the input as the whole month's amount.
+  assert.match(monthlyBranch, /const packageSubtotal = roundMoney\(effectiveRate\)/,
+    'the breakdown must use the flat monthly amount');
+  assert.match(src, /dataset\.monthlyPrice/,
+    'the renderer reads the configured monthly room rate');
 });
 
 // ===========================================================================
@@ -200,6 +201,7 @@ test('calendar month package: pricing and settlement', async t => {
         roomId: room.id,
         checkInDate: checkIn,
         bookingType: 'حجز شهري',
+        monthlyPrice: rate * 30,
         customNightlyPrice: rate,
         paidAmount: paid,
         discountAmount: discount,
@@ -239,6 +241,7 @@ test('calendar month package: pricing and settlement', async t => {
         // 2026-01-31 -> 2026-02-28: a 28-day calendar month (28 nights).
         checkInDate: '2026-01-31',
         bookingType: 'حجز شهري',
+        monthlyPrice: rate * 30,
         customNightlyPrice: rate,
         paidAmount: 0,
         totalPrice: expected
@@ -253,6 +256,7 @@ test('calendar month package: pricing and settlement', async t => {
         // 2026-07-03 -> 2026-08-03: a 31-day calendar month (31 nights).
         checkInDate: '2026-07-03',
         bookingType: 'حجز شهري',
+        monthlyPrice: rate * 30,
         customNightlyPrice: rate,
         paidAmount: 0,
         totalPrice: expected
@@ -287,6 +291,7 @@ test('calendar month package: pricing and settlement', async t => {
         roomId: room.id,
         checkInDate: addDays(today, -2),
         bookingType: 'حجز شهري',
+        monthlyPrice: rate * 30,
         customNightlyPrice: rate,
         discountAmount: 30 * rate,
         discountReason: 'خصم كامل'
@@ -346,6 +351,7 @@ test('calendar month package: pricing and settlement', async t => {
         roomId: room.id,
         checkInDate: checkIn,
         bookingType: 'حجز شهري',
+        monthlyPrice: rate * 30,
         customNightlyPrice: rate,
         paidAmount: 0
       }).reservationId;

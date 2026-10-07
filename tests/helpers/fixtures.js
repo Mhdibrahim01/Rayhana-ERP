@@ -11,7 +11,7 @@ function addDays(dateString, amount) {
 }
 
 function addRoom(roomNumber, price = 200) {
-  return db.addRoom({ room_number: roomNumber, type: 'وحدة اختبار', price_per_night: price });
+  return db.addRoom({ room_number: roomNumber, type: 'وحدة اختبار', price_per_night: price, monthly_price: price * 30 });
 }
 
 function createReservation({
@@ -23,6 +23,7 @@ function createReservation({
   paidAmount = 0,
   depositAmount = 0,
   bookingType = 'عادي',
+  monthlyPrice = null,
   customNightlyPrice = null,
   discountAmount = 0,
   discountReason = ''
@@ -39,6 +40,7 @@ function createReservation({
     paidAmount,
     depositAmount,
     bookingType,
+    monthlyPrice: bookingType === 'حجز شهري' ? (monthlyPrice ?? (customNightlyPrice != null ? customNightlyPrice * 30 : null)) : null,
     customNightlyPrice,
     discountAmount,
     discountReason

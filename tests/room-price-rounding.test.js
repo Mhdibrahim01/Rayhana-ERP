@@ -17,7 +17,7 @@ const { roundMoney } = require('../db/connection');
 test('addRoom stores a fractional nightly price at 2dp', async () => {
   await withSafeDatabase(async (appDb, connection) => {
     const created = appDb.addRoom({
-      room_number: 'RP-1', type: 'وحدة', price_per_night: 33.333
+      room_number: 'RP-1', type: 'وحدة', price_per_night: 33.333, monthly_price: 1000
     });
     assert.equal(created.price_per_night, 33.33);
 
@@ -30,10 +30,10 @@ test('addRoom stores a fractional nightly price at 2dp', async () => {
 
 test('updateRoom stores a fractional nightly price at 2dp', async () => {
   await withSafeDatabase(async (appDb, connection) => {
-    const room = appDb.addRoom({ room_number: 'RP-2', type: 'وحدة', price_per_night: 100 });
+    const room = appDb.addRoom({ room_number: 'RP-2', type: 'وحدة', price_per_night: 100, monthly_price: 3000 });
 
     appDb.updateRoom({
-      id: room.id, room_number: 'RP-2', type: 'وحدة', price_per_night: 199.999
+      id: room.id, room_number: 'RP-2', type: 'وحدة', price_per_night: 199.999, monthly_price: 6000
     });
 
     const stored = connection.queryOne(
@@ -46,7 +46,7 @@ test('a room price does not drift into the booking it produces', async () => {
   await withSafeDatabase(async (appDb, connection) => {
     // A rate that cannot be represented in binary. Before the fix this stored 33.333
     // and the contract value inherited the third decimal.
-    const room = appDb.addRoom({ room_number: 'RP-3', type: 'وحدة', price_per_night: 33.335 });
+    const room = appDb.addRoom({ room_number: 'RP-3', type: 'وحدة', price_per_night: 33.335, monthly_price: 1000.2 });
     assert.equal(room.price_per_night, 33.34);
 
     const today = appDb.getLocalDateString();
@@ -64,7 +64,7 @@ test('a room price does not drift into the booking it produces', async () => {
       checkInDate: checkIn,
       checkOutDate: checkOut,
       bookingType: 'حجز شهري',
-      // Passing a mismatched total trips the drift guard added in 4415e38.
+      monthlyPrice: 1000.2,
       totalPrice: 30 * 33.34,
       paidAmount: 0
     }).reservationId;
@@ -89,7 +89,8 @@ test('ordinary room prices are unchanged', async () => {
       const room = appDb.addRoom({
         room_number: `RP-OK-${String(price).replace('.', '_')}`,
         type: 'وحدة',
-        price_per_night: price
+        price_per_night: price,
+        monthly_price: price * 30
       });
       assert.equal(room.price_per_night, price, `${price} must survive untouched`);
     }

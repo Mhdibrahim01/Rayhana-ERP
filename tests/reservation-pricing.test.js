@@ -26,7 +26,7 @@ test('reservation creation stores custom rates and applies monthly discounts', a
   await withSafeDatabase(async (appDb, connection) => {
     const today = appDb.getLocalDateString();
 
-    await t.test('monthly custom rate and creation-time discount determine the 30-night total', () => {
+    await t.test('monthly room price and creation-time discount determine the flat month total', () => {
       const room = addRoom('PR-MONTHLY', 200);
       const created = appDb.createReservation({
         guestName: 'Monthly Custom Rate',
@@ -35,16 +35,21 @@ test('reservation creation stores custom rates and applies monthly discounts', a
         roomId: room.id,
         checkInDate: today,
         bookingType: 'حجز شهري',
-        customNightlyPrice: 150,
+        monthlyPrice: 4500,
         discountAmount: 300,
         discountReason: 'خصم اختبار'
       });
       const reservation = appDb.getReservationById(created.reservationId);
-      assert.equal(reservation.custom_nightly_price, 150);
+      assert.equal(reservation.custom_nightly_price, null);
+      assert.equal(reservation.monthly_rate_snapshot, 4500);
       assert.equal(reservation.discount_amount, 300);
       assert.equal(reservation.discount_reason, 'خصم اختبار');
-      // One full calendar month priced as a closed 30-night package: 30 x 150 less 300.
+      // One full calendar month uses the room-specific flat price less the discount.
       assert.equal(reservation.total_price, 4200);
+      assert.equal(appDb.computeContractValue(reservation).contractValue, 4200);
+      connection.getDb().run('UPDATE rooms SET monthly_price = 9000 WHERE id = ?', [room.id]);
+      assert.equal(appDb.computeContractValue(appDb.getReservationById(created.reservationId)).contractValue, 4200,
+        'later room price edits do not reprice this saved reservation');
       // The departure is the same calendar day next month, clamped at month end - NOT
       // a fixed +30 day span, which drifts by a day whenever the month is longer.
       assert.equal(reservation.check_out_date, calendarMonthCheckOut(today));
@@ -64,7 +69,7 @@ test('reservation creation stores custom rates and applies monthly discounts', a
           roomId: room.id,
           checkInDate: today,
           bookingType: 'حجز شهري',
-          customNightlyPrice: 150,
+          monthlyPrice: 4500,
           discountAmount: 300,
           discountReason: 'خصم اختبار',
           totalPrice: 9999
@@ -82,7 +87,7 @@ test('reservation creation stores custom rates and applies monthly discounts', a
         roomId: addRoom('PR-DRIFT-OK', 200).id,
         checkInDate: today,
         bookingType: 'حجز شهري',
-        customNightlyPrice: 150,
+        monthlyPrice: 4500,
         discountAmount: 300,
         discountReason: 'خصم اختبار',
         totalPrice: 4200
@@ -97,12 +102,28 @@ test('reservation creation stores custom rates and applies monthly discounts', a
         roomId: addRoom('PR-DRIFT-AUTO', 200).id,
         checkInDate: today,
         bookingType: 'حجز شهري',
-        customNightlyPrice: 150,
+        monthlyPrice: 4500,
         discountAmount: 300,
         discountReason: 'خصم اختبار'
       });
       assert.equal(appDb.getReservationById(auto.reservationId).total_price, 4200);
       assertDatabaseIntegrity(connection, 'monthly total must match the computed value');
+    });
+
+    await t.test('a room without a configured monthly price cannot be booked monthly, even with an override', () => {
+      connection.getDb().run(
+        "INSERT INTO rooms (room_number, type, price_per_night, monthly_price, status) VALUES ('PR-NO-MONTH', 'وحدة اختبار', 200, NULL, 'متاحة')"
+      );
+      const room = connection.queryOne("SELECT id FROM rooms WHERE room_number = 'PR-NO-MONTH'");
+      assert.throws(() => appDb.createReservation({
+        guestName: 'Monthly Price Missing',
+        guestPhone: '0500000319',
+        guestIdNumber: '1000000319',
+        roomId: room.id,
+        checkInDate: today,
+        bookingType: 'حجز شهري',
+        monthlyPrice: 4500
+      }), /لم يتم تحديد السعر الشهري لهذه الغرفة/);
     });
 
     await t.test('regular booking persists an explicit custom rate and discount metadata', () => {
@@ -130,7 +151,7 @@ test('reservation creation stores custom rates and applies monthly discounts', a
     await t.test('room creation rejects a zero nightly rate', () => {
       assert.throws(
         () => appDb.addRoom({ room_number: 'PR-ZERO', type: 'وحدة اختبار', price_per_night: 0 }),
-        /يرجى ملء جميع بيانات الغرفة/
+        /سعر يومي صحيح أكبر من الصفر/
       );
       assertDatabaseIntegrity(connection, 'zero room rate rejected');
     });
