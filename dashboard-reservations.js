@@ -1499,7 +1499,15 @@
       const fmtDep = deposit.toLocaleString();
       const typeBadge = getBookingTypeBadge(r.booking_type);
       const checkOutDisplay = r.check_out_date || (isContract ? 'مفتوح (غير محدد)' : '-');
-      const overdueBadge = renderOverdueBadge(r, 'تأخر بالمغادرة (بعد 14:00)');
+      const overdueDate = String(r.check_out_date || '').slice(0, 10);
+      const overdueDays = overdueDate
+        ? Math.max(0, Math.floor((Date.parse(`${getLocalDateString()}T00:00:00Z`) - Date.parse(`${overdueDate}T00:00:00Z`)) / 86400000))
+        : 0;
+      const overdueLabel = overdueDays === 0 ? 'متأخر اليوم'
+        : overdueDays === 1 ? 'متأخر يوم'
+          : overdueDays === 2 ? 'متأخر يومين'
+            : overdueDays <= 10 ? `متأخر ${overdueDays} أيام` : `متأخر ${overdueDays} يوماً`;
+      const overdueBadge = renderOverdueBadge(r, overdueLabel);
       const expectedCheckoutTime = isConfirmed && !isContract && r.check_out_date && r.check_out_date !== 'مفتوح' ? '14:00' : '';
       const departureTime = r.checkout_time
         ? `<small class="reservation-date-time"><span>وقت المغادرة الفعلي</span><bdi>${escapeHtml(r.checkout_time)}</bdi></small>`
@@ -1551,12 +1559,26 @@
               <div>${getPaymentStatusBadge(r.payment_status)}</div>
             </div>
           </td>
-          <td style="white-space: nowrap; line-height: 1.2;">
+          <td class="reservation-status-cell">
             ${getReservationStatusBadge(r.status)}
-            ${overdueBadge}
+            ${overdueBadge ? `<span class="reservation-late-status">${overdueBadge}</span>` : ''}
           </td>
           <td style="text-align: center;">
-            <div class="reservation-actions-list" style="display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap;">
+            <div class="reservation-actions-list ${isLateCheckout ? 'reservation-actions-list-late' : ''}" role="group" aria-label="إجراءات الحجز">
+              ${isLateCheckout ? `
+                <button type="button" class="btn-row icon-ghost" data-action="whatsapp" data-id="${r.id}" title="مراسلة النزيل عبر واتساب" aria-label="مراسلة النزيل عبر واتساب">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+                </button>
+                <button type="button" class="btn-row primary" data-action="checkout" data-id="${r.id}" title="تسوية فورية وتسجيل المغادرة" aria-label="تسوية فورية وتسجيل المغادرة">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H5v14h4M14 8l4 4-4 4M18 12H9"></path></svg>
+                </button>
+                <button type="button" class="btn-row icon-ghost" data-action="extend" data-id="${r.id}" title="تمديد فترة الإقامة" aria-label="تمديد فترة الإقامة">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+                </button>
+                <button type="button" class="btn-row icon-ghost" data-action="invoice" data-id="${r.id}" title="طباعة سند الاستلام والإقامة (فاتورة)" aria-label="طباعة سند الاستلام والإقامة">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                </button>
+              ` : `
               <button type="button" class="btn-action-icon" data-action="invoice" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #f0fdf4; color: #166534; border: 1.5px solid #bbf7d0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="طباعة سند الاستلام والإقامة (فاتورة)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
               </button>
@@ -1581,10 +1603,10 @@
                 <button type="button" class="btn-action-icon" data-action="whatsapp" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #f0fdf4; color: #16a34a; border: 1.5px solid #86efac; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="مراسلة النزيل عبر واتساب">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
                 </button>
-                ${canCancel ? `<button type="button" class="btn-action-icon" data-action="cancel" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="${r.check_in_date === getLocalDateString() ? 'إبطال / إلغاء الحجز المباشر' : 'إلغاء الحجز'}">
+              ${canCancel ? `<button type="button" class="btn-action-icon" data-action="cancel" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="${r.check_in_date === getLocalDateString() ? 'إبطال / إلغاء الحجز المباشر' : 'إلغاء الحجز'}">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>` : ''}
-              ` : ''}
+              ` : ''}`}
             </div>
           </td>
         </tr>

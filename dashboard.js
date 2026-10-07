@@ -89,6 +89,7 @@
   const bannedGuestMsg = document.getElementById('banned-guest-msg');
   const overviewTableBody = document.getElementById('overview-table-body');
   const overviewEmpty = document.getElementById('overview-empty');
+  const overviewRecentTabCount = document.getElementById('overview-recent-tab-count');
 
   // New Reservation Modal Elements
   const newReservationModal = document.getElementById('new-reservation-modal');
@@ -2646,6 +2647,7 @@
     window.DashboardApp.DOM.roomSelect = roomSelect;
     window.DashboardApp.DOM.overviewTableBody = overviewTableBody;
     window.DashboardApp.DOM.overviewEmpty = overviewEmpty;
+    window.DashboardApp.DOM.overviewRecentTabCount = overviewRecentTabCount;
     window.DashboardApp.DOM.todayDateBadge = todayDateBadge;
     window.DashboardApp.DOM.todayCheckoutsTableBody = todayCheckoutsTableBody;
     window.DashboardApp.DOM.todayCheckoutsCountBadge = todayCheckoutsCountBadge;
