@@ -256,36 +256,41 @@ async function init(dbPath) {
     // Enable foreign key enforcement (SQLite has it OFF by default)
     db.run("PRAGMA foreign_keys = ON;");
 
-    // Safe column migrations for existing databases — log failures so they
-    // are not silently swallowed. A silent failure leaves the schema partial
-    // and causes cryptic errors later.
+    // Add compatibility columns only when they are absent. Checking the schema
+    // first keeps startup quiet and makes this migration safe to run repeatedly.
     const migrations = [
-      () => db.run("ALTER TABLE payments ADD COLUMN payment_type TEXT NOT NULL DEFAULT 'legacy_unclassified'"),
-      () => db.run("ALTER TABLE reservations ADD COLUMN paid_amount REAL DEFAULT 0"),
-      () => db.run("ALTER TABLE reservations ADD COLUMN deposit_amount REAL DEFAULT 0"),
-      () => db.run("ALTER TABLE reservations ADD COLUMN payment_method TEXT DEFAULT 'نقداً'"),
-      () => db.run("ALTER TABLE reservations ADD COLUMN payment_status TEXT DEFAULT 'غير مدفوع'"),
-      () => db.run("ALTER TABLE guests ADD COLUMN is_banned INTEGER DEFAULT 0"),
-      () => db.run("ALTER TABLE guests ADD COLUMN ban_reason TEXT"),
-      () => db.run("ALTER TABLE reservations ADD COLUMN booking_type TEXT DEFAULT 'عادي'"),
-      () => db.run("ALTER TABLE reservations ADD COLUMN custom_nightly_price REAL"),
-      () => db.run("ALTER TABLE reservations ADD COLUMN discount_amount REAL DEFAULT 0"),
-      () => db.run("ALTER TABLE reservations ADD COLUMN discount_reason TEXT"),
-      () => db.run("ALTER TABLE reservations ADD COLUMN late_checkout_fee REAL DEFAULT 0"),
-      () => db.run("ALTER TABLE reservations ADD COLUMN checked_out_at DATETIME"),
-      () => db.run("ALTER TABLE reservations ADD COLUMN original_calculated_charge REAL"),
-      () => db.run("ALTER TABLE reservations ADD COLUMN checkout_policy TEXT"),
-      () => db.run("ALTER TABLE reservations ADD COLUMN checkout_policy_reason TEXT"),
-      () => db.run("ALTER TABLE reservations ADD COLUMN booked_check_out_date TEXT"),
-      () => db.run("ALTER TABLE reservations ADD COLUMN created_business_date TEXT"),
-      () => db.run("ALTER TABLE payments ADD COLUMN created_at DATETIME"),
-      () => db.run("ALTER TABLE payments ADD COLUMN business_date TEXT"),
-      () => db.run("ALTER TABLE deposit_movements ADD COLUMN created_at DATETIME"),
-      () => db.run("ALTER TABLE deposit_movements ADD COLUMN business_date TEXT"),
+      { table: 'payments', column: 'payment_type', sql: "ALTER TABLE payments ADD COLUMN payment_type TEXT NOT NULL DEFAULT 'legacy_unclassified'" },
+      { table: 'reservations', column: 'paid_amount', sql: 'ALTER TABLE reservations ADD COLUMN paid_amount REAL DEFAULT 0' },
+      { table: 'reservations', column: 'deposit_amount', sql: 'ALTER TABLE reservations ADD COLUMN deposit_amount REAL DEFAULT 0' },
+      { table: 'reservations', column: 'payment_method', sql: "ALTER TABLE reservations ADD COLUMN payment_method TEXT DEFAULT 'نقداً'" },
+      { table: 'reservations', column: 'payment_status', sql: "ALTER TABLE reservations ADD COLUMN payment_status TEXT DEFAULT 'غير مدفوع'" },
+      { table: 'guests', column: 'is_banned', sql: 'ALTER TABLE guests ADD COLUMN is_banned INTEGER DEFAULT 0' },
+      { table: 'guests', column: 'ban_reason', sql: 'ALTER TABLE guests ADD COLUMN ban_reason TEXT' },
+      { table: 'reservations', column: 'booking_type', sql: "ALTER TABLE reservations ADD COLUMN booking_type TEXT DEFAULT 'عادي'" },
+      { table: 'reservations', column: 'custom_nightly_price', sql: 'ALTER TABLE reservations ADD COLUMN custom_nightly_price REAL' },
+      { table: 'reservations', column: 'discount_amount', sql: 'ALTER TABLE reservations ADD COLUMN discount_amount REAL DEFAULT 0' },
+      { table: 'reservations', column: 'discount_reason', sql: 'ALTER TABLE reservations ADD COLUMN discount_reason TEXT' },
+      { table: 'reservations', column: 'late_checkout_fee', sql: 'ALTER TABLE reservations ADD COLUMN late_checkout_fee REAL DEFAULT 0' },
+      { table: 'reservations', column: 'checked_out_at', sql: 'ALTER TABLE reservations ADD COLUMN checked_out_at DATETIME' },
+      { table: 'reservations', column: 'original_calculated_charge', sql: 'ALTER TABLE reservations ADD COLUMN original_calculated_charge REAL' },
+      { table: 'reservations', column: 'checkout_policy', sql: 'ALTER TABLE reservations ADD COLUMN checkout_policy TEXT' },
+      { table: 'reservations', column: 'checkout_policy_reason', sql: 'ALTER TABLE reservations ADD COLUMN checkout_policy_reason TEXT' },
+      { table: 'reservations', column: 'booked_check_out_date', sql: 'ALTER TABLE reservations ADD COLUMN booked_check_out_date TEXT' },
+      { table: 'reservations', column: 'created_business_date', sql: 'ALTER TABLE reservations ADD COLUMN created_business_date TEXT' },
+      { table: 'payments', column: 'created_at', sql: 'ALTER TABLE payments ADD COLUMN created_at DATETIME' },
+      { table: 'payments', column: 'business_date', sql: 'ALTER TABLE payments ADD COLUMN business_date TEXT' },
+      { table: 'deposit_movements', column: 'created_at', sql: 'ALTER TABLE deposit_movements ADD COLUMN created_at DATETIME' },
+      { table: 'deposit_movements', column: 'business_date', sql: 'ALTER TABLE deposit_movements ADD COLUMN business_date TEXT' }
     ];
-    // Execute migrations, logging each failure so no schema change is silent.
-    for (const migrate of migrations) {
-      try { migrate(); } catch (e) { console.warn('[DB Migration]:', e.message); }
+    for (const migration of migrations) {
+      try {
+        const columns = queryAll(`PRAGMA table_info("${migration.table}")`);
+        if (!columns.some(column => column.name === migration.column)) {
+          db.run(migration.sql);
+        }
+      } catch (e) {
+        console.warn('[DB Migration]:', e.message);
+      }
     }
 
     const defaultSettings = [
