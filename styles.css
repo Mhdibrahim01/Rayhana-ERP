@@ -102,7 +102,6 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  user-select: none;
   min-height: 100vh;
   overflow: hidden;
 }

@@ -120,6 +120,12 @@ module.exports = function registerReportsIpc(ipcMain, { db, session, helpers }) 
       }
 
       const date = start || (db.getCurrentBusinessDate ? db.getCurrentBusinessDate() : helpers.getLocalDateString());
+      // Guard against unbounded date ranges that could exhaust memory.
+      const maxRangeDays = 365;
+      const rangeMs = new Date(end || date).getTime() - new Date(date).getTime();
+      if (rangeMs > maxRangeDays * 86400000) {
+        return { success: false, error: `لا يمكن طلب تقرير لأكثر من ${maxRangeDays} يوم.` };
+      }
       const report = db.getShiftAuditReport(date, end);
       return { success: true, data: report, currentUser: session.currentUser };
     } catch (err) {
