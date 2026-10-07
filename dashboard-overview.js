@@ -939,15 +939,25 @@
     }).join('');
   }
 
-  function formatPreviewDate(value) {
-    if (!value || value === 'مفتوح') return value || 'غير محدد';
-    const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
-    return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('ar-SA-u-nu-latn', { year: 'numeric', month: 'long', day: 'numeric' }).format(date);
+  function westernPreviewDigits(value) {
+    return String(value ?? '').replace(/[\u0660-\u0669\u06f0-\u06f9]/g, digit => {
+      const code = digit.charCodeAt(0);
+      return String(code >= 0x06f0 ? code - 0x06f0 : code - 0x0660);
+    });
   }
 
-  function previewField(label, value, detail = '') {
-    const safe = App.Helpers.escapeHtml(value == null || value === '' ? 'غير متوفر' : String(value));
-    return `<div class="reservation-preview-field"><span>${App.Helpers.escapeHtml(label)}</span><strong>${safe}</strong>${detail ? `<small>${App.Helpers.escapeHtml(detail)}</small>` : ''}</div>`;
+  function roomDetailsDate(value) {
+    return westernPreviewDigits(value || '').slice(0, 10);
+  }
+
+  function roomDetailsMoney(value) {
+    return `${Number(value || 0).toLocaleString('ar-SA-u-nu-latn')} \u0631.\u0633`;
+  }
+
+  function roomDetailsField(label, value, detail = '', modifier = '') {
+    const safe = App.Helpers.escapeHtml(westernPreviewDigits(value == null || value === '' ? 'غير متوفر' : value));
+    const safeDetail = detail ? App.Helpers.escapeHtml(westernPreviewDigits(detail)) : '';
+    return `<div class="reservation-preview-field room-details-field ${modifier}"><span>${App.Helpers.escapeHtml(westernPreviewDigits(label))}</span><strong>${safe}</strong>${safeDetail ? `<small>${safeDetail}</small>` : ''}</div>`;
   }
 
   App.Helpers.openReservationPreview = async function(reservationId) {
@@ -963,7 +973,7 @@
       modal.id = 'reservation-preview-modal';
       modal.className = 'reservation-preview-backdrop';
       modal.setAttribute('role', 'presentation');
-      modal.innerHTML = '<section class="reservation-preview-dialog modal-layout" role="dialog" aria-modal="true" aria-labelledby="reservation-preview-title" dir="rtl"><div id="reservation-preview-content"></div></section>';
+      modal.innerHTML = '<section class="reservation-preview-dialog modal-layout room-details-refined" role="dialog" aria-modal="true" aria-labelledby="reservation-preview-title" dir="rtl"><div id="reservation-preview-content"></div></section>';
       document.body.appendChild(modal);
       modal.addEventListener('click', event => { if (event.target === modal) modal.style.display = 'none'; });
       modal.addEventListener('click', event => { if (event.target.closest('[data-preview-close]')) modal.style.display = 'none'; });
@@ -977,22 +987,50 @@
     const money = value => `${Number(value || 0).toLocaleString('ar-SA')} ر.س`;
     const status = App.Helpers.escapeHtml(r.status || 'غير محدد');
     const statusTone = r.status === 'مؤكد' ? 'active' : (r.status === 'مكتمل' ? 'done' : 'other');
+    const isOpenContract = r.booking_type === '\u0639\u0642\u062f \u0645\u0641\u062a\u0648\u062d' || !r.check_out_date || r.check_out_date === '\u0645\u0641\u062a\u0648\u062d';
+    const previewRate = Number(r.custom_nightly_price || r.price_per_night) || 0;
+    const checkIn = roomDetailsDate(r.check_in_date);
+    const today = App.Helpers.getLocalDateString();
+    const elapsedNights = isOpenContract && /^\d{4}-\d{2}-\d{2}$/.test(checkIn) && checkIn <= today
+      ? Math.max(1, Math.floor((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${checkIn}T00:00:00Z`)) / 86400000))
+      : 0;
+    const checkout = roomDetailsDate(r.check_out_date);
+    const bookedNights = /^\d{4}-\d{2}-\d{2}$/.test(checkIn) && /^\d{4}-\d{2}-\d{2}$/.test(checkout)
+      ? Math.max(0, Math.floor((Date.parse(`${checkout}T00:00:00Z`) - Date.parse(`${checkIn}T00:00:00Z`)) / 86400000))
+      : 0;
+    const stayNights = isOpenContract ? elapsedNights : bookedNights;
+    const previewTotal = isOpenContract ? Math.max(total, elapsedNights * previewRate) : total;
+    const previewBalance = Math.max(0, previewTotal - paid);
+    const paidPercent = getPaymentProgressPercent(previewTotal, paid);
     const content = modal.querySelector('#reservation-preview-content');
     content.innerHTML = `
-      <header class="reservation-preview-header modal-layout__header">
-        <div class="reservation-preview-heading">
+      <header class="reservation-preview-header modal-layout__header room-details-header">
+        <div class="reservation-preview-heading room-details-heading">
           <div class="reservation-preview-room-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 18V8a2 2 0 0 1 2-2h3a3 3 0 0 1 3 3v2h6a4 4 0 0 1 4 4v3M3 14h18M5 18v2m14-2v2"></path></svg></div>
-          <div><div class="reservation-preview-eyebrow">إقامة النزيل · رقم الحجز ${App.Helpers.escapeHtml(r.id)}</div><h2 id="reservation-preview-title">تفاصيل الغرفة ${App.Helpers.escapeHtml(r.room_number || '-')}</h2><p>${App.Helpers.escapeHtml(r.room_type || 'نوع الغرفة غير محدد')} · ${App.Helpers.escapeHtml(r.booking_type || 'حجز')} · السعر الأساسي ${money(r.custom_nightly_price || r.price_per_night)}/ليلة</p></div>
+          <div class="room-details-heading-copy"><div class="room-details-title-line"><h2 id="reservation-preview-title">\u062a\u0641\u0627\u0635\u064a\u0644 \u0627\u0644\u063a\u0631\u0641\u0629 ${App.Helpers.escapeHtml(westernPreviewDigits(r.room_number || '-'))}</h2><span class="reservation-preview-status is-${statusTone}">${status}</span></div><p>${App.Helpers.escapeHtml(westernPreviewDigits(`\u0631\u0642\u0645 \u0627\u0644\u062d\u062c\u0632 ${formatReservationNumber(r)} \u00b7 ${r.room_type || '\u0646\u0648\u0639 \u0627\u0644\u063a\u0631\u0641\u0629 \u063a\u064a\u0631 \u0645\u062d\u062f\u062f'} \u00b7 ${r.booking_type || '\u062d\u062c\u0632'} \u00b7 ${roomDetailsMoney(previewRate)} / \u0644\u064a\u0644\u0629`))}</p></div>
         </div>
-        <div class="reservation-preview-header-side"><span class="reservation-preview-status is-${statusTone}">${status}</span><button type="button" class="reservation-preview-close modal-layout__close" data-preview-close aria-label="إغلاق">&times;</button></div>
+        <button type="button" class="reservation-preview-close modal-layout__close" data-preview-close aria-label="\u0625\u063a\u0644\u0627\u0642">&times;</button>
       </header>
-      <div class="reservation-preview-body modal-layout__body"><div class="reservation-preview-column">
-        <section class="reservation-preview-section modal-section-card"><div class="reservation-preview-section-title modal-section-card__header"><span class="reservation-preview-title-icon">♙</span><div><strong>بيانات النزيل المقيم حالياً</strong><small>Guest Profile</small></div><div class="reservation-preview-contact-actions">${r.guest_phone ? `<a class="reservation-preview-contact" href="tel:${App.Helpers.escapeHtml(r.guest_phone)}">اتصال <span>☎</span></a>` : ''}<button type="button" class="reservation-preview-contact reservation-preview-whatsapp" data-action="whatsapp" data-id="${App.Helpers.escapeHtml(r.id)}" title="مراسلة النزيل عبر واتساب" aria-label="مراسلة النزيل عبر واتساب">مراسلة واتساب <span>⌯</span></button></div></div><div class="reservation-preview-grid reservation-preview-grid-guest">${previewField('اسم النزيل الثنائي', r.guest_name, 'نزيل مسجل في النظام')}${previewField('رقم الجوال', r.guest_phone, 'متاح للإشعارات والاتصال')}${previewField('رقم الهوية / الإقامة', r.guest_id_number, 'إثبات ساري ومطابق للنظام')}</div></section>
-        <section class="reservation-preview-section modal-section-card"><div class="reservation-preview-section-title modal-section-card__header"><span class="reservation-preview-title-icon">▦</span><div><strong>تفاصيل ومواعيد الإقامة</strong><small>Stay &amp; Contract Details</small></div><span class="reservation-preview-reference">رقم السند: ${App.Helpers.escapeHtml(formatReservationNumber(r))}</span></div><div class="reservation-preview-grid">${previewField('نوع الحجز', r.booking_type || 'حجز يومي', r.booking_type === 'عقد مفتوح' ? 'عقد إقامة مفتوح' : '')}${previewField('تاريخ الدخول', formatPreviewDate(r.check_in_date), r.booking_time ? `تسجيل: ${r.booking_time}` : '')}${previewField('تاريخ المغادرة المقررة', formatPreviewDate(r.check_out_date), r.checkout_time ? `تسليم المفتاح: ${r.checkout_time}` : '')}${previewField('سعر الليلة المتفق عليه', money(r.custom_nightly_price || r.price_per_night), Number(r.discount_amount) > 0 ? `خصم ${money(r.discount_amount)}` : '')}</div>${Number(r.discount_amount) > 0 || r.booking_type === 'عقد مفتوح' ? `<div class="reservation-preview-note"><strong>ملاحظات وتعليمات الإقامة:</strong> ${r.discount_reason ? App.Helpers.escapeHtml(r.discount_reason) : 'تطبق شروط العقد المسجلة على هذه الإقامة.'}</div>` : ''}</section>
-        </div><div class="reservation-preview-column">
-        <section class="reservation-preview-section modal-section-card"><div class="reservation-preview-section-title modal-section-card__header"><span class="reservation-preview-title-icon financial">ر.س</span><div><strong>المحاسبة والموقف المالي</strong><small>Financial Summary</small></div><span class="reservation-preview-paid-badge">${balance <= 0 ? 'مدفوع بالكامل' : 'مطلوب تحصيل'}</span></div><div class="reservation-preview-grid">${previewField('إجمالي الإقامة', money(total))}${previewField('إجمالي المبالغ المسددة', money(paid), r.payment_method || '')}${previewField('المبلغ المتبقي', money(balance), balance > 0 ? 'يستحق قبل المغادرة' : 'لا يوجد مبلغ مستحق')}${previewField('مبلغ التأمين', money(r.deposit_ledger_balance ?? r.deposit_amount), 'حسب سجل التأمين')}</div><div class="reservation-preview-payment-bar"><span style="width:${getPaymentProgressPercent(total, paid)}%"></span></div></section>
-        </div></div>
-      <footer class="reservation-preview-footer modal-layout__footer">${r.status === 'مؤكد' ? `<button type="button" class="reservation-preview-action reservation-preview-checkout" data-action="checkout" data-id="${App.Helpers.escapeHtml(r.id)}" title="تسوية ومغادرة"> <span>⇥</span> تسوية ومغادرة (Check-out)</button><button type="button" class="reservation-preview-action reservation-preview-extend" data-action="extend" data-id="${App.Helpers.escapeHtml(r.id)}" title="تمديد فترة الإقامة"><span>◷</span> تمديد الإقامة</button>` : ''}${balance > 0 ? `<button type="button" class="reservation-preview-action" onclick="event.stopPropagation(); document.getElementById('reservation-preview-modal').style.display='none'; window.openAddPaymentModal && window.openAddPaymentModal(${Number(r.id)});" title="تسجيل دفعة سداد">تسجيل دفعة سداد</button>` : ''}<button type="button" class="reservation-preview-action reservation-preview-invoice" data-action="invoice" data-id="${App.Helpers.escapeHtml(r.id)}" title="معاينة الفاتورة بالختم والتوقيع"><span>▤</span> معاينة الفاتورة بالختم والتوقيع</button><button type="button" class="reservation-preview-footer-close" data-preview-close title="إغلاق المعاينة">إغلاق</button></footer>`;
+      <div class="reservation-preview-body modal-layout__body room-details-body">
+        <section class="reservation-preview-section modal-section-card room-details-card room-details-guest-card">
+          <div class="reservation-preview-section-title modal-section-card__header room-details-card-heading"><span class="reservation-preview-title-icon">\u2659</span><strong>\u0628\u064a\u0627\u0646\u0627\u062a \u0627\u0644\u0646\u0632\u064a\u0644</strong></div>
+          <div class="room-details-guest-fields">${roomDetailsField('\u0627\u0633\u0645 \u0627\u0644\u0646\u0632\u064a\u0644', r.guest_name, '', 'room-details-name')}${roomDetailsField('\u0631\u0642\u0645 \u0627\u0644\u062c\u0648\u0627\u0644', r.guest_phone)}${roomDetailsField('\u0631\u0642\u0645 \u0627\u0644\u0647\u0648\u064a\u0629 / \u0627\u0644\u0625\u0642\u0627\u0645\u0629', r.guest_id_number)}</div>
+          <div class="reservation-preview-contact-actions room-details-contact-actions">${r.guest_phone ? `<a class="reservation-preview-contact" href="tel:${App.Helpers.escapeHtml(westernPreviewDigits(r.guest_phone))}">\u0627\u062a\u0635\u0627\u0644 <span>\u260e</span></a>` : ''}<button type="button" class="reservation-preview-contact reservation-preview-whatsapp" data-action="whatsapp" data-id="${App.Helpers.escapeHtml(r.id)}" title="\u0645\u0631\u0627\u0633\u0644\u0629 \u0627\u0644\u0646\u0632\u064a\u0644 \u0639\u0628\u0631 \u0648\u0627\u062a\u0633\u0627\u0628" aria-label="\u0645\u0631\u0627\u0633\u0644\u0629 \u0627\u0644\u0646\u0632\u064a\u0644 \u0639\u0628\u0631 \u0648\u0627\u062a\u0633\u0627\u0628">\u0645\u0631\u0627\u0633\u0644\u0629 \u0648\u0627\u062a\u0633\u0627\u0628 <span>\u230f</span></button></div>
+        </section>
+        <section class="reservation-preview-section modal-section-card room-details-card room-details-stay-card">
+          <div class="reservation-preview-section-title modal-section-card__header room-details-card-heading"><span class="reservation-preview-title-icon">\u25a6</span><strong>\u062a\u0641\u0627\u0635\u064a\u0644 \u0627\u0644\u0625\u0642\u0627\u0645\u0629</strong></div>
+          <div class="room-details-stay-fields">${roomDetailsField('\u0646\u0648\u0639 \u0627\u0644\u062d\u062c\u0632', r.booking_type || '\u062d\u062c\u0632 \u064a\u0648\u0645\u064a')}${roomDetailsField('\u0631\u0642\u0645 \u0627\u0644\u0633\u0646\u062f', formatReservationNumber(r), '', 'room-details-receipt-number')}${roomDetailsField('\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0648\u0635\u0648\u0644', roomDetailsDate(r.check_in_date) || '\u063a\u064a\u0631 \u0645\u062d\u062f\u062f')}${roomDetailsField('\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0645\u063a\u0627\u062f\u0631\u0629', isOpenContract ? '\u0639\u0642\u062f \u0645\u0641\u062a\u0648\u062d' : (roomDetailsDate(r.check_out_date) || '\u063a\u064a\u0631 \u0645\u062d\u062f\u062f'))}${roomDetailsField('\u0633\u0639\u0631 \u0627\u0644\u0644\u064a\u0644\u0629', roomDetailsMoney(previewRate), Number(r.discount_amount) > 0 ? `\u0627\u0644\u062e\u0635\u0645: ${roomDetailsMoney(r.discount_amount)}` : '')}${roomDetailsField('\u0639\u062f\u062f \u0627\u0644\u0644\u064a\u0627\u0644\u064a', stayNights > 0 ? `${stayNights} ${stayNights === 1 ? '\u0644\u064a\u0644\u0629' : '\u0644\u064a\u0627\u0644\u064d'}` : '\u063a\u064a\u0631 \u0645\u062a\u0648\u0641\u0631')}</div>
+          ${(Number(r.discount_amount) > 0 || isOpenContract || r.discount_reason) ? `<div class="room-details-note"><strong>\u0645\u0644\u0627\u062d\u0638\u0627\u062a \u0648\u062a\u0639\u0644\u064a\u0645\u0627\u062a \u0627\u0644\u0625\u0642\u0627\u0645\u0629:</strong> ${r.discount_reason ? App.Helpers.escapeHtml(westernPreviewDigits(r.discount_reason)) : (isOpenContract ? '\u0639\u0642\u062f \u0645\u0641\u062a\u0648\u062d' : '\u062e\u0635\u0645 \u0645\u0633\u062c\u0644 \u0639\u0644\u0649 \u0627\u0644\u0625\u0642\u0627\u0645\u0629')}</div>` : ''}
+        </section>
+        <section class="reservation-preview-section modal-section-card room-details-card room-details-financial-card">
+          <div class="reservation-preview-section-title modal-section-card__header room-details-card-heading"><span class="reservation-preview-title-icon financial">\u0631.\u0633</span><strong>\u0627\u0644\u0645\u0648\u0642\u0641 \u0627\u0644\u0645\u0627\u0644\u064a</strong></div>
+          <span class="reservation-preview-paid-badge room-details-financial-status">${previewBalance <= 0 ? '\u0645\u062f\u0641\u0648\u0639 \u0628\u0627\u0644\u0643\u0627\u0645\u0644' : (paid > 0 ? '\u0645\u062f\u0641\u0648\u0639 \u062c\u0632\u0626\u064a\u0627\u064b' : '\u0645\u0637\u0644\u0648\u0628 \u062a\u062d\u0635\u064a\u0644')}</span>
+          <div class="room-details-financial-fields">${roomDetailsField('\u0625\u062c\u0645\u0627\u0644\u064a \u0627\u0644\u0625\u0642\u0627\u0645\u0629', roomDetailsMoney(previewTotal), isOpenContract ? `${elapsedNights} \u0644\u064a\u0644\u0629 \u00d7 ${roomDetailsMoney(previewRate)} = ${roomDetailsMoney(previewTotal)}` : '')}${roomDetailsField('\u0625\u062c\u0645\u0627\u0644\u064a \u0627\u0644\u0645\u0628\u0627\u0644\u063a \u0627\u0644\u0645\u0633\u062f\u062f\u0629', roomDetailsMoney(paid), r.payment_method || '')}${roomDetailsField('\u0627\u0644\u0645\u0628\u0644\u063a \u0627\u0644\u0645\u062a\u0628\u0642\u064a', roomDetailsMoney(previewBalance))}${roomDetailsField('\u0645\u0628\u0644\u063a \u0627\u0644\u062a\u0623\u0645\u064a\u0646', roomDetailsMoney(r.deposit_ledger_balance ?? r.deposit_amount))}</div>
+          <div class="room-details-progress"><div class="reservation-preview-payment-bar"><span style="width:${paidPercent}%"></span></div><span>\u0645\u0633\u062f\u062f ${paidPercent}%</span></div>
+        </section>
+      </div>
+      <footer class="reservation-preview-footer modal-layout__footer room-details-footer"><div class="room-details-footer-actions">${r.status === '\u0645\u0624\u0643\u062f' ? `<button type="button" class="btn btn-primary reservation-preview-action reservation-preview-checkout" data-action="checkout" data-id="${App.Helpers.escapeHtml(r.id)}" title="\u062a\u0633\u0648\u064a\u0629 \u0648\u0645\u063a\u0627\u062f\u0631\u0629"><span>\u21e5</span> \u062a\u0633\u0648\u064a\u0629 \u0648\u0645\u063a\u0627\u062f\u0631\u0629</button><button type="button" class="btn btn-secondary reservation-preview-action reservation-preview-extend" data-action="extend" data-id="${App.Helpers.escapeHtml(r.id)}" title="\u062a\u0645\u062f\u064a\u062f \u0641\u062a\u0631\u0629 \u0627\u0644\u0625\u0642\u0627\u0645\u0629"><span>\u25f7</span> \u062a\u0645\u062f\u064a\u062f \u0627\u0644\u0625\u0642\u0627\u0645\u0629</button>` : ''}${balance > 0 ? `<button type="button" class="btn btn-secondary reservation-preview-action" onclick="event.stopPropagation(); document.getElementById('reservation-preview-modal').style.display='none'; window.openAddPaymentModal && window.openAddPaymentModal(${Number(r.id)});" title="\u062a\u0633\u062c\u064a\u0644 \u062f\u0641\u0639\u0629 \u0633\u062f\u0627\u062f">\u062a\u0633\u062c\u064a\u0644 \u062f\u0641\u0639\u0629 \u0633\u062f\u0627\u062f</button>` : ''}<button type="button" class="btn btn-secondary reservation-preview-action reservation-preview-invoice" data-action="invoice" data-id="${App.Helpers.escapeHtml(r.id)}" title="\u0645\u0639\u0627\u064a\u0646\u0629 \u0627\u0644\u0641\u0627\u062a\u0648\u0631\u0629"><span>\u25a4</span> \u0645\u0639\u0627\u064a\u0646\u0629 \u0627\u0644\u0641\u0627\u062a\u0648\u0631\u0629</button></div><button type="button" class="btn reservation-preview-footer-close" data-preview-close title="\u0625\u063a\u0644\u0627\u0642 \u0627\u0644\u0645\u0639\u0627\u064a\u0646\u0629">\u0625\u063a\u0644\u0627\u0642</button></footer>`;
+
     modal.style.display = 'flex';
     modal.querySelector('[data-preview-close]')?.focus();
   };
