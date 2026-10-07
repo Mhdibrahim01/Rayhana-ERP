@@ -608,25 +608,25 @@
     const tooltip = document.createElement('div');
     tooltip.className = 'action-hover-tooltip';
     tooltip.setAttribute('role', 'tooltip');
-    tooltip.hidden = true;
+    tooltip.setAttribute('aria-hidden', 'true');
     document.body.appendChild(tooltip);
 
     let hoveredButton = null;
-    let focusedButton = null;
     let activeButton = null;
+    let dismissedButton = null;
+    let pressedButton = null;
 
-    const restoreNativeTitle = button => {
-      if (!button?.dataset.actionTooltipTitle) return;
-      button.setAttribute('title', button.dataset.actionTooltipTitle);
-      delete button.dataset.actionTooltipTitle;
+    const hideTooltip = () => {
+      tooltip.classList.remove('is-visible');
+      tooltip.setAttribute('aria-hidden', 'true');
     };
 
     const updateTooltip = () => {
-      const nextButton = focusedButton || hoveredButton;
-      if (activeButton && activeButton !== nextButton) restoreNativeTitle(activeButton);
+      const nextButton = hoveredButton;
       activeButton = nextButton;
       if (!activeButton) {
-        tooltip.hidden = true;
+        dismissedButton = null;
+        hideTooltip();
         return;
       }
 
@@ -636,12 +636,17 @@
       activeButton.removeAttribute('title');
       const label = activeButton.getAttribute('aria-label') || activeButton.dataset.actionTooltipTitle;
       if (!label) {
-        tooltip.hidden = true;
+        hideTooltip();
         return;
       }
 
       tooltip.textContent = label;
-      tooltip.hidden = false;
+      if (dismissedButton === activeButton) {
+        hideTooltip();
+        return;
+      }
+      tooltip.classList.add('is-visible');
+      tooltip.setAttribute('aria-hidden', 'false');
       const buttonRect = activeButton.getBoundingClientRect();
       const tooltipRect = tooltip.getBoundingClientRect();
       const halfWidth = tooltipRect.width / 2;
@@ -660,6 +665,15 @@
       const button = event.target.closest?.(selector);
       if (!button || button === hoveredButton) return;
       hoveredButton = button;
+      dismissedButton = null;
+      updateTooltip();
+    }, true);
+    document.addEventListener('pointermove', event => {
+      const hit = document.elementFromPoint(event.clientX, event.clientY);
+      const button = hit?.closest?.(selector) || null;
+      if (button === hoveredButton) return;
+      hoveredButton = button;
+      dismissedButton = null;
       updateTooltip();
     }, true);
     document.addEventListener('pointerout', event => {
@@ -668,22 +682,32 @@
       if (hoveredButton === button) hoveredButton = null;
       updateTooltip();
     }, true);
-    document.addEventListener('focusin', event => {
-      const button = event.target.closest?.(selector);
+    const dismissTooltipForButton = (event, buttonOverride = null) => {
+      const button = buttonOverride || event.target.closest?.(selector);
       if (!button) return;
-      focusedButton = button;
+      dismissedButton = button;
+      button.blur?.();
       updateTooltip();
+    };
+    document.addEventListener('pointerdown', event => {
+      pressedButton = event.target.closest?.(selector) || null;
     }, true);
-    document.addEventListener('focusout', event => {
-      const button = event.target.closest?.(selector);
-      if (!button || button.contains(event.relatedTarget)) return;
-      if (focusedButton === button) focusedButton = null;
-      updateTooltip();
+    document.addEventListener('pointerup', event => {
+      dismissTooltipForButton(event, pressedButton);
+      pressedButton = null;
     }, true);
+    document.addEventListener('mouseup', event => dismissTooltipForButton(event, pressedButton), true);
+    document.addEventListener('click', dismissTooltipForButton, true);
     window.addEventListener('scroll', () => {
-      if (activeButton && !tooltip.hidden) updateTooltip();
+      if (!activeButton) return;
+      hoveredButton = null;
+      updateTooltip();
     }, true);
-    window.addEventListener('resize', updateTooltip);
+    window.addEventListener('resize', () => {
+      if (!activeButton) return;
+      hoveredButton = null;
+      updateTooltip();
+    });
   }
 
   function getCheckoutDelayLabel(checkOutDate) {
