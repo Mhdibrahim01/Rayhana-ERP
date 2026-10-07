@@ -575,6 +575,7 @@
       await loadTodayCheckouts();
     } catch (err) {
       console.error('Error loading overview data:', err);
+      App.Helpers.showToast?.('فشل تحميل بيانات لوحة التحكم — تحقق من الاتصال وقم بالتحديث.', 'error');
     }
   }
 

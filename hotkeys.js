@@ -78,7 +78,7 @@
     return [...modal.querySelectorAll('button')].find(button => {
       if (button.disabled) return false;
       const text = (button.textContent || '').replace(/[×✕]/g, '').trim();
-      return /^(إغلاق|اغلاق|إلغاء|الغاء|رجوع)$/.test(text);
+      return /^(إغلاق|اغلاق|إلغاء|الغاء|رجوع|close|Cancel)$/i.test(text);
     }) || null;
   }
 
@@ -127,6 +127,9 @@
     helpPopover.addEventListener('click', event => {
       if (event.target.closest('[data-hotkeys-help-close]')) helpPopover.hidden = true;
     });
+    // Focus the close button so keyboard users can dismiss with Escape.
+    const closeBtn = helpPopover.querySelector('[data-hotkeys-help-close]');
+    if (closeBtn) closeBtn.addEventListener('click', () => { helpPopover.hidden = true; closeBtn.focus(); });
     return helpPopover;
   }
 

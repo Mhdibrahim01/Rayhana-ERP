@@ -256,36 +256,37 @@ async function init(dbPath) {
     // Enable foreign key enforcement (SQLite has it OFF by default)
     db.run("PRAGMA foreign_keys = ON;");
 
-    // Safe column migrations for existing databases
-    try { db.run("ALTER TABLE payments ADD COLUMN payment_type TEXT NOT NULL DEFAULT 'legacy_unclassified'"); } catch (e) {}
-    try { db.run("ALTER TABLE reservations ADD COLUMN paid_amount REAL DEFAULT 0"); } catch (e) {}
-    try { db.run("ALTER TABLE reservations ADD COLUMN deposit_amount REAL DEFAULT 0"); } catch (e) {}
-    try { db.run("ALTER TABLE reservations ADD COLUMN payment_method TEXT DEFAULT 'نقداً'"); } catch (e) {}
-    try { db.run("ALTER TABLE reservations ADD COLUMN payment_status TEXT DEFAULT 'غير مدفوع'"); } catch (e) {}
-    try { db.run("ALTER TABLE guests ADD COLUMN is_banned INTEGER DEFAULT 0"); } catch (e) {}
-    try { db.run("ALTER TABLE guests ADD COLUMN ban_reason TEXT"); } catch (e) {}
-    try { db.run("ALTER TABLE reservations ADD COLUMN booking_type TEXT DEFAULT 'عادي'"); } catch (e) {}
-    try { db.run("ALTER TABLE reservations ADD COLUMN custom_nightly_price REAL"); } catch (e) {}
-    try { db.run("ALTER TABLE reservations ADD COLUMN discount_amount REAL DEFAULT 0"); } catch (e) {}
-    try { db.run("ALTER TABLE reservations ADD COLUMN discount_reason TEXT"); } catch (e) {}
-    try { db.run("ALTER TABLE reservations ADD COLUMN late_checkout_fee REAL DEFAULT 0"); } catch (e) {}
-    try { db.run("ALTER TABLE reservations ADD COLUMN checked_out_at DATETIME"); } catch (e) {}
-    try { db.run("ALTER TABLE reservations ADD COLUMN original_calculated_charge REAL"); } catch (e) {}
-    // Monthly early-checkout policy audit trail. All nullable with no default so
-    // pre-existing (legacy) rows stay NULL and keep their original behaviour.
-    try { db.run("ALTER TABLE reservations ADD COLUMN checkout_policy TEXT"); } catch (e) {}
-    try { db.run("ALTER TABLE reservations ADD COLUMN checkout_policy_reason TEXT"); } catch (e) {}
-    try { db.run("ALTER TABLE reservations ADD COLUMN booked_check_out_date TEXT"); } catch (e) {}
-    try { db.run("ALTER TABLE reservations ADD COLUMN created_business_date TEXT"); } catch (e) {}
-    try { db.run("ALTER TABLE payments ADD COLUMN created_at DATETIME"); } catch (e) {}
-    try { db.run("ALTER TABLE payments ADD COLUMN business_date TEXT"); } catch (e) {}
-    try { db.run("ALTER TABLE deposit_movements ADD COLUMN created_at DATETIME"); } catch (e) {}
-    try { db.run("ALTER TABLE deposit_movements ADD COLUMN business_date TEXT"); } catch (e) {}
-    try { db.run("ALTER TABLE night_audits ADD COLUMN business_date TEXT"); } catch (e) {}
-    try { db.run("ALTER TABLE night_audits ADD COLUMN closed_by TEXT"); } catch (e) {}
-    try { db.run("ALTER TABLE night_audits ADD COLUMN shift_reconciliation_required INTEGER NOT NULL DEFAULT 0"); } catch (e) {}
-    try { db.run("ALTER TABLE night_audits ADD COLUMN shift_reconciled_at DATETIME"); } catch (e) {}
-    try { db.run("ALTER TABLE night_audits ADD COLUMN shift_reconciled_by INTEGER"); } catch (e) {}
+    // Safe column migrations for existing databases — log failures so they
+    // are not silently swallowed. A silent failure leaves the schema partial
+    // and causes cryptic errors later.
+    const migrations = [
+      () => db.run("ALTER TABLE payments ADD COLUMN payment_type TEXT NOT NULL DEFAULT 'legacy_unclassified'"),
+      () => db.run("ALTER TABLE reservations ADD COLUMN paid_amount REAL DEFAULT 0"),
+      () => db.run("ALTER TABLE reservations ADD COLUMN deposit_amount REAL DEFAULT 0"),
+      () => db.run("ALTER TABLE reservations ADD COLUMN payment_method TEXT DEFAULT 'نقداً'"),
+      () => db.run("ALTER TABLE reservations ADD COLUMN payment_status TEXT DEFAULT 'غير مدفوع'"),
+      () => db.run("ALTER TABLE guests ADD COLUMN is_banned INTEGER DEFAULT 0"),
+      () => db.run("ALTER TABLE guests ADD COLUMN ban_reason TEXT"),
+      () => db.run("ALTER TABLE reservations ADD COLUMN booking_type TEXT DEFAULT 'عادي'"),
+      () => db.run("ALTER TABLE reservations ADD COLUMN custom_nightly_price REAL"),
+      () => db.run("ALTER TABLE reservations ADD COLUMN discount_amount REAL DEFAULT 0"),
+      () => db.run("ALTER TABLE reservations ADD COLUMN discount_reason TEXT"),
+      () => db.run("ALTER TABLE reservations ADD COLUMN late_checkout_fee REAL DEFAULT 0"),
+      () => db.run("ALTER TABLE reservations ADD COLUMN checked_out_at DATETIME"),
+      () => db.run("ALTER TABLE reservations ADD COLUMN original_calculated_charge REAL"),
+      () => db.run("ALTER TABLE reservations ADD COLUMN checkout_policy TEXT"),
+      () => db.run("ALTER TABLE reservations ADD COLUMN checkout_policy_reason TEXT"),
+      () => db.run("ALTER TABLE reservations ADD COLUMN booked_check_out_date TEXT"),
+      () => db.run("ALTER TABLE reservations ADD COLUMN created_business_date TEXT"),
+      () => db.run("ALTER TABLE payments ADD COLUMN created_at DATETIME"),
+      () => db.run("ALTER TABLE payments ADD COLUMN business_date TEXT"),
+      () => db.run("ALTER TABLE deposit_movements ADD COLUMN created_at DATETIME"),
+      () => db.run("ALTER TABLE deposit_movements ADD COLUMN business_date TEXT"),
+    ];
+    // Execute migrations, logging each failure so no schema change is silent.
+    for (const migrate of migrations) {
+      try { migrate(); } catch (e) { console.warn('[DB Migration]:', e.message); }
+    }
 
     const defaultSettings = [
       ['business_day_cutoff_time', '06:00'],
