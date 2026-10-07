@@ -618,12 +618,39 @@
       const inv = res.data;
       currentInvoiceData = inv;
       const isContract = inv.booking_type === 'عقد مفتوح';
-       // Monthly bookings print under the institution's own letterhead. New rows use
-       // the saved flat-rate snapshot; legacy rows retain their 30 x daily fallback.
+      // Monthly bookings print under the institution's own letterhead. New rows use
+      // the saved flat-rate snapshot; legacy rows retain their 30 x daily fallback.
       const isMonthly = inv.booking_type === 'حجز شهري';
       const isCancelled = inv.status === 'ملغي';
-      const total = isCancelled ? 0.0 : parseFloat(inv.total_price || 0);
-      const paid = parseFloat(inv.paid_amount || 0);
+      const isConfirmed = inv.status === 'مؤكد';
+      const businessToday = window.DashboardApp?.State?.businessDate || window.DashboardApp?.Helpers?.getLocalDateString?.() || new Date().toISOString().slice(0, 10);
+      const overdueDate = String(inv.check_out_date || '').slice(0, 10);
+      const overdueDays = (isConfirmed && !isContract && overdueDate && overdueDate < businessToday)
+        ? Math.max(0, Math.floor((Date.parse(`${businessToday}T00:00:00Z`) - Date.parse(`${overdueDate}T00:00:00Z`)) / 86400000))
+        : 0;
+      const isOverdue = overdueDays > 0;
+      const effectiveNightlyRate = parseFloat(inv.custom_nightly_price || inv.price_per_night || 0);
+
+      let elapsedContractNights = 0;
+      if (isConfirmed && isContract && inv.check_in_date) {
+        const startParts = String(inv.check_in_date).slice(0, 10).split('-').map(Number);
+        const endParts = businessToday.slice(0, 10).split('-').map(Number);
+        elapsedContractNights = Math.max(1, Math.round((Date.UTC(endParts[0], endParts[1] - 1, endParts[2]) - Date.UTC(startParts[0], startParts[1] - 1, startParts[2])) / 86400000));
+      }
+
+      const storedTotal = isCancelled ? 0.0 : parseFloat(inv.total_price || 0);
+      const discount = parseFloat(inv.discount_amount || 0);
+      let overdueAdditionalAmount = 0;
+      let effectiveTotal = storedTotal;
+      if (isOverdue && effectiveNightlyRate > 0) {
+        overdueAdditionalAmount = roundMoney(overdueDays * effectiveNightlyRate);
+        effectiveTotal = roundMoney(storedTotal + overdueAdditionalAmount);
+      } else if (isConfirmed && isContract && effectiveNightlyRate > 0) {
+        effectiveTotal = Math.max(storedTotal, roundMoney(elapsedContractNights * effectiveNightlyRate - discount));
+      }
+
+      const total = effectiveTotal;
+      const paid = parseFloat((inv.ledger_paid_amount ?? inv.paid_amount) || 0);
       const deposit = parseFloat(inv.deposit_ledger_balance ?? inv.deposit_amount ?? 0);
       const legacyDeposit = Number(inv.deposit_legacy_unreconciled || 0) === 1;
       let invoiceDepositMovements = [];
@@ -631,9 +658,16 @@
         const depositRes = await window.api.getReservationDepositMovements(targetId);
         if (depositRes?.success && Array.isArray(depositRes.data)) invoiceDepositMovements = depositRes.data;
       } catch (_) { /* invoice can still render if the optional history query fails */ }
-      const rawRemaining = total - paid;
+      const rawRemaining = roundMoney(total - paid);
       const isCredit = rawRemaining < -0.005;
-      const remaining = isContract ? rawRemaining : Math.max(0, rawRemaining);
+      const remaining = Math.max(0, rawRemaining);
+
+      let invoicePaymentStatusBadge = inv.payment_status;
+      if (isCancelled) {
+        invoicePaymentStatusBadge = 'ملغي';
+      } else if (isOverdue || isContract) {
+        invoicePaymentStatusBadge = isCredit ? 'رصيد دائن' : (remaining <= 0.005 ? 'مدفوع بالكامل' : (paid > 0 ? 'مدفوع جزئياً' : 'غير مدفوع'));
+      }
 
       // Compute total collected and total refunded from the payments ledger.
       let originalCollected = 0;
@@ -661,10 +695,10 @@
       const stayDurationText = isCancelled
         ? 'حجز ملغي (0 ليلة)'
         : (isContract
-          ? 'عقد مفتوح (غير محدد)'
+          ? (isConfirmed ? `عقد مفتوح (${elapsedContractNights} ليالٍ حتى اليوم)` : 'عقد مفتوح (غير محدد)')
           : (inv.booking_type === 'استخدام يومي'
             ? 'يوم استخدام'
-            : (isSameDay ? 'مغادرة في نفس اليوم (1 ليلة)' : `${nights} ${nights === 1 ? 'ليلة' : 'ليالٍ'}`)));
+            : (isSameDay ? 'مغادرة في نفس اليوم (1 ليلة)' : `${nights} ${nights === 1 ? 'ليلة' : 'ليالٍ'}${isOverdue ? ` + ${overdueDays} متأخرة` : ''}`)));
 
       // Monthly early checkout recorded under the contract policy: the invoice must
       // show the BOOKED nights and departure date, not the elapsed ones, and note
@@ -690,12 +724,10 @@
           ? `تم الاحتساب بالليالي الفعلية بناء على استثناء معتمد: ${escapeHtml(receiptDigits(inv.checkout_policy_reason || 'بدون سبب مذكور'))}`
           : '');
 
-      const effectiveNightlyRate = parseFloat(inv.custom_nightly_price || inv.price_per_night || 0);
       const monthlyRate = Number(inv.monthly_rate_snapshot) > 0
         ? Number(inv.monthly_rate_snapshot)
         : roundMoney(effectiveNightlyRate * 30);
       const monthlyExtensionAmount = Math.max(0, roundMoney(inv.monthly_extension_amount || 0));
-      const discount = parseFloat(inv.discount_amount || 0);
       const rawDiscountReason = String(inv.discount_reason || '').trim();
       const normalizedDiscountReason = rawDiscountReason.replace(/[إأآ]/g, 'ا').replace(/[()]/g, '').replace(/[\s-]+/g, ' ').trim();
       const displayDiscountReason = /^اقامة طويلة شهري$/.test(normalizedDiscountReason)
@@ -739,7 +771,23 @@
       };
       const formatReceiptMoney = value => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value) || 0);
       const formatReceiptDateTime = value => {
-        const raw = String(value || '');
+        const normalizedValue = receiptDigits(value).trim();
+        if (!normalizedValue) return '-';
+        const hasTime = /(\d{1,2}:\d{2})/.test(normalizedValue);
+        if (hasTime) {
+          const parsed = window.DashboardApp?.Helpers?.parseStoredTimestamp
+            ? window.DashboardApp.Helpers.parseStoredTimestamp(normalizedValue)
+            : null;
+          if (parsed && !Number.isNaN(parsed.getTime())) {
+            const y = parsed.getFullYear();
+            const m = String(parsed.getMonth() + 1).padStart(2, '0');
+            const d = String(parsed.getDate()).padStart(2, '0');
+            const hh = String(parsed.getHours()).padStart(2, '0');
+            const mm = String(parsed.getMinutes()).padStart(2, '0');
+            return `${y}-${m}-${d} ${hh}:${mm}`;
+          }
+        }
+        const raw = String(normalizedValue || '');
         const date = formatReceiptDate(raw);
         const time = formatReceiptTime(raw.replace('T', ' '));
         return time === '-' ? date : `${date} ${time}`;
@@ -900,7 +948,7 @@
               <div style="margin-top: 10px;">
                 ${isCancelled
                   ? '<span class="badge badge-cancelled" style="font-size: 0.8rem; padding: 4px 10px;">حجز ملغي</span>'
-                  : window.DashboardApp.Helpers.getPaymentStatusBadge(inv.payment_status)}
+                  : window.DashboardApp.Helpers.getPaymentStatusBadge(invoicePaymentStatusBadge)}
               </div>
             </div>
           </div>
@@ -923,7 +971,7 @@
               <div style="font-size: 0.85rem; line-height: 1.8; color: #475569;">
                 <div><strong style="color: #1e293b;">رقم الوحدة:</strong> ${escapeHtml(receiptDigits(inv.room_number))} (${escapeHtml(receiptDigits(inv.room_type || ''))})</div>
                 <div><strong style="color: #1e293b;">تاريخ الوصول:</strong> <bdi dir="ltr">${checkInReceiptDate}</bdi></div>
-<div><strong style="color: #1e293b;">تاريخ المغادرة${isMonthly ? '' : ` (${escapeHtml(invoiceDurationText)})`}:</strong> <bdi dir="ltr">${checkOutReceiptDate}</bdi></div>                ${showRegistrationDate ? `<div><strong style="color: #1e293b;">تاريخ التسجيل:</strong> <bdi dir="ltr">${registrationDate}</bdi></div>` : ''}
+<div><strong style="color: #1e293b;">تاريخ المغادرة${isMonthly ? '' : ` (${escapeHtml(invoiceDurationText)})`}:</strong> <bdi dir="ltr">${checkOutReceiptDate}</bdi> ${isOverdue ? `<span style="color: #b91c1c; font-weight: 700; font-size: 0.8rem; margin-right: 4px;">(متأخر ${overdueDays} ${overdueDays === 1 ? 'يوم' : 'أيام'})</span>` : ''}</div>                ${showRegistrationDate ? `<div><strong style="color: #1e293b;">تاريخ التسجيل:</strong> <bdi dir="ltr">${registrationDate}</bdi></div>` : ''}
                 ${inv.checkout_time && formatReceiptDate(inv.check_out_date) === checkOutReceiptDate ? `<div><strong style="color: #1e293b;">وقت المغادرة:</strong> <bdi dir="ltr">${formatReceiptTime(inv.checkout_time)}</bdi></div>` : ''}
                 ${policyNote ? `<div style="margin-top: 8px; padding: 6px 10px; border-radius: 6px; background: #eef2ff; color: #3730a3; font-size: 0.8rem; font-weight: 700;">${policyNote}</div>` : ''}
               </div>
@@ -957,10 +1005,21 @@
                         : `نوع الوحدة: ${escapeHtml(receiptDigits(inv.room_type || 'عادية'))} ${inv.custom_nightly_price ? '<span style="color: #05963d; font-weight: 700;">(سعر خاص معتمد)</span>' : ''}`}
                     </div>
                   </td>
-                    <td style="padding: 14px; text-align: center; color: #475569;">${isCancelled ? '0.00 ر.س' : `${formatReceiptMoney(shownRate)} ر.س`}</td>
-                  <td style="padding: 14px; text-align: center; font-weight: 700; color: #475569;">${isMonthly && !isActualPolicy ? 'شهر' : invoiceDurationText}</td>
-                  <td style="padding: 14px; text-align: left; font-weight: 800; color: #1e1b4b;">${formatReceiptMoney(isCancelled ? 0 : shownSubtotal)} ر.س</td>
+                  <td style="padding: 14px; text-align: center; color: #475569;">${isCancelled ? '0.00 ر.س' : `${formatReceiptMoney(shownRate)} ر.س`}</td>
+                  <td style="padding: 14px; text-align: center; font-weight: 700; color: #475569;">${isMonthly && !isActualPolicy ? 'شهر' : (isContract && isConfirmed ? `${elapsedContractNights} ليالٍ` : invoiceDurationText)}</td>
+                  <td style="padding: 14px; text-align: left; font-weight: 800; color: #1e1b4b;">${formatReceiptMoney(isCancelled ? 0 : (isContract && isConfirmed ? (elapsedContractNights * effectiveNightlyRate) : shownSubtotal))} ر.س</td>
                 </tr>
+                ${isOverdue && overdueAdditionalAmount > 0 && !isCancelled ? `
+                  <tr style="background: #fff7ed; border-bottom: 1px solid #ffedd5;">
+                    <td style="padding: 12px 14px;">
+                      <div style="font-weight: 700; color: #c2410c;">ليالٍ إضافية لتأخير المغادرة (${overdueDays} ${overdueDays === 1 ? 'ليلة متأخرة' : 'ليالٍ متأخرة'})</div>
+                      <div style="font-size: 0.75rem; color: #ea580c; margin-top: 2px;">استمرار الإقامة بعد موعد المغادرة المحدد حتى تاريخ اليوم (<bdi dir="ltr">${businessToday}</bdi>)</div>
+                    </td>
+                    <td style="padding: 12px 14px; text-align: center; color: #ea580c;">${formatReceiptMoney(effectiveNightlyRate)} ر.س</td>
+                    <td style="padding: 12px 14px; text-align: center; font-weight: 700; color: #ea580c;">${overdueDays} ${overdueDays === 1 ? 'ليلة' : 'ليالٍ'}</td>
+                    <td style="padding: 12px 14px; text-align: left; font-weight: 800; color: #c2410c;">+ ${formatReceiptMoney(overdueAdditionalAmount)} ر.س</td>
+                  </tr>
+                ` : ''}
                 ${isMonthly && monthlyExtensionAmount > 0 && !isCancelled ? `
                   <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
                     <td style="padding: 12px 14px;"><div style="font-weight: 700; color: #334155;">رسوم التمديد بالسعر اليومي</div></td>
@@ -1046,7 +1105,7 @@
               ` : ''}
               <div class="receipt-total-line receipt-total-net">
                 <span>الإجمالي الصافي:</span>
-                <span dir="ltr">${formatReceiptMoney(total)} ر.س</span>
+                <span dir="ltr">${formatReceiptMoney(total)} ر.س ${(isOverdue || (isContract && isConfirmed)) ? '<small style="color: #b91c1c; font-size: 0.72rem; font-weight: 700;">(المستحق حتى اليوم)</small>' : ''}</span>
               </div>
               ${(originalCollected > paid && refundedTotal > 0) ? `
                 <div class="receipt-total-line">
@@ -1067,7 +1126,7 @@
                 <span>${refundedTotal > 0 ? 'صافي المدفوع:' : 'المبلغ المدفوع:'}</span>
                 <span dir="ltr">${formatReceiptMoney(paid)} ر.س</span>
               </div>
-              <div class="receipt-total-line receipt-total-remaining" style="color: ${isCancelled ? '#05963d' : (isCredit ? '#1d4ed8' : (remaining > 0 ? '#dc2626' : '#05963d'))};">
+              <div class="receipt-total-line receipt-total-remaining" style="${isCredit ? 'background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 4px 8px; ' : ''}color: ${isCancelled ? '#05963d' : (isCredit ? '#1d4ed8' : (remaining > 0 ? '#dc2626' : '#05963d'))};">
                 <span>${isCancelled ? 'المبلغ المتبقي:' : (isCredit ? 'رصيد دائن للنزيل (مستحق له):' : 'المبلغ المتبقي:')}</span>
                 <span dir="ltr">${formatReceiptMoney(isCancelled ? 0 : (isCredit ? Math.abs(rawRemaining) : remaining))} ر.س</span>
               </div>
@@ -1077,7 +1136,7 @@
           <div class="receipt-signature-row ${isMonthly ? 'receipt-signature-monthly' : ''}" dir="rtl">
             ${isMonthly ? `<div class="receipt-signature-cell"><strong>ختم المؤسسة</strong><img class="receipt-seal" src="assets/seal.svg" alt="الختم" onerror="this.style.display='none'"></div>` : ''}
             <div class="receipt-signature-cell"><strong>توقيع الموظف</strong><div class="receipt-signature-line receipt-staff-signature-line">${isMonthly ? '<img src="assets/signature.svg" alt="التوقيع" onerror="this.style.display=\'none\'">' : ''}</div></div>
-            <div class="receipt-signature-cell receipt-receiver-signature"><strong>توقيع المستأجر</strong><div class="receipt-signature-line"></div><small>بتوقيعي أقر بالاطلاع على الشروط أعلاه والموافقة عليها.</small></div>
+            <div class="receipt-signature-cell receipt-receiver-signature"><strong>${isMonthly ? 'توقيع المستأجر' : 'توقيع المستلم'}</strong><div class="receipt-signature-line"></div><small>بتوقيعي أقر بالاطلاع على الشروط أعلاه والموافقة عليها.</small></div>
           </div>
 
           ${invoiceDepositMovements.length ? `

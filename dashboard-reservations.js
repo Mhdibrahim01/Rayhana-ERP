@@ -1486,23 +1486,45 @@
       const isContract = r.booking_type === 'عقد مفتوح';
       const isLateCheckout = App.Helpers.isLateCheckout(r);
       const total = parseFloat(r.total_price || 0);
-      const paid = parseFloat((r.status === 'ملغي جزئي' && r.payment_status === 'مدفوع جزئياً' ? r.ledger_paid_amount : r.paid_amount) || 0);
+      const paid = parseFloat((r.ledger_paid_amount ?? r.paid_amount) || 0);
       const deposit = parseFloat(r.deposit_ledger_balance || 0);
       const legacyDeposit = Number(r.deposit_legacy_unreconciled || 0) === 1 ? parseFloat(r.deposit_amount || 0) : 0;
-      const rawRemaining = total - paid;
-      const isCredit = rawRemaining < -0.005;
-      const remaining = isContract ? rawRemaining : Math.max(0, rawRemaining);
-      const canCollectBalance = isConfirmed || r.status === 'ملغي جزئي' || (r.status === 'مكتمل' && remaining > 0.005);
-      const fmtTotal = total.toLocaleString();
-      const fmtPaid = paid.toLocaleString();
-      const fmtRem = remaining.toLocaleString();
-      const fmtDep = deposit.toLocaleString();
       const typeBadge = getBookingTypeBadge(r.booking_type);
       const checkOutDisplay = r.check_out_date || (isContract ? 'مفتوح (غير محدد)' : '-');
       const overdueDate = String(r.check_out_date || '').slice(0, 10);
+      const businessToday = window.DashboardApp.State.businessDate || getLocalDateString();
       const overdueDays = overdueDate
-        ? Math.max(0, Math.floor((Date.parse(`${getLocalDateString()}T00:00:00Z`) - Date.parse(`${overdueDate}T00:00:00Z`)) / 86400000))
+        ? Math.max(0, Math.floor((Date.parse(`${businessToday}T00:00:00Z`) - Date.parse(`${overdueDate}T00:00:00Z`)) / 86400000))
         : 0;
+      const isOverdue = isConfirmed && !isContract && overdueDays > 0;
+      const nightlyRate = parseFloat(r.custom_nightly_price || r.price_per_night || 0);
+
+      // Accrued calculation for overdue active stays and open contracts:
+      let effectiveTotal = total;
+      let elapsedStayNights = 0;
+      if (isConfirmed && (isOverdue || isContract) && nightlyRate > 0 && r.check_in_date) {
+        const startParts = String(r.check_in_date).slice(0, 10).split('-').map(Number);
+        const endParts = businessToday.slice(0, 10).split('-').map(Number);
+        elapsedStayNights = Math.max(1, Math.round((Date.UTC(endParts[0], endParts[1] - 1, endParts[2]) - Date.UTC(startParts[0], startParts[1] - 1, startParts[2])) / 86400000));
+        const runningTotal = Math.max(0, Math.round((elapsedStayNights * nightlyRate - parseFloat(r.discount_amount || 0)) * 100) / 100);
+        effectiveTotal = Math.max(total, runningTotal);
+      }
+
+      const effectiveRawRemaining = effectiveTotal - paid;
+      const isCredit = effectiveRawRemaining < -0.005;
+      const remaining = Math.max(0, effectiveRawRemaining);
+      const canCollectBalance = isConfirmed || r.status === 'ملغي جزئي' || (r.status === 'مكتمل' && remaining > 0.005);
+      const fmtTotal = total.toLocaleString();
+      const fmtEffTotal = effectiveTotal.toLocaleString();
+      const fmtPaid = paid.toLocaleString();
+      const fmtRem = remaining.toLocaleString();
+      const fmtDep = deposit.toLocaleString();
+      let paymentStatusForDisplay;
+      if (isContract || isOverdue) {
+        paymentStatusForDisplay = isCredit ? 'رصيد دائن' : (remaining <= 0.005 ? 'مدفوع بالكامل' : (paid > 0 ? 'مدفوع جزئياً' : 'غير مدفوع'));
+      } else {
+        paymentStatusForDisplay = isCredit ? 'مدفوع بالكامل' : (r.payment_status || 'غير مدفوع');
+      }
       const overdueLabel = overdueDays === 0 ? 'متأخر اليوم'
         : overdueDays === 1 ? 'متأخر يوم'
           : overdueDays === 2 ? 'متأخر يومين'
@@ -1545,18 +1567,23 @@
             </div>
           </td>
           <td style="white-space: nowrap; line-height: 1.2;">
-            <div style="font-weight: 800; color: #1e293b; font-size: 0.88rem; line-height: 1.2;">${fmtTotal} ريال</div>
+            ${(isOverdue || isContract) && effectiveTotal > total ? `
+              <div style="font-weight: 800; color: #1e293b; font-size: 0.88rem; line-height: 1.2;">${fmtEffTotal} ريال <small style="color: #b91c1c; font-size: 0.70rem; font-weight: 700;">(مستحق حتى اليوم)</small></div>
+              <div style="font-size: 0.70rem; color: #64748b; font-weight: 600; line-height: 1.2; margin-top: 1px;">${isContract ? `عقد مفتوح (${elapsedStayNights} ليالٍ)` : `أصل الحجز: ${fmtTotal} ريال (${overdueDays} ليالٍ متأخرة)`}</div>
+            ` : `
+              <div style="font-weight: 800; color: #1e293b; font-size: 0.88rem; line-height: 1.2;">${fmtTotal} ريال</div>
+            `}
             ${r.original_calculated_charge != null ? `<div style="font-size: 0.70rem; color: #64748b; font-weight: 600; line-height: 1.2; margin-top: 2px;" title="المبلغ الأصلي قبل تعديل الإدارة">معدل يدوياً (أصلي: ${parseFloat(r.original_calculated_charge).toLocaleString()} ريال)</div>` : ''}
             ${parseFloat(r.discount_amount || 0) > 0 ? `<div style="font-size: 0.70rem; color: #b91c1c; font-weight: 700; line-height: 1.2; margin-top: 2px;">خصم: ${parseFloat(r.discount_amount).toLocaleString()} ريال ${r.discount_reason ? `(${escapeHtml(r.discount_reason)})` : ''}</div>` : ''}
             <div style="font-size: 0.74rem; color: #05963d; font-weight: 600; line-height: 1.2; margin-top: 2px;">مدفوع: ${fmtPaid}</div>
-            ${isCredit ? `<div style="font-size: 0.72rem; color: #2563eb; font-weight: 800; line-height: 1.2; margin-top: 2px;">رصيد دائن: ${Math.abs(rawRemaining).toLocaleString()} ريال</div>` : (remaining > 0 ? `<div style="font-size: 0.72rem; color: #dc2626; font-weight: 700; line-height: 1.2; margin-top: 2px;">متبقي: ${fmtRem}</div>` : '')}
+            ${isCredit ? `<div style="font-size: 0.72rem; color: #2563eb; font-weight: 800; line-height: 1.2; margin-top: 2px;">رصيد دائن: ${Math.abs(effectiveRawRemaining).toLocaleString()} ريال</div>` : (remaining > 0 ? `<div style="font-size: 0.72rem; color: #dc2626; font-weight: 700; line-height: 1.2; margin-top: 2px;">متبقي: ${fmtRem} ريال ${(isOverdue || isContract) ? '<small>(حتى اليوم)</small>' : ''}</div>` : '')}
             ${deposit > 0 ? `<div style="font-size: 0.70rem; color: #4338ca; line-height: 1.2; margin-top: 2px;">تأمين مسجل: ${fmtDep}</div>` : ''}
             ${legacyDeposit > 0 ? `<div style="font-size: 0.70rem; color: #9a3412; line-height: 1.2; margin-top: 2px;">تأمين قديم للمراجعة: ${legacyDeposit.toLocaleString()}</div>` : ''}
           </td>
           <td>
             <div class="reservation-payment-details">
               <span class="badge" style="background: rgba(0,0,0,0.04); color: #334155; border: 1px solid #cbd5e1; font-weight: 600;">${escapeHtml(r.payment_method || 'نقداً')}</span>
-              <div>${getPaymentStatusBadge(r.payment_status)}</div>
+              <div>${getPaymentStatusBadge(paymentStatusForDisplay)}</div>
             </div>
           </td>
           <td class="reservation-status-cell">
@@ -1810,10 +1837,27 @@
 
     currentPayingReservation = res;
     const isContract = res.booking_type === 'عقد مفتوح';
+    const businessToday = window.DashboardApp.State.businessDate || getLocalDateString();
+    const checkOutDateStr = String(res.check_out_date || '').slice(0, 10);
+    const isOverdue = res.status === 'مؤكد' && !isContract && checkOutDateStr && checkOutDateStr < businessToday;
     const total = roundMoney(res.total_price || 0);
+    let effectiveTotal = total;
+    let elapsedContractNights = 0;
+    if (res.check_in_date && (isOverdue || (isContract && res.status === 'مؤكد'))) {
+      const nightlyRate = Number(res.custom_nightly_price || res.price_per_night || 0);
+      if (nightlyRate > 0) {
+        const startParts = String(res.check_in_date).slice(0, 10).split('-').map(Number);
+        const endParts = businessToday.slice(0, 10).split('-').map(Number);
+        const elapsedNights = Math.max(1, Math.round((Date.UTC(endParts[0], endParts[1] - 1, endParts[2]) - Date.UTC(startParts[0], startParts[1] - 1, startParts[2])) / 86400000));
+        elapsedContractNights = elapsedNights;
+        const runningTotal = Math.max(0, Math.round((elapsedNights * nightlyRate - Number(res.discount_amount || 0)) * 100) / 100);
+        effectiveTotal = Math.max(total, runningTotal);
+      }
+    }
     const paid = getReservationPaidForPayments(res);
-    const rawRemaining = roundMoney(total - paid);
-    const remaining = isContract ? rawRemaining : Math.max(0, rawRemaining);
+    const effectiveRawRemaining = roundMoney(effectiveTotal - paid);
+    const isCredit = effectiveRawRemaining < -0.005;
+    const remaining = Math.max(0, effectiveRawRemaining);
 
     const inputResId = document.getElementById('payment-reservation-id');
     const nameEl = document.getElementById('payment-modal-guest-name');
@@ -1825,12 +1869,18 @@
 
     if (inputResId) inputResId.value = res.id;
     if (nameEl) nameEl.textContent = res.guest_name || 'نزيل';
-    if (roomEl) roomEl.textContent = `حجز #${res.id} - غرفة ${res.room_number || '-'}${isContract ? ' (عقد مفتوح)' : ''}`;
-    if (totalEl) totalEl.textContent = `${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ريال`;
+    if (roomEl) roomEl.textContent = `حجز #${res.id} - غرفة ${res.room_number || '-'}${isContract ? ' (عقد مفتوح)' : ''}${isOverdue ? ' (متأخر عن المغادرة)' : ''}`;
+    if (totalEl) {
+      if ((isOverdue || isContract) && effectiveTotal > total) {
+        totalEl.innerHTML = `${effectiveTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ريال <small style="color: #b91c1c; font-size: 0.75rem; font-weight: 700;">(${isContract ? `المستحق حتى اليوم (${elapsedContractNights} ليالٍ)` : 'المستحق حتى اليوم مع التأخير'})</small>`;
+      } else {
+        totalEl.textContent = `${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ريال`;
+      }
+    }
     if (paidEl) paidEl.textContent = `${paid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ريال`;
     if (remEl) {
-      if (isContract && remaining < -0.005) {
-        remEl.textContent = `رصيد دائن: ${Math.abs(remaining).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ريال`;
+      if (isCredit) {
+        remEl.textContent = `رصيد دائن: ${Math.abs(effectiveRawRemaining).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ريال`;
         remEl.style.color = '#2563eb';
       } else {
         remEl.textContent = `${remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ريال`;
@@ -1839,7 +1889,7 @@
     }
 
     if (inputAmount) {
-      if (isContract) {
+      if (isContract || isOverdue) {
         inputAmount.value = remaining > 0 ? remaining.toFixed(2) : '';
         inputAmount.removeAttribute('max');
       } else {

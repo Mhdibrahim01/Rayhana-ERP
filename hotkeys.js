@@ -226,13 +226,13 @@
     syncOpenModals();
   }
 
-  function init() {
+  function initHotkeys() {
     if (window.__rayhanaFrontDeskHotkeysInitialized) return;
     window.__rayhanaFrontDeskHotkeysInitialized = true;
     document.addEventListener('keydown', handleKeydown, true);
     observeModalOpenings();
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
-  else init();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initHotkeys, { once: true });
+  else initHotkeys();
 })();

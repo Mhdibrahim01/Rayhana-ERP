@@ -132,6 +132,17 @@ test('monthly receipt header: renderer data layer', async t => {
         'timestamps that already include UTC remain unchanged'
       );
     });
+
+    await t.test('dashboard.js formatReceiptDateTime converts SQLite UTC timestamps to local time', () => {
+      const fs = require('node:fs');
+      const path = require('node:path');
+      const dashboardSrc = fs.readFileSync(path.join(__dirname, '../dashboard.js'), 'utf8');
+
+      assert.ok(
+        dashboardSrc.includes('parseStoredTimestamp(normalizedValue)'),
+        'formatReceiptDateTime must use parseStoredTimestamp to convert UTC to local time'
+      );
+    });
   });
 });
 
