@@ -309,6 +309,21 @@
   justify-content: center;
   gap: 4px;
 }
+#view-reservations .reservation-actions-list-late {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+#view-reservations .reservation-actions-list-late .btn-row {
+  flex: 0 0 36px;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+}
 #view-reservations .reservation-actions-list .btn-row {
   flex: 0 0 36px;
   width: 36px;
