@@ -121,7 +121,7 @@ window.DashboardApp = {
     } else if (type === 'حجز شهري') {
       return `<span class="badge" style="background: rgba(168, 85, 247, 0.12); color: #9333ea; border: 1px solid rgba(168, 85, 247, 0.3); font-size: 0.72rem; font-weight: 800; padding: 2px 7px;">حجز شهري 📅</span>`;
     } else if (type === 'استخدام يومي') {
-      return `<span class="badge" style="background: rgba(16, 185, 129, 0.12); color: #047857; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; font-weight: 800; padding: 2px 7px;">استخدام يومي ☀️</span>`;
+      return `<span class="badge" style="background: rgba(16, 185, 81, 0.12); color: #047831; border: 1px solid rgba(16, 185, 81, 0.3); font-size: 0.72rem; font-weight: 800; padding: 2px 7px;">استخدام يومي ☀️</span>`;
     }
     return '';
   }

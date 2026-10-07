@@ -236,11 +236,11 @@
             label: 'نسبة الإشغال المتوقعة',
             data: forecast.map(item => item.occupancyRate),
             yAxisID: 'occupancy',
-            borderColor: '#1a4332',
+            borderColor: '#1a432a',
             borderWidth: 2.5,
             pointRadius: 4,
             pointHoverRadius: 6,
-            pointBackgroundColor: forecast.map(item => item.isHighDemand ? '#a67c52' : '#1a4332'),
+            pointBackgroundColor: forecast.map(item => item.isHighDemand ? '#a67c52' : '#1a432a'),
             pointBorderColor: '#ffffff',
             pointBorderWidth: 2,
             tension: 0.38,
@@ -248,10 +248,10 @@
             backgroundColor: context => {
               const { chart } = context;
               const { ctx, chartArea } = chart;
-              if (!chartArea) return 'rgba(26, 67, 50, 0.12)';
+              if (!chartArea) return 'rgba(26, 67, 42, 0.12)';
               const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-              gradient.addColorStop(0, 'rgba(26, 67, 50, 0.30)');
-              gradient.addColorStop(1, 'rgba(26, 67, 50, 0.015)');
+              gradient.addColorStop(0, 'rgba(26, 67, 42, 0.30)');
+              gradient.addColorStop(1, 'rgba(26, 67, 42, 0.015)');
               return gradient;
             },
             order: 1

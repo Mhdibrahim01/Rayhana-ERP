@@ -635,7 +635,7 @@
     if (App.DOM.roomRevenueContent) {
       App.DOM.roomRevenueContent.innerHTML = `
         <div style="text-align: center; padding: 40px; color: #64748b;">
-          <div class="spinner" style="margin: 0 auto 16px; border: 3px solid #cbd5e1; border-top: 3px solid #1a4332; border-radius: 50%; width: 32px; height: 32px; animation: spin 1s linear infinite;"></div>
+          <div class="spinner" style="margin: 0 auto 16px; border: 3px solid #cbd5e1; border-top: 3px solid #1a432a; border-radius: 50%; width: 32px; height: 32px; animation: spin 1s linear infinite;"></div>
           جاري استخراج تقرير إيرادات وحجوزات الغرفة...
         </div>
       `;
@@ -672,7 +672,7 @@
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
             <div>
               <div style="display: flex; align-items: center; gap: 10px;">
-                <h3 style="margin: 0; font-size: 1.4rem; font-weight: 900; color: #1a4332;">غرفة ${App.Helpers.escapeHtml(room.room_number)}</h3>
+                <h3 style="margin: 0; font-size: 1.4rem; font-weight: 900; color: #1a432a;">غرفة ${App.Helpers.escapeHtml(room.room_number)}</h3>
                 <span style="font-size: 0.85rem; color: #64748b; font-weight: 600;">${App.Helpers.escapeHtml(room.type)}</span>
                 ${App.Helpers.getRoomStatusBadge(room.status)}
               </div>
@@ -696,9 +696,9 @@
               </div>
             </div>
 
-            <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 14px; text-align: center;">
-              <div style="font-size: 0.8rem; color: #047857; font-weight: 700;">محصّل فعلياً</div>
-              <div style="font-size: 1.35rem; font-weight: 900; color: #065f46; margin-top: 4px;">
+            <div style="background: #ecfdf3; border: 1px solid #a7f3c4; border-radius: 8px; padding: 14px; text-align: center;">
+              <div style="font-size: 0.8rem; color: #047831; font-weight: 700;">محصّل فعلياً</div>
+              <div style="font-size: 1.35rem; font-weight: 900; color: #065f28; margin-top: 4px;">
                 ${totalCollected.toLocaleString()} <span style="font-size: 0.75rem;">ريال</span>
               </div>
             </div>
@@ -752,7 +752,7 @@
                         <td style="padding: 9px 12px; text-align: center; font-family: monospace; color: #334155;">${App.Helpers.escapeHtml(r.check_in_date || '-')}</td>
                         <td style="padding: 9px 12px; text-align: center; font-family: monospace; color: #334155;">${checkOutDisplay}</td>
                         <td style="padding: 9px 12px; text-align: left; font-weight: 700; color: #1e1b4b;">${price.toLocaleString()} ريال</td>
-                        <td style="padding: 9px 12px; text-align: left; font-weight: 700; color: #059669;">${collected.toLocaleString()} ريال</td>
+                        <td style="padding: 9px 12px; text-align: left; font-weight: 700; color: #05963d;">${collected.toLocaleString()} ريال</td>
                         <td style="padding: 9px 12px; text-align: left; font-weight: 700; color: ${isCredit ? '#2563eb' : (remaining > 0 ? '#dc2626' : '#64748b')};">
                           ${isCredit ? `له رصيد: ${Math.abs(rawRemaining).toLocaleString()} ريال` : (remaining > 0 ? `${remaining.toLocaleString()} ريال` : '0 ريال')}
                         </td>

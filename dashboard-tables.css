@@ -39,18 +39,18 @@
 }
 
 .btn-row.primary {
-  border-color: #1a4332;
-  background: #1a4332;
+  border-color: #1a432a;
+  background: #1a432a;
   color: #fff;
 }
-.btn-row.primary:hover { border-color: #0f281e; background: #0f281e; }
+.btn-row.primary:hover { border-color: #0f2819; background: #0f2819; }
 
 .btn-row.secondary {
   border-color: #dbe3ed;
   background: #fff;
   color: #334155;
 }
-.btn-row.secondary:hover { border-color: #b8c9c1; background: #f8fafc; }
+.btn-row.secondary:hover { border-color: #b8c9bf; background: #f8fafc; }
 
 .btn-row.icon-ghost {
   width: 36px;
@@ -60,10 +60,10 @@
   background: #fff;
   color: #475569;
 }
-.btn-row.icon-ghost:hover { border-color: #cbd5e1; background: #f8fafc; color: #1a4332; }
+.btn-row.icon-ghost:hover { border-color: #cbd5e1; background: #f8fafc; color: #1a432a; }
 
 .btn-row:focus-visible {
-  outline: 2px solid rgba(16, 185, 129, .65);
+  outline: 2px solid rgba(16, 185, 81, .65);
   outline-offset: 2px;
 }
 
@@ -84,7 +84,7 @@
   white-space: nowrap;
 }
 
-.status-badge.success { border-color: #a7f3d0; background: #ecfdf5; color: #047857; }
+.status-badge.success { border-color: #a7f3c4; background: #ecfdf3; color: #047831; }
 .status-badge.warning { border-color: #fde68a; background: #fffbeb; color: #a16207; }
 .status-badge.danger { border-color: #fecdd3; background: #fff1f2; color: #be123c; }
 .status-badge.neutral { border-color: #e2e8f0; background: #f8fafc; color: #475569; }
@@ -135,10 +135,10 @@
   display: inline-flex;
   align-items: center;
   padding: 4px 8px;
-  border: 1px solid #a7f3d0;
+  border: 1px solid #a7f3c4;
   border-radius: 8px;
-  background: #ecfdf5;
-  color: #1a4332;
+  background: #ecfdf3;
+  color: #1a432a;
   font-size: 13px;
   font-weight: 800;
 }
@@ -159,7 +159,7 @@
 }
 #widget-today-checkouts .checkout-phone,
 #widget-today-checkouts .checkout-date-cell { color: #64748b; font-size: 12px; }
-#widget-today-checkouts .checkout-money-cell { color: #1a4332; font-size: 13px; font-weight: 800; white-space: nowrap; }
+#widget-today-checkouts .checkout-money-cell { color: #1a432a; font-size: 13px; font-weight: 800; white-space: nowrap; }
 #widget-today-checkouts .checkout-balance-cell,
 #widget-today-checkouts .checkouts-status-stack {
   display: flex;
@@ -259,7 +259,7 @@
 }
 #widget-recent-bookings .overview-booking-guest-meta > small { direction: ltr; }
 #widget-recent-bookings .overview-booking-guest-meta .badge { margin: 0; }
-#widget-recent-bookings .overview-booking-room { color: #1a4332; font-weight: 800; white-space: nowrap; }
+#widget-recent-bookings .overview-booking-room { color: #1a432a; font-weight: 800; white-space: nowrap; }
 #widget-recent-bookings .overview-booking-date { color: #475569; font-size: 13px; }
 #widget-recent-bookings .overview-booking-date .table-date { direction: ltr; text-align: right; }
 #widget-recent-bookings .overview-booking-financial,
@@ -442,7 +442,7 @@
 #view-overview .overview-table-tabs .overview-table-tab.active {
   border-color: #e2e8f0;
   background: #fff;
-  color: #1a4332;
+  color: #1a432a;
   box-shadow: 0 1px 3px rgba(15, 23, 42, .08);
 }
 #view-overview .overview-table-tab-count {
@@ -453,8 +453,8 @@
   justify-content: center;
   padding: 0 5px;
   border-radius: 999px;
-  background: #d1fae5;
-  color: #047857;
+  background: #d1fae1;
+  color: #047831;
   font-size: 11px;
   font-weight: 800;
   line-height: 1;
@@ -468,16 +468,16 @@
   padding: 0 9px;
   border: 0;
   background: transparent;
-  color: #1a4332;
+  color: #1a432a;
   font-family: inherit;
   font-size: 13px;
   font-weight: 700;
   line-height: 1.2;
   cursor: pointer;
 }
-#view-overview .overview-table-full-link:hover { color: #0f281e; text-decoration: underline; }
+#view-overview .overview-table-full-link:hover { color: #0f2819; text-decoration: underline; }
 #view-overview .overview-table-full-link:focus-visible,
-#view-overview .overview-table-tab:focus-visible { outline: 2px solid rgba(16, 185, 129, .65); outline-offset: 2px; }
+#view-overview .overview-table-tab:focus-visible { outline: 2px solid rgba(16, 185, 81, .65); outline-offset: 2px; }
 #view-overview .overview-table-panel {
   margin-top: 0;
   border: 1px solid #dbe4ed;
@@ -543,7 +543,7 @@
 #widget-today-checkouts .today-checkouts-table th:last-child,
 #widget-today-checkouts .today-checkouts-table td:last-child { width: 17%; }
 #widget-today-checkouts .today-checkouts-table td.checkout-money-cell { white-space: normal; text-align: center; }
-#widget-today-checkouts .checkout-money-cell > strong { display: block; color: #1a4332; font-weight: 800; white-space: nowrap; }
+#widget-today-checkouts .checkout-money-cell > strong { display: block; color: #1a432a; font-weight: 800; white-space: nowrap; }
 #widget-today-checkouts .checkout-money-cell > small { display: block; margin-top: 2px; color: #64748b; font-size: 11px; line-height: 1.25; white-space: nowrap; }
 #widget-today-checkouts .checkout-money-cell > .checkout-balance-due { color: #be123c; font-weight: 700; }
 #widget-today-checkouts .checkout-money-cell > .checkout-balance-settled { color: #64748b; }
@@ -573,7 +573,7 @@
 #widget-recent-bookings .recent-bookings-table th:nth-child(7) { width: 9%; }
 #widget-recent-bookings .recent-bookings-table th:nth-child(8) { width: 16%; text-align: center; }
 #widget-recent-bookings .overview-booking-number-cell { direction: ltr; text-align: right; }
-#widget-recent-bookings .overview-booking-number { color: #1a4332; font-size: 12px; font-weight: 800; white-space: nowrap; }
+#widget-recent-bookings .overview-booking-number { color: #1a432a; font-size: 12px; font-weight: 800; white-space: nowrap; }
 #widget-recent-bookings .overview-booking-guest-name { font-size: 13px; }
 #widget-recent-bookings .overview-booking-guest-phone,
 #widget-recent-bookings .overview-booking-room-type,
@@ -594,7 +594,7 @@
 #widget-recent-bookings .overview-date-line bdi { color: #334155; font-size: 12px; }
 #widget-recent-bookings .overview-booking-date .table-date { font-size: 12px; }
 #widget-recent-bookings .overview-date-separator { display: block; margin: 2px 0; color: #94a3b8; font-size: 10px; }
-#widget-recent-bookings .overview-open-contract { color: #1a4332; font-size: 12px; }
+#widget-recent-bookings .overview-open-contract { color: #1a432a; font-size: 12px; }
 #widget-recent-bookings .overview-booking-financial { text-align: center; }
 #widget-recent-bookings .overview-booking-method { text-align: center; }
 #widget-recent-bookings .overview-booking-status { text-align: center; }
@@ -605,9 +605,9 @@
 
 /* Give operational actions distinct semantic colors without changing their shape. */
 :is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) [data-action="invoice"] {
-  border-color: #a7f3d0 !important;
-  background: #ecfdf5 !important;
-  color: #047857 !important;
+  border-color: #a7f3c4 !important;
+  background: #ecfdf3 !important;
+  color: #047831 !important;
 }
 :is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) [data-action="extend"] {
   border-color: #fed7aa !important;
@@ -630,21 +630,21 @@
   color: #fff !important;
 }
 :is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) [data-action="whatsapp"] {
-  border-color: #86efac !important;
-  background: #f0fdf4 !important;
-  color: #16a34a !important;
+  border-color: #86efaf !important;
+  background: #f0fdf5 !important;
+  color: #16a34d !important;
 }
 :is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) [data-action="cancel"] {
   border-color: #fecaca !important;
   background: #fef2f2 !important;
   color: #dc2626 !important;
 }
-:is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) [data-action="invoice"]:hover { background: #d1fae5 !important; }
+:is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) [data-action="invoice"]:hover { background: #d1fae1 !important; }
 :is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) [data-action="extend"]:hover { background: #ffedd5 !important; }
 :is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) [data-action="preview-reservation"]:hover { background: #e0e7ff !important; }
 :is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) [data-action="checkout"]:hover { background: #be123c !important; }
 :is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) [data-action="add-payment"]:hover { background: #8b6845 !important; }
-:is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) [data-action="whatsapp"]:hover { background: #dcfce7 !important; }
+:is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) [data-action="whatsapp"]:hover { background: #dcfce8 !important; }
 :is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) [data-action="cancel"]:hover { background: #fee2e2 !important; }
 
 .action-hover-tooltip {
@@ -718,10 +718,10 @@
 #view-overview .monthly-revenue-current {
   flex: 0 0 auto;
   padding: 6px 10px;
-  border: 1px solid #a7f3d0;
+  border: 1px solid #a7f3c4;
   border-radius: 9px;
-  background: #ecfdf5;
-  color: #047857;
+  background: #ecfdf3;
+  color: #047831;
   font-size: 12px;
   font-weight: 800;
   direction: rtl;
@@ -766,8 +766,8 @@
   filter: saturate(1.25);
 }
 #view-overview .monthly-revenue-bar.is-current .monthly-revenue-fill {
-  background: linear-gradient(to top, #1a4332, #2d5a45);
-  box-shadow: 0 2px 8px rgba(26, 67, 50, .16);
+  background: linear-gradient(to top, #1a432a, #2d5a3e);
+  box-shadow: 0 2px 8px rgba(26, 67, 42, .16);
 }
 #view-overview .monthly-revenue-month {
   margin-top: 8px;
@@ -776,7 +776,7 @@
   font-weight: 800;
   white-space: nowrap;
 }
-#view-overview .monthly-revenue-bar.is-current .monthly-revenue-month { color: #1a4332; }
+#view-overview .monthly-revenue-bar.is-current .monthly-revenue-month { color: #1a432a; }
 #view-overview .monthly-revenue-value {
   position: absolute;
   z-index: 1;
@@ -813,11 +813,11 @@
   height: 10px;
   flex: 0 0 10px;
   border-radius: 50%;
-  background: #10b981;
+  background: #10b951;
 }
 #view-overview .room-status-meter-label bdi { color: #475569; white-space: nowrap; }
 #view-overview .room-status-meter-track { height: 10px; overflow: hidden; border-radius: 999px; background: #f1f5f9; }
-#view-overview .room-status-meter-track > span { display: block; height: 100%; border-radius: inherit; background: #10b981; transition: width .45s ease; }
+#view-overview .room-status-meter-track > span { display: block; height: 100%; border-radius: inherit; background: #10b951; transition: width .45s ease; }
 #view-overview .room-status-meter-occupied .room-status-meter-label i,
 #view-overview .room-status-meter-occupied .room-status-meter-track > span { background: #f43f5e; }
 #view-overview .room-status-meter-cleaning .room-status-meter-label i,
@@ -837,7 +837,7 @@
   font-size: 12px;
   font-weight: 700;
 }
-#view-overview .room-status-readiness strong { color: #047857; font-size: 14px; }
+#view-overview .room-status-readiness strong { color: #047831; font-size: 14px; }
 
 @media (max-width: 900px) {
   #view-overview .overview-table-tabs { flex-wrap: wrap; }

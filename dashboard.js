@@ -379,13 +379,13 @@
           }
         } else {
           btnConfirm.className = 'btn btn-primary';
-          btnConfirm.style.background = 'var(--primary-accent, #1a4332)';
+          btnConfirm.style.background = 'var(--primary-accent, #1a432a)';
           btnConfirm.style.color = '#ffffff';
           btnConfirm.style.border = 'none';
           if (iconContainer) {
-            iconContainer.style.background = 'rgba(26, 67, 50, 0.12)';
-            iconContainer.style.color = 'var(--primary-accent, #1a4332)';
-            iconContainer.style.borderColor = 'rgba(26, 67, 50, 0.25)';
+            iconContainer.style.background = 'rgba(26, 67, 42, 0.12)';
+            iconContainer.style.color = 'var(--primary-accent, #1a432a)';
+            iconContainer.style.borderColor = 'rgba(26, 67, 42, 0.25)';
           }
         }
       }
@@ -791,7 +791,7 @@
           .receipt-total-line>span:last-child{color:#1e293b;font-weight:700;white-space:nowrap}
           .receipt-total-discount{padding:3px 5px;border-radius:5px;background:#f1f5f9;color:#334155}
           .receipt-total-net{padding-top:5px;border-top:1px solid #e2e8f0;color:#0f172a;font-weight:800}
-          .receipt-total-paid{color:#047857;font-weight:700}
+          .receipt-total-paid{color:#047831;font-weight:700}
           .receipt-total-remaining{padding:6px 5px 0;border-top:1px dashed #cbd5e1;font-weight:800}
           .receipt-signature-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;text-align:center;break-inside:avoid;page-break-inside:avoid}
           .receipt-signature-monthly{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -933,7 +933,7 @@
                     <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">
                       ${isCancelled
                         ? '<span style="color: #dc2626; font-weight: 700;">(تم إبطال / إلغاء هذا الحجز بالكامل ولا توجد رسوم إقامة مستحقة)</span>'
-                        : `نوع الوحدة: ${escapeHtml(receiptDigits(inv.room_type || 'عادية'))} ${inv.custom_nightly_price ? '<span style="color: #059669; font-weight: 700;">(سعر خاص معتمد)</span>' : ''}`}
+                        : `نوع الوحدة: ${escapeHtml(receiptDigits(inv.room_type || 'عادية'))} ${inv.custom_nightly_price ? '<span style="color: #05963d; font-weight: 700;">(سعر خاص معتمد)</span>' : ''}`}
                     </div>
                   </td>
                     <td style="padding: 14px; text-align: center; color: #475569;">${isCancelled ? '0.00 ر.س' : `${formatReceiptMoney(effectiveNightlyRate)} ر.س`}</td>
@@ -1038,7 +1038,7 @@
                 <span>${refundedTotal > 0 ? 'صافي المدفوع:' : 'المبلغ المدفوع:'}</span>
                 <span dir="ltr">${formatReceiptMoney(paid)} ر.س</span>
               </div>
-              <div class="receipt-total-line receipt-total-remaining" style="color: ${isCancelled ? '#059669' : (isCredit ? '#1d4ed8' : (remaining > 0 ? '#dc2626' : '#059669'))};">
+              <div class="receipt-total-line receipt-total-remaining" style="color: ${isCancelled ? '#05963d' : (isCredit ? '#1d4ed8' : (remaining > 0 ? '#dc2626' : '#05963d'))};">
                 <span>${isCancelled ? 'المبلغ المتبقي:' : (isCredit ? 'رصيد دائن للنزيل (مستحق له):' : 'المبلغ المتبقي:')}</span>
                 <span dir="ltr">${formatReceiptMoney(isCancelled ? 0 : (isCredit ? Math.abs(rawRemaining) : remaining))} ر.س</span>
               </div>
@@ -1134,7 +1134,7 @@
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
           <span style="font-weight: 700; font-size: 0.85rem; color: #94a3b8;">فترة التقرير:</span>
           <div class="audit-preset-pills" style="display: inline-flex; gap: 4px; background: rgba(0,0,0,0.3); padding: 4px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
-            <button type="button" class="btn-audit-preset" data-preset="today" style="border: none; background: #1a4332; color: #a7f3d0; padding: 6px 14px; border-radius: 6px; font-weight: 800; font-size: 0.82rem; cursor: pointer; transition: all 0.15s;">اليوم</button>
+            <button type="button" class="btn-audit-preset" data-preset="today" style="border: none; background: #1a432a; color: #a7f3c4; padding: 6px 14px; border-radius: 6px; font-weight: 800; font-size: 0.82rem; cursor: pointer; transition: all 0.15s;">اليوم</button>
             <button type="button" class="btn-audit-preset" data-preset="week" style="border: none; background: transparent; color: #cbd5e1; padding: 6px 14px; border-radius: 6px; font-weight: 600; font-size: 0.82rem; cursor: pointer; transition: all 0.15s;">هذا الأسبوع</button>
             <button type="button" class="btn-audit-preset" data-preset="month" style="border: none; background: transparent; color: #cbd5e1; padding: 6px 14px; border-radius: 6px; font-weight: 600; font-size: 0.82rem; cursor: pointer; transition: all 0.15s;">هذا الشهر</button>
             <button type="button" class="btn-audit-preset" data-preset="quarter" style="border: none; background: transparent; color: #cbd5e1; padding: 6px 14px; border-radius: 6px; font-weight: 600; font-size: 0.82rem; cursor: pointer; transition: all 0.15s;">هذا الربع</button>
@@ -1146,7 +1146,7 @@
           <input type="date" id="shift-audit-custom-start" style="padding: 5px 8px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: white; font-size: 0.82rem; font-family: monospace;">
           <span style="font-size: 0.8rem; color: #cbd5e1;">إلى:</span>
           <input type="date" id="shift-audit-custom-end" style="padding: 5px 8px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: white; font-size: 0.82rem; font-family: monospace;">
-          <button type="button" id="btn-apply-audit-custom" class="btn btn-sm" style="background: #1a4332; color: #a7f3d0; border: 1px solid #34d399; font-weight: 800; padding: 5px 12px; border-radius: 6px; cursor: pointer;">تطبيق</button>
+          <button type="button" id="btn-apply-audit-custom" class="btn btn-sm" style="background: #1a432a; color: #a7f3c4; border: 1px solid #34d372; font-weight: 800; padding: 5px 12px; border-radius: 6px; cursor: pointer;">تطبيق</button>
         </div>
       `;
 
@@ -1165,8 +1165,8 @@
 
           presetButtons.forEach(b => {
             const isActive = b === btn;
-            b.style.background = isActive ? '#1a4332' : 'transparent';
-            b.style.color = isActive ? '#a7f3d0' : '#cbd5e1';
+            b.style.background = isActive ? '#1a432a' : 'transparent';
+            b.style.color = isActive ? '#a7f3c4' : '#cbd5e1';
             b.style.fontWeight = isActive ? '800' : '600';
           });
 
@@ -1256,9 +1256,9 @@
               <div style="font-size: 0.78rem; color: #4338ca; font-weight: 700;">إجمالي المقبوضات</div>
               <div style="font-size: 1.25rem; font-weight: 900; color: #1e1b4b; margin-top: 4px;">${parseFloat(fin.totalRevenue || 0).toLocaleString()} <span style="font-size: 0.75rem;">ريال</span></div>
             </div>
-            <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 12px; text-align: center;">
-              <div style="font-size: 0.78rem; color: #047857; font-weight: 700;">مقبوضات نقداً (كاش)</div>
-              <div style="font-size: 1.25rem; font-weight: 900; color: #065f46; margin-top: 4px;">${parseFloat(fin.cashTotal || 0).toLocaleString()} <span style="font-size: 0.75rem;">ريال</span></div>
+            <div style="background: #ecfdf3; border: 1px solid #a7f3c4; border-radius: 8px; padding: 12px; text-align: center;">
+              <div style="font-size: 0.78rem; color: #047831; font-weight: 700;">مقبوضات نقداً (كاش)</div>
+              <div style="font-size: 1.25rem; font-weight: 900; color: #065f28; margin-top: 4px;">${parseFloat(fin.cashTotal || 0).toLocaleString()} <span style="font-size: 0.75rem;">ريال</span></div>
               <div style="font-size: 0.68rem; color: #64748b; margin-top: 3px;">${parseFloat(fin.cashCollected || 0).toLocaleString()} مستلم - ${parseFloat(fin.cashRefunded || 0).toLocaleString()} مردود</div>
             </div>
             <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px; text-align: center;">
@@ -1273,7 +1273,7 @@
 
           <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 16px; margin: -10px 0 24px; font-size: 0.84rem; color: #334155;">
             <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
-              <span>صافي كاش التأمين: <strong style="color: ${Number(fin.netCashDeposit || 0) < 0 ? '#dc2626' : '#047857'};">${Number(fin.netCashDeposit || 0) > 0 ? '+' : ''}${parseFloat(fin.netCashDeposit || 0).toLocaleString()} ريال</strong></span>
+              <span>صافي كاش التأمين: <strong style="color: ${Number(fin.netCashDeposit || 0) < 0 ? '#dc2626' : '#047831'};">${Number(fin.netCashDeposit || 0) > 0 ? '+' : ''}${parseFloat(fin.netCashDeposit || 0).toLocaleString()} ريال</strong></span>
               <span style="color: #64748b;">(${parseFloat(fin.depositCashCollected || 0).toLocaleString()} مستلم - ${parseFloat(fin.depositCashRefunded || 0).toLocaleString()} مردود${Number(fin.depositCashRetained || 0) ? ` - ${parseFloat(fin.depositCashRetained).toLocaleString()} محتفَظ به ومدرج ضمن المقبوضات` : ''})</span>
               <span>إجمالي النقد المتوقع بالخزينة: <strong style="color: #0f172a;">${parseFloat(fin.expectedCashInDrawer || 0).toLocaleString()} ريال</strong> <span style="color: #64748b;">(كاش المقبوضات + صافي كاش التأمين)</span></span>
               <span>رسوم التأخير المسددة كسند مستقل: <strong>${parseFloat(fin.lateCheckoutFeesCollected || 0).toLocaleString()} ريال</strong></span>
@@ -1290,7 +1290,7 @@
               <div style="font-size: 0.84rem; line-height: 1.8; color: #1e293b;">
                 <div style="display: flex; justify-content: space-between;"><span>إجمالي غرف الفندق:</span> <strong>${rm.totalRooms || 0} غرف</strong></div>
                 <div style="display: flex; justify-content: space-between;"><span>الغرف المشغولة حالياً:</span> <strong style="color: #dc2626;">${rm.occupiedCount || 0}</strong></div>
-                <div style="display: flex; justify-content: space-between;"><span>الغرف المتاحة حالياً:</span> <strong style="color: #059669;">${rm.availableCount || 0}</strong></div>
+                <div style="display: flex; justify-content: space-between;"><span>الغرف المتاحة حالياً:</span> <strong style="color: #05963d;">${rm.availableCount || 0}</strong></div>
                 <div style="display: flex; justify-content: space-between;"><span>الغرف قيد التنظيف:</span> <strong style="color: #d97706;">${rm.cleaningCount || 0}</strong></div>
                 <div style="display: flex; justify-content: space-between; border-top: 1px solid #e2e8f0; padding-top: 4px; font-weight: 800; color: #4338ca;">
                   <span>نسبة الإشغال اللحظية:</span>
@@ -1306,7 +1306,7 @@
               <div style="font-size: 0.84rem; line-height: 1.8; color: #1e293b;">
                 <div style="display: flex; justify-content: space-between;">
                   <span>${isMultiDay ? 'إجمالي تسجيلات الدخول في الفترة (Check-ins):' : 'عمليات تسجيل الدخول اليوم (Check-ins):'}</span>
-                  <strong style="color: #059669;">${mov.checkinsToday || 0}</strong>
+                  <strong style="color: #05963d;">${mov.checkinsToday || 0}</strong>
                 </div>
                 <div style="display: flex; justify-content: space-between;">
                   <span>${isMultiDay ? 'إجمالي تسجيلات المغادرة في الفترة (Check-outs):' : 'عمليات تسجيل الخروج اليوم (Check-outs):'}</span>
@@ -1337,7 +1337,7 @@
                   ${rep.dailyBreakdown.map(day => `
                     <tr style="border-bottom: 1px solid #f1f5f9;">
                       <td style="padding: 7px 12px; font-family: monospace; font-weight: 700; color: #334155;">${day.date}</td>
-                      <td style="padding: 7px 12px; text-align: center; color: #059669; font-weight: 700;">${day.check_ins_count}</td>
+                      <td style="padding: 7px 12px; text-align: center; color: #05963d; font-weight: 700;">${day.check_ins_count}</td>
                       <td style="padding: 7px 12px; text-align: center; color: #d97706; font-weight: 700;">${day.check_outs_count}</td>
                       <td style="padding: 7px 12px; text-align: left; font-weight: 800; color: #1e1b4b;">${Number(day.revenue).toLocaleString()} ريال</td>
                     </tr>
@@ -1374,7 +1374,7 @@
                 ${payments.map(p => {
                   const amt = roundMoney(p.amount || 0);
                   const isRefund = amt < -0.005;
-                  const amtColor = isRefund ? '#dc2626' : '#059669';
+                  const amtColor = isRefund ? '#dc2626' : '#05963d';
                   const formattedAmt = isRefund ? `- ${Math.abs(amt).toLocaleString()} ريال` : `+ ${amt.toLocaleString()} ريال`;
                   const paymentPurpose = ({
                     advance_payment: 'دفعة مقدمة',
@@ -1388,10 +1388,10 @@
                   })[p.payment_type] || 'قديم / غير مصنف';
                   const typeBadge = isRefund
                     ? '<span style="background: #fef2f2; color: #b91c1c; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 0.78rem;">استرداد / صرف</span>'
-                    : '<span style="background: #ecfdf5; color: #047857; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 0.78rem;">تحصيل / قبض</span>';
+                    : '<span style="background: #ecfdf3; color: #047831; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 0.78rem;">تحصيل / قبض</span>';
                   return `
                     <tr style="border-bottom: 1px solid #e2e8f0; ${isRefund ? 'background: #fffafa;' : ''}">
-                      <td style="padding: 8px 10px; color: #64748b;"><div style="font-family: monospace;">${escapeHtml(String(p.payment_date || p.created_at || '').slice(0, 16))}</div><small style="display:block; margin-top:3px; color:#1a4332;">تاريخ العمل: ${escapeHtml(p.business_date || '-')}</small></td>
+                      <td style="padding: 8px 10px; color: #64748b;"><div style="font-family: monospace;">${escapeHtml(String(p.payment_date || p.created_at || '').slice(0, 16))}</div><small style="display:block; margin-top:3px; color:#1a432a;">تاريخ العمل: ${escapeHtml(p.business_date || '-')}</small></td>
                       <td style="padding: 8px 10px; font-family: monospace; font-weight: 700; color: #4338ca;">${escapeHtml(p.receipt_number || ('#' + p.id))}</td>
                       <td style="padding: 8px 10px; font-weight: 700;">#${p.reservation_id} - ${escapeHtml(p.guest_name || 'نزيل')}</td>
                       <td style="padding: 8px 10px;">غرفة ${escapeHtml(p.room_number || '-')}</td>
@@ -1444,7 +1444,7 @@
                     <td style="padding: 8px 10px;">غرفة ${escapeHtml(t.room_number)}</td>
                     <td style="padding: 8px 10px; text-align: center; font-size: 0.78rem; direction: ltr;">${stayText}</td>
                     <td style="padding: 8px 10px; text-align: center;">${escapeHtml(t.payment_method || 'نقداً')}</td>
-                    <td style="padding: 8px 10px; text-align: center; font-weight: 700; color: #059669;">${parseFloat(t.paid_amount || 0).toLocaleString()} ريال</td>
+                    <td style="padding: 8px 10px; text-align: center; font-weight: 700; color: #05963d;">${parseFloat(t.paid_amount || 0).toLocaleString()} ريال</td>
                     <td style="padding: 8px 10px; text-align: center; color: #701a75;">${parseFloat(t.deposit_ledger_balance || 0).toLocaleString()} ريال</td>
                     <td style="padding: 8px 10px; text-align: center;">${window.DashboardApp.Helpers.getReservationStatusBadge(t.status)}</td>
                     <td style="padding: 8px 10px; text-align: center;">${window.DashboardApp.Helpers.getPaymentStatusBadge(t.payment_status)}</td>
@@ -1464,7 +1464,7 @@
               </tr></thead><tbody>
                 ${depositTxs.map(d => {
                   const labels = { collected: 'استلام', reconciled: 'مطابقة رصيد قديم', refunded: 'رد', applied: 'تسوية على الإقامة', retained: 'احتفاظ' };
-                  return `<tr style="border-bottom:1px solid #ede9fe;"><td style="padding:7px; color:#64748b;"><div style="font-family:monospace;">${escapeHtml(String(d.movement_date || d.created_at || '').slice(0, 16))}</div><small style="display:block; margin-top:3px; color:#1a4332;">تاريخ العمل: ${escapeHtml(d.business_date || '-')}</small></td><td style="padding:7px;">#${d.reservation_id} - ${escapeHtml(d.guest_name)} / غرفة ${escapeHtml(d.room_number)}</td><td style="padding:7px; text-align:center;">${labels[d.movement_type] || escapeHtml(d.movement_type)}</td><td style="padding:7px; text-align:center; font-weight:800;">${Number(d.amount || 0).toLocaleString()} ريال</td><td style="padding:7px; text-align:center;">${escapeHtml(d.payment_method || 'نقداً')}</td><td style="padding:7px;">${escapeHtml(d.reason || '')}${d.staff_username ? ` - ${escapeHtml(d.staff_username)}` : ''}</td></tr>`;
+                  return `<tr style="border-bottom:1px solid #ede9fe;"><td style="padding:7px; color:#64748b;"><div style="font-family:monospace;">${escapeHtml(String(d.movement_date || d.created_at || '').slice(0, 16))}</div><small style="display:block; margin-top:3px; color:#1a432a;">تاريخ العمل: ${escapeHtml(d.business_date || '-')}</small></td><td style="padding:7px;">#${d.reservation_id} - ${escapeHtml(d.guest_name)} / غرفة ${escapeHtml(d.room_number)}</td><td style="padding:7px; text-align:center;">${labels[d.movement_type] || escapeHtml(d.movement_type)}</td><td style="padding:7px; text-align:center; font-weight:800;">${Number(d.amount || 0).toLocaleString()} ريال</td><td style="padding:7px; text-align:center;">${escapeHtml(d.payment_method || 'نقداً')}</td><td style="padding:7px;">${escapeHtml(d.reason || '')}${d.staff_username ? ` - ${escapeHtml(d.staff_username)}` : ''}</td></tr>`;
                 }).join('')}
               </tbody>
             </table>
@@ -1524,8 +1524,8 @@
         const presetButtons = filterBar.querySelectorAll('.btn-audit-preset');
         presetButtons.forEach(b => {
           const isActive = b.dataset.preset === currentShiftAuditPreset;
-          b.style.background = isActive ? '#1a4332' : 'transparent';
-          b.style.color = isActive ? '#a7f3d0' : '#cbd5e1';
+          b.style.background = isActive ? '#1a432a' : 'transparent';
+          b.style.color = isActive ? '#a7f3c4' : '#cbd5e1';
           b.style.fontWeight = isActive ? '800' : '600';
         });
         const customDatesBox = filterBar.querySelector('#shift-audit-custom-dates');
@@ -1724,7 +1724,7 @@
       } else {
         const displayRemaining = Math.max(0, remaining);
         editInvRemainingPreview.textContent = `${displayRemaining.toFixed(2)} ريال`;
-        editInvRemainingPreview.style.color = displayRemaining > 0 ? '#dc2626' : '#059669';
+        editInvRemainingPreview.style.color = displayRemaining > 0 ? '#dc2626' : '#05963d';
       }
     }
   }
@@ -1885,8 +1885,8 @@
         const presetButtons = document.querySelectorAll('#shift-audit-filter-bar .btn-audit-preset');
         presetButtons.forEach(button => {
           const isActive = button.dataset.preset === 'custom';
-          button.style.background = isActive ? '#1a4332' : 'transparent';
-          button.style.color = isActive ? '#a7f3d0' : '#cbd5e1';
+          button.style.background = isActive ? '#1a432a' : 'transparent';
+          button.style.color = isActive ? '#a7f3c4' : '#cbd5e1';
           button.style.fontWeight = isActive ? '800' : '600';
         });
         const customDates = document.getElementById('shift-audit-custom-dates');
@@ -2050,9 +2050,9 @@
       if (targetEl && manualContentContainer) {
         targetEl.style.display = '';
         targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        pill.style.background = '#1a4332';
+        pill.style.background = '#1a432a';
         pill.style.color = '#ffffff';
-        pill.style.borderColor = '#1a4332';
+        pill.style.borderColor = '#1a432a';
         setTimeout(() => {
           pill.style.background = '#ffffff';
           pill.style.color = '#1e293b';
@@ -2143,7 +2143,7 @@
       // Update KPIs
       if (dailyBackupStatusBadge) {
         dailyBackupStatusBadge.textContent = data.enabled ? 'مفعّل ونشط ✅' : 'معطّل ⚠️';
-        dailyBackupStatusBadge.style.color = data.enabled ? '#047857' : '#dc2626';
+        dailyBackupStatusBadge.style.color = data.enabled ? '#047831' : '#dc2626';
       }
 
       if (dailyBackupNextRun) {
@@ -2210,7 +2210,7 @@
             if (isLatest) {
               badgeHtml = `<span style="background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 0.75rem;">الأحدث (Latest)</span>`;
             } else if (isDaily) {
-              badgeHtml = `<span style="background: #dcfce7; color: #15803d; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 0.75rem;">يومي 12:00 ص 🕛</span>`;
+              badgeHtml = `<span style="background: #dcfce8; color: #15803e; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 0.75rem;">يومي 12:00 ص 🕛</span>`;
             } else {
               badgeHtml = `<span style="background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 6px; font-size: 0.75rem;">نسخة يدوية 📁</span>`;
             }

@@ -259,14 +259,14 @@
       modal.innerHTML = `
         <div class="modal-glass-container" style="background: #ffffff; border-radius: 16px; max-width: 540px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); overflow: hidden; margin: auto; border: 1px solid #e2e8f0; direction: rtl; text-align: right;">
           <!-- Header -->
-          <div style="background: linear-gradient(135deg, #1a4332 0%, #112d22 100%); color: white; padding: 16px 22px; display: flex; align-items: center; justify-content: space-between;">
+          <div style="background: linear-gradient(135deg, #1a432a 0%, #112d1c 100%); color: white; padding: 16px 22px; display: flex; align-items: center; justify-content: space-between;">
             <div style="display: flex; align-items: center; gap: 10px;">
               <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(239, 68, 68, 0.2); color: #fca5a5; display: flex; align-items: center; justify-content: center;">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
               </div>
               <div>
                 <h3 style="font-size: 1.1rem; font-weight: 800; margin: 0; color: #ffffff;">إلغاء حجز أثناء الإقامة وتصفية الحساب</h3>
-                <p style="font-size: 0.76rem; color: #a7f3d0; margin: 2px 0 0;">الحجز #${targetRes.id} • ${escapeHtml(targetRes.guest_name || 'نزيل')}</p>
+                <p style="font-size: 0.76rem; color: #a7f3c4; margin: 2px 0 0;">الحجز #${targetRes.id} • ${escapeHtml(targetRes.guest_name || 'نزيل')}</p>
               </div>
             </div>
             <button id="btn-midstay-close" type="button" style="background: rgba(255,255,255,0.15); color: white; border: none; font-size: 1.3rem; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer;">&times;</button>
@@ -279,7 +279,7 @@
               <div><span style="color: #64748b;">الوحدة:</span> <strong>غرفة ${escapeHtml(targetRes.room_number || '-')}</strong> <span style="font-size: 0.74rem; color: #94a3b8;">(${escapeHtml(targetRes.room_type || '')})</span></div>
               <div><span style="color: #64748b;">تاريخ الوصول:</span> <strong style="font-family: monospace;">${escapeHtml(checkInDate)}</strong></div>
               <div><span style="color: #64748b;">سعر الليلة:</span> <strong>${Number(nightlyRate).toLocaleString()} ريال</strong></div>
-              <div><span style="color: #64748b;">المبلغ المدفوع:</span> <strong style="color: #059669;">${Number(targetRes.paid_amount || 0).toLocaleString()} ريال</strong></div>
+              <div><span style="color: #64748b;">المبلغ المدفوع:</span> <strong style="color: #05963d;">${Number(targetRes.paid_amount || 0).toLocaleString()} ريال</strong></div>
             </div>
 
             <!-- Departure Date Input -->
@@ -292,14 +292,14 @@
             </div>
 
             <!-- Auto Calculation Card -->
-            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 12px 16px; margin-bottom: 16px;">
+            <div style="background: #f0fdf5; border: 1px solid #bbf7d2; border-radius: 10px; padding: 12px 16px; margin-bottom: 16px;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 0.85rem;">
-                <span style="color: #166534;">عدد الليالي المحتسبة:</span>
-                <strong id="midstay-days-count" style="color: #166534; font-size: 1rem;">-</strong>
+                <span style="color: #166535;">عدد الليالي المحتسبة:</span>
+                <strong id="midstay-days-count" style="color: #166535; font-size: 1rem;">-</strong>
               </div>
               <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
-                <span style="color: #166534;">قيمة الإقامة المحتسبة تلقائياً:</span>
-                <strong id="midstay-auto-charge" style="color: #166534; font-size: 1.05rem; font-family: monospace;">- ريال</strong>
+                <span style="color: #166535;">قيمة الإقامة المحتسبة تلقائياً:</span>
+                <strong id="midstay-auto-charge" style="color: #166535; font-size: 1.05rem; font-family: monospace;">- ريال</strong>
               </div>
             </div>
 
@@ -377,9 +377,9 @@
 
         if (outcomeEl) {
           if (refund > 0) {
-            outcomeEl.style.background = '#ecfdf5';
-            outcomeEl.style.color = '#065f46';
-            outcomeEl.style.border = '1px solid #6ee7b7';
+            outcomeEl.style.background = '#ecfdf3';
+            outcomeEl.style.color = '#065f28';
+            outcomeEl.style.border = '1px solid #6ee79d';
             outcomeEl.textContent = `المبلغ المستحق إرجاعه للنزيل (مسترد): ${refund.toLocaleString()} ريال`;
           } else if (owed > 0) {
             outcomeEl.style.background = '#fffbeb';
@@ -467,12 +467,12 @@
         remainingBalanceVal.style.color = '#2563eb';
       } else {
         remainingBalanceVal.textContent = `${Math.max(0, remaining).toFixed(2)} ريال`;
-        remainingBalanceVal.style.color = remaining > 0 ? '#dc2626' : '#059669';
+        remainingBalanceVal.style.color = remaining > 0 ? '#dc2626' : '#05963d';
       }
     } else {
       const remaining = Math.max(0, total - paid);
       remainingBalanceVal.textContent = `${remaining.toFixed(2)} ريال`;
-      remainingBalanceVal.style.color = remaining > 0 ? '#dc2626' : '#059669';
+      remainingBalanceVal.style.color = remaining > 0 ? '#dc2626' : '#05963d';
     }
   }
 
@@ -1197,7 +1197,7 @@
         const updatedCard = document.querySelector(`.room-card[data-room-id="${roomId}"]`);
         if (updatedCard) {
           updatedCard.style.transition = 'all 0.4s ease';
-          updatedCard.style.boxShadow = '0 0 0 3px #10b981, 0 10px 25px -4px rgba(16, 185, 129, 0.35)';
+          updatedCard.style.boxShadow = '0 0 0 3px #10b951, 0 10px 25px -4px rgba(16, 185, 81, 0.35)';
           updatedCard.style.transform = 'translateY(-2px)';
           setTimeout(() => {
             updatedCard.style.boxShadow = '';
@@ -1292,9 +1292,9 @@
 
     // 4. Lock & Clearly indicate the room is pre-selected
     roomSelect.classList.add('select-locked');
-    roomSelect.style.borderColor = '#1a4332';
-    roomSelect.style.background = '#f0fdf4';
-    roomSelect.style.color = '#166534';
+    roomSelect.style.borderColor = '#1a432a';
+    roomSelect.style.background = '#f0fdf5';
+    roomSelect.style.color = '#166535';
     roomSelect.style.fontWeight = '800';
 
     const lockBadge = document.getElementById('room-select-lock-badge');
@@ -1525,7 +1525,7 @@
             ${r.guest_phone ? `<div class="reservation-guest-phone"><span dir="rtl">جوال:</span> <bdi dir="ltr">${escapeHtml(r.guest_phone)}</bdi></div>` : ''}
           </td>
           <td style="white-space: nowrap; line-height: 1.2;">
-            <span style="font-weight: 800; color: #1a4332; line-height: 1.2;">غرفة ${escapeHtml(r.room_number)}</span>
+            <span style="font-weight: 800; color: #1a432a; line-height: 1.2;">غرفة ${escapeHtml(r.room_number)}</span>
             <div style="font-size: 0.72rem; color: var(--text-muted); line-height: 1.2; margin-top: 2px;">${escapeHtml(r.room_type || '')}</div>
           </td>
           <td class="reservation-date-range">
@@ -1548,7 +1548,7 @@
             <div style="font-weight: 800; color: #1e293b; font-size: 0.88rem; line-height: 1.2;">${fmtTotal} ريال</div>
             ${r.original_calculated_charge != null ? `<div style="font-size: 0.70rem; color: #64748b; font-weight: 600; line-height: 1.2; margin-top: 2px;" title="المبلغ الأصلي قبل تعديل الإدارة">معدل يدوياً (أصلي: ${parseFloat(r.original_calculated_charge).toLocaleString()} ريال)</div>` : ''}
             ${parseFloat(r.discount_amount || 0) > 0 ? `<div style="font-size: 0.70rem; color: #b91c1c; font-weight: 700; line-height: 1.2; margin-top: 2px;">خصم: ${parseFloat(r.discount_amount).toLocaleString()} ريال ${r.discount_reason ? `(${escapeHtml(r.discount_reason)})` : ''}</div>` : ''}
-            <div style="font-size: 0.74rem; color: #059669; font-weight: 600; line-height: 1.2; margin-top: 2px;">مدفوع: ${fmtPaid}</div>
+            <div style="font-size: 0.74rem; color: #05963d; font-weight: 600; line-height: 1.2; margin-top: 2px;">مدفوع: ${fmtPaid}</div>
             ${isCredit ? `<div style="font-size: 0.72rem; color: #2563eb; font-weight: 800; line-height: 1.2; margin-top: 2px;">رصيد دائن: ${Math.abs(rawRemaining).toLocaleString()} ريال</div>` : (remaining > 0 ? `<div style="font-size: 0.72rem; color: #dc2626; font-weight: 700; line-height: 1.2; margin-top: 2px;">متبقي: ${fmtRem}</div>` : '')}
             ${deposit > 0 ? `<div style="font-size: 0.70rem; color: #4338ca; line-height: 1.2; margin-top: 2px;">تأمين مسجل: ${fmtDep}</div>` : ''}
             ${legacyDeposit > 0 ? `<div style="font-size: 0.70rem; color: #9a3412; line-height: 1.2; margin-top: 2px;">تأمين قديم للمراجعة: ${legacyDeposit.toLocaleString()}</div>` : ''}
@@ -1579,7 +1579,7 @@
                   <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
                 </button>
               ` : `
-              <button type="button" class="btn-action-icon" data-action="invoice" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #f0fdf4; color: #166534; border: 1.5px solid #bbf7d0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="طباعة سند الاستلام والإقامة (فاتورة)">
+              <button type="button" class="btn-action-icon" data-action="invoice" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #f0fdf5; color: #166535; border: 1.5px solid #bbf7d2; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="طباعة سند الاستلام والإقامة (فاتورة)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
               </button>
               ${canCollectBalance && (remaining > 0 || (isConfirmed && isContract)) ? `
@@ -1600,7 +1600,7 @@
                 ${canCheckOut ? (isLateCheckout ? `<button type="button" class="late-checkout-button late-checkout-button-primary" data-action="checkout" data-id="${r.id}" title="تسوية فورية وتسجيل المغادرة">🚪 خروج فوري</button>` : `<button type="button" class="btn-action-icon" data-action="checkout" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #ffffff; color: #334155; border: 1.5px solid #cbd5e1; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="تسجيل مغادرة وتسليم الغرفة">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                 </button>`) : ''}
-                <button type="button" class="btn-action-icon" data-action="whatsapp" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #f0fdf4; color: #16a34a; border: 1.5px solid #86efac; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="مراسلة النزيل عبر واتساب">
+                <button type="button" class="btn-action-icon" data-action="whatsapp" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #f0fdf5; color: #16a34d; border: 1.5px solid #86efaf; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="مراسلة النزيل عبر واتساب">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
                 </button>
               ${canCancel ? `<button type="button" class="btn-action-icon" data-action="cancel" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="${r.check_in_date === getLocalDateString() ? 'إبطال / إلغاء الحجز المباشر' : 'إلغاء الحجز'}">
@@ -1834,7 +1834,7 @@
         remEl.style.color = '#2563eb';
       } else {
         remEl.textContent = `${remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ريال`;
-        remEl.style.color = remaining > 0 ? '#dc2626' : '#059669';
+        remEl.style.color = remaining > 0 ? '#dc2626' : '#05963d';
       }
     }
 
@@ -2228,10 +2228,10 @@
       if (btnConfirmSettleCheckout) btnConfirmSettleCheckout.textContent = 'تأكيد الاسترداد وتسجيل المغادرة ✓';
     } else {
       // Perfectly balanced
-      if (settleBalanceBox) { settleBalanceBox.style.background = '#f0fdf4'; settleBalanceBox.style.borderColor = '#86efac'; }
-      if (settleBalanceLabel) { settleBalanceLabel.textContent = 'صافي الحساب'; settleBalanceLabel.style.color = '#166534'; }
-      if (settleBalanceValue) { settleBalanceValue.textContent = '0.00 ريال'; settleBalanceValue.style.color = '#059669'; }
-      if (settleBalanceSub) { settleBalanceSub.textContent = '(الحساب خالص بالكامل)'; settleBalanceSub.style.color = '#059669'; }
+      if (settleBalanceBox) { settleBalanceBox.style.background = '#f0fdf5'; settleBalanceBox.style.borderColor = '#86efaf'; }
+      if (settleBalanceLabel) { settleBalanceLabel.textContent = 'صافي الحساب'; settleBalanceLabel.style.color = '#166535'; }
+      if (settleBalanceValue) { settleBalanceValue.textContent = '0.00 ريال'; settleBalanceValue.style.color = '#05963d'; }
+      if (settleBalanceSub) { settleBalanceSub.textContent = '(الحساب خالص بالكامل)'; settleBalanceSub.style.color = '#05963d'; }
       if (settlePaymentSection) settlePaymentSection.style.display = 'none';
       if (settlePayNowInput) settlePayNowInput.value = '0.00';
       if (settleRefundBanner) settleRefundBanner.style.display = 'none';
