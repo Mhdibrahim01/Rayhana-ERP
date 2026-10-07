@@ -2964,6 +2964,77 @@ tr:hover td {
 /* ==========================================================================
    Room Cards Grid (Light White Frosted Glass Cards)
    ========================================================================== */
+/* Rooms toolbar polish: scoped to the Rooms view so shared filter controls remain unchanged elsewhere. */
+#view-rooms .rooms-primary-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid #e8edf2;
+  border-radius: 15px;
+  background: #f1f5f9;
+}
+#view-rooms .rooms-primary-filter .filter-tab-btn {
+  display: inline-flex;
+  min-height: 40px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 7px 13px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 800;
+  transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+}
+#view-rooms .rooms-primary-filter .filter-tab-btn:hover { background: rgba(255,255,255,.75); color: #183e30; }
+#view-rooms .rooms-primary-filter .filter-tab-btn.active,
+#view-rooms .rooms-primary-filter .filter-tab-btn[aria-pressed="true"] {
+  border-color: #e2e8f0;
+  background: #fff;
+  color: #183e30;
+  box-shadow: 0 1px 3px rgba(15,23,42,.08);
+}
+#view-rooms .rooms-primary-filter .filter-tab-btn[data-room-filter="متاحة"]::before { background:#10b981; }
+#view-rooms .rooms-primary-filter .filter-tab-btn[data-room-filter="مشغولة"]::before { background:#f43f5e; }
+#view-rooms .rooms-primary-filter .filter-tab-btn[data-room-filter="تنظيف"]::before { background:#f59e0b; }
+#view-rooms .rooms-primary-filter .filter-tab-btn[data-room-filter="محجوزة"]::before { background:#3b82f6; }
+#view-rooms .rooms-primary-filter .filter-tab-btn[data-room-filter="متاحة"]::before,
+#view-rooms .rooms-primary-filter .filter-tab-btn[data-room-filter="مشغولة"]::before,
+#view-rooms .rooms-primary-filter .filter-tab-btn[data-room-filter="تنظيف"]::before,
+#view-rooms .rooms-primary-filter .filter-tab-btn[data-room-filter="محجوزة"]::before {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border-radius: 50%;
+  content: "";
+}
+#view-rooms input[placeholder*="بحث"],
+#view-rooms input[placeholder*="بحث برقم"] {
+  min-height: 42px;
+  border: 1px solid #dbe4ee;
+  border-radius: 14px;
+  background: #f8fafc;
+  color: #334155;
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+#view-rooms input[placeholder*="بحث"]:focus,
+#view-rooms input[placeholder*="بحث برقم"]:focus {
+  border-color: #6ee7b7;
+  outline: none;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(16,185,129,.12);
+}
+@media (max-width: 650px) {
+  #view-rooms .rooms-primary-filter { width:100%; gap:4px; }
+  #view-rooms .rooms-primary-filter .filter-tab-btn { flex:1 1 calc(50% - 4px); padding-inline:8px; }
+}
+
 .rooms-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -4893,6 +4964,69 @@ body.login-body {
 
 .late-checkout-row > td:first-child {
   border-right: 4px solid #f59e0b !important;
+}
+
+/* Room card refresh: styles are scoped to the Rooms-only renderer modifier. */
+.room-card-ops-refined { display:flex; width:100%; height:100%; min-width:0; min-height:0; flex-direction:column; justify-content:flex-start; padding:0; overflow:visible; border:1px solid #e2e8f0; border-radius:16px; background:#fff; box-shadow:none; transition:border-color 150ms ease,box-shadow 150ms ease; }
+.room-card-ops-refined.status-border-available,.room-card-ops-refined.status-border-occupied,.room-card-ops-refined.status-border-cleaning,.room-card-ops-refined.status-border-reserved { border-top:1px solid #e2e8f0; }
+.room-card-ops-refined:hover { transform:none; box-shadow:none; }
+.room-card-ops-clickable { cursor:pointer; }
+.room-card-ops-clickable:hover { border-color:#a7c4b5; box-shadow:0 5px 16px rgba(26,67,50,.09); }
+.room-card-ops-clickable:focus-visible { outline:3px solid rgba(5,150,105,.42); outline-offset:3px; }
+.room-card-ops-clickable [data-room-card-header] { user-select:none; }
+.room-card-ops-content { display:flex; min-width:0; flex:1 1 auto; flex-direction:column; gap:12px; padding:0 16px 14px; }
+.room-card-ops-header { position:relative; z-index:2; display:flex; min-width:0; min-height:78px; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 10px; margin-inline:-16px; padding:12px 16px; border-bottom:1px solid #e2e8f0; border-radius:15px 15px 0 0; background:#f8fafc; }
+.room-card-ops-refined[data-room-status="متاحة"] .room-card-ops-header { background:#effcf5; border-color:#d1fae5; }
+.room-card-ops-refined[data-room-status="مشغولة"] .room-card-ops-header { background:#fff3f4; border-color:#ffe0e4; }
+.room-card-ops-refined[data-room-status="تنظيف"] .room-card-ops-header { background:#fffbeb; border-color:#fde68a; }
+.room-card-ops-refined[data-room-status="محجوزة"] .room-card-ops-header { background:#eff6ff; border-color:#dbeafe; }
+.room-card-ops-title { min-width:150px; flex:1 1 150px; }
+.room-card-number { color:#183e30; font-size:22px; font-weight:900; line-height:1.15; overflow-wrap:anywhere; }
+.room-card-type-ar { margin-top:3px; color:#334155; font-size:14px; font-weight:800; line-height:1.3; overflow-wrap:anywhere; }
+.room-card-type-en { margin-top:2px; color:#64748b; font-size:12px; line-height:1.25; overflow-wrap:anywhere; }
+.room-card-ops-header-actions { position:relative; display:flex; min-width:0; flex:0 1 auto; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:5px; }
+.room-card-ops-badges { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:4px; }
+.room-card-ops-refined .btn-row { min-height:36px; height:36px; border-radius:10px; }
+.room-card-ops-refined .room-card-view-action,.room-card-ops-refined .room-card-edit-action,.room-card-ops-refined .room-card-overflow-toggle { width:36px; min-width:36px; padding:0; }
+.room-card-overflow { position:relative; }
+.room-card-overflow-menu[hidden] { display:none !important; }
+.room-card-overflow-menu:not([hidden]) { position:absolute; z-index:20; inset-block-start:calc(100% + 5px); inset-inline-end:0; display:flex; min-width:170px; flex-direction:column; gap:3px; padding:6px; border:1px solid #dbe3ea; border-radius:11px; background:#fff; box-shadow:0 10px 26px rgba(15,23,42,.16); }
+.room-card-overflow-item { min-height:36px; padding:7px 10px; border:0; border-radius:7px; background:transparent; color:#334155; font:inherit; text-align:right; cursor:pointer; }
+.room-card-overflow-item:hover,.room-card-overflow-item:focus-visible { background:#f1f5f9; }
+.room-card-overflow-item.is-danger { color:#be123c; }
+.room-card-overflow-status { display:grid; gap:5px; padding:7px 10px; color:#64748b; font-size:12px; }
+.room-card-overflow-status .room-status-select { width:100%; min-height:34px; }
+.room-card-ops-price-row { display:flex; min-height:26px; align-items:center; justify-content:space-between; gap:10px; padding-top:10px; border-top:1px solid #eef2f6; }
+.room-card-ops-price-label { color:#475569; font-size:12px; }
+.room-card-ops-price-row strong { color:#183e30; font-size:16px; font-weight:900; }
+.room-card-guest-box { display:grid; min-width:0; gap:7px; padding:10px 11px; border:1px solid #e2e8f0; border-radius:11px; background:#f8fafc; color:#475569; font-size:12px; line-height:1.45; }
+.room-card-guest-heading { display:flex; min-width:0; flex-wrap:wrap; align-items:center; gap:5px 8px; }
+.room-card-guest-name { min-width:0; flex:1 1 100px; color:#183e30; font-size:13px; font-weight:800; overflow-wrap:anywhere; }
+.room-card-guest-booking { color:#718096; font-size:12px; }
+.room-card-guest-heading .badge { flex:0 0 auto; font-size:11px; }
+.room-card-guest-date { color:#64748b; overflow-wrap:anywhere; }
+.room-card-guest-date strong { color:#334155; font-weight:800; }
+.room-card-guest-financials { color:#475569; font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
+.room-card-guest-details { justify-self:start; padding:0; border:0; background:transparent; color:#047857; font:inherit; font-weight:800; cursor:pointer; }
+.room-card-guest-details:hover,.room-card-guest-details:focus-visible { color:#065f46; text-decoration:underline; }
+.room-card-incoming-note { display:grid; gap:3px; padding:9px 11px; border:1px solid #e2e8f0; border-radius:10px; color:#64748b; font-size:12px; line-height:1.45; overflow-wrap:anywhere; }
+.room-card-incoming-note strong { color:#334155; }
+.room-card-incoming-note span,.room-card-incoming-note small { color:#475569; font-size:12px; }
+.room-card-ops-refined .room-late-checkout-alert { font-size:12px; line-height:1.4; }
+.room-card-ops-footer { min-height:54px; margin-top:auto; padding:8px 12px; border-radius:0 0 15px 15px; background:#fbfcfd; }
+.room-card-footer-actions { display:flex; width:100%; min-width:0; align-items:center; gap:7px; }
+.room-card-state-action { flex:1 1 0; min-width:0; justify-content:center; }
+.room-card-checkout-action { flex:1 1 auto; min-width:0; justify-content:center; border-color:#be123c !important; background:#be123c !important; color:#fff !important; }
+.room-card-invoice-action { flex:0 0 36px; width:36px; min-width:36px; padding:0; }
+.room-card-ready-action { background:#047857 !important; border-color:#047857 !important; color:#fff !important; }
+@media (max-width:600px) {
+  .room-card-ops-content { gap:9px; padding-inline:12px; }
+  .room-card-ops-header { min-height:70px; margin-inline:-12px; padding-inline:12px; }
+  .room-card-ops-header-actions { gap:3px; }
+  .room-card-ops-badges { display:none; }
+  .room-card-ops-footer { padding-inline:8px; }
+  .room-card-footer-actions { gap:5px; }
+  .room-card-ops-refined .btn-row { font-size:12px; }
 }
 
 .room-card-status-stack {
