@@ -1,6 +1,6 @@
 'use strict';
 
-const IGNORED = ['node_modules/**', 'dist/**', 'scratch/**', '.test-output/**'];
+const IGNORED = ['node_modules/**', 'dist/**', 'scratch/**', '.test-output/**', '.worktrees/**'];
 
 const nodeGlobals = {
   __dirname: 'readonly',
@@ -87,11 +87,11 @@ module.exports = [
   },
   {
     files: ['**/*.js'],
-    ignores: ['dashboard.js', 'dashboard-*.js', 'login.js', 'renderer.js'],
+    ignores: ['dashboard.js', 'dashboard-*.js', 'login.js', 'renderer.js', 'hotkeys.js'],
     languageOptions: { globals: nodeGlobals }
   },
   {
-    files: ['dashboard.js', 'dashboard-*.js', 'login.js', 'renderer.js'],
+    files: ['dashboard.js', 'dashboard-*.js', 'login.js', 'renderer.js', 'hotkeys.js'],
     languageOptions: { sourceType: 'script', globals: browserGlobals }
   },
   {

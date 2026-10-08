@@ -157,14 +157,9 @@
       const renderRoomGuestBox = (reservation, label, dateLabel, dateValue) => {
         if (!reservation) return '';
         const total = Math.max(0, Number(reservation.total_price || 0));
-        const paid = Math.max(0, Number(reservation.paid_amount || 0));
+        const paid = Math.max(0, Number((reservation.ledger_paid_amount ?? reservation.paid_amount) || 0));
         const rawRemaining = total - paid;
         const isCredit = rawRemaining < -0.005;
-        const remaining = Math.max(0, rawRemaining);
-        const ledgerDeposit = Number(reservation.deposit_ledger_balance || 0);
-        const legacyDeposit = Number(reservation.deposit_legacy_unreconciled || 0) === 1
-          ? Number(reservation.deposit_amount || 0) : 0;
-        const deposit = Math.max(0, ledgerDeposit || legacyDeposit);
         const isOpenContract = reservation.booking_type === 'عقد مفتوح' || !reservation.check_out_date;
         const currentRoom = App.State.roomsCache.find(item => item.id === reservation.room_id) || room;
         const nightlyRate = Number(reservation.custom_nightly_price || reservation.price_per_night || currentRoom.price_per_night || 0);
@@ -172,12 +167,47 @@
         const end = today.split('-').map(Number);
         const elapsedNights = Math.max(1, Math.round((Date.UTC(end[0], end[1] - 1, end[2]) - Date.UTC(start[0], start[1] - 1, start[2])) / 86400000));
         const runningCharge = Math.max(0, Math.round((elapsedNights * nightlyRate - Number(reservation.discount_amount || 0)) * 100) / 100);
-        const paymentStatus = isOpenContract
-          ? (runningCharge <= 0 ? (paid > 0 ? 'مدفوع بالكامل' : 'غير مدفوع') : (paid >= runningCharge ? 'مدفوع بالكامل' : (paid > 0 ? 'مدفوع جزئياً' : 'غير مدفوع')))
-          : (isCredit ? 'مدفوع بالكامل' : (reservation.payment_status || 'غير مدفوع'));
+
+        const checkOutDateStr = String(reservation.check_out_date || '').slice(0, 10);
+        const isOverdue = reservation.status === 'مؤكد' && !isOpenContract && checkOutDateStr && checkOutDateStr < today;
+        const overdueDays = isOverdue
+          ? Math.max(0, Math.floor((Date.parse(today + 'T00:00:00Z') - Date.parse(checkOutDateStr + 'T00:00:00Z')) / 86400000))
+          : 0;
+
+        const effectiveTotal = (isOpenContract || isOverdue) ? Math.max(total, runningCharge) : total;
+        const effectiveRawRemaining = effectiveTotal - paid;
+        const isEffectiveCredit = effectiveRawRemaining < -0.005;
+        const remaining = Math.max(0, effectiveRawRemaining);
+        const ledgerDeposit = Number(reservation.deposit_ledger_balance || 0);
+        const legacyDeposit = Number(reservation.deposit_legacy_unreconciled || 0) === 1
+          ? Number(reservation.deposit_amount || 0) : 0;
+        const deposit = Math.max(0, ledgerDeposit || legacyDeposit);
+
+        let paymentStatus;
+        if (isOpenContract) {
+          paymentStatus = runningCharge <= 0
+            ? (paid > 0 ? 'مدفوع بالكامل' : 'غير مدفوع')
+            : (paid > runningCharge + 0.005 ? 'رصيد دائن' : (paid >= runningCharge - 0.005 ? 'مدفوع بالكامل' : (paid > 0 ? 'مدفوع جزئياً' : 'غير مدفوع')));
+        } else if (isOverdue) {
+          paymentStatus = isCredit
+            ? 'مدفوع بالكامل'
+            : (remaining <= 0.005 ? 'مدفوع بالكامل' : (paid > 0 ? 'مدفوع جزئياً' : 'غير مدفوع'));
+        } else {
+          paymentStatus = isCredit ? 'مدفوع بالكامل' : (reservation.payment_status || 'غير مدفوع');
+        }
+
+        const creditHtml = `<span style="color:#2563eb;">له رصيد: <strong>${Math.abs(rawRemaining).toLocaleString()} ريال</strong></span>`;
+        const overdueRemainingHtml = isOverdue && effectiveTotal > total && remaining > 0
+          ? `متبقي (مع ${overdueDays} ليالٍ تأخير): <strong style="color:#dc2626;">${formatRoomCardMoney(remaining)}</strong>`
+          : `متبقي: ${formatRoomCardMoney(remaining)}`;
+
+        const contractCreditHtml = `<span style="color:#2563eb;">له رصيد: <strong>${Math.abs(effectiveRawRemaining).toLocaleString()} ريال</strong></span>`;
+        const contractOwedHtml = remaining > 0
+          ? `متبقي: <strong style="color:#dc2626;">${formatRoomCardMoney(remaining)}</strong>`
+          : `مسدد بالكامل`;
         const financialLine = isOpenContract
-          ? `مدفوع مقدماً: ${formatRoomCardMoney(paid)} · المستحق حتى الآن: ${formatRoomCardMoney(runningCharge)} · التأمين: ${formatRoomCardMoney(deposit)}`
-          : `مدفوع: ${formatRoomCardMoney(paid)} · ${isCredit ? `مدفوع مقدماً: ${formatRoomCardMoney(Math.abs(rawRemaining))}` : `متبقي: ${formatRoomCardMoney(remaining)}`} · التأمين: ${formatRoomCardMoney(deposit)}`;
+          ? `المستحق (${elapsedNights} ليالٍ): ${formatRoomCardMoney(runningCharge)} · مدفوع: ${formatRoomCardMoney(paid)} · ${isEffectiveCredit ? contractCreditHtml : contractOwedHtml} · التأمين: ${formatRoomCardMoney(deposit)}`
+          : `مدفوع: ${formatRoomCardMoney(paid)} · ${isCredit ? creditHtml : overdueRemainingHtml} · التأمين: ${formatRoomCardMoney(deposit)}`;
         const safeName = App.Helpers.escapeHtml(reservation.guest_name || 'نزيل');
         return `
           <div class="room-card-guest-box" dir="rtl">
@@ -740,11 +770,12 @@
                 <tbody>
                   ${breakdown.map((r, idx) => {
                     const price = parseFloat(r.total_price || 0);
-                    const paid = parseFloat(r.paid_amount || 0);
+                    const paid = parseFloat((r.ledger_paid_amount ?? r.paid_amount) || 0);
                     const collected = parseFloat(r.amount_collected || 0);
                     const rawRemaining = price - paid;
                     const isCredit = rawRemaining < -0.005;
-                    const remaining = Math.max(0, rawRemaining);
+                    const isOpenContract = r.booking_type === 'عقد مفتوح' || !r.check_out_date;
+                    const remaining = isOpenContract ? rawRemaining : Math.max(0, rawRemaining);
                     const checkOutDisplay = (r.check_out_date === 'مفتوح' || !r.check_out_date) 
                       ? '<span style="color: #0284c7; font-weight: 700;">مفتوح</span>' 
                       : App.Helpers.escapeHtml(r.check_out_date);

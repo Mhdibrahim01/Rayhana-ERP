@@ -151,7 +151,9 @@ function getActiveReservations(roomId = null, currentDate) {
   const params = roomId === null || roomId === undefined ? [today] : [today, roomId];
   return queryAll(`
     SELECT r.id, r.room_id, r.guest_id, r.check_in_date, r.check_out_date,
-           r.total_price, r.paid_amount, r.deposit_amount,
+           r.total_price, r.paid_amount, 
+           COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.reservation_id = r.id), r.paid_amount) AS ledger_paid_amount,
+           r.deposit_amount,
            COALESCE((SELECT SUM(CASE WHEN dm.movement_type IN ('collected', 'reconciled') THEN dm.amount ELSE -dm.amount END) FROM deposit_movements dm WHERE dm.reservation_id = r.id), 0) AS deposit_ledger_balance,
            CASE WHEN NOT EXISTS (SELECT 1 FROM deposit_movements dm WHERE dm.reservation_id = r.id) AND r.deposit_amount > 0 THEN 1 ELSE 0 END AS deposit_legacy_unreconciled,
            r.payment_status, r.status, r.booking_type,
@@ -162,7 +164,7 @@ function getActiveReservations(roomId = null, currentDate) {
     WHERE r.status = 'مؤكد'
       AND r.check_in_date <= ?
       ${roomCondition}
-    ORDER BY r.room_id ASC, r.check_in_date ASC, r.id ASC
+    ORDER BY r.room_id ASC, r.check_in_date DESC, r.id DESC
   `, params);
 }
 
@@ -204,7 +206,7 @@ function autoUpdateRoomStatuses(currentDate, { persist = true } = {}) {
     const roomActiveReservations = activeByRoom.get(room.id) || [];
     const hasGuestAlreadyArrived = roomActiveReservations.some(reservation => reservation.check_in_date < today);
 
-    // Preserve cleaning and maintenance statuses when room is not occupied
+    // Preserve maintenance statuses when room is not occupied
     if (room.status === 'صيانة' && !occupiedRoomIds.has(room.id)) {
       targetStatus = 'صيانة';
     } else if (room.status === 'تنظيف' && !hasGuestAlreadyArrived) {
@@ -314,7 +316,7 @@ function getRoomRevenueStats(roomId) {
     const collected = roundMoney(payByRes[r.id] || 0);
 
     total_expected += price;
-    total_outstanding += Math.max(0, roundMoney(price - paid));
+    total_outstanding += Math.max(0, roundMoney(price - collected));
 
     breakdown.push({
       id: r.id,

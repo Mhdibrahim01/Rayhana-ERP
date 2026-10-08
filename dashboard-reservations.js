@@ -1486,23 +1486,45 @@
       const isContract = r.booking_type === 'عقد مفتوح';
       const isLateCheckout = App.Helpers.isLateCheckout(r);
       const total = parseFloat(r.total_price || 0);
-      const paid = parseFloat((r.status === 'ملغي جزئي' && r.payment_status === 'مدفوع جزئياً' ? r.ledger_paid_amount : r.paid_amount) || 0);
+      const paid = parseFloat((r.ledger_paid_amount ?? r.paid_amount) || 0);
       const deposit = parseFloat(r.deposit_ledger_balance || 0);
       const legacyDeposit = Number(r.deposit_legacy_unreconciled || 0) === 1 ? parseFloat(r.deposit_amount || 0) : 0;
-      const rawRemaining = total - paid;
-      const isCredit = rawRemaining < -0.005;
-      const remaining = isContract ? rawRemaining : Math.max(0, rawRemaining);
-      const canCollectBalance = isConfirmed || r.status === 'ملغي جزئي' || (r.status === 'مكتمل' && remaining > 0.005);
-      const fmtTotal = total.toLocaleString();
-      const fmtPaid = paid.toLocaleString();
-      const fmtRem = remaining.toLocaleString();
-      const fmtDep = deposit.toLocaleString();
       const typeBadge = getBookingTypeBadge(r.booking_type);
       const checkOutDisplay = r.check_out_date || (isContract ? 'مفتوح (غير محدد)' : '-');
       const overdueDate = String(r.check_out_date || '').slice(0, 10);
+      const businessToday = window.DashboardApp.State.businessDate || getLocalDateString();
       const overdueDays = overdueDate
-        ? Math.max(0, Math.floor((Date.parse(`${getLocalDateString()}T00:00:00Z`) - Date.parse(`${overdueDate}T00:00:00Z`)) / 86400000))
+        ? Math.max(0, Math.floor((Date.parse(`${businessToday}T00:00:00Z`) - Date.parse(`${overdueDate}T00:00:00Z`)) / 86400000))
         : 0;
+      const isOverdue = isConfirmed && !isContract && overdueDays > 0;
+      const nightlyRate = parseFloat(r.custom_nightly_price || r.price_per_night || 0);
+
+      // Accrued calculation for overdue active stays and open contracts:
+      let effectiveTotal = total;
+      let elapsedStayNights = 0;
+      if (isConfirmed && (isOverdue || isContract) && nightlyRate > 0 && r.check_in_date) {
+        const startParts = String(r.check_in_date).slice(0, 10).split('-').map(Number);
+        const endParts = businessToday.slice(0, 10).split('-').map(Number);
+        elapsedStayNights = Math.max(1, Math.round((Date.UTC(endParts[0], endParts[1] - 1, endParts[2]) - Date.UTC(startParts[0], startParts[1] - 1, startParts[2])) / 86400000));
+        const runningTotal = Math.max(0, Math.round((elapsedStayNights * nightlyRate - parseFloat(r.discount_amount || 0)) * 100) / 100);
+        effectiveTotal = Math.max(total, runningTotal);
+      }
+
+      const effectiveRawRemaining = effectiveTotal - paid;
+      const isCredit = effectiveRawRemaining < -0.005;
+      const remaining = Math.max(0, effectiveRawRemaining);
+      const canCollectBalance = isConfirmed || r.status === 'ملغي جزئي' || (r.status === 'مكتمل' && remaining > 0.005);
+      const fmtTotal = total.toLocaleString();
+      const fmtEffTotal = effectiveTotal.toLocaleString();
+      const fmtPaid = paid.toLocaleString();
+      const fmtRem = remaining.toLocaleString();
+      const fmtDep = deposit.toLocaleString();
+      let paymentStatusForDisplay;
+      if (isContract || isOverdue) {
+        paymentStatusForDisplay = isCredit ? 'رصيد دائن' : (remaining <= 0.005 ? 'مدفوع بالكامل' : (paid > 0 ? 'مدفوع جزئياً' : 'غير مدفوع'));
+      } else {
+        paymentStatusForDisplay = isCredit ? 'مدفوع بالكامل' : (r.payment_status || 'غير مدفوع');
+      }
       const overdueLabel = overdueDays === 0 ? 'متأخر اليوم'
         : overdueDays === 1 ? 'متأخر يوم'
           : overdueDays === 2 ? 'متأخر يومين'
@@ -1525,7 +1547,7 @@
             ${r.guest_phone ? `<div class="reservation-guest-phone"><span dir="rtl">جوال:</span> <bdi dir="ltr">${escapeHtml(r.guest_phone)}</bdi></div>` : ''}
           </td>
           <td style="white-space: nowrap; line-height: 1.2;">
-            <span style="font-weight: 800; color: #1a432a; line-height: 1.2;">غرفة ${escapeHtml(r.room_number)}</span>
+            <button type="button" class="clickable-room-number" data-action="preview-reservation" data-id="${r.id}" title="عرض تفاصيل الغرفة ${escapeHtml(r.room_number)}">غرفة ${escapeHtml(r.room_number)}</button>
             <div style="font-size: 0.72rem; color: var(--text-muted); line-height: 1.2; margin-top: 2px;">${escapeHtml(r.room_type || '')}</div>
           </td>
           <td class="reservation-date-range">
@@ -1545,18 +1567,23 @@
             </div>
           </td>
           <td style="white-space: nowrap; line-height: 1.2;">
-            <div style="font-weight: 800; color: #1e293b; font-size: 0.88rem; line-height: 1.2;">${fmtTotal} ريال</div>
+            ${(isOverdue || isContract) && effectiveTotal > total ? `
+              <div style="font-weight: 800; color: #1e293b; font-size: 0.88rem; line-height: 1.2;">${fmtEffTotal} ريال <small style="color: #b91c1c; font-size: 0.70rem; font-weight: 700;">(مستحق حتى اليوم)</small></div>
+              <div style="font-size: 0.70rem; color: #64748b; font-weight: 600; line-height: 1.2; margin-top: 1px;">${isContract ? `عقد مفتوح (${elapsedStayNights} ليالٍ)` : `أصل الحجز: ${fmtTotal} ريال (${overdueDays} ليالٍ متأخرة)`}</div>
+            ` : `
+              <div style="font-weight: 800; color: #1e293b; font-size: 0.88rem; line-height: 1.2;">${fmtTotal} ريال</div>
+            `}
             ${r.original_calculated_charge != null ? `<div style="font-size: 0.70rem; color: #64748b; font-weight: 600; line-height: 1.2; margin-top: 2px;" title="المبلغ الأصلي قبل تعديل الإدارة">معدل يدوياً (أصلي: ${parseFloat(r.original_calculated_charge).toLocaleString()} ريال)</div>` : ''}
             ${parseFloat(r.discount_amount || 0) > 0 ? `<div style="font-size: 0.70rem; color: #b91c1c; font-weight: 700; line-height: 1.2; margin-top: 2px;">خصم: ${parseFloat(r.discount_amount).toLocaleString()} ريال ${r.discount_reason ? `(${escapeHtml(r.discount_reason)})` : ''}</div>` : ''}
             <div style="font-size: 0.74rem; color: #05963d; font-weight: 600; line-height: 1.2; margin-top: 2px;">مدفوع: ${fmtPaid}</div>
-            ${isCredit ? `<div style="font-size: 0.72rem; color: #2563eb; font-weight: 800; line-height: 1.2; margin-top: 2px;">رصيد دائن: ${Math.abs(rawRemaining).toLocaleString()} ريال</div>` : (remaining > 0 ? `<div style="font-size: 0.72rem; color: #dc2626; font-weight: 700; line-height: 1.2; margin-top: 2px;">متبقي: ${fmtRem}</div>` : '')}
+            ${isCredit ? `<div style="font-size: 0.72rem; color: #2563eb; font-weight: 800; line-height: 1.2; margin-top: 2px;">رصيد دائن: ${Math.abs(effectiveRawRemaining).toLocaleString()} ريال</div>` : (remaining > 0 ? `<div style="font-size: 0.72rem; color: #dc2626; font-weight: 700; line-height: 1.2; margin-top: 2px;">متبقي: ${fmtRem} ريال ${(isOverdue || isContract) ? '<small>(حتى اليوم)</small>' : ''}</div>` : '')}
             ${deposit > 0 ? `<div style="font-size: 0.70rem; color: #4338ca; line-height: 1.2; margin-top: 2px;">تأمين مسجل: ${fmtDep}</div>` : ''}
             ${legacyDeposit > 0 ? `<div style="font-size: 0.70rem; color: #9a3412; line-height: 1.2; margin-top: 2px;">تأمين قديم للمراجعة: ${legacyDeposit.toLocaleString()}</div>` : ''}
           </td>
           <td>
             <div class="reservation-payment-details">
               <span class="badge" style="background: rgba(0,0,0,0.04); color: #334155; border: 1px solid #cbd5e1; font-weight: 600;">${escapeHtml(r.payment_method || 'نقداً')}</span>
-              <div>${getPaymentStatusBadge(r.payment_status)}</div>
+              <div>${getPaymentStatusBadge(paymentStatusForDisplay)}</div>
             </div>
           </td>
           <td class="reservation-status-cell">
@@ -1564,49 +1591,38 @@
             ${overdueBadge ? `<span class="reservation-late-status">${overdueBadge}</span>` : ''}
           </td>
           <td style="text-align: center;">
-            <div class="reservation-actions-list ${isLateCheckout ? 'reservation-actions-list-late' : ''}" role="group" aria-label="إجراءات الحجز">
-              ${isLateCheckout ? `
-                <button type="button" class="btn-row icon-ghost" data-action="whatsapp" data-id="${r.id}" title="مراسلة النزيل عبر واتساب" aria-label="مراسلة النزيل عبر واتساب">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-                </button>
-                <button type="button" class="btn-row primary" data-action="checkout" data-id="${r.id}" title="تسوية فورية وتسجيل المغادرة" aria-label="تسوية فورية وتسجيل المغادرة">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H5v14h4M14 8l4 4-4 4M18 12H9"></path></svg>
-                </button>
-                <button type="button" class="btn-row icon-ghost" data-action="extend" data-id="${r.id}" title="تمديد فترة الإقامة" aria-label="تمديد فترة الإقامة">
+            <div class="btn-row-group overview-row-actions reservation-actions-list ${isLateCheckout ? 'overview-row-actions-late-checkout reservation-actions-list-late' : ''}" role="group" aria-label="إجراءات الحجز">
+              <button type="button" class="btn-row icon-ghost checkout-row-action checkout-row-action-preview" data-action="preview-reservation" data-id="${r.id}" title="معاينة تفاصيل الحجز" aria-label="معاينة تفاصيل الحجز">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </button>
+              ${isConfirmed && r.check_out_date && r.check_out_date !== 'مفتوح' ? `
+                <button type="button" class="btn-row secondary checkout-row-action checkout-row-action-extend" data-action="extend" data-id="${r.id}" title="تمديد فترة الإقامة" aria-label="تمديد فترة الإقامة">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
                 </button>
-                <button type="button" class="btn-row icon-ghost" data-action="invoice" data-id="${r.id}" title="طباعة سند الاستلام والإقامة (فاتورة)" aria-label="طباعة سند الاستلام والإقامة">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6M8 13h8M8 17h8"></path></svg>
+              ` : ''}
+              ${isConfirmed && canCheckOut ? `
+                <button type="button" class="btn-row primary checkout-danger checkout-row-action checkout-row-action-primary" data-action="checkout" data-id="${r.id}" title="تسجيل مغادرة وتسليم الغرفة" aria-label="تسجيل مغادرة وتسليم الغرفة">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                 </button>
-              ` : `
-              <button type="button" class="btn-action-icon" data-action="invoice" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #f0fdf5; color: #166535; border: 1.5px solid #bbf7d2; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="طباعة سند الاستلام والإقامة (فاتورة)">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6M8 13h8M8 17h8"></path></svg>
+              ` : ''}
+              <button type="button" class="btn-row icon-ghost checkout-row-action" data-action="invoice" data-id="${r.id}" title="طباعة سند الاستلام والإقامة (فاتورة)" aria-label="طباعة سند الاستلام والإقامة">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h7"></path></svg>
               </button>
               ${canCollectBalance && (remaining > 0 || (isConfirmed && isContract)) ? `
-                <button type="button" class="btn-action-icon btn-pay" data-action="add-payment" data-id="${r.id}" onclick="event.stopPropagation(); window.openAddPaymentModal && window.openAddPaymentModal(${r.id});" style="width: 30px; height: 30px; padding: 0; background: #a67c52; color: #ffffff; border: none; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; box-shadow: 0 2px 8px rgba(166, 124, 82, 0.35);" title="تسجيل دفعة سداد جديدة">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+                <button type="button" class="btn-row checkout-row-action" data-action="add-payment" data-id="${r.id}" onclick="event.stopPropagation(); window.openAddPaymentModal && window.openAddPaymentModal(${r.id});" title="تسجيل دفعة سداد جديدة" aria-label="تسجيل دفعة سداد جديدة">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
                 </button>
               ` : ''}
               ${isConfirmed ? `
-                ${r.check_out_date && r.check_out_date !== 'مفتوح' ? `
-                  ${isLateCheckout ? `
-                  <button type="button" class="late-checkout-button late-checkout-button-secondary" data-action="extend" data-id="${r.id}" title="تمديد فترة الإقامة">⏳ تمديد الإقامة</button>
-                  ` : `
-                  <button type="button" class="btn-action-icon" data-action="extend" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #eff6ff; color: #1e40af; border: 1.5px solid #bfdbfe; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="تمديد فترة الإقامة">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                  </button>
-                  `}
-                ` : ''}
-                ${canCheckOut ? (isLateCheckout ? `<button type="button" class="late-checkout-button late-checkout-button-primary" data-action="checkout" data-id="${r.id}" title="تسوية فورية وتسجيل المغادرة">🚪 خروج فوري</button>` : `<button type="button" class="btn-action-icon" data-action="checkout" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #ffffff; color: #334155; border: 1.5px solid #cbd5e1; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="تسجيل مغادرة وتسليم الغرفة">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                </button>`) : ''}
-                <button type="button" class="btn-action-icon" data-action="whatsapp" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #f0fdf5; color: #16a34d; border: 1.5px solid #86efaf; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="مراسلة النزيل عبر واتساب">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+                <button type="button" class="btn-row checkout-row-action" data-action="whatsapp" data-id="${r.id}" title="مراسلة النزيل عبر واتساب" aria-label="مراسلة النزيل عبر واتساب">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
                 </button>
-              ${canCancel ? `<button type="button" class="btn-action-icon" data-action="cancel" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="${r.check_in_date === getLocalDateString() ? 'إبطال / إلغاء الحجز المباشر' : 'إلغاء الحجز'}">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"></circle><path d="m5.6 5.6 12.8 12.8"></path></svg>
-                </button>` : ''}
-              ` : ''}`}
+              ` : ''}
+              ${isConfirmed && canCancel ? `
+                <button type="button" class="btn-row checkout-danger checkout-row-action" data-action="cancel" data-id="${r.id}" title="${r.check_in_date === getLocalDateString() ? 'إبطال / إلغاء الحجز المباشر' : 'إلغاء الحجز'}" aria-label="إلغاء الحجز">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m5.6 5.6 12.8 12.8"></path></svg>
+                </button>
+              ` : ''}
             </div>
           </td>
         </tr>
@@ -1810,10 +1826,27 @@
 
     currentPayingReservation = res;
     const isContract = res.booking_type === 'عقد مفتوح';
+    const businessToday = window.DashboardApp.State.businessDate || getLocalDateString();
+    const checkOutDateStr = String(res.check_out_date || '').slice(0, 10);
+    const isOverdue = res.status === 'مؤكد' && !isContract && checkOutDateStr && checkOutDateStr < businessToday;
     const total = roundMoney(res.total_price || 0);
+    let effectiveTotal = total;
+    let elapsedContractNights = 0;
+    if (res.check_in_date && (isOverdue || (isContract && res.status === 'مؤكد'))) {
+      const nightlyRate = Number(res.custom_nightly_price || res.price_per_night || 0);
+      if (nightlyRate > 0) {
+        const startParts = String(res.check_in_date).slice(0, 10).split('-').map(Number);
+        const endParts = businessToday.slice(0, 10).split('-').map(Number);
+        const elapsedNights = Math.max(1, Math.round((Date.UTC(endParts[0], endParts[1] - 1, endParts[2]) - Date.UTC(startParts[0], startParts[1] - 1, startParts[2])) / 86400000));
+        elapsedContractNights = elapsedNights;
+        const runningTotal = Math.max(0, Math.round((elapsedNights * nightlyRate - Number(res.discount_amount || 0)) * 100) / 100);
+        effectiveTotal = Math.max(total, runningTotal);
+      }
+    }
     const paid = getReservationPaidForPayments(res);
-    const rawRemaining = roundMoney(total - paid);
-    const remaining = isContract ? rawRemaining : Math.max(0, rawRemaining);
+    const effectiveRawRemaining = roundMoney(effectiveTotal - paid);
+    const isCredit = effectiveRawRemaining < -0.005;
+    const remaining = Math.max(0, effectiveRawRemaining);
 
     const inputResId = document.getElementById('payment-reservation-id');
     const nameEl = document.getElementById('payment-modal-guest-name');
@@ -1825,12 +1858,18 @@
 
     if (inputResId) inputResId.value = res.id;
     if (nameEl) nameEl.textContent = res.guest_name || 'نزيل';
-    if (roomEl) roomEl.textContent = `حجز #${res.id} - غرفة ${res.room_number || '-'}${isContract ? ' (عقد مفتوح)' : ''}`;
-    if (totalEl) totalEl.textContent = `${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ريال`;
+    if (roomEl) roomEl.textContent = `حجز #${res.id} - غرفة ${res.room_number || '-'}${isContract ? ' (عقد مفتوح)' : ''}${isOverdue ? ' (متأخر عن المغادرة)' : ''}`;
+    if (totalEl) {
+      if ((isOverdue || isContract) && effectiveTotal > total) {
+        totalEl.innerHTML = `${effectiveTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ريال <small style="color: #b91c1c; font-size: 0.75rem; font-weight: 700;">(${isContract ? `المستحق حتى اليوم (${elapsedContractNights} ليالٍ)` : 'المستحق حتى اليوم مع التأخير'})</small>`;
+      } else {
+        totalEl.textContent = `${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ريال`;
+      }
+    }
     if (paidEl) paidEl.textContent = `${paid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ريال`;
     if (remEl) {
-      if (isContract && remaining < -0.005) {
-        remEl.textContent = `رصيد دائن: ${Math.abs(remaining).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ريال`;
+      if (isCredit) {
+        remEl.textContent = `رصيد دائن: ${Math.abs(effectiveRawRemaining).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ريال`;
         remEl.style.color = '#2563eb';
       } else {
         remEl.textContent = `${remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ريال`;
@@ -1839,7 +1878,7 @@
     }
 
     if (inputAmount) {
-      if (isContract) {
+      if (isContract || isOverdue) {
         inputAmount.value = remaining > 0 ? remaining.toFixed(2) : '';
         inputAmount.removeAttribute('max');
       } else {

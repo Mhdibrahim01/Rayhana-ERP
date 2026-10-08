@@ -235,7 +235,7 @@ async function seed(outputPath, today, includeFutureCases) {
   resetScratchRows();
 
   for (const [roomNumber, type, price] of ROOM_DEFINITIONS) {
-    appDb.addRoom({ room_number: roomNumber, type, price_per_night: price, status: 'متاحة' });
+    appDb.addRoom({ room_number: roomNumber, type, price_per_night: price, monthly_price: price * 30, status: 'متاحة' });
   }
   const roomIds = Object.fromEntries(sqlAll('SELECT id, room_number FROM rooms').map(room => [room.room_number, room.id]));
 

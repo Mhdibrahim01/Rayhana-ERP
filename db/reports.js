@@ -10,7 +10,7 @@ const { db, queryOne, queryAll, roundMoney, getLocalDateString, getCurrentBusine
  * Strictly joins Guests and Rooms tables.
  */
 function getTodayCheckouts(targetDate) {
-  const today = targetDate || getLocalDateString();
+  const today = targetDate || getCurrentBusinessDate();
   const sql = `
     SELECT 
       r.id,
@@ -19,9 +19,15 @@ function getTodayCheckouts(targetDate) {
       r.check_in_date,
       r.check_out_date,
       r.total_price,
+      r.paid_amount,
+      COALESCE((SELECT SUM(amount) FROM payments WHERE reservation_id = r.id), r.paid_amount) AS ledger_paid_amount,
+      r.payment_status,
+      r.booking_type,
       r.status,
       r.checked_out_at,
       r.created_at,
+      r.custom_nightly_price,
+      r.discount_amount,
       strftime('%H:%M', r.created_at, 'localtime') AS booking_time,
       strftime('%H:%M', r.checked_out_at, 'localtime') AS checkout_time,
       g.name AS guest_name,
@@ -29,7 +35,8 @@ function getTodayCheckouts(targetDate) {
       g.id_number AS guest_id_number,
       rm.room_number,
       rm.type AS room_type,
-      rm.status AS room_status
+      rm.status AS room_status,
+      rm.price_per_night
     FROM reservations r
     JOIN guests g ON r.guest_id = g.id
     JOIN rooms rm ON r.room_id = rm.id

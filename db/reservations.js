@@ -195,6 +195,7 @@ function getReservationById(reservationId) {
       r.check_out_date, 
       r.total_price, 
       r.paid_amount,
+      COALESCE((SELECT SUM(amount) FROM payments WHERE reservation_id = r.id), r.paid_amount) AS ledger_paid_amount,
       r.deposit_amount,
       COALESCE((SELECT SUM(CASE WHEN dm.movement_type IN ('collected', 'reconciled') THEN dm.amount ELSE -dm.amount END) FROM deposit_movements dm WHERE dm.reservation_id = r.id), 0) AS deposit_ledger_balance,
       CASE WHEN NOT EXISTS (SELECT 1 FROM deposit_movements dm WHERE dm.reservation_id = r.id) AND r.deposit_amount > 0 THEN 1 ELSE 0 END AS deposit_legacy_unreconciled,
@@ -617,7 +618,7 @@ function countNights(startDate, endDate) {
  * departure date must fall strictly before it. Everything else keeps today's behaviour.
  */
 function isMonthlyEarlyCheckout(res, departureDate) {
-  if (!res || res.booking_type === 'عقد مفتوح') return false;
+  if (!res || res.booking_type !== 'حجز شهري') return false;
   const booked = String(res.check_out_date || '').trim();
   if (!booked || booked === 'مفتوح' || !/^\d{4}-\d{2}-\d{2}$/.test(booked)) return false;
   return String(departureDate || '') < booked;
@@ -905,186 +906,20 @@ function checkoutReservation(reservationId, {
   const isOpenContract = res.booking_type === 'عقد مفتوح';
 
   // -------------------------------------------------------------------------
-  // OPEN-CONTRACT PATH: unchanged from before.  Trust caller's finalTotalPrice,
-  // use legacy shim fields (finalTotalPrice / settleAmount).
-  // -------------------------------------------------------------------------
-  if (isOpenContract) {
-    // Declared out here so the return below can report the settlement outcome.
-    let openMode = null;
-    let openReceiptNumber = null;
-    let openRefundReceiptNumber = null;
-    db.run("BEGIN TRANSACTION;");
-    try {
-      const todayStr = getLocalDateString();
-      const currentPaid = roundMoney(res.paid_amount || 0);
-
-      const normDiscountAmount = (discountAmount !== undefined && discountAmount !== null && discountAmount !== '')
-        ? Math.max(0, roundMoney(discountAmount)) : null;
-      const normDiscountReason = discountReason !== undefined ? (discountReason || '').trim() : null;
-      const normCustomNightlyPrice = (customNightlyPrice !== undefined && customNightlyPrice !== null && customNightlyPrice !== '')
-        ? roundMoney(customNightlyPrice) : null;
-
-      const openFinalTotal = (finalTotalPrice !== undefined && finalTotalPrice !== null)
-        ? roundMoney(finalTotalPrice)
-        : roundMoney(res.total_price || 0);
-
-      // Resolve the settlement mode for the open-contract path.
-      // Prefer the modern fields; fall back to the legacy 'settleAmount' shim so
-      // callers that predate settleMode keep working unchanged.
-      openMode = settleMode;
-      if (!openMode) {
-        if (refundAmount !== undefined && refundAmount !== null) {
-          openMode = 'refund';
-        } else if (collectAmount !== undefined) {
-          openMode = roundMoney(collectAmount) > 0 ? 'collect' : 'defer';
-        } else if (settleAmount !== undefined) {
-          openMode = roundMoney(settleAmount) > 0 ? 'collect' : 'defer';
-        } else {
-          openMode = 'defer';
-        }
-      }
-      if (!['collect', 'defer', 'refund'].includes(openMode)) {
-        throw new Error('طريقة تسوية الحساب غير معروفة.');
-      }
-
-      const openAddPay = (openMode === 'collect')
-        ? (collectAmount !== undefined ? roundMoney(collectAmount) : (settleAmount !== undefined ? roundMoney(settleAmount) : 0))
-        : 0;
-      let openNewPaid = currentPaid;
-      if (openAddPay > 0) {
-        openNewPaid = roundMoney(currentPaid + openAddPay);
-        openReceiptNumber = generateReceiptNumber(targetId);
-        const ps = db.prepare(`INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes) VALUES (?, ?, ?, ?, 'checkout_settlement', datetime('now', 'localtime'), ?, ?)`);
-        ps.run([openReceiptNumber, targetId, openAddPay, paymentMethod || 'نقداً', userId ? parseInt(userId, 10) : null, notes || 'سداد تصفية حساب مغادرة']);
-        ps.free();
-      }
-
-      const openDepositHeld = getDepositLedger(targetId).balance;
-      if (!['refund', 'apply', 'retain'].includes(depositDisposition)) throw new Error('طريقة تسوية التأمين غير معروفة.');
-      if (depositDisposition === 'retain' && Number(depositRetainAmount) > 0 && !String(depositRetainReason || '').trim()) {
-        throw new Error('يرجى إدخال سبب الاحتفاظ بالتأمين.');
-      }
-      const openDepositApplied = depositDisposition === 'apply'
-        ? roundMoney(Math.min(openDepositHeld, Math.max(0, openFinalTotal - openNewPaid))) : 0;
-      const requestedOpenRetain = depositDisposition === 'retain' ? Number(depositRetainAmount || 0) : 0;
-      const openDepositRetained = roundMoney(requestedOpenRetain);
-      if (!Number.isFinite(requestedOpenRetain) || openDepositRetained < 0 || openDepositRetained - openDepositHeld > 0.005) {
-        throw new Error(`المبلغ المحتفظ به يجب ألا يتجاوز التأمين المسجل (${openDepositHeld} ريال).`);
-      }
-      const openDepositRefunded = roundMoney(openDepositHeld - openDepositApplied - openDepositRetained);
-      if (openDepositApplied > 0) {
-        openNewPaid = roundMoney(openNewPaid + openDepositApplied);
-        recordDepositMovement({ reservationId: targetId, type: 'applied', amount: openDepositApplied, paymentMethod: depositRefundMethod, userId, reason: `تسوية من التأمين على الإقامة #${targetId}` });
-        const applyReceipt = generateReceiptNumber(targetId);
-        const applyStmt = db.prepare(`INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes) VALUES (?, ?, ?, 'من التأمين', 'deposit_applied', datetime('now', 'localtime'), ?, ?)`);
-        applyStmt.run([applyReceipt, targetId, openDepositApplied, userId ? parseInt(userId, 10) : null, `تسوية من التأمين #${targetId}`]);
-        applyStmt.free();
-      }
-      if (openDepositRetained > 0) {
-        const retainReason = String(depositRetainReason || '').trim();
-        recordDepositMovement({ reservationId: targetId, type: 'retained', amount: openDepositRetained, paymentMethod: depositRefundMethod, userId, reason: retainReason });
-      }
-      if (openDepositRefunded > 0) recordDepositMovement({ reservationId: targetId, type: 'refunded', amount: openDepositRefunded, paymentMethod: depositRefundMethod, userId, reason: `رد التأمين عند تسجيل المغادرة #${targetId}` });
-
-      // Overpayment guard: mirror the non-contract rule (see the equivalent block below).
-      // An open contract that has been overpaid cannot be closed without a refund row,
-      // otherwise paid_amount stays above total_price and the reservation reads as
-      // 'رصيد دائن' forever with no ledger evidence that the guest was made whole.
-      if (openNewPaid > openFinalTotal + 0.005 && openMode !== 'refund') {
-        throw new Error(
-          `المبلغ المدفوع (${openNewPaid} ريال) يتجاوز الرسوم الصافية المستحقة (${openFinalTotal} ريال). ` +
-          'يجب اختيار "استرداد" لإتمام تسجيل المغادرة.'
-        );
-      }
-      // Collection cannot exceed the outstanding amount either.
-      if (openMode === 'collect' && openFinalTotal > openNewPaid + 0.005) {
-        const amountDue = roundMoney(openFinalTotal - openNewPaid);
-        if (roundMoney(openAddPay - amountDue) > 0.005) {
-          throw new Error(`مبلغ التحصيل (${openAddPay} ريال) يتجاوز المبلغ المستحق (${amountDue} ريال).`);
-        }
-      }
-
-      if (openMode === 'refund') {
-        // Same ledger mechanism as a regular booking: a negative payments row with its
-        // own receipt number. The invoice renderer keys off this exact notes prefix, so
-        // it must stay byte-identical to the non-contract wording below.
-        const openRefundDue = roundMoney(Math.max(0, openNewPaid - openFinalTotal));
-        const openRawRefund = refundAmount !== undefined && refundAmount !== null
-          ? roundMoney(refundAmount)
-          : openRefundDue;
-        if (openRawRefund <= 0) {
-          throw new Error('مبلغ الاسترداد يجب أن يكون أكبر من الصفر.');
-        }
-        if (roundMoney(Math.abs(openRawRefund - openRefundDue)) > 0.005) {
-          throw new Error(
-            `مبلغ الاسترداد (${openRawRefund} ريال) يجب أن يساوي الفرق الفعلي المستحق (${openRefundDue} ريال).`
-          );
-        }
-        openRefundReceiptNumber = generateReceiptNumber(targetId);
-        const refundStmt = db.prepare(`INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes) VALUES (?, ?, ?, ?, 'refund', datetime('now', 'localtime'), ?, ?)`);
-        refundStmt.run([openRefundReceiptNumber, targetId, -openRawRefund, paymentMethod || 'نقداً', userId ? parseInt(userId, 10) : null, `استرداد - تسوية مغادرة #${targetId}`]);
-        refundStmt.free();
-        openNewPaid = roundMoney(openNewPaid - openRawRefund);
-      }
-
-      let openStatus = res.payment_status;
-      if (openNewPaid > openFinalTotal + 0.005) openStatus = 'رصيد دائن';
-      else if (openFinalTotal === 0 && openNewPaid === 0) openStatus = 'مدفوع بالكامل';
-      else if (openNewPaid >= openFinalTotal) openStatus = 'مدفوع بالكامل';
-      else if (openNewPaid > 0) openStatus = 'مدفوع جزئياً';
-      else openStatus = 'غير مدفوع';
-
-      const storedOrig = res.original_calculated_charge;
-      const origToWrite = (storedOrig !== null && storedOrig !== undefined) ? null : roundMoney(res.total_price || 0);
-
-      // Preserve original reservation payment method. Only set it at checkout if the
-      // reservation had zero prior payments or had no payment method set.
-      const openOriginalPaid = roundMoney(res.paid_amount || 0);
-      const openUpdateMethod = (openAddPay > 0 && (openOriginalPaid === 0 || !res.payment_method)) ? paymentMethod : null;
-
-      const s1 = db.prepare(`
-        UPDATE reservations SET status='مكتمل', check_out_date=?, total_price=?, paid_amount=?,
-          payment_status=?, payment_method=COALESCE(?,payment_method),
-          discount_amount=CASE WHEN ? IS NOT NULL THEN ? ELSE discount_amount END,
-          discount_reason=CASE WHEN ? IS NOT NULL THEN ? ELSE discount_reason END,
-          custom_nightly_price=CASE WHEN ? IS NOT NULL THEN ? ELSE custom_nightly_price END,
-          original_calculated_charge=CASE WHEN original_calculated_charge IS NULL THEN ? ELSE original_calculated_charge END,
-          checked_out_at=datetime('now')
-        WHERE id=?
-      `);
-      s1.run([todayStr, openFinalTotal, openNewPaid, openStatus,
-        openUpdateMethod,
-        normDiscountAmount, normDiscountAmount,
-        normDiscountReason, normDiscountReason,
-        normCustomNightlyPrice, normCustomNightlyPrice,
-        origToWrite, targetId]);
-      s1.free();
-
-      const s2 = db.prepare("UPDATE rooms SET status='تنظيف' WHERE id=?");
-      s2.run([res.room_id]);
-      s2.free();
-
-      db.run("COMMIT;");
-    } catch (err) {
-      try { db.run("ROLLBACK;"); } catch (_) {}
-      throw err;
-    }
-    saveToFile();
-    return { success: true, settleMode: openMode, refundReceiptNumber: openRefundReceiptNumber, collectionReceiptNumber: openReceiptNumber };
-  }
-
-  // -------------------------------------------------------------------------
-  // NON-OPEN-CONTRACT PATH: full settlement logic.
+  // UNIFIED SETTLEMENT ENGINE: handles open contracts, monthly stays, day-use,
+  // and regular bookings with shared deposit and ledger reconciliation.
   // -------------------------------------------------------------------------
 
   // Resolve discount and rate.
-  // Rate: always from the stored reservation — no caller override accepted.
+  // Rate: always from the stored reservation — no caller override accepted for non-contracts.
   // Discount: already stripped for non-Admin by the IPC layer.
   const storedDiscountAtBooking = roundMoney(res.discount_amount || 0);
   const rawProvidedDisc = (discountAmount !== undefined && discountAmount !== null && discountAmount !== '' && !isNaN(Number(discountAmount))) ? Math.max(0, roundMoney(discountAmount)) : null;
   const hasExplicitDiscount = rawProvidedDisc !== null && Math.abs(rawProvidedDisc - storedDiscountAtBooking) > 0.005;
-  const normDiscountAmount = hasExplicitDiscount ? rawProvidedDisc : null;
+  const normDiscountAmount = hasExplicitDiscount ? rawProvidedDisc : (isOpenContract && rawProvidedDisc !== null ? rawProvidedDisc : null);
   const normDiscountReason = discountReason !== undefined ? (discountReason || '').trim() : null;
+  const normCustomNightlyPrice = (customNightlyPrice !== undefined && customNightlyPrice !== null && customNightlyPrice !== '')
+    ? roundMoney(customNightlyPrice) : null;
   // Policy reason applies only to a monthly early checkout; it is independent of any
   // explicit checkout discount.
   const normPolicyReason = checkoutPolicyReason !== undefined ? String(checkoutPolicyReason || '').trim() : null;
@@ -1095,7 +930,7 @@ function checkoutReservation(reservationId, {
   // Stored rate only — finalTotalPrice from renderer is ignored for non-contract.
   const effectiveNightlyRate = roundMoney(res.custom_nightly_price || res.price_per_night || 0);
 
-  if (!Number.isFinite(effectiveNightlyRate) || effectiveNightlyRate <= 0) {
+  if (!isOpenContract && (!Number.isFinite(effectiveNightlyRate) || effectiveNightlyRate <= 0)) {
     throw new Error('تعذر إتمام التسوية: سعر الليلة غير صالح (يجب أن يكون أكبر من الصفر).');
   }
 
@@ -1103,7 +938,7 @@ function checkoutReservation(reservationId, {
   // checkout. A discount already stored on the reservation keeps whatever reason it
   // was created with — that field is optional at booking time, so requiring a reason
   // here made an unrelated stored discount block an otherwise valid checkout.
-  if (hasExplicitDiscount && normDiscountAmount > 0 && !normDiscountReason) {
+  if (!isOpenContract && hasExplicitDiscount && normDiscountAmount > 0 && !normDiscountReason) {
     throw new Error('سبب الخصم مطلوب عند تعديله أو إضافته أثناء المغادرة.');
   }
 
@@ -1144,7 +979,13 @@ function checkoutReservation(reservationId, {
   let effectiveDiscount;
   let accommodationNetTotal;
 
-  if (monthlyEarly) {
+  if (isOpenContract) {
+    accommodationNetTotal = (finalTotalPrice !== undefined && finalTotalPrice !== null)
+      ? roundMoney(finalTotalPrice)
+      : roundMoney(res.total_price || 0);
+    baseCharge = accommodationNetTotal;
+    effectiveDiscount = roundMoney(normDiscountAmount !== null ? normDiscountAmount : (res.discount_amount || 0));
+  } else if (monthlyEarly) {
     const requested = String(checkoutPolicy || '').trim();
     if (requested && !['contract', 'actual'].includes(requested)) {
       throw new Error('سياسة المغادرة غير معروفة.');
@@ -1195,7 +1036,7 @@ function checkoutReservation(reservationId, {
     accommodationNetTotal = actualAccommodationNet;
   }
 
-  const normalizedLateCheckoutFee = roundMoney(lateCheckoutFee);
+  const normalizedLateCheckoutFee = isOpenContract ? 0 : roundMoney(lateCheckoutFee);
   if (!Number.isFinite(normalizedLateCheckoutFee) || normalizedLateCheckoutFee < 0) {
     throw new Error('مبلغ تأخير المغادرة يجب أن يكون صفراً أو أكبر.');
   }
@@ -1252,7 +1093,7 @@ function checkoutReservation(reservationId, {
 
   // Safety net: if amount due and mode is not collect or defer, block
   if (finalTotal > adjustedCurrentPaid + 0.005 && resolvedMode !== 'collect' && resolvedMode !== 'defer') {
-    throw new Error('يوجد مبلغ مستحق. يرجى اختيار "تحصيل الآن" أو "تأجيل (آجل)".');
+    throw new Error(`يوجد مبلغ مستحق. (resId: ${reservationId}, mode: ${resolvedMode}, finalTotal: ${finalTotal}, paid: ${adjustedCurrentPaid}, checkin: ${res.check_in_date}, today: ${todayStr})`);
   }
 
   // Preserve original booked total (written once, never overwritten)
@@ -1304,32 +1145,39 @@ function checkoutReservation(reservationId, {
     if (resolvedMode === 'collect') {
       // Positive payment row: collectAmount must be > 0 and <= amount due
       const rawCollect = collectAmount !== undefined ? roundMoney(collectAmount)
-        : (settleAmount !== undefined ? roundMoney(settleAmount) : 0);
+        : (settleAmount !== undefined ? roundMoney(settleAmount) : (isOpenContract ? 0 : 0));
       const amountDue = roundMoney(Math.max(0, finalTotal - adjustedCurrentPaid));
-      if (rawCollect <= 0) {
+      if (collectAmount !== undefined && Number(collectAmount) <= 0) {
+        throw new Error('مبلغ التحصيل يجب أن يكون أكبر من الصفر.');
+      }
+      if (!isOpenContract && rawCollect <= 0) {
         throw new Error('مبلغ التحصيل يجب أن يكون أكبر من الصفر.');
       }
       if (roundMoney(rawCollect - amountDue) > 0.005) {
         throw new Error(`مبلغ التحصيل (${rawCollect} ريال) يتجاوز المبلغ المستحق (${amountDue} ريال).`);
       }
-      newPaid = roundMoney(adjustedCurrentPaid + rawCollect);
-      collectionReceiptNumber = generateReceiptNumber(targetId);
-      // A receipt can only have one purpose label. Mark it as a late-fee payment
-      // only when accommodation was already fully settled before this collection.
-      // Mixed accommodation/fee collections stay checkout_settlement to avoid
-      // misreporting the whole receipt as a late fee.
-      const collectionType = normalizedLateCheckoutFee > 0 && adjustedCurrentPaid >= accommodationNetTotal - 0.005
-        ? 'late_checkout_fee'
-        : 'checkout_settlement';
-      const ps = db.prepare(`
-        INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes)
-        VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
-      `);
-      ps.run([collectionReceiptNumber, targetId, rawCollect, effMethod, collectionType, actingUser,
-        normalizedLateCheckoutFee > 0
-          ? `تحصيل عند المغادرة #${targetId} (يشمل مبلغ تأخير ${normalizedLateCheckoutFee} ريال)`
-          : `تحصيل عند المغادرة #${targetId}`]);
-      ps.free();
+      if (rawCollect > 0) {
+        newPaid = roundMoney(adjustedCurrentPaid + rawCollect);
+        collectionReceiptNumber = generateReceiptNumber(targetId);
+        // A receipt can only have one purpose label. Mark it as a late-fee payment
+        // only when accommodation was already fully settled before this collection.
+        // Mixed accommodation/fee collections stay checkout_settlement to avoid
+        // misreporting the whole receipt as a late fee.
+        const collectionType = normalizedLateCheckoutFee > 0 && adjustedCurrentPaid >= accommodationNetTotal - 0.005
+          ? 'late_checkout_fee'
+          : 'checkout_settlement';
+        const noteText = notes || (
+          normalizedLateCheckoutFee > 0
+            ? `تحصيل عند المغادرة #${targetId} (يشمل مبلغ تأخير ${normalizedLateCheckoutFee} ريال)`
+            : (isOpenContract ? 'سداد تصفية حساب مغادرة' : `تحصيل عند المغادرة #${targetId}`)
+        );
+        const ps = db.prepare(`
+          INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes)
+          VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'), ?, ?)
+        `);
+        ps.run([collectionReceiptNumber, targetId, rawCollect, effMethod, collectionType, actingUser, noteText]);
+        ps.free();
+      }
       // Status
       if (newPaid >= finalTotal - 0.005) {
         newPaymentStatus = 'مدفوع بالكامل';
@@ -1400,6 +1248,7 @@ function checkoutReservation(reservationId, {
           payment_method = CASE WHEN ? IS NOT NULL THEN ? ELSE payment_method END,
           discount_amount = CASE WHEN ? IS NOT NULL THEN ? ELSE discount_amount END,
           discount_reason = CASE WHEN ? IS NOT NULL THEN ? ELSE discount_reason END,
+          custom_nightly_price = CASE WHEN ? IS NOT NULL THEN ? ELSE custom_nightly_price END,
           late_checkout_fee = ?,
           original_calculated_charge = CASE WHEN original_calculated_charge IS NULL THEN ? ELSE original_calculated_charge END,
           checkout_policy = ?,
@@ -1417,8 +1266,9 @@ function checkoutReservation(reservationId, {
     stmt1.run([
       todayStr, finalTotal, newPaid, newPaymentStatus,
       updateMethod, updateMethod,
-      effectiveDiscountForWrite, effectiveDiscountForWrite,
-      effectiveReasonForWrite,   effectiveReasonForWrite,
+      normDiscountAmount, normDiscountAmount,
+      effectiveReasonForWrite, effectiveReasonForWrite,
+      normCustomNightlyPrice, normCustomNightlyPrice,
       normalizedLateCheckoutFee,
       originalChargeToWrite,
       appliedPolicy,
@@ -1883,8 +1733,10 @@ function addPaymentToReservation({ reservationId, amount, paymentMethod = 'نق�
 
   const res = queryOne(`
     SELECT r.id, r.total_price, r.paid_amount, r.payment_method, r.status, r.booking_type,
+           r.check_in_date, r.check_out_date, r.custom_nightly_price, rm.price_per_night, r.discount_amount,
            (SELECT SUM(p.amount) FROM payments p WHERE p.reservation_id = r.id) AS ledger_paid_amount
     FROM reservations r
+    LEFT JOIN rooms rm ON r.room_id = rm.id
     WHERE r.id = ?
   `, [targetId]);
   if (!res) {
@@ -1899,6 +1751,19 @@ function addPaymentToReservation({ reservationId, amount, paymentMethod = 'نق�
   const currentPaid = roundMoney(Number.isFinite(ledgerPaid) ? ledgerPaid : (res.paid_amount || 0));
   const totalPrice = roundMoney(res.total_price || 0);
   const isContract = res.booking_type === 'عقد مفتوح';
+  const todayStr = connection.getCurrentBusinessDate ? connection.getCurrentBusinessDate() : getLocalDateString();
+  const isOverdue = res.status === 'مؤكد' && !isContract && res.check_out_date && res.check_out_date < todayStr;
+  let effectiveTotalPrice = totalPrice;
+  if ((isOverdue || (isContract && res.status === 'مؤكد')) && res.check_in_date) {
+    const nightlyRate = roundMoney(res.custom_nightly_price || res.price_per_night || 0);
+    if (nightlyRate > 0) {
+      const d1 = new Date(res.check_in_date + 'T00:00:00');
+      const d2 = new Date(todayStr + 'T00:00:00');
+      const elapsedNights = Math.max(1, Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24)));
+      const runningTotal = Math.max(0, roundMoney(elapsedNights * nightlyRate - (res.discount_amount || 0)));
+      effectiveTotalPrice = Math.max(totalPrice, runningTotal);
+    }
+  }
 
   let remainingBalance;
   let newRemaining;
@@ -1906,10 +1771,9 @@ function addPaymentToReservation({ reservationId, amount, paymentMethod = 'نق�
   let newPaymentStatus;
 
   if (isContract) {
-    // Open Contract: Allow negative remaining balance (credit), skip Math.max(0, ...) floor and overpayment throw
-    remainingBalance = roundMoney(totalPrice - currentPaid);
+    // Open Contract: Allow paying in advance (advance credit), skip overpayment error
     const newPaidAmount = roundMoney(currentPaid + payAmount);
-    newRemaining = roundMoney(totalPrice - newPaidAmount);
+    newRemaining = roundMoney(effectiveTotalPrice - newPaidAmount);
 
     if (newRemaining < -0.005) {
       newPaymentStatus = 'رصيد دائن';
@@ -1923,7 +1787,7 @@ function addPaymentToReservation({ reservationId, amount, paymentMethod = 'نق�
     }
   } else {
     // Normal & Monthly Bookings: Hard overpayment guard
-    remainingBalance = roundMoney(Math.max(0, totalPrice - currentPaid));
+    remainingBalance = roundMoney(Math.max(0, effectiveTotalPrice - currentPaid));
 
     if (remainingBalance <= 0) {
       throw new Error('الحجز مسدد بالكامل بالفعل، ولا يوجد رصيد متبقي مستحق.');
@@ -1935,7 +1799,7 @@ function addPaymentToReservation({ reservationId, amount, paymentMethod = 'نق�
     }
 
     const newPaidAmount = roundMoney(currentPaid + payAmount);
-    newRemaining = roundMoney(Math.max(0, totalPrice - newPaidAmount));
+    newRemaining = roundMoney(Math.max(0, effectiveTotalPrice - newPaidAmount));
     isFullyPaid = newRemaining <= 0.005;
     newPaymentStatus = isFullyPaid ? 'مدفوع بالكامل' : 'مدفوع جزئياً';
   }
@@ -1965,14 +1829,16 @@ function addPaymentToReservation({ reservationId, amount, paymentMethod = 'نق�
     // Preserve initial reservation payment method if one was already set or paid for
     const prevPaid = roundMoney(res.paid_amount || 0);
     const updatePayMethod = (prevPaid === 0 || !res.payment_method) ? (paymentMethod || null) : null;
+    const updatedTotalPrice = isOverdue ? Math.max(totalPrice, newPaidAmount) : totalPrice;
     const resStmt = db.prepare(`
       UPDATE reservations 
       SET paid_amount = ?, 
+          total_price = ?,
           payment_status = ?, 
           payment_method = CASE WHEN ? IS NOT NULL THEN ? ELSE payment_method END 
       WHERE id = ?
     `);
-    resStmt.run([newPaidAmount, newPaymentStatus, updatePayMethod, updatePayMethod, targetId]);
+    resStmt.run([newPaidAmount, updatedTotalPrice, newPaymentStatus, updatePayMethod, updatePayMethod, targetId]);
     resStmt.free();
 
     db.run("COMMIT;");
@@ -2090,6 +1956,7 @@ function bulkImportReservations(reservationsList) {
     const checkIn = String(r.check_in_date || r['تاريخ الوصول'] || r['الوصول'] || '').trim();
     const checkOut = String(r.check_out_date || r['تاريخ المغادرة'] || r['المغادرة'] || '').trim();
     const price = roundMoney(parseFloat(r.total_price || r['السعر الإجمالي'] || r['المبلغ'] || r['الإجمالي']) || 0);
+    const paid = roundMoney(parseFloat(r.paid_amount || r['المدفوع'] || r['المبلغ المدفوع']) || 0);
 
     if (!guestName || !checkIn || !checkOut) {
       skipped++;
@@ -2124,9 +1991,22 @@ function bulkImportReservations(reservationsList) {
       guestId = queryOne("SELECT id FROM guests ORDER BY id DESC LIMIT 1").id;
     }
 
-    const resStmt = db.prepare("INSERT INTO reservations (guest_id, room_id, check_in_date, check_out_date, total_price, status) VALUES (?, ?, ?, ?, ?, 'مؤكد')");
-    resStmt.run([guestId, room.id, checkIn, checkOut, price]);
+    let paymentStatus = 'غير مدفوع';
+    if (paid >= price && price > 0) paymentStatus = 'مدفوع بالكامل';
+    else if (paid > 0) paymentStatus = 'مدفوع جزئياً';
+
+    const resStmt = db.prepare("INSERT INTO reservations (guest_id, room_id, check_in_date, check_out_date, total_price, paid_amount, payment_status, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'مؤكد')");
+    resStmt.run([guestId, room.id, checkIn, checkOut, price, paid, paymentStatus]);
     resStmt.free();
+    
+    if (paid > 0) {
+      const newResId = queryOne("SELECT id FROM reservations ORDER BY id DESC LIMIT 1").id;
+      const receiptNumber = generateReceiptNumber(newResId);
+      const payStmt = db.prepare("INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, notes) VALUES (?, ?, ?, 'تحويل بنكي', 'advance_payment', datetime('now', 'localtime'), 'رصيد مرحل من استيراد النظام القديم')");
+      payStmt.run([receiptNumber, newResId, paid]);
+      payStmt.free();
+    }
+    
     inserted++;
   }
 
@@ -2154,7 +2034,7 @@ function updateReservationReceipt({
     throw new Error('معرف الحجز أو السند غير صالح.');
   }
 
-  const res = queryOne("SELECT id, guest_id, room_id, status, booking_type, check_in_date, check_out_date, total_price, discount_amount, monthly_extension_amount FROM reservations WHERE id = ?", [targetId]);
+  const res = queryOne("SELECT id, guest_id, room_id, status, booking_type, check_in_date, check_out_date, total_price, paid_amount, discount_amount, monthly_extension_amount FROM reservations WHERE id = ?", [targetId]);
   if (!res) {
     throw new Error('الحجز غير موجود.');
   }
@@ -2273,19 +2153,25 @@ function updateReservationReceipt({
     ]);
     updateResStmt.free();
 
-    // 2. Synchronize primary payment in payments ledger table
-    const existingPayment = queryOne("SELECT id FROM payments WHERE reservation_id = ? ORDER BY id ASC LIMIT 1", [targetId]);
-    if (existingPayment) {
-      const updatePayStmt = db.prepare("UPDATE payments SET amount = ?, payment_method = ? WHERE id = ?");
-      updatePayStmt.run([paid, method, existingPayment.id]);
-      updatePayStmt.free();
-    } else if (paid > 0) {
+    // 2. Insert delta adjustment if the paid amount was manually changed
+    const previousPaid = roundMoney(res.paid_amount || 0);
+    const delta = roundMoney(paid - previousPaid);
+    if (Math.abs(delta) > 0.005) {
       const receiptNumber = generateReceiptNumber(targetId);
+      const isRefund = delta < 0;
+      const paymentType = isRefund ? 'refund' : 'balance_payment';
       const insertPayStmt = db.prepare(`
         INSERT INTO payments (receipt_number, reservation_id, amount, payment_method, payment_type, payment_date, user_id, notes)
-        VALUES (?, ?, ?, ?, 'advance_payment', datetime('now', 'localtime'), NULL, 'دفعة الحجز عند تعديل السند')
+        VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'), NULL, ?)
       `);
-      insertPayStmt.run([receiptNumber, targetId, paid, method]);
+      insertPayStmt.run([
+        receiptNumber, 
+        targetId, 
+        delta, // Will be negative if it's a refund
+        method, 
+        paymentType, 
+        'تسوية رصيد من نافذة تعديل السند'
+      ]);
       insertPayStmt.free();
     }
 

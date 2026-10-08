@@ -614,8 +614,8 @@ test('monthly early checkout: the IPC layer enforces the Admin-only exception', 
       });
 
       assert.equal(res.success, true);
-      assert.equal(res.checkoutPolicy, 'contract');
-      assert.equal(res.finalTotal, 400);
+      assert.equal(res.checkoutPolicy, null, 'no policy recorded for a daily booking');
+      assert.equal(res.finalTotal, 200, 'still billed on actual nights, as before');
       assertDatabaseIntegrity(connection, 'daily booking unaffected over ipc');
     });
 
