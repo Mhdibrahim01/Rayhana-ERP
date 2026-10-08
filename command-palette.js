@@ -149,15 +149,9 @@
   }
 
   function canonicalizeTypoWords(str) {
-    if (!str) return '';
-    return str
-      .replace(/(^|\s+)تسيكن(?=\s+|$)/g, '$1تسكين')
-      .replace(/(^|\s+)مغاردرات(?=\s+|$)/g, '$1مغادرات')
-      .replace(/(^|\s+)مسغوله(?=\s+|$)/g, '$1مشغوله')
-      .replace(/(^|\s+)وريديه(?=\s+|$)/g, '$1ورديه')
-      .replace(/(^|\s+)فتوره(?=\s+|$)/g, '$1فاتوره')
-      .replace(/(^|\s+)تميد(?=\s+|$)/g, '$1تمديد')
-      .replace(/(^|\s+)بخث(?=\s+|$)/g, '$1بحث');
+    // Note: Common typos are now handled dynamically by the Typo Resilience layer
+    // with Did-You-Mean banner feedback in parseCommandIntent.
+    return str || '';
   }
 
   function normalize(str) {
@@ -185,6 +179,235 @@
       .join('');
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 2.1 TYPO RESILIENCE & QUERY REORDERING ENGINE
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Damerau-Levenshtein distance with early exit threshold
+   * Supports insertion, deletion, substitution, and transposition of adjacent characters
+   */
+  function editDistance(a, b, maxLimit = 2) {
+    if (a === b) return 0;
+    const lenA = a.length;
+    const lenB = b.length;
+    if (Math.abs(lenA - lenB) > maxLimit) return maxLimit + 1;
+    if (lenA === 0) return lenB <= maxLimit ? lenB : maxLimit + 1;
+    if (lenB === 0) return lenA <= maxLimit ? lenA : maxLimit + 1;
+
+    const d = [];
+    for (let i = 0; i <= lenA; i++) {
+      d[i] = new Array(lenB + 1);
+      d[i][0] = i;
+    }
+    for (let j = 0; j <= lenB; j++) {
+      d[0][j] = j;
+    }
+
+    for (let i = 1; i <= lenA; i++) {
+      let rowMin = d[i][0];
+      const charA = a.charCodeAt(i - 1);
+      for (let j = 1; j <= lenB; j++) {
+        const charB = b.charCodeAt(j - 1);
+        const cost = charA === charB ? 0 : 1;
+        let val = Math.min(
+          d[i - 1][j] + 1,       // deletion
+          d[i][j - 1] + 1,       // insertion
+          d[i - 1][j - 1] + cost // substitution
+        );
+
+        // Transposition check (Damerau)
+        if (i > 1 && j > 1 && charA === b.charCodeAt(j - 2) && a.charCodeAt(i - 2) === charB) {
+          val = Math.min(val, d[i - 2][j - 2] + 1);
+        }
+
+        d[i][j] = val;
+        if (val < rowMin) rowMin = val;
+      }
+
+      if (rowMin > maxLimit) {
+        return maxLimit + 1;
+      }
+    }
+
+    return d[lenA][lenB];
+  }
+
+  /**
+   * Phonetic grouping for Arabic letters with close phonetic/keyboard proximity
+   * Used strictly as a second-pass fallback when direct edit distance exceeds threshold
+   */
+  function phoneticKey(word) {
+    if (!word) return '';
+    return String(word)
+      .replace(/[سصث]/g, 'س')
+      .replace(/[ذزظض]/g, 'ز')
+      .replace(/[تط]/g, 'ت')
+      .replace(/[قكغ]/g, 'ك')
+      .replace(/[حخه]/g, 'ح')
+      .replace(/[عءؤئ]/g, 'ع')
+      .replace(/(.)\1+/g, '$1');
+  }
+
+  let cachedKeywordVocab = null;
+
+  /**
+   * Builds and caches the command vocabulary lookup map from COMMAND_REGISTRY keywords
+   */
+  function getKeywordVocab() {
+    if (cachedKeywordVocab) return cachedKeywordVocab;
+    const vocab = new Map();
+
+    if (Array.isArray(COMMAND_REGISTRY)) {
+      COMMAND_REGISTRY.forEach(cmd => {
+        if (!cmd || !cmd.id || !Array.isArray(cmd.keywords)) return;
+        cmd.keywords.forEach(kw => {
+          const normKw = normalize(String(kw || '').trim());
+          if (!normKw) return;
+          if (!vocab.has(normKw)) {
+            vocab.set(normKw, []);
+          }
+          const list = vocab.get(normKw);
+          if (!list.some(item => item.commandId === cmd.id)) {
+            list.push({ commandId: cmd.id, canonical: normKw });
+          }
+        });
+      });
+    }
+
+    cachedKeywordVocab = vocab;
+    return cachedKeywordVocab;
+  }
+
+  let cachedEntityWordSet = null;
+
+  /**
+   * Set of normalized words found in active database entities (guest names, room types)
+   * Prevents accidental typo correction when the user types actual guest names or room types
+   */
+  function getEntityWordSet() {
+    if (cachedEntityWordSet) return cachedEntityWordSet;
+    const set = new Set();
+
+    try {
+      const guests = getGuests();
+      guests.forEach(g => {
+        if (g && g.name) {
+          normalize(String(g.name)).split(' ').forEach(w => {
+            if (w && w.length >= 2) set.add(w);
+          });
+        }
+      });
+
+      const rooms = getRooms();
+      rooms.forEach(r => {
+        if (r && r.type) {
+          normalize(String(r.type)).split(' ').forEach(w => {
+            if (w && w.length >= 2) set.add(w);
+          });
+        }
+      });
+    } catch {}
+
+    cachedEntityWordSet = set;
+    return cachedEntityWordSet;
+  }
+
+  function invalidateEntityWordSet() {
+    cachedEntityWordSet = null;
+  }
+
+  /**
+   * Corrects a single token against keyword vocabulary with strict guardrails
+   */
+  function correctToken(token, entityWordSet) {
+    if (!token || token.length <= 3) return null;
+    if (/^\d+$/.test(token) || /^[@#!]/.test(token)) return null;
+    if (entityWordSet && entityWordSet.has(token)) return null;
+
+    const vocab = getKeywordVocab();
+    // Exact match is already handled cleanly by normal intent matching
+    if (vocab.has(token)) return null;
+
+    const maxAllowedDist = token.length <= 6 ? 1 : 2;
+    let minDist = maxAllowedDist + 1;
+    let candidates = [];
+
+    // 1. Damerau-Levenshtein direct pass
+    for (const [kw] of vocab) {
+      if (Math.abs(token.length - kw.length) > maxAllowedDist) continue;
+      const dist = editDistance(token, kw, maxAllowedDist);
+      if (dist <= maxAllowedDist) {
+        if (dist < minDist) {
+          minDist = dist;
+          candidates = [{ kw, dist }];
+        } else if (dist === minDist) {
+          candidates.push({ kw, dist });
+        }
+      }
+    }
+
+    // 2. Phonetic fallback if no direct candidate was found
+    if (candidates.length === 0) {
+      const tokenPhonetic = phoneticKey(token);
+      let minPhoneticDist = maxAllowedDist + 2;
+
+      for (const [kw] of vocab) {
+        if (tokenPhonetic === phoneticKey(kw)) {
+          const dist = editDistance(token, kw, maxAllowedDist + 1);
+          if (dist <= maxAllowedDist + 1) {
+            if (dist < minPhoneticDist) {
+              minPhoneticDist = dist;
+              candidates = [{ kw, dist }];
+            } else if (dist === minPhoneticDist) {
+              candidates.push({ kw, dist });
+            }
+          }
+        }
+      }
+    }
+
+    if (candidates.length === 0) return null;
+
+    // Check for ties across different commands
+    const tiedCommandIds = new Set();
+    candidates.forEach(c => {
+      const entries = vocab.get(c.kw) || [];
+      entries.forEach(e => tiedCommandIds.add(e.commandId));
+    });
+
+    // Tie-break guard: if equidistant to keywords from different commands, do not correct
+    if (tiedCommandIds.size > 1) {
+      return null;
+    }
+
+    return candidates[0].kw;
+  }
+
+  /**
+   * Reorders a standalone 1-5 digit number to the end of the query
+   * Example: "205 فاتورة" -> "فاتورة 205"
+   */
+  function reorderNumberLast(text) {
+    if (!text) return null;
+    const trimmed = String(text).trim();
+    // Standalone 1-5 digits preceded by start/space, not part of larger digits, followed by space and non-whitespace
+    const match = trimmed.match(/(?:^|\s)(\d{1,5})(?!\d)(?=\s+\S)/);
+    if (!match) return null;
+
+    const num = match[1];
+    const matchOffset = match[0].indexOf(num);
+    const numStart = match.index + matchOffset;
+    const numEnd = numStart + num.length;
+
+    const before = trimmed.slice(0, numStart).trim();
+    const after = trimmed.slice(numEnd).trim();
+    const remaining = [before, after].filter(Boolean).join(' ');
+    if (!remaining) return null;
+
+    return `${remaining} ${num}`;
+  }
+
   // Pre-normalized search cache (WeakMap) to eliminate redundant per-keystroke normalizations
   const entitySearchCache = new WeakMap();
 
@@ -205,6 +428,7 @@
   }
 
   function buildSearchIndex() {
+    invalidateEntityWordSet();
     const rooms = getRooms();
     const reservations = getReservations();
     const guests = getGuests();
@@ -744,6 +968,7 @@
     {
       id: 'prefix-reservation',
       name: 'البحث السريع برقم الحجز',
+      keywords: [],
       match: (norm) => {
         const m = norm.match(/^#\s*(.*)$/);
         if (m) {
@@ -886,6 +1111,7 @@
     {
       id: 'prefix-guest',
       name: 'البحث السريع عن النزلاء',
+      keywords: [],
       match: (norm) => {
         const m = norm.match(/^@\s*(.*)$/);
         if (m) {
@@ -1015,6 +1241,7 @@
     {
       id: 'prefix-room',
       name: 'البحث السريع برقم الغرفة',
+      keywords: [],
       match: (norm) => {
         // Match ! followed by anything (allowing validation inside handle)
         const mExcl = norm.match(/^!\s*(.*)$/);
@@ -1056,6 +1283,7 @@
     {
       id: 'unpaid',
       name: 'المستحقات والديون المعلقة',
+      keywords: ['مستحق', 'ديون', 'مديونيه', 'مديون', 'باقي', 'unpaid', 'debts'],
       match: (norm) => {
         return /^(?:مستحق|المستحق|ديون|الديون|مديوني|المديوني|غير\s+مدفوع|غير\s+مسدد|unpaid|debts|balances|outstanding)/i.test(norm) ||
           norm.includes('عليه فلوس') || norm.includes('عليه مبالغ') || norm.includes('ما دفع') ||
@@ -1117,6 +1345,7 @@
     {
       id: 'departures',
       name: 'مغادرات اليوم',
+      keywords: ['مغادر', 'مغادره', 'مغادرات', 'خروج', 'departure', 'departures', 'checkout'],
       match: (norm) => {
         return /^(?:مغادر|المغادر|خروج|الخروج|departures?|checkouts?)/i.test(norm) ||
           norm.includes('خارج اليوم') || norm.includes('بيخرج اليوم') || norm.includes('يخرج اليوم') ||
@@ -1200,6 +1429,7 @@
     {
       id: 'late',
       name: 'النزلاء المتأخرون عن المغادرة',
+      keywords: ['متاخر', 'متاخره', 'متاخرين', 'تاخير', 'overdue', 'late'],
       match: (norm) => {
         return /^(?:متاخر|المتاخر|متأخر|المتأخر|تاخير|التاخير|تأخير|التأخير|late|overdue)/i.test(norm) ||
           norm.includes('متاخر') || norm.includes('متأخر') || norm.includes('تاخير') || norm.includes('تأخير') || norm.includes('overdue');
@@ -1256,6 +1486,7 @@
     {
       id: 'available',
       name: 'الغرف المتاحة',
+      keywords: ['متاح', 'متاحه', 'شاغر', 'شاغره', 'فاضي', 'فاضيه', 'available', 'vacant'],
       match: (norm) => {
         const hasDigits = /\d+/.test(norm);
         return !hasDigits && (
@@ -1306,6 +1537,7 @@
     {
       id: 'occupied',
       name: 'الغرف المشغولة',
+      keywords: ['مشغول', 'مشغوله', 'ساكن', 'ساكنين', 'occupied'],
       match: (norm) => {
         const hasDigits = /\d+/.test(norm);
         return !hasDigits && (
@@ -1357,6 +1589,7 @@
     {
       id: 'cleaning',
       name: 'غرف النظافة',
+      keywords: ['نظافه', 'تنظيف', 'وسخ', 'cleaning', 'dirty'],
       match: (norm) => {
         return /^(?:نظافه|النظافه|نظافة|النظافة|تنظيف|التنظيف|cleaning|dirty)(?:\s|$)/i.test(norm) ||
           norm.includes('نظافه') || norm.includes('نظافة') || norm.includes('تنظيف') || norm.includes('cleaning');
@@ -1388,6 +1621,7 @@
     {
       id: 'booking',
       name: 'حجز وتسكين',
+      keywords: ['تسكين', 'حجز', 'booking', 'checkin'],
       match: (norm) => {
         const m = norm.match(/^(?:تسكين|حجز|booking|checkin)\s*(?:(?:غرف[هة]|الغرف[هة])\s+)?(\d{1,5})?/i);
         if (m) {
@@ -1493,6 +1727,7 @@
     {
       id: 'shift',
       name: 'تقرير الوردية والخزينة',
+      keywords: ['ورديه', 'شفت', 'صندوق', 'درج', 'كاش', 'خزينه', 'فلوس', 'shift', 'audit'],
       match: (norm) => {
         return /^(?:فلوس|كاش|نقديه|نقدية|درج|الدرج|ورديه|وردية|الورديه|الوردية|خزينه|خزينة|الخزينه|الخزينة|audit|shift|cash|drawer)(?:\s|$)/i.test(norm) ||
           norm.includes('درج') || norm.includes('ورديه') || norm.includes('وردية') || norm.includes('خزينه') || norm.includes('خزينة') || norm.includes('كاش');
@@ -1537,6 +1772,7 @@
     {
       id: 'whatsapp',
       name: 'مراسلة واتساب',
+      keywords: ['واتساب', 'واتس', 'whatsapp', 'رساله'],
       match: (norm) => {
         const m = norm.match(/^(?:واتساب|واتس|whatsapp|رسال[هة])\s*(?:(?:غرف[هة]|الغرف[هة])\s+)?(.+)?/i);
         if (m) {
@@ -1595,6 +1831,7 @@
     {
       id: 'extend',
       name: 'تمديد إقامة النزيل',
+      keywords: ['تمديد', 'مدد', 'extend'],
       match: (norm) => {
         const m = norm.match(/^(?:تمديد|extend)(?:\s+(?:حجز|اقام[هة]))?\s*(?:(?:غرف[هة]|الغرف[هة]|حجز)\s+)*(\d{1,5})?/i);
         if (m) {
@@ -1651,6 +1888,7 @@
     {
       id: 'invoice',
       name: 'معاينة وطباعة الفاتورة',
+      keywords: ['فاتوره', 'حساب', 'طباعه', 'invoice'],
       match: (norm) => {
         const m = norm.match(/^(?:فاتور[هة]|الفاتور[هة]|طباع[هة]\s+فاتور[هة]|invoice)\s*(?:(?:غرف[هة]|الغرف[هة]|حجز)\s+)*(\d{1,5})?/i);
         if (m) {
@@ -1705,6 +1943,7 @@
     {
       id: 'voucher',
       name: 'سند قبض وتحصيل دفعة',
+      keywords: ['سند', 'قبض', 'تحصيل', 'دفعه', 'دفع', 'سداد', 'ايصال', 'receipt', 'payment', 'pay', 'voucher'],
       match: (norm) => {
         const m = norm.match(/^(?:سند(?:\s+قبض)?|قبض|تحصيل|دفع[هة]?|سداد|receipt|payment|pay)(?=\s|\d|$)\s*(?:(?:غرف[هة]|الغرف[هة]|حجز)\s*)*(\d{1,5})?$/i);
         if (m) {
@@ -1821,6 +2060,7 @@
     {
       id: 'floor',
       name: 'تصفية الغرف حسب الطابق',
+      keywords: ['دور', 'طابق', 'floor'],
       match: (norm) => {
         const m = norm.match(/^(?:الدور|طابق|الطابق|floor)\s*(\d{1,2}|الاول|الأول|الثاني|الثالث|الرابع|الخامس)?/i);
         if (m) {
@@ -1876,6 +2116,7 @@
     {
       id: 'blacklist',
       name: 'قائمة النزلاء المحظورين',
+      keywords: ['حظر', 'محظور', 'بلاك', 'سوداء', 'blacklist'],
       match: (norm) => {
         return /^(?:محظور|المحظور|المحظورين|بلاك\s*ليست|قا[يئ]م[هة]\s+الحظر|blacklist|banned)/i.test(norm) ||
           norm.includes('محظور') || norm.includes('بلاك ليست') || norm.includes('الحظر') || norm.includes('حظر');
@@ -1902,6 +2143,7 @@
     {
       id: 'backup',
       name: 'النسخ الاحتياطي الفوري',
+      keywords: ['نسخه', 'احتياطيه', 'باك', 'backup'],
       match: (norm) => {
         return /^(?:نسخ[هة]\s+احتياطي[هة]|النسخ[هة]\s+الاحتياطي[هة]|باك\s*اب|باكاب|backup)/i.test(norm) ||
           norm.includes('احتياطيه') || norm.includes('احتياطية') || norm.includes('باك اب');
@@ -1926,6 +2168,7 @@
     {
       id: 'room-inquiry',
       name: 'استعلام الغرفة',
+      keywords: ['غرفه', 'مين', 'ساكن'],
       match: (norm) => {
         const m = norm.match(/^(?:(?:مين\s+(?:في\s+|ساكن\s+(?:في\s+)?)?|من\s+في\s+)?(?:غرف[هة]\s*|الغرف[هة]\s*|رقم\s*)?|رقم\s*)?(\d{1,5})(?:\s*؟|\s*\?|\s*$)/i);
         if (m && m[1]) {
@@ -1964,34 +2207,79 @@
     };
   }
 
-  function parseCommandIntent(rawQuery) {
+  function parseCommandIntent(rawQuery, options = {}) {
     const query = String(rawQuery || '').trim();
     if (!query) {
       return { type: 'empty' };
     }
 
+    const skipCorrection = Boolean(options && options.skipCorrection);
+
+    // Step 1: Direct normalized match
     const norm = normalize(query);
     const parsed = matchIntentFromNormalizedText(norm, query);
     if (parsed.type !== 'search') {
       return parsed;
     }
 
+    // Step 2: Keyboard transliteration (English -> Arabic)
+    let transliteratedNorm = '';
     if (/[a-zA-Z]/.test(query)) {
       const transliterated = transliterateEnToAr(query);
-      const normTrans = normalize(transliterated);
-      const transliteratedParsed = matchIntentFromNormalizedText(normTrans, query);
+      transliteratedNorm = normalize(transliterated);
+      const transliteratedParsed = matchIntentFromNormalizedText(transliteratedNorm, query);
       if (transliteratedParsed.type !== 'search') {
         return transliteratedParsed;
       }
-      return {
-        type: 'search',
-        query: norm,
-        transliterated: normTrans,
-        originalQuery: query
-      };
     }
 
-    return parsed;
+    // Step 3: Reorder standalone 1-5 digit number to the end of the query (reorderNumberLast)
+    // Accept only if it produces a recognized command (type !== 'search'); otherwise keep original query
+    const reordered = reorderNumberLast(norm);
+    if (reordered) {
+      const reorderedNorm = normalize(reordered);
+      const reorderedParsed = matchIntentFromNormalizedText(reorderedNorm, query);
+      if (reorderedParsed.type !== 'search') {
+        return {
+          ...reorderedParsed,
+          reorderedFrom: norm,
+          originalQuery: query
+        };
+      }
+    }
+
+    // Step 4: Typo resilience (correct first token only)
+    if (!skipCorrection) {
+      const tokens = norm.split(' ').filter(Boolean);
+      if (tokens.length > 0) {
+        const firstToken = tokens[0];
+        const entityWordSet = getEntityWordSet();
+        const correctedToken = correctToken(firstToken, entityWordSet);
+        if (correctedToken && correctedToken !== firstToken) {
+          const candidateQuery = [correctedToken, ...tokens.slice(1)].join(' ');
+          const candidateNorm = normalize(candidateQuery);
+          const candidateParsed = matchIntentFromNormalizedText(candidateNorm, query);
+          if (candidateParsed.type !== 'search') {
+            return {
+              ...candidateParsed,
+              didYouMean: {
+                from: firstToken,
+                to: correctedToken
+              },
+              typedAs: query,
+              originalQuery: query
+            };
+          }
+        }
+      }
+    }
+
+    return {
+      type: 'search',
+      query: norm,
+      transliterated: transliteratedNorm || undefined,
+      originalQuery: query
+    };
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -2124,6 +2412,7 @@
   let paletteInput = null;
   let paletteResults = null;
   let paletteCountLabel = null;
+  let paletteCorrectionBanner = null;
   let currentSelectedIndex = -1;
   let currentItemsList = [];
   let previouslyFocusedElement = null;
@@ -2137,6 +2426,15 @@
     paletteCountLabel = document.getElementById('command-palette-results-count');
 
     if (!paletteModal) return;
+
+    paletteCorrectionBanner = document.getElementById('command-palette-correction-banner');
+    if (!paletteCorrectionBanner && paletteResults && paletteResults.parentNode) {
+      paletteCorrectionBanner = document.createElement('div');
+      paletteCorrectionBanner.id = 'command-palette-correction-banner';
+      paletteCorrectionBanner.className = 'command-palette-correction-banner';
+      paletteCorrectionBanner.style.display = 'none';
+      paletteResults.parentNode.insertBefore(paletteCorrectionBanner, paletteResults);
+    }
 
     // Close on backdrop click
     paletteModal.addEventListener('click', event => {
@@ -2223,6 +2521,11 @@
     if (!paletteModal) return;
     paletteModal.style.display = 'none';
 
+    if (paletteCorrectionBanner) {
+      paletteCorrectionBanner.innerHTML = '';
+      paletteCorrectionBanner.style.display = 'none';
+    }
+
     if (previouslyFocusedElement && typeof previouslyFocusedElement.focus === 'function') {
       try {
         previouslyFocusedElement.focus();
@@ -2286,10 +2589,45 @@
     });
   }
 
+  function renderCorrectionBanner(intent) {
+    if (!paletteCorrectionBanner) return;
+    if (intent && intent.didYouMean && intent.didYouMean.from && intent.didYouMean.to) {
+      const from = escapePaletteText(intent.didYouMean.from);
+      const to = escapePaletteText(intent.didYouMean.to);
+      const originalTyped = intent.typedAs || intent.originalQuery || intent.didYouMean.from;
+
+      paletteCorrectionBanner.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 8px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-size: 0.85rem; color: #334155; box-sizing: border-box;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 1rem;">💡</span>
+            <span>تم تصحيح <strong>«${from}»</strong> إلى <strong>«${to}»</strong></span>
+          </div>
+          <button type="button" class="palette-banner-undo-btn" style="background: none; border: none; color: #2563eb; font-size: 0.82rem; font-weight: 600; cursor: pointer; text-decoration: underline; padding: 2px 6px; font-family: inherit;">
+            ابحث عن «${from}» كما كتبت
+          </button>
+        </div>
+      `;
+      paletteCorrectionBanner.style.display = 'block';
+
+      const undoBtn = paletteCorrectionBanner.querySelector('.palette-banner-undo-btn');
+      if (undoBtn) {
+        undoBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          handlePaletteSearch(originalTyped, { skipCorrection: true });
+        });
+      }
+    } else {
+      paletteCorrectionBanner.innerHTML = '';
+      paletteCorrectionBanner.style.display = 'none';
+    }
+  }
+
   // Generate Results according to Intent via Command Registry
-  function handlePaletteSearch(rawQuery) {
+  function handlePaletteSearch(rawQuery, options = {}) {
     if (!paletteResults) return;
-    const intent = parseCommandIntent(rawQuery);
+    const intent = parseCommandIntent(rawQuery, options);
+    renderCorrectionBanner(intent);
     const rooms = getRooms();
     const reservations = getReservations();
     const guests = getGuests();
@@ -2973,6 +3311,12 @@
     open: openCommandPalette,
     close: closeCommandPalette,
     parseCommandIntent,
+    reorderNumberLast,
+    editDistance,
+    phoneticKey,
+    correctToken,
+    getKeywordVocab,
+    getEntityWordSet,
     computeAttentionInbox,
     updateAttentionInbox,
     syncDataFromDb,
