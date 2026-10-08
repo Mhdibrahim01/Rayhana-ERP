@@ -598,6 +598,7 @@
   }
 
   const RECENT_ITEMS_STORAGE_KEY = 'rayhana_palette_recent_mru';
+  const recentActionsRegistry = new Map();
 
   function getRecentItems() {
     if (typeof localStorage === 'undefined') return [];
@@ -613,17 +614,307 @@
     if (!item || !item.title || typeof localStorage === 'undefined') return;
     try {
       let list = getRecentItems();
+      const existing = list.find(i => i.title === item.title);
       list = list.filter(i => i.title !== item.title);
+
+      const actionType = item.actionType || (existing && existing.actionType) || null;
+      const actionPayload = item.actionPayload || (existing && existing.actionPayload) || null;
+      const query = item.query || (existing && existing.query) || null;
+
       list.unshift({
-        id: item.id || `rec-${Date.now()}`,
+        id: item.id || (existing && existing.id) || `rec-${Date.now()}`,
         title: item.title,
-        subtitle: item.subtitle || '',
+        subtitle: item.subtitle || (existing && existing.subtitle) || '',
         icon: typeof item.icon === 'string' ? item.icon.slice(0, 10) : '🕒',
-        badge: item.badge || 'سابق'
+        badge: item.badge || 'سابق',
+        actionType,
+        actionPayload,
+        query
       });
       list = list.slice(0, 5);
       localStorage.setItem(RECENT_ITEMS_STORAGE_KEY, JSON.stringify(list));
+
+      if (typeof item.actionFn === 'function' && !item.isRecentWrapper) {
+        recentActionsRegistry.set(item.title, item.actionFn);
+      }
     } catch {}
+  }
+
+  function canReplayAction(actionType, payload) {
+    if (!actionType) return false;
+    return ['payment', 'checkout', 'extend', 'invoice', 'room-inquiry', 'booking', 'whatsapp', 'mark-clean', 'preview', 'attention-tab', 'view-section', 'backup', 'command'].includes(actionType);
+  }
+
+  function replayAction(actionType, payload, context) {
+    if (!actionType) return;
+    const p = payload || {};
+    const resId = p.reservationId || p.resId;
+    const roomId = p.roomId;
+    const roomNumber = p.roomNumber;
+    const reservations = context?.reservations || getReservations();
+    const rooms = context?.rooms || getRooms();
+
+    switch (actionType) {
+      case 'payment': {
+        const id = resId || (roomNumber ? reservations.find(r => String(r.room_number) === String(roomNumber) && r.status === 'مؤكد')?.id : null);
+        if (id && window.openAddPaymentModal) {
+          window.openAddPaymentModal(id);
+        } else if (id && App?.Helpers?.openReservationPreview) {
+          App.Helpers.openReservationPreview(id);
+        } else {
+          showMissingHelperToast();
+        }
+        break;
+      }
+      case 'checkout': {
+        let res = p.reservation;
+        if (!res) {
+          res = reservations.find(r => (resId && String(r.id) === String(resId)) || (roomNumber && String(r.room_number) === String(roomNumber) && r.status === 'مؤكد'));
+        }
+        if (res && App?.Helpers?.openContractSettleModal) {
+          App.Helpers.openContractSettleModal(res);
+        } else if (res && App?.Helpers?.openReservationPreview) {
+          App.Helpers.openReservationPreview(res.id);
+        } else {
+          showMissingHelperToast();
+        }
+        break;
+      }
+      case 'extend': {
+        const id = resId || (roomNumber ? reservations.find(r => String(r.room_number) === String(roomNumber) && r.status === 'مؤكد')?.id : null);
+        if (id && window.openExtendStayModal) {
+          window.openExtendStayModal(id);
+        } else if (id && App?.Helpers?.openReservationPreview) {
+          App.Helpers.openReservationPreview(id);
+        } else {
+          showMissingHelperToast();
+        }
+        break;
+      }
+      case 'invoice': {
+        const id = resId || (roomNumber ? reservations.find(r => String(r.room_number) === String(roomNumber) && r.status === 'مؤكد')?.id : null);
+        if (id && window.openInvoiceModal) {
+          window.openInvoiceModal(id);
+        } else if (id && App?.Helpers?.openReservationPreview) {
+          App.Helpers.openReservationPreview(id);
+        } else {
+          showMissingHelperToast();
+        }
+        break;
+      }
+      case 'room-inquiry': {
+        let rm = p.room;
+        if (!rm) {
+          rm = rooms.find(r => (roomId && r.id === roomId) || (roomNumber && String(r.room_number) === String(roomNumber)));
+        }
+        if (rm) {
+          openRoomInquiryModal(rm);
+        } else {
+          showMissingHelperToast();
+        }
+        break;
+      }
+      case 'booking': {
+        let rm = p.room;
+        if (!rm && roomNumber) {
+          rm = rooms.find(r => String(r.room_number) === String(roomNumber));
+        }
+        if (rm && App?.Helpers?.initiateRoomBooking) {
+          App.Helpers.initiateRoomBooking(rm);
+        } else {
+          showMissingHelperToast();
+        }
+        break;
+      }
+      case 'whatsapp': {
+        const id = resId || (roomNumber ? reservations.find(r => String(r.room_number) === String(roomNumber) && r.status === 'مؤكد')?.id : null);
+        if (id && window.sendReservationWhatsApp) {
+          window.sendReservationWhatsApp(id);
+        } else {
+          showMissingHelperToast();
+        }
+        break;
+      }
+      case 'mark-clean': {
+        let rm = p.room;
+        if (!rm) {
+          rm = rooms.find(r => (roomId && r.id === roomId) || (roomNumber && String(r.room_number) === String(roomNumber)));
+        }
+        if (rm) {
+          requestRoomCleaningCompletion(rm);
+        }
+        break;
+      }
+      case 'preview': {
+        const id = resId || (roomNumber ? reservations.find(r => String(r.room_number) === String(roomNumber) && r.status === 'مؤكد')?.id : null);
+        if (id && App?.Helpers?.openReservationPreview) {
+          App.Helpers.openReservationPreview(id);
+        } else if (id && window.openInvoiceModal) {
+          window.openInvoiceModal(id);
+        } else {
+          showMissingHelperToast();
+        }
+        break;
+      }
+      case 'attention-tab':
+        openAttentionInboxModal(p.tab || 'all');
+        break;
+      case 'view-section':
+        if (p.section) switchViewSection(p.section);
+        break;
+      case 'backup':
+        if (typeof window.openDailyBackupModal === 'function') {
+          window.openDailyBackupModal();
+        }
+        break;
+      default:
+        break;
+    }
+  }
+
+  function tryHeuristicAction(rec, context) {
+    if (!rec || !rec.title) return null;
+    const title = String(rec.title).trim();
+    const reservations = context?.reservations || getReservations();
+    const rooms = context?.rooms || getRooms();
+
+    if (/^غرف\s*متاحة/i.test(title)) {
+      return () => switchViewSection('rooms');
+    }
+    if (/^غرف\s*مشغولة/i.test(title)) {
+      return () => switchViewSection('rooms');
+    }
+    if (/^غرف\s*(تحت\s*)?التنظيف/i.test(title)) {
+      return () => switchViewSection('rooms');
+    }
+    if (/متأخرون\s*عن\s*المغادرة|النزلاء\s*المتأخرون/i.test(title)) {
+      return () => openAttentionInboxModal('late-checkout');
+    }
+    if (/مغادرات\s*اليوم/i.test(title)) {
+      return () => openAttentionInboxModal('departures-today');
+    }
+    if (/الديون|مستحقات\s*غير\s*مدفوعة/i.test(title)) {
+      return () => openAttentionInboxModal('unpaid-balance');
+    }
+    if (/تقرير\s*الوردية|فلوس\s*الدرج|الوردية\s*والدرج/i.test(title)) {
+      return () => openAttentionInboxModal('all');
+    }
+
+    const roomMatch = title.match(/(?:غرفة|غ)\s*(\d{1,5})/);
+    if (roomMatch) {
+      const roomNum = normalizeDigits(roomMatch[1]);
+      const res = reservations.find(r => String(r.room_number) === String(roomNum) && r.status === 'مؤكد') ||
+                  reservations.find(r => String(r.room_number) === String(roomNum));
+      const room = rooms.find(r => String(r.room_number) === String(roomNum));
+
+      if (/مستحق|سداد|سند|قبض|دفعة/i.test(title)) {
+        if (res) {
+          return () => {
+            if (window.openAddPaymentModal) window.openAddPaymentModal(res.id);
+            else if (App?.Helpers?.openReservationPreview) App.Helpers.openReservationPreview(res.id);
+            else showMissingHelperToast();
+          };
+        }
+      }
+      if (/فاتورة/i.test(title)) {
+        if (res) {
+          return () => {
+            if (window.openInvoiceModal) window.openInvoiceModal(res.id);
+            else if (App?.Helpers?.openReservationPreview) App.Helpers.openReservationPreview(res.id);
+            else showMissingHelperToast();
+          };
+        }
+      }
+      if (/تمديد/i.test(title)) {
+        if (res) {
+          return () => {
+            if (window.openExtendStayModal) window.openExtendStayModal(res.id);
+            else if (App?.Helpers?.openReservationPreview) App.Helpers.openReservationPreview(res.id);
+            else showMissingHelperToast();
+          };
+        }
+      }
+      if (/مغادرة|خروج|تسوية/i.test(title)) {
+        if (res) {
+          return () => {
+            if (App?.Helpers?.openContractSettleModal) App.Helpers.openContractSettleModal(res);
+            else if (App?.Helpers?.openReservationPreview) App.Helpers.openReservationPreview(res.id);
+            else showMissingHelperToast();
+          };
+        }
+      }
+      if (room) {
+        return () => openRoomInquiryModal(room);
+      }
+    }
+
+    const matchedCmd = COMMAND_REGISTRY.find(c => c.name === title || c.id === title);
+    if (matchedCmd && typeof matchedCmd.handle === 'function') {
+      return () => matchedCmd.handle(context);
+    }
+
+    return null;
+  }
+
+  function resolveRecentActionItem(rec, context) {
+    const cachedFn = recentActionsRegistry.get(rec.title);
+    if (typeof cachedFn === 'function') {
+      return {
+        category: '🕒 تم الوصول إليها مؤخراً',
+        icon: rec.icon || '🕒',
+        title: rec.title,
+        subtitle: rec.subtitle || 'سجل العمليات السابقة',
+        badge: rec.badge || 'أخير',
+        isRecentWrapper: true,
+        actionType: rec.actionType,
+        actionPayload: rec.actionPayload,
+        actionFn: cachedFn
+      };
+    }
+
+    if (rec.actionType && canReplayAction(rec.actionType, rec.actionPayload)) {
+      return {
+        category: '🕒 تم الوصول إليها مؤخراً',
+        icon: rec.icon || '🕒',
+        title: rec.title,
+        subtitle: rec.subtitle || 'سجل العمليات السابقة',
+        badge: rec.badge || 'أخير',
+        isRecentWrapper: true,
+        actionType: rec.actionType,
+        actionPayload: rec.actionPayload,
+        actionFn: () => replayAction(rec.actionType, rec.actionPayload, context)
+      };
+    }
+
+    const heuristicFn = tryHeuristicAction(rec, context);
+    if (typeof heuristicFn === 'function') {
+      recentActionsRegistry.set(rec.title, heuristicFn);
+      return {
+        category: '🕒 تم الوصول إليها مؤخراً',
+        icon: rec.icon || '🕒',
+        title: rec.title,
+        subtitle: rec.subtitle || 'سجل العمليات السابقة',
+        badge: rec.badge || 'أخير',
+        isRecentWrapper: true,
+        actionFn: heuristicFn
+      };
+    }
+
+    return {
+      category: '🕒 تم الوصول إليها مؤخراً',
+      icon: rec.icon || '🕒',
+      title: rec.title,
+      subtitle: rec.subtitle || 'سجل العمليات السابقة',
+      badge: rec.badge || 'أخير',
+      isRecentWrapper: true,
+      preventClose: true,
+      actionFn: () => {
+        if (paletteInput) {
+          paletteInput.value = rec.query || rec.title;
+          handlePaletteSearch(rec.query || rec.title);
+        }
+      }
+    };
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1577,20 +1868,26 @@
             category: `⚠️ النزلاء المتأخرون عن المغادرة (${lateStays.length})`,
             icon: '⚠️',
             title: `يوجد ${lateStays.length} نزيل تجاوزوا موعد الخروج المحدد`,
-            subtitle: 'يجب التواصل معهم للتمديد أو تسليم الغرفة فوراً',
+            subtitle: 'يجب التواصل معهم للتمديد أو تسليم الغرفة فوراً (فتح صندوق المهام)',
             badge: 'متأخرون ⚠️',
+            actionType: 'attention-tab',
+            actionPayload: { tab: 'late-checkout' },
             actionFn: () => openAttentionInboxModal('late-checkout')
           });
 
           lateStays.forEach(r => {
             const fin = getResFin(r, ctx.currentBizDate);
             const balance = fin.remaining;
+
+            // 1. تسجيل مغادرة وتسوية
             ctx.results.push({
-              category: '⚠️ نزيل متأخر',
-              icon: '🔴',
-              title: `غرفة ${r.room_number || '-'} • ${r.guest_name || 'نزيل'}`,
-              subtitle: `تاريخ المغادرة السابق: ${r.check_out_date || '-'} • الجوال: ${r.guest_phone || '-'} • المتبقي: ${balance.toLocaleString('en-US')} ر.س`,
-              badge: 'تجاوز المغادرة ⚠️',
+              category: `⚠️ متأخر عن المغادرة • غرفة ${r.room_number || '-'}`,
+              icon: '🚪',
+              title: `تسجيل مغادرة وتسوية • غرفة ${r.room_number || '-'} (${r.guest_name || 'نزيل'})`,
+              subtitle: `تاريخ المغادرة السابق: ${r.check_out_date || '-'} • المتبقي: ${balance.toLocaleString('en-US')} ر.س`,
+              badge: 'تسجيل خروج 🚪',
+              actionType: 'checkout',
+              actionPayload: { reservationId: r.id, reservation: r, roomNumber: r.room_number },
               actionFn: () => {
                 if (App?.Helpers?.openContractSettleModal) {
                   App.Helpers.openContractSettleModal(r);
@@ -1601,6 +1898,46 @@
                 }
               }
             });
+
+            // 2. تمديد الحجز (إجراء سريع مطلوب)
+            ctx.results.push({
+              category: `⚠️ متأخر عن المغادرة • غرفة ${r.room_number || '-'}`,
+              icon: '⏱️',
+              title: `تمديد الحجز • غرفة ${r.room_number || '-'} (${r.guest_name || 'نزيل'})`,
+              subtitle: `تمديد مدة الإقامة وتحديث تاريخ المغادرة للنزيل المتأخر`,
+              badge: 'تمديد الحجز ⏱️',
+              actionType: 'extend',
+              actionPayload: { reservationId: r.id, reservation: r, roomNumber: r.room_number },
+              actionFn: () => {
+                if (window.openExtendStayModal) {
+                  window.openExtendStayModal(r.id);
+                } else if (App?.Helpers?.openReservationPreview) {
+                  App.Helpers.openReservationPreview(r.id);
+                } else {
+                  showMissingHelperToast();
+                }
+              }
+            });
+
+            // 3. مراسلة واتساب
+            if (r.guest_phone) {
+              ctx.results.push({
+                category: `⚠️ متأخر عن المغادرة • غرفة ${r.room_number || '-'}`,
+                icon: '💬',
+                title: `مراسلة واتساب • غرفة ${r.room_number || '-'} (${r.guest_name || 'نزيل'})`,
+                subtitle: `إرسال رسالة تذكير أو متابعة للنزيل على رقم ${r.guest_phone}`,
+                badge: 'واتساب 💬',
+                actionType: 'whatsapp',
+                actionPayload: { reservationId: r.id, roomNumber: r.room_number, phone: r.guest_phone },
+                actionFn: () => {
+                  if (window.sendReservationWhatsApp) {
+                    window.sendReservationWhatsApp(r.id);
+                  } else {
+                    showMissingHelperToast();
+                  }
+                }
+              });
+            }
           });
         } else {
           ctx.results.push({
@@ -1609,6 +1946,8 @@
             title: 'لا يوجد أي نزلاء متأخرين عن المغادرة حالياً',
             subtitle: 'جميع الإقامات منتظمة وفق جداول المغادرة',
             badge: 'منضبط ✓',
+            actionType: 'view-section',
+            actionPayload: { section: 'reservations' },
             actionFn: () => switchViewSection('reservations')
           });
         }
@@ -2695,8 +3034,9 @@
       return;
     }
 
-    if ((e.ctrlKey || e.metaKey) && e.key >= '1' && e.key <= '5') {
-      const targetIdx = parseInt(e.key, 10) - 1;
+    const normalizedDigit = normalizeDigits(e.key);
+    if ((e.ctrlKey || e.metaKey) && normalizedDigit >= '1' && normalizedDigit <= '9') {
+      const targetIdx = parseInt(normalizedDigit, 10) - 1;
       if (targetIdx >= 0 && targetIdx < currentItemsList.length) {
         e.preventDefault();
         executePaletteItem(currentItemsList[targetIdx]);
@@ -2790,19 +3130,10 @@
       const recent = getRecentItems();
       if (recent.length > 0) {
         recent.forEach(rec => {
-          context.results.push({
-            category: '🕒 تم الوصول إليها مؤخراً',
-            icon: rec.icon || '🕒',
-            title: rec.title,
-            subtitle: rec.subtitle || 'سجل العمليات السابقة',
-            badge: rec.badge || 'أخير',
-            actionFn: () => {
-              if (paletteInput) {
-                paletteInput.value = rec.title;
-                handlePaletteSearch(rec.title);
-              }
-            }
-          });
+          const resolved = resolveRecentActionItem(rec, context);
+          if (resolved) {
+            context.results.push(resolved);
+          }
         });
       }
 
@@ -2817,6 +3148,8 @@
             subtitle: item.subtitle,
             badge: item.badge,
             isUrgent: true,
+            actionType: item.action,
+            actionPayload: { reservationId: item.reservation?.id, reservation: item.reservation, roomId: item.room?.id, room: item.room },
             actionFn: () => executeAttentionAction(item)
           });
         });
@@ -3217,6 +3550,11 @@
             <button type="button" class="btn btn-sm btn-primary attention-action-btn" data-item-idx="${idx}" style="font-weight: 800; padding: 6px 14px; border-radius: 8px;">
               ${escapePaletteText(item.primaryActionText || 'اتخاذ إجراء')}
             </button>
+            ${item.reservation && (item.type === 'late-checkout' || item.type === 'departures-today') ? `
+              <button type="button" class="btn btn-sm attention-extend-btn" data-res-id="${item.reservation.id}" title="تمديد مدة الإقامة للنزيل" style="font-weight: 700; padding: 6px 12px; border-radius: 8px; background: #fffbeb; color: #b45309; border: 1px solid #fde68a; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+                <span>⏱️</span> <span>تمديد الحجز</span>
+              </button>
+            ` : ''}
             ${item.reservation && item.reservation.guest_phone ? `
               <button type="button" class="btn btn-sm btn-secondary attention-whatsapp-btn" data-res-id="${item.reservation.id}" title="مراسلة النزيل عبر واتساب" style="font-weight: 700; padding: 6px 10px; border-radius: 8px;">
                 💬
@@ -3234,6 +3572,21 @@
         if (idx >= 0 && idx < items.length) {
           closeAttentionInboxModal();
           executeAttentionAction(items[idx]);
+        }
+      });
+    });
+
+    listEl.querySelectorAll('.attention-extend-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const resId = btn.dataset.resId;
+        if (resId && window.openExtendStayModal) {
+          closeAttentionInboxModal();
+          window.openExtendStayModal(resId);
+        } else if (resId && App?.Helpers?.openReservationPreview) {
+          closeAttentionInboxModal();
+          App.Helpers.openReservationPreview(resId);
+        } else {
+          showMissingHelperToast();
         }
       });
     });
