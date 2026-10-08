@@ -116,8 +116,10 @@
 
     if (filtered.length === 0) {
       App.DOM.roomsGridContainer.innerHTML = `
-        <div style="grid-column: 1 / -1; padding: 40px; text-align: center; color: var(--text-light);">
-          لا توجد غرف مطابقة لهذا التصنيف.
+        <div class="empty-state-unified" style="grid-column: 1 / -1; padding: 48px 24px;">
+          <div class="empty-icon" aria-hidden="true" style="font-size: 2.2rem; margin-bottom: 8px;">🚪</div>
+          <h4 style="font-weight: 800; color: #1e293b; margin: 0 0 6px;">لا توجد غرف مطابقة</h4>
+          <p style="color: #64748b; font-size: 0.86rem; margin: 0;">لا توجد أي غرف مطابقة لمعايير البحث أو التصفية الحالية.</p>
         </div>
       `;
       return;
@@ -201,7 +203,7 @@
           ? `متبقي (مع ${overdueDays} ليالٍ تأخير): <strong style="color:#dc2626;">${formatRoomCardMoney(remaining)}</strong>`
           : `متبقي: ${formatRoomCardMoney(remaining)}`;
 
-        const contractCreditHtml = `<span style="color:#2563eb;">له رصيد: <strong>${Math.abs(effectiveRawRemaining).toLocaleString()} ريال</strong></span>`;
+        const contractCreditHtml = `<span style="color:#2563eb;">له رصيد: <strong>${Math.abs(effectiveRawRemaining).toLocaleString()} ر.س</strong></span>`;
         const contractOwedHtml = remaining > 0
           ? `متبقي: <strong style="color:#dc2626;">${formatRoomCardMoney(remaining)}</strong>`
           : `مسدد بالكامل`;
@@ -711,7 +713,7 @@
                 ${App.Helpers.getRoomStatusBadge(room.status)}
               </div>
               <div style="font-size: 0.82rem; color: #64748b; margin-top: 4px;">
-                السعر الأساسي: <strong style="color: #a67c52;">${parseFloat(room.price_per_night || 0).toLocaleString()} ريال / ليلة</strong>
+                السعر الأساسي: <strong style="color: #a67c52;">${parseFloat(room.price_per_night || 0).toLocaleString()} ر.س / ليلة</strong>
                 <span style="margin: 0 6px;">|</span>
                 إجمالي الحجوزات المسجلة: <strong>${totalReservations}</strong>
               </div>
@@ -726,21 +728,21 @@
             <div style="background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 14px; text-align: center;">
               <div style="font-size: 0.8rem; color: #4338ca; font-weight: 700;">إجمالي متوقع</div>
               <div style="font-size: 1.35rem; font-weight: 900; color: #1e1b4b; margin-top: 4px;">
-                ${totalExpected.toLocaleString()} <span style="font-size: 0.75rem;">ريال</span>
+                ${totalExpected.toLocaleString()} <span style="font-size: 0.75rem;">ر.س</span>
               </div>
             </div>
 
             <div style="background: #ecfdf3; border: 1px solid #a7f3c4; border-radius: 8px; padding: 14px; text-align: center;">
               <div style="font-size: 0.8rem; color: #047831; font-weight: 700;">محصّل فعلياً</div>
               <div style="font-size: 1.35rem; font-weight: 900; color: #065f28; margin-top: 4px;">
-                ${totalCollected.toLocaleString()} <span style="font-size: 0.75rem;">ريال</span>
+                ${totalCollected.toLocaleString()} <span style="font-size: 0.75rem;">ر.س</span>
               </div>
             </div>
 
             <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 14px; text-align: center;">
               <div style="font-size: 0.8rem; color: #b45309; font-weight: 700;">مبالغ لم تحصّل بعد</div>
               <div style="font-size: 1.35rem; font-weight: 900; color: #92400e; margin-top: 4px;">
-                ${totalOutstanding.toLocaleString()} <span style="font-size: 0.75rem;">ريال</span>
+                ${totalOutstanding.toLocaleString()} <span style="font-size: 0.75rem;">ر.س</span>
               </div>
             </div>
           </div>
@@ -786,10 +788,10 @@
                         <td style="padding: 9px 12px; font-weight: 700; color: #0f172a;">${App.Helpers.escapeHtml(r.guest_name || 'نزيل')}</td>
                         <td style="padding: 9px 12px; text-align: center; font-family: monospace; color: #334155;">${App.Helpers.escapeHtml(r.check_in_date || '-')}</td>
                         <td style="padding: 9px 12px; text-align: center; font-family: monospace; color: #334155;">${checkOutDisplay}</td>
-                        <td style="padding: 9px 12px; text-align: left; font-weight: 700; color: #1e1b4b;">${price.toLocaleString()} ريال</td>
-                        <td style="padding: 9px 12px; text-align: left; font-weight: 700; color: #05963d;">${collected.toLocaleString()} ريال</td>
+                        <td style="padding: 9px 12px; text-align: left; font-weight: 700; color: #1e1b4b;">${price.toLocaleString()} ر.س</td>
+                        <td style="padding: 9px 12px; text-align: left; font-weight: 700; color: #05963d;">${collected.toLocaleString()} ر.س</td>
                         <td style="padding: 9px 12px; text-align: left; font-weight: 700; color: ${isCredit ? '#2563eb' : (remaining > 0 ? '#dc2626' : '#64748b')};">
-                          ${isCredit ? `له رصيد: ${Math.abs(rawRemaining).toLocaleString()} ريال` : (remaining > 0 ? `${remaining.toLocaleString()} ريال` : '0 ريال')}
+                          ${isCredit ? `له رصيد: ${Math.abs(rawRemaining).toLocaleString()} ريال` : (remaining > 0 ? `${remaining.toLocaleString()} ر.س` : '0 ر.س')}
                         </td>
                         <td style="padding: 9px 12px; text-align: center;">${App.Helpers.getReservationStatusBadge(r.status)}</td>
                         <td style="padding: 9px 12px; text-align: center;">${App.Helpers.getBookingTypeBadge(r.booking_type) || App.Helpers.escapeHtml(r.booking_type)}</td>

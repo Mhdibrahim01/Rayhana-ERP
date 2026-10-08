@@ -563,7 +563,7 @@
       return '<tr class="' + (isLate ? 'overview-late-booking-row' : '') + '">' +
         '<td class="overview-booking-number-cell" data-label="رقم الحجز"><bdi class="overview-booking-number" dir="ltr">' + e(bookingNumber) + '</bdi></td>' +
         '<td class="overview-booking-guest-cell" data-label="بيانات النزيل"><strong class="overview-booking-guest-name" title="' + e(r.guest_name || '') + '">' + e(r.guest_name || '-') + '</strong><small class="overview-booking-guest-phone" dir="ltr">' + e(r.guest_phone || '—') + '</small></td>' +
-        '<td class="overview-booking-room-cell" data-label="الغرفة والنوع"><button type="button" class="clickable-room-number overview-booking-room" data-action="preview-reservation" data-id="' + e(r.id) + '" title="عرض تفاصيل الغرفة ' + e(r.room_number || '') + '">' + e(r.room_number || '-') + '</button><small class="overview-booking-room-type" title="' + e(r.room_type || '') + '">' + e(r.room_type || '-') + '</small></td>' +
+        '<td class="overview-booking-room-cell" data-label="رقم الغرفة" style="text-align: center;"><button type="button" class="checkout-room-chip clickable-room-chip" data-action="preview-reservation" data-id="' + e(r.id) + '" title="عرض تفاصيل الغرفة ' + e(r.room_number || '') + '">' + e(r.room_number || '-') + '</button></td>' +
         '<td class="overview-booking-date" data-label="الوصول والمغادرة"><span class="overview-date-line"><small>من</small><bdi>' + e(String(r.check_in_date || '-').slice(0, 10)) + '</bdi></span><span class="overview-date-line"><small>إلى</small>' + (isContract ? '<strong class="overview-open-contract">عقد مفتوح</strong>' : '<bdi>' + e(String(r.check_out_date || '-').slice(0, 10)) + '</bdi>') + '</span></td>' +
         '<td class="overview-booking-financial" data-label="المبلغ والمدفوع"><strong>' + total.toLocaleString() + ' ر.س</strong>' + (isContract ? '<small>' + elapsedNights + (elapsedNights === 1 ? ' ليلة' : ' ليالٍ') + ' × ' + rate.toLocaleString() + ' ر.س</small>' : '') + balanceLine + '</td>' +
         '<td class="overview-booking-method" data-label="طريقة السداد">' + e(r.payment_method || '—') + '</td>' +
@@ -603,14 +603,22 @@
   }
 
   function renderDashboardStatusBadge(label, tone = 'neutral') {
-    return `<span class="status-badge ${tone}">${App.Helpers.escapeHtml(label)}</span>`;
+    const toneClassMap = {
+      success: 'badge-res-confirmed',
+      danger: 'badge-res-cancelled',
+      warning: 'badge-pay-partial',
+      info: 'badge-fin-credit',
+      neutral: 'badge-res-completed'
+    };
+    const mapped = toneClassMap[tone] || 'badge-res-completed';
+    return `<span class="badge-unified status-badge ${tone} ${mapped}">${App.Helpers.escapeHtml(label)}</span>`;
   }
 
   function initActionHoverTooltips() {
     if (document.documentElement.dataset.actionTooltipsInitialized === 'true') return;
     document.documentElement.dataset.actionTooltipsInitialized = 'true';
 
-    const selector = '#widget-today-checkouts .overview-row-actions [title], #widget-recent-bookings .overview-row-actions [title], #view-reservations .reservation-actions-list [title]';
+    const selector = '#widget-today-checkouts .overview-row-actions [title], #widget-recent-bookings .overview-row-actions [title], #view-reservations .reservation-actions-list [title], #view-guests .guest-actions-list [title]';
     const tooltip = document.createElement('div');
     tooltip.className = 'action-hover-tooltip';
     tooltip.setAttribute('role', 'tooltip');
@@ -896,12 +904,11 @@
 
       return `
         <tr class="${isLateCheckout ? 'late-checkout-row' : ''}">
-          <td data-label="رقم الغرفة">
+          <td data-label="رقم الغرفة" style="text-align: center;">
             <button type="button" class="checkout-room-chip clickable-room-chip" data-action="preview-reservation" data-id="${App.Helpers.escapeHtml(r.reservation_id ?? r.id)}" title="عرض تفاصيل الغرفة ${App.Helpers.escapeHtml(r.room_number)}">
               ${App.Helpers.escapeHtml(r.room_number)}
             </button>
           </td>
-          <td class="checkout-room-type" data-label="نوع الغرفة" title="${App.Helpers.escapeHtml(r.room_type || '')}">${App.Helpers.escapeHtml(r.room_type || '')}</td>
           <td data-label="اسم النزيل">
             <div class="checkout-cell-stack checkout-guest-stack">
               <div class="checkout-guest-name" title="${App.Helpers.escapeHtml(guestName)}">${App.Helpers.escapeHtml(guestName)}</div>
@@ -1004,7 +1011,7 @@
     const total = Number(r.total_price) || 0;
     const paid = Number(r.ledger_paid_amount ?? r.paid_amount) || 0;
     const balance = Math.max(0, total - paid);
-    const money = value => `${Number(value || 0).toLocaleString('ar-SA')} ر.س`;
+    const money = value => `${Number(value || 0).toLocaleString('ar-SA-u-nu-latn')} ر.س`;
     const status = App.Helpers.escapeHtml(r.status || 'غير محدد');
     const statusTone = r.status === 'مؤكد' ? 'active' : (r.status === 'مكتمل' ? 'done' : 'other');
     const isOpenContract = r.booking_type === '\u0639\u0642\u062f \u0645\u0641\u062a\u0648\u062d' || !r.check_out_date || r.check_out_date === '\u0645\u0641\u062a\u0648\u062d';
@@ -1033,7 +1040,7 @@
       <header class="reservation-preview-header modal-layout__header room-details-header">
         <div class="reservation-preview-heading room-details-heading">
           <div class="reservation-preview-room-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 18V8a2 2 0 0 1 2-2h3a3 3 0 0 1 3 3v2h6a4 4 0 0 1 4 4v3M3 14h18M5 18v2m14-2v2"></path></svg></div>
-          <div class="room-details-heading-copy"><div class="room-details-title-line"><h2 id="reservation-preview-title">\u062a\u0641\u0627\u0635\u064a\u0644 \u0627\u0644\u063a\u0631\u0641\u0629 ${App.Helpers.escapeHtml(westernPreviewDigits(r.room_number || '-'))}</h2><span class="reservation-preview-status is-${statusTone}">${status}</span></div><p>${App.Helpers.escapeHtml(westernPreviewDigits(`\u0631\u0642\u0645 \u0627\u0644\u062d\u062c\u0632 ${formatReservationNumber(r)} \u00b7 ${r.room_type || '\u0646\u0648\u0639 \u0627\u0644\u063a\u0631\u0641\u0629 \u063a\u064a\u0631 \u0645\u062d\u062f\u062f'} \u00b7 ${r.booking_type || '\u062d\u062c\u0632'} \u00b7 ${roomDetailsMoney(previewRate)} / ${r.booking_type === '\u062d\u062c\u0632 \u0634\u0647\u0631\u064a' ? '\u0634\u0647\u0631' : '\u0644\u064a\u0644\u0629'}`))}</p></div>
+          <div class="room-details-heading-copy"><div class="room-details-title-line"><h2 id="reservation-preview-title">\u062a\u0641\u0627\u0635\u064a\u0644 \u0627\u0644\u063a\u0631\u0641\u0629 ${App.Helpers.escapeHtml(westernPreviewDigits(r.room_number || '-'))}</h2><span class="badge-unified reservation-preview-status is-${statusTone} ${statusTone === 'active' ? 'badge-res-confirmed' : (statusTone === 'done' ? 'badge-res-completed' : 'badge-res-cancelled')}">${status}</span></div><p>${App.Helpers.escapeHtml(westernPreviewDigits(`\u0631\u0642\u0645 \u0627\u0644\u062d\u062c\u0632 ${formatReservationNumber(r)} \u00b7 ${r.room_type || '\u0646\u0648\u0639 \u0627\u0644\u063a\u0631\u0641\u0629 \u063a\u064a\u0631 \u0645\u062d\u062f\u062f'} \u00b7 ${r.booking_type || '\u062d\u062c\u0632'} \u00b7 ${roomDetailsMoney(previewRate)} / ${r.booking_type === '\u062d\u062c\u0632 \u0634\u0647\u0631\u064a' ? '\u0634\u0647\u0631' : '\u0644\u064a\u0644\u0629'}`))}</p></div>
         </div>
         <button type="button" class="reservation-preview-close modal-layout__close" data-preview-close aria-label="\u0625\u063a\u0644\u0627\u0642">&times;</button>
       </header>
@@ -1050,7 +1057,7 @@
         </section>
         <section class="reservation-preview-section modal-section-card room-details-card room-details-financial-card">
           <div class="reservation-preview-section-title modal-section-card__header room-details-card-heading"><span class="reservation-preview-title-icon financial">\u0631.\u0633</span><strong>\u0627\u0644\u0645\u0648\u0642\u0641 \u0627\u0644\u0645\u0627\u0644\u064a</strong></div>
-          <span class="reservation-preview-paid-badge room-details-financial-status">${previewBalance <= 0 ? '\u0645\u062f\u0641\u0648\u0639 \u0628\u0627\u0644\u0643\u0627\u0645\u0644' : (paid > 0 ? '\u0645\u062f\u0641\u0648\u0639 \u062c\u0632\u0626\u064a\u0627\u064b' : '\u0645\u0637\u0644\u0648\u0628 \u062a\u062d\u0635\u064a\u0644')}</span>
+          <span class="badge-unified reservation-preview-paid-badge room-details-financial-status ${previewBalance <= 0 ? 'badge-pay-paid' : (paid > 0 ? 'badge-pay-partial' : 'badge-pay-unpaid')}">${previewBalance <= 0 ? '\u0645\u062f\u0641\u0648\u0639 \u0628\u0627\u0644\u0643\u0627\u0645\u0644 \u2713' : (paid > 0 ? '\u0645\u062f\u0641\u0648\u0639 \u062c\u0632\u0626\u064a\u0627\u064b' : '\u0645\u0637\u0644\u0648\u0628 \u062a\u062d\u0635\u064a\u0644')}</span>
           <div class="room-details-financial-fields">${roomDetailsField('\u0625\u062c\u0645\u0627\u0644\u064a \u0627\u0644\u0625\u0642\u0627\u0645\u0629', roomDetailsMoney(previewTotal), isOverdue && previewTotal > total ? `${stayNights} \u0644\u064a\u0644\u0629 (${overdueNights} \u0644\u064a\u0627\u0644\u064d \u0645\u062a\u0623\u062e\u0631\u0629) = ${roomDetailsMoney(previewTotal)}` : (isOpenContract ? `${elapsedNights} \u0644\u064a\u0644\u0629 \u00d7 ${roomDetailsMoney(previewRate)} = ${roomDetailsMoney(previewTotal)}` : ''))}${roomDetailsField('\u0625\u062c\u0645\u0627\u0644\u064a \u0627\u0644\u0645\u0628\u0627\u0644\u063a \u0627\u0644\u0645\u0633\u062f\u062f\u0629', roomDetailsMoney(paid), r.payment_method || '')}${roomDetailsField('\u0627\u0644\u0645\u0628\u0644\u063a \u0627\u0644\u0645\u062a\u0628\u0642\u064a', roomDetailsMoney(previewBalance))}${roomDetailsField('\u0645\u0628\u0644\u063a \u0627\u0644\u062a\u0623\u0645\u064a\u0646', roomDetailsMoney(r.deposit_ledger_balance ?? r.deposit_amount))}</div>
           <div class="room-details-progress"><div class="reservation-preview-payment-bar"><span style="width:${paidPercent}%"></span></div><span>\u0645\u0633\u062f\u062f ${paidPercent}%</span></div>
         </section>

@@ -96,15 +96,15 @@
             ${App.State.currentUser && u.id === App.State.currentUser.id ? ' <span style="font-size: 0.7rem; color: var(--success); font-weight: 600;">(أنت)</span>' : ''}
           </td>
           <td>
-            <span class="${isAdmin ? 'badge-role-admin' : 'badge-role-staff'}">
-              ${isAdmin ? 'مدير نظام (Admin)' : 'مستخدم (User)'}
+            <span class="badge-unified ${isAdmin ? 'badge-role-admin' : 'badge-role-staff'}">
+              ${isAdmin ? 'مدير نظام (Admin) 🛡️' : 'مستخدم (User) 💼'}
             </span>
           </td>
           <td style="font-size: 0.8rem; color: var(--text-muted);">${App.Helpers.escapeHtml(String(u.created_at || '').split(' ')[0])}</td>
           <td style="text-align: center;">
             ${!isDefaultAdmin && (!App.State.currentUser || u.id !== App.State.currentUser.id) ? `
-              <button class="btn btn-danger btn-sm" data-action="delete-user" data-id="${u.id}" data-username="${App.Helpers.escapeHtml(u.username)}" title="حذف المستخدم">
-                حذف
+              <button class="btn btn-danger btn-sm" data-action="delete-user" data-id="${u.id}" data-username="${App.Helpers.escapeHtml(u.username)}" title="حذف هذا المستخدم" style="padding: 4px 12px; font-size: 0.78rem; font-weight: 700; border-radius: 8px;">
+                حذف 🗑️
               </button>
             ` : `<span style="font-size: 0.75rem; color: var(--text-light);">-</span>`}
           </td>

@@ -163,9 +163,23 @@
       return;
     }
 
-    if (modalHasUnsavedChanges(modal) && !window.confirm('تجاهل التغييرات؟')) {
+    if (modalHasUnsavedChanges(modal)) {
       stopShortcut(event);
-      return;
+      if (typeof window.showConfirmDialog === 'function') {
+        window.showConfirmDialog({
+          title: 'تجاهل التعديلات',
+          message: 'هل أنت متأكد من إغلاق النافذة وتجاهل التغييرات غير المحفوظة؟',
+          confirmText: 'نعم، إغلاق وتجاهل',
+          cancelText: 'البقاء في النافذة',
+          isDanger: true
+        }).then(confirmed => {
+          if (confirmed) closeButton.click();
+        });
+        return;
+      }
+      if (!window.confirm('تجاهل التغييرات؟')) {
+        return;
+      }
     }
 
     stopShortcut(event);

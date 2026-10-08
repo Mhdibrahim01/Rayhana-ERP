@@ -54,8 +54,8 @@
             ${App.Helpers.escapeHtml(log.username)}
           </td>
           <td>
-            <span class="${isAdmin ? 'badge-role-admin' : 'badge-role-staff'}">
-              ${isAdmin ? 'مدير نظام (Admin)' : 'مستخدم (User)'}
+            <span class="badge-unified ${isAdmin ? 'badge-role-admin' : 'badge-role-staff'}">
+              ${isAdmin ? 'مدير نظام (Admin) 🛡️' : 'مستخدم (User) 💼'}
             </span>
           </td>
           <td style="font-family: monospace; font-size: 0.82rem; color: #334155;">
@@ -66,12 +66,12 @@
           </td>
           <td>
             ${isActive ? `
-              <span class="badge" style="background: #ecfdf3; color: #065f28; font-weight: 800; display: inline-flex; align-items: center; gap: 6px;">
+              <span class="badge-unified badge-room-available" style="font-weight: 800; display: inline-flex; align-items: center; gap: 6px;">
                 <span class="online-dot" style="display:inline-block; width:6px; height:6px;"></span>
                 متصل حالياً (نشط)
               </span>
             ` : `
-              <span class="badge" style="background: #f1f5f9; color: #64748b; font-weight: 700;">
+              <span class="badge-unified" style="background: #f1f5f9; color: #64748b; font-weight: 700; border-color: #e2e8f0;">
                 جلسة منتهية
               </span>
             `}

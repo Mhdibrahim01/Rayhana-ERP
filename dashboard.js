@@ -1342,29 +1342,29 @@
           <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px;">
             <div style="background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 12px; text-align: center;">
               <div style="font-size: 0.78rem; color: #4338ca; font-weight: 700;">إجمالي المقبوضات</div>
-              <div style="font-size: 1.25rem; font-weight: 900; color: #1e1b4b; margin-top: 4px;">${parseFloat(fin.totalRevenue || 0).toLocaleString()} <span style="font-size: 0.75rem;">ريال</span></div>
+              <div style="font-size: 1.25rem; font-weight: 900; color: #1e1b4b; margin-top: 4px;">${parseFloat(fin.totalRevenue || 0).toLocaleString()} <span style="font-size: 0.75rem;">ر.س</span></div>
             </div>
             <div style="background: #ecfdf3; border: 1px solid #a7f3c4; border-radius: 8px; padding: 12px; text-align: center;">
               <div style="font-size: 0.78rem; color: #047831; font-weight: 700;">مقبوضات نقداً (كاش)</div>
-              <div style="font-size: 1.25rem; font-weight: 900; color: #065f28; margin-top: 4px;">${parseFloat(fin.cashTotal || 0).toLocaleString()} <span style="font-size: 0.75rem;">ريال</span></div>
+              <div style="font-size: 1.25rem; font-weight: 900; color: #065f28; margin-top: 4px;">${parseFloat(fin.cashTotal || 0).toLocaleString()} <span style="font-size: 0.75rem;">ر.س</span></div>
               <div style="font-size: 0.68rem; color: #64748b; margin-top: 3px;">${parseFloat(fin.cashCollected || 0).toLocaleString()} مستلم - ${parseFloat(fin.cashRefunded || 0).toLocaleString()} مردود</div>
             </div>
             <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px; text-align: center;">
               <div style="font-size: 0.78rem; color: #1d4ed8; font-weight: 700;">مقبوضات مدى / شبكة</div>
-              <div style="font-size: 1.25rem; font-weight: 900; color: #1e40af; margin-top: 4px;">${parseFloat(fin.cardTotal || 0).toLocaleString()} <span style="font-size: 0.75rem;">ريال</span></div>
+              <div style="font-size: 1.25rem; font-weight: 900; color: #1e40af; margin-top: 4px;">${parseFloat(fin.cardTotal || 0).toLocaleString()} <span style="font-size: 0.75rem;">ر.س</span></div>
             </div>
             <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px; text-align: center;">
               <div style="font-size: 0.78rem; color: #b45309; font-weight: 700;">مبالغ لم تحصّل بعد</div>
-              <div style="font-size: 1.25rem; font-weight: 900; color: #92400e; margin-top: 4px;">${parseFloat(fin.outstandingTotal || 0).toLocaleString()} <span style="font-size: 0.75rem;">ريال</span></div>
+              <div style="font-size: 1.25rem; font-weight: 900; color: #92400e; margin-top: 4px;">${parseFloat(fin.outstandingTotal || 0).toLocaleString()} <span style="font-size: 0.75rem;">ر.س</span></div>
             </div>
           </div>
 
           <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 16px; margin: -10px 0 24px; font-size: 0.84rem; color: #334155;">
             <div style="display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
-              <span>صافي كاش التأمين: <strong style="color: ${Number(fin.netCashDeposit || 0) < 0 ? '#dc2626' : '#047831'};">${Number(fin.netCashDeposit || 0) > 0 ? '+' : ''}${parseFloat(fin.netCashDeposit || 0).toLocaleString()} ريال</strong></span>
+              <span>صافي كاش التأمين: <strong style="color: ${Number(fin.netCashDeposit || 0) < 0 ? '#dc2626' : '#047831'};">${Number(fin.netCashDeposit || 0) > 0 ? '+' : ''}${parseFloat(fin.netCashDeposit || 0).toLocaleString()} ر.س</strong></span>
               <span style="color: #64748b;">(${parseFloat(fin.depositCashCollected || 0).toLocaleString()} مستلم - ${parseFloat(fin.depositCashRefunded || 0).toLocaleString()} مردود${Number(fin.depositCashRetained || 0) ? ` - ${parseFloat(fin.depositCashRetained).toLocaleString()} محتفَظ به ومدرج ضمن المقبوضات` : ''})</span>
-              <span>إجمالي النقد المتوقع بالخزينة: <strong style="color: #0f172a;">${parseFloat(fin.expectedCashInDrawer || 0).toLocaleString()} ريال</strong> <span style="color: #64748b;">(كاش المقبوضات + صافي كاش التأمين)</span></span>
-              <span>رسوم التأخير المسددة كسند مستقل: <strong>${parseFloat(fin.lateCheckoutFeesCollected || 0).toLocaleString()} ريال</strong></span>
+              <span>إجمالي النقد المتوقع بالخزينة: <strong style="color: #0f172a;">${parseFloat(fin.expectedCashInDrawer || 0).toLocaleString()} ر.س</strong> <span style="color: #64748b;">(كاش المقبوضات + صافي كاش التأمين)</span></span>
+              <span>رسوم التأخير المسددة كسند مستقل: <strong>${parseFloat(fin.lateCheckoutFeesCollected || 0).toLocaleString()} ر.س</strong></span>
             </div>
           </div>
 
@@ -1427,7 +1427,7 @@
                       <td style="padding: 7px 12px; font-family: monospace; font-weight: 700; color: #334155;">${day.date}</td>
                       <td style="padding: 7px 12px; text-align: center; color: #05963d; font-weight: 700;">${day.check_ins_count}</td>
                       <td style="padding: 7px 12px; text-align: center; color: #d97706; font-weight: 700;">${day.check_outs_count}</td>
-                      <td style="padding: 7px 12px; text-align: left; font-weight: 800; color: #1e1b4b;">${Number(day.revenue).toLocaleString()} ريال</td>
+                      <td style="padding: 7px 12px; text-align: left; font-weight: 800; color: #1e1b4b;">${Number(day.revenue).toLocaleString()} ر.س</td>
                     </tr>
                   `).join('')}
                 </tbody>
@@ -1463,7 +1463,7 @@
                   const amt = roundMoney(p.amount || 0);
                   const isRefund = amt < -0.005;
                   const amtColor = isRefund ? '#dc2626' : '#05963d';
-                  const formattedAmt = isRefund ? `- ${Math.abs(amt).toLocaleString()} ريال` : `+ ${amt.toLocaleString()} ريال`;
+                  const formattedAmt = isRefund ? `- ${Math.abs(amt).toLocaleString()} ر.س` : `+ ${amt.toLocaleString()} ر.س`;
                   const paymentPurpose = ({
                     advance_payment: 'دفعة مقدمة',
                     balance_payment: 'سداد رصيد',
@@ -1532,8 +1532,8 @@
                     <td style="padding: 8px 10px;">غرفة ${escapeHtml(t.room_number)}</td>
                     <td style="padding: 8px 10px; text-align: center; font-size: 0.78rem; direction: ltr;">${stayText}</td>
                     <td style="padding: 8px 10px; text-align: center;">${escapeHtml(t.payment_method || 'نقداً')}</td>
-                    <td style="padding: 8px 10px; text-align: center; font-weight: 700; color: #05963d;">${parseFloat(t.paid_amount || 0).toLocaleString()} ريال</td>
-                    <td style="padding: 8px 10px; text-align: center; color: #701a75;">${parseFloat(t.deposit_ledger_balance || 0).toLocaleString()} ريال</td>
+                    <td style="padding: 8px 10px; text-align: center; font-weight: 700; color: #05963d;">${parseFloat(t.paid_amount || 0).toLocaleString()} ر.س</td>
+                    <td style="padding: 8px 10px; text-align: center; color: #701a75;">${parseFloat(t.deposit_ledger_balance || 0).toLocaleString()} ر.س</td>
                     <td style="padding: 8px 10px; text-align: center;">${window.DashboardApp.Helpers.getReservationStatusBadge(t.status)}</td>
                     <td style="padding: 8px 10px; text-align: center;">${window.DashboardApp.Helpers.getPaymentStatusBadge(t.payment_status)}</td>
                   </tr>
@@ -1552,7 +1552,7 @@
               </tr></thead><tbody>
                 ${depositTxs.map(d => {
                   const labels = { collected: 'استلام', reconciled: 'مطابقة رصيد قديم', refunded: 'رد', applied: 'تسوية على الإقامة', retained: 'احتفاظ' };
-                  return `<tr style="border-bottom:1px solid #ede9fe;"><td style="padding:7px; color:#64748b;"><div style="font-family:monospace;">${escapeHtml(String(d.movement_date || d.created_at || '').slice(0, 16))}</div><small style="display:block; margin-top:3px; color:#1a432a;">تاريخ العمل: ${escapeHtml(d.business_date || '-')}</small></td><td style="padding:7px;">#${d.reservation_id} - ${escapeHtml(d.guest_name)} / غرفة ${escapeHtml(d.room_number)}</td><td style="padding:7px; text-align:center;">${labels[d.movement_type] || escapeHtml(d.movement_type)}</td><td style="padding:7px; text-align:center; font-weight:800;">${Number(d.amount || 0).toLocaleString()} ريال</td><td style="padding:7px; text-align:center;">${escapeHtml(d.payment_method || 'نقداً')}</td><td style="padding:7px;">${escapeHtml(d.reason || '')}${d.staff_username ? ` - ${escapeHtml(d.staff_username)}` : ''}</td></tr>`;
+                  return `<tr style="border-bottom:1px solid #ede9fe;"><td style="padding:7px; color:#64748b;"><div style="font-family:monospace;">${escapeHtml(String(d.movement_date || d.created_at || '').slice(0, 16))}</div><small style="display:block; margin-top:3px; color:#1a432a;">تاريخ العمل: ${escapeHtml(d.business_date || '-')}</small></td><td style="padding:7px;">#${d.reservation_id} - ${escapeHtml(d.guest_name)} / غرفة ${escapeHtml(d.room_number)}</td><td style="padding:7px; text-align:center;">${labels[d.movement_type] || escapeHtml(d.movement_type)}</td><td style="padding:7px; text-align:center; font-weight:800;">${Number(d.amount || 0).toLocaleString()} ر.س</td><td style="padding:7px; text-align:center;">${escapeHtml(d.payment_method || 'نقداً')}</td><td style="padding:7px;">${escapeHtml(d.reason || '')}${d.staff_username ? ` - ${escapeHtml(d.staff_username)}` : ''}</td></tr>`;
                 }).join('')}
               </tbody>
             </table>
@@ -1807,11 +1807,11 @@
     const remaining = total - paid;
     if (editInvRemainingPreview) {
       if (remaining < -0.005) {
-        editInvRemainingPreview.textContent = `رصيد دائن للنزيل (مستحق له): ${Math.abs(remaining).toFixed(2)} ريال`;
+        editInvRemainingPreview.textContent = `رصيد دائن للنزيل (مستحق له): ${Math.abs(remaining).toFixed(2)} ر.س`;
         editInvRemainingPreview.style.color = '#2563eb';
       } else {
         const displayRemaining = Math.max(0, remaining);
-        editInvRemainingPreview.textContent = `${displayRemaining.toFixed(2)} ريال`;
+        editInvRemainingPreview.textContent = `${displayRemaining.toFixed(2)} ر.س`;
         editInvRemainingPreview.style.color = displayRemaining > 0 ? '#dc2626' : '#05963d';
       }
     }

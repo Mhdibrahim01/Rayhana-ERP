@@ -104,52 +104,51 @@ window.DashboardApp = {
 
   function getReservationStatusBadge(status) {
     if (status === 'مؤكد') {
-      return `<span class="badge badge-confirmed">حجز مؤكد</span>`;
+      return `<span class="badge badge-unified badge-confirmed badge-res-confirmed">حجز مؤكد</span>`;
     } else if (status === 'مكتمل') {
-      return `<span class="badge badge-completed">تم تسجيل الخروج</span>`;
+      return `<span class="badge badge-unified badge-completed badge-res-completed">مكتمل</span>`;
     } else if (status === 'ملغي') {
-      return `<span class="badge badge-cancelled">ملغي</span>`;
+      return `<span class="badge badge-unified badge-cancelled badge-res-cancelled">ملغي</span>`;
     } else if (status === 'ملغي جزئي') {
-      return `<span class="badge" style="background: rgba(234, 88, 12, 0.12); color: #ea580c; border: 1px solid rgba(234, 88, 12, 0.3); font-weight: 700;">ملغي جزئياً</span>`;
+      return `<span class="badge badge-unified badge-res-partial-cancelled">ملغي جزئياً</span>`;
     }
-    return `<span class="badge">${escapeHtml(status)}</span>`;
+    return `<span class="badge badge-unified">${escapeHtml(status)}</span>`;
   }
 
   function getPaymentStatusBadge(status) {
-    // PERF: Using CSS classes (not inline styles) — browser caches style rules once.
     if (status === 'مدفوع بالكامل' || status === 'مكتمل') {
-      return `<span class="badge badge-paid-full">مدفوع بالكامل ✓</span>`;
+      return `<span class="badge badge-unified badge-paid-full badge-pay-paid">مدفوع بالكامل ✓</span>`;
     } else if (status === 'رصيد دائن') {
-      return `<span class="badge" style="background: rgba(37, 99, 235, 0.12); color: #2563eb; border: 1px solid rgba(37, 99, 235, 0.3); font-weight: 800;">رصيد دائن 💳</span>`;
+      return `<span class="badge badge-unified badge-fin-credit">رصيد دائن 💳</span>`;
     } else if (status === 'مدفوع جزئياً') {
-      return `<span class="badge badge-paid-partial">مدفوع جزئياً</span>`;
+      return `<span class="badge badge-unified badge-paid-partial badge-pay-partial">مدفوع جزئياً</span>`;
     } else {
-      return `<span class="badge badge-unpaid">غير مدفوع</span>`;
+      return `<span class="badge badge-unified badge-unpaid badge-pay-unpaid">غير مدفوع</span>`;
     }
   }
 
   function getBookingTypeBadge(type) {
     if (type === 'عقد مفتوح') {
-      return `<span class="badge" style="background: rgba(14, 165, 233, 0.12); color: #0284c7; border: 1px solid rgba(14, 165, 233, 0.3); font-size: 0.72rem; font-weight: 800; padding: 2px 7px;">عقد مفتوح 📋</span>`;
+      return `<span class="badge badge-unified" style="background: rgba(14, 165, 233, 0.12); color: #0284c7; border: 1px solid rgba(14, 165, 233, 0.3); font-size: 0.72rem; font-weight: 800; padding: 2px 7px;">عقد مفتوح 📋</span>`;
     } else if (type === 'حجز شهري') {
-      return `<span class="badge" style="background: rgba(168, 85, 247, 0.12); color: #9333ea; border: 1px solid rgba(168, 85, 247, 0.3); font-size: 0.72rem; font-weight: 800; padding: 2px 7px;">حجز شهري 📅</span>`;
+      return `<span class="badge badge-unified" style="background: rgba(168, 85, 247, 0.12); color: #9333ea; border: 1px solid rgba(168, 85, 247, 0.3); font-size: 0.72rem; font-weight: 800; padding: 2px 7px;">حجز شهري 📅</span>`;
     } else if (type === 'استخدام يومي') {
-      return `<span class="badge" style="background: rgba(16, 185, 81, 0.12); color: #047831; border: 1px solid rgba(16, 185, 81, 0.3); font-size: 0.72rem; font-weight: 800; padding: 2px 7px;">استخدام يومي ☀️</span>`;
+      return `<span class="badge badge-unified" style="background: rgba(16, 185, 81, 0.12); color: #047831; border: 1px solid rgba(16, 185, 81, 0.3); font-size: 0.72rem; font-weight: 800; padding: 2px 7px;">استخدام يومي ☀️</span>`;
     }
     return '';
   }
 
   function getRoomStatusBadge(status) {
     if (status === 'متاحة') {
-      return `<span class="badge badge-available">متاحة (جاهزة)</span>`;
+      return `<span class="badge badge-unified badge-available badge-room-available">متاحة (جاهزة)</span>`;
     } else if (status === 'مشغولة') {
-      return `<span class="badge badge-occupied">مشغولة</span>`;
+      return `<span class="badge badge-unified badge-occupied badge-room-occupied">مشغولة</span>`;
     } else if (status === 'تنظيف') {
-      return `<span class="badge badge-cleaning">قيد التنظيف</span>`;
+      return `<span class="badge badge-unified badge-cleaning badge-room-cleaning">قيد التنظيف</span>`;
     } else if (status === 'محجوزة') {
-      return `<span class="badge badge-reserved">محجوزة (قادمة)</span>`;
+      return `<span class="badge badge-unified badge-reserved badge-room-reserved">محجوزة (قادمة)</span>`;
     }
-    return `<span class="badge">${escapeHtml(status)}</span>`;
+    return `<span class="badge badge-unified">${escapeHtml(status)}</span>`;
   }
 
   function formatArabicDateRange(startStr, endStr) {

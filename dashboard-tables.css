@@ -131,16 +131,26 @@
 #widget-recent-bookings .table-time { font-family: inherit; }
 
 #widget-today-checkouts .today-checkouts-table { min-width: 0; }
-#widget-today-checkouts .checkout-room-chip {
+.checkout-room-chip,
+#widget-today-checkouts .checkout-room-chip,
+#widget-recent-bookings .checkout-room-chip,
+.reservations-table .checkout-room-chip {
   display: inline-flex;
   align-items: center;
-  padding: 4px 8px;
-  border: 1px solid #a7f3c4;
+  justify-content: center;
+  min-width: 44px;
+  padding: 4px 10px;
+  border: 1px solid #c7d2fe;
   border-radius: 8px;
-  background: #ecfdf3;
-  color: #1a432a;
+  background: #eef2ff;
+  color: #4338ca;
+  font-family: inherit;
   font-size: 13px;
   font-weight: 800;
+  line-height: 1.2;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s ease;
 }
 #widget-today-checkouts .checkout-room-type,
 #widget-today-checkouts .checkout-guest-name,
@@ -336,9 +346,8 @@
   min-width: 0;
   overflow: hidden;
 }
-#widget-today-checkouts .today-checkouts-table td:nth-child(3) { min-width: 0; }
-#widget-today-checkouts .checkout-guest-name,
-#widget-today-checkouts .checkout-room-type {
+#widget-today-checkouts .today-checkouts-table td:nth-child(2) { min-width: 0; }
+#widget-today-checkouts .checkout-guest-name {
   display: block;
   max-width: 100%;
   overflow: hidden;
@@ -604,6 +613,71 @@
 :is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) [data-action="add-payment"]:hover { background: #8b6845 !important; }
 :is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) [data-action="whatsapp"]:hover { background: #dcfce8 !important; }
 :is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) [data-action="cancel"]:hover { background: #fee2e2 !important; }
+
+/* Guest actions list and squircle buttons */
+.guest-actions-list {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.guest-actions-list .guest-row-action,
+.guest-actions-list .btn-row {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.guest-actions-list .btn-row svg {
+  width: 15px;
+  height: 15px;
+}
+:is(#view-guests) [data-action="edit-guest"] {
+  border-color: #cbd5e1 !important;
+  background: #f8fafc !important;
+  color: #334155 !important;
+}
+:is(#view-guests) [data-action="edit-guest"]:hover {
+  border-color: #94a3b8 !important;
+  background: #f1f5f9 !important;
+  color: #1e293b !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+}
+:is(#view-guests) [data-action="toggle-ban-guest"].guest-row-action-ban {
+  border-color: #fecaca !important;
+  background: #fef2f2 !important;
+  color: #dc2626 !important;
+}
+:is(#view-guests) [data-action="toggle-ban-guest"].guest-row-action-ban:hover {
+  background: #fee2e2 !important;
+  border-color: #f87171 !important;
+  color: #b91c1c !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(220, 38, 38, 0.15);
+}
+:is(#view-guests) [data-action="toggle-ban-guest"].guest-row-action-unban {
+  border-color: #a7f3c4 !important;
+  background: #ecfdf3 !important;
+  color: #047831 !important;
+}
+:is(#view-guests) [data-action="toggle-ban-guest"].guest-row-action-unban:hover {
+  background: #d1fae5 !important;
+  border-color: #86efaf !important;
+  color: #065f28 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(4, 120, 49, 0.15);
+}
 
 .action-hover-tooltip {
   position: fixed;
@@ -1230,20 +1304,26 @@
 }
 
 button.checkout-room-chip,
-.checkout-room-chip.clickable-room-chip {
+.checkout-room-chip.clickable-room-chip,
+#widget-recent-bookings .checkout-room-chip,
+.reservations-table .checkout-room-chip {
   cursor: pointer;
   transition: all 0.15s ease;
 }
 button.checkout-room-chip:hover,
-.checkout-room-chip.clickable-room-chip:hover {
-  background: #d1fae5;
-  border-color: #34d399;
-  color: #065f28;
+.checkout-room-chip.clickable-room-chip:hover,
+#widget-recent-bookings .checkout-room-chip:hover,
+.reservations-table .checkout-room-chip:hover {
+  background: #e0e7ff !important;
+  border-color: #a5b4fc !important;
+  color: #3730a3 !important;
   transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.2);
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.25);
 }
 button.checkout-room-chip:focus-visible,
-.checkout-room-chip.clickable-room-chip:focus-visible {
-  outline: 2px solid #059669;
+.checkout-room-chip.clickable-room-chip:focus-visible,
+#widget-recent-bookings .checkout-room-chip:focus-visible,
+.reservations-table .checkout-room-chip:focus-visible {
+  outline: 2px solid #6366f1;
   outline-offset: 2px;
 }

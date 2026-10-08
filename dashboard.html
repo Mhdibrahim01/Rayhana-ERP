@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="design-tokens.css">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="dashboard-tables.css">
   <!-- SheetJS & Chart.js Local Bundles (100% Offline Compatible) -->
@@ -316,19 +317,17 @@
               <div class="table-responsive">
                 <table class="today-checkouts-table" style="margin: 0;">
                   <colgroup>
-                    <col style="width: 6%;">
-                    <col style="width: 10%;">
-                    <col style="width: 17%;">
-                    <col style="width: 10%;">
+                    <col style="width: 8%;">
+                    <col style="width: 20%;">
                     <col style="width: 12%;">
-                    <col style="width: 19%;">
-                    <col style="width: 9%;">
+                    <col style="width: 13%;">
+                    <col style="width: 20%;">
+                    <col style="width: 10%;">
                     <col style="width: 17%;">
                   </colgroup>
                   <thead>
                     <tr>
-                      <th>رقم الغرفة</th>
-                      <th>نوع الغرفة</th>
+                      <th style="text-align: center;">رقم الغرفة</th>
                       <th>اسم النزيل</th>
                       <th>رقم الجوال</th>
                       <th>تاريخ الوصول</th>
@@ -342,15 +341,15 @@
                   </tbody>
                 </table>
 
-                <div id="today-checkouts-empty" style="display: none; padding: 28px 20px; text-align: center;">
-                  <div style="background: rgba(166, 124, 82, 0.08); color: var(--gold-text); width: 44px; height: 44px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 8px; border: 1px solid rgba(166,124,82,0.2);">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <div id="today-checkouts-empty" class="empty-state-unified empty-box" style="display: none;">
+                  <div style="background: rgba(26, 67, 42, 0.08); color: var(--color-brand-forest); width: 48px; height: 48px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 8px;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
                       <polyline points="22 4 12 14.01 9 11.01"></polyline>
                     </svg>
                   </div>
-                  <h4 style="margin: 0; font-size: 0.95rem; font-weight: 800; color: var(--text-primary);">لا توجد مغادرات مجدولة لهذا اليوم</h4>
-                  <p style="margin: 4px 0 0; font-size: 0.78rem; color: var(--text-secondary);">جميع الغرف المشغولة لا تنتهي فترة إقامتها اليوم أو تم إنهاء إجراءات مغادرتها بالفعل.</p>
+                  <h4>لا توجد مغادرات مجدولة لهذا اليوم</h4>
+                  <p>جميع الغرف المشغولة لا تنتهي فترة إقامتها اليوم أو تم إنهاء إجراءات مغادرتها بالفعل.</p>
                 </div>
               </div>
             </div>
@@ -364,7 +363,7 @@
                   <tr>
                     <th>رقم الحجز</th>
                     <th>بيانات النزيل</th>
-                    <th>الغرفة والنوع</th>
+                    <th style="text-align: center;">رقم الغرفة</th>
                     <th>الوصول والمغادرة</th>
                     <th>المبلغ والمدفوع</th>
                     <th>طريقة السداد</th>
@@ -377,18 +376,18 @@
                 </tbody>
               </table>
 
-              <div id="overview-empty" style="display: none; padding: 50px 24px; text-align: center;">
-                <div style="background: rgba(26, 67, 42, 0.08); color: var(--primary-accent); width: 60px; height: 60px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 14px;">
-                  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <div id="overview-empty" class="empty-state-unified empty-box" style="display: none;">
+                <div style="background: rgba(26, 67, 42, 0.08); color: var(--color-brand-forest); width: 56px; height: 56px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
                     <line x1="16" y1="2" x2="16" y2="6"></line>
                     <line x1="8" y1="2" x2="8" y2="6"></line>
                     <line x1="3" y1="10" x2="21" y2="10"></line>
                   </svg>
                 </div>
-                <h3 style="font-size: 1.1rem; font-weight: 800; color: #1e293b; margin: 0 0 6px;">لا توجد حجوزات نشطة حالياً</h3>
-                <p style="font-size: 0.85rem; color: var(--text-secondary); max-width: 440px; margin: 0 auto 20px;">جميع الغرف متاحة أو تم إنهاء إجراءات مغادرتها. يمكنك البدء بتسجيل حجز جديد للنزلاء الآن.</p>
-                <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('btn-open-new-reservation-modal')?.click()" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; font-weight: 800; background: #1a432a; border-radius: 8px; border: none; cursor: pointer;">
+                <h3>لا توجد حجوزات نشطة حالياً</h3>
+                <p>جميع الغرف متاحة أو تم إنهاء إجراءات مغادرتها. يمكنك البدء بتسجيل حجز جديد للنزلاء الآن.</p>
+                <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('btn-open-new-reservation-modal')?.click()" style="margin-top: 14px;">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
                     <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -540,7 +539,7 @@
                   <tr>
                     <th>رقم الحجز</th>
                     <th>بيانات النزيل</th>
-                    <th>الغرفة والنوع</th>
+                    <th style="text-align: center;">رقم الغرفة</th>
                     <th>الوصول والمغادرة</th>
                     <th>المبلغ والمدفوع</th>
                     <th>طريقة وحالة الدفع</th>
@@ -553,9 +552,13 @@
                 </tbody>
               </table>
 
-              <div id="all-reservations-empty" class="empty-box" style="display: none;">
+              <div id="all-reservations-empty" class="empty-state-unified empty-box" style="display: none;">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
                 <h3>لا توجد نتائج مطابقة</h3>
-                <p>جرب تغيير فلتر الحالة أو كلمة البحث.</p>
+                <p>جرب تغيير فلتر الحالة أو كلمة البحث لعرض النتائج المطلوبة.</p>
               </div>
             </div>
             <div id="reservations-pagination" class="reservations-pagination" style="display: none;" aria-label="التنقل بين صفحات الحجوزات">
@@ -647,11 +650,11 @@
               <form id="add-room-form">
                 <div class="form-row">
                   <div class="form-group">
-                    <label for="new-room-number">رقم الغرفة *</label>
+                    <label for="new-room-number">رقم الغرفة <span class="field-required" aria-hidden="true">*</span></label>
                     <input type="text" id="new-room-number" required placeholder="مثال: 301">
                   </div>
                   <div class="form-group">
-                    <label for="new-room-type">نوع الغرفة *</label>
+                    <label for="new-room-type">نوع الغرفة <span class="field-required" aria-hidden="true">*</span></label>
                     <input list="room-types-list" type="text" id="new-room-type" required placeholder="مثال: جناح ملكي فاخر">
                     <datalist id="room-types-list">
                       <option value="مفردة قياسية (Single)"></option>
@@ -664,11 +667,11 @@
                 </div>
                 <div class="form-row">
                   <div class="form-group">
-                    <label for="new-room-price">السعر اليومي (ريال) *</label>
+                    <label for="new-room-price">السعر اليومي (ر.س) <span class="field-required" aria-hidden="true">*</span></label>
                     <input type="number" id="new-room-price" required min="0" step="10" placeholder="مثال: 450">
                   </div>
                   <div class="form-group">
-                    <label for="new-room-monthly-price">السعر الشهري (ريال) *</label>
+                    <label for="new-room-monthly-price">السعر الشهري (ر.س) <span class="field-required" aria-hidden="true">*</span></label>
                     <input type="number" id="new-room-monthly-price" required min="0.01" step="0.01" placeholder="مثال: 6000">
                   </div>
                 </div>
@@ -731,16 +734,16 @@
               <form id="add-customer-form">
                 <div class="form-row">
                   <div class="form-group">
-                    <label for="new-customer-name">اسم النزيل / العميل الكامل *</label>
-                    <input type="text" id="new-customer-name" required placeholder="مثال: عبد الله خالد الشمري">
+                    <label for="new-customer-name">اسم النزيل / العميل الكامل <span class="field-required" aria-hidden="true">*</span></label>
+                    <input type="text" id="new-customer-name" class="form-control" required placeholder="مثال: عبد الله خالد الشمري">
                   </div>
                   <div class="form-group">
                     <label for="new-customer-phone">رقم الجوال</label>
-                    <input type="tel" id="new-customer-phone" placeholder="مثال: 0551234567">
+                    <input type="tel" id="new-customer-phone" class="form-control" placeholder="مثال: 0551234567">
                   </div>
                   <div class="form-group">
                     <label for="new-customer-id">رقم الهوية الوطنية / الإقامة / جواز السفر</label>
-                    <input type="text" id="new-customer-id" placeholder="الهوية أو الإقامة أو الجواز (مثال: 1098765432 أو A12345678)">
+                    <input type="text" id="new-customer-id" class="form-control" placeholder="الهوية أو الإقامة أو الجواز (مثال: 1098765432 أو A12345678)">
                   </div>
                 </div>
                 <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px;">
@@ -819,9 +822,17 @@
                 <tbody id="guests-table-body"></tbody>
               </table>
 
-              <div id="guests-empty" class="empty-box" style="display: none;">
-                <h3>لا يوجد نزلاء مسجلين</h3>
-                <p>يمكنك تسجيل النزلاء يدوياً من نموذج الحجز أو استيرادهم من ملف Excel.</p>
+              <div id="guests-empty" class="empty-state-unified" style="display: none; padding: 48px 24px; text-align: center;">
+                <div class="empty-icon-wrap" style="width: 56px; height: 56px; border-radius: 50%; background: #f1f5f9; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; color: #64748b;">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                  </svg>
+                </div>
+                <h3 style="font-size: 1.05rem; font-weight: 800; color: #1e293b; margin: 0 0 6px;">لا يوجد نزلاء مسجلين</h3>
+                <p style="font-size: 0.85rem; color: #64748b; margin: 0;">يمكنك تسجيل النزلاء يدوياً من نموذج الحجز أو استيرادهم من ملف Excel.</p>
               </div>
             </div>
 
@@ -860,10 +871,10 @@
               </div>
               <form id="business-day-settings-form" class="business-day-settings-form">
                 <label>وقت بداية اليوم الفندقي
-                  <input id="business-day-cutoff-time" type="time" value="06:00" required>
+                  <input id="business-day-cutoff-time" type="time" value="06:00" required class="form-control" style="width: 140px; display: inline-block;">
                 </label>
                 <label>المنطقة الزمنية
-                  <select id="hotel-timezone" required dir="ltr" style="padding: 10px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.15); font-size: 0.85rem; background: white; cursor: pointer;">
+                  <select id="hotel-timezone" required dir="ltr" class="form-control" style="padding: 8px 12px; font-size: 0.85rem; background: white; cursor: pointer;">
                     <option value="Asia/Riyadh" selected>Asia/Riyadh (السعودية - GMT+3)</option>
                     <option value="Asia/Dubai">Asia/Dubai (الإمارات - GMT+4)</option>
                     <option value="Asia/Kuwait">Asia/Kuwait (الكويت - GMT+3)</option>
@@ -897,7 +908,7 @@
               </div>
               <form id="receipt-policy-settings-form" class="receipt-policy-settings-form">
                 <label for="receipt-policy-text">شروط الإقامة</label>
-                <textarea id="receipt-policy-text" rows="6" maxlength="1279" required></textarea>
+                <textarea id="receipt-policy-text" rows="6" maxlength="1279" required class="form-control" style="min-height: 120px; font-size: 0.88rem; line-height: 1.6;"></textarea>
                 <button type="submit" class="btn btn-primary">حفظ الشروط</button>
               </form>
             </section>
@@ -923,18 +934,18 @@
                 <div class="card-body" style="padding: 22px;">
                   <form id="add-user-form">
                     <div class="form-group" style="margin-bottom: 16px;">
-                      <label for="new-username" style="display: block; font-weight: 700; font-size: 0.86rem; color: #1e293b; margin-bottom: 6px;">اسم المستخدم *</label>
-                      <input type="text" id="new-username" required placeholder="اسم الدخول (e.g. ahmed)" style="width: 100%; background: #f8fafc; border: 1px solid #e2e8f0; color: #1e293b; border-radius: 12px; padding: 10px 14px; font-weight: 600;">
+                      <label for="new-username" style="display: block; font-weight: 700; font-size: 0.86rem; color: #1e293b; margin-bottom: 6px;">اسم المستخدم <span class="field-required" aria-hidden="true">*</span></label>
+                      <input type="text" id="new-username" required placeholder="اسم الدخول (e.g. ahmed)" class="form-control" style="font-weight: 600;">
                     </div>
 
                     <div class="form-group" style="margin-bottom: 16px;">
-                      <label for="new-user-password" style="display: block; font-weight: 700; font-size: 0.86rem; color: #1e293b; margin-bottom: 6px;">كلمة المرور *</label>
-                      <input type="password" id="new-user-password" required placeholder="كلمة المرور" style="width: 100%; background: #f8fafc; border: 1px solid #e2e8f0; color: #1e293b; border-radius: 12px; padding: 10px 14px; font-weight: 600;">
+                      <label for="new-user-password" style="display: block; font-weight: 700; font-size: 0.86rem; color: #1e293b; margin-bottom: 6px;">كلمة المرور <span class="field-required" aria-hidden="true">*</span></label>
+                      <input type="password" id="new-user-password" required placeholder="كلمة المرور" class="form-control" style="font-weight: 600;">
                     </div>
 
                     <div class="form-group" style="margin-bottom: 20px;">
-                      <label for="new-user-role" style="display: block; font-weight: 700; font-size: 0.86rem; color: #1e293b; margin-bottom: 6px;">الصلاحية (Role) *</label>
-                      <select id="new-user-role" required style="width: 100%; background: #f8fafc; border: 1px solid #e2e8f0; color: #1e293b; border-radius: 12px; padding: 10px 14px; font-weight: 600;">
+                      <label for="new-user-role" style="display: block; font-weight: 700; font-size: 0.86rem; color: #1e293b; margin-bottom: 6px;">الصلاحية (Role) <span class="field-required" aria-hidden="true">*</span></label>
+                      <select id="new-user-role" required class="form-control" style="font-weight: 600;">
                         <option value="User">مستخدم عادي / موظف استقبال (User)</option>
                         <option value="Admin">مدير نظام (Admin)</option>
                       </select>
@@ -963,8 +974,8 @@
                 <div class="card-body" style="padding: 22px;">
                   <form id="update-password-form">
                     <div class="form-group" style="margin-bottom: 20px;">
-                      <label for="current-admin-new-password" style="display: block; font-weight: 700; font-size: 0.86rem; color: #1e293b; margin-bottom: 6px;">كلمة المرور الجديدة *</label>
-                      <input type="password" id="current-admin-new-password" required placeholder="أدخل كلمة المرور الجديدة" style="width: 100%; background: #f8fafc; border: 1px solid #e2e8f0; color: #1e293b; border-radius: 12px; padding: 10px 14px; font-weight: 600;">
+                      <label for="current-admin-new-password" style="display: block; font-weight: 700; font-size: 0.86rem; color: #1e293b; margin-bottom: 6px;">كلمة المرور الجديدة <span class="field-required" aria-hidden="true">*</span></label>
+                      <input type="password" id="current-admin-new-password" required placeholder="أدخل كلمة المرور الجديدة" class="form-control" style="font-weight: 600;">
                     </div>
                     <button type="submit" class="btn btn-primary" style="width: 100%; background: #1a432a; color: #ffffff; padding: 11px 20px; font-weight: 800; border-radius: 12px; border: none; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(26, 67, 42, 0.2); margin-top: 52px;">
                       تحديث كلمة المرور ✓
@@ -1084,9 +1095,15 @@
                 </tbody>
               </table>
 
-              <div id="logs-empty" class="empty-box" style="display: none;">
-                <h3>لا توجد سجلات نشاط مسجلة</h3>
-                <p>يتم تسجيل عمليات الدخول والخروج تلقائياً فور استخدام الموظفين للنظام.</p>
+              <div id="logs-empty" class="empty-state-unified" style="display: none; padding: 48px 24px; text-align: center;">
+                <div class="empty-icon-wrap" style="width: 56px; height: 56px; border-radius: 50%; background: #f1f5f9; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; color: #64748b;">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                  </svg>
+                </div>
+                <h3 style="font-size: 1.05rem; font-weight: 800; color: #1e293b; margin: 0 0 6px;">لا توجد سجلات نشاط مسجلة</h3>
+                <p style="font-size: 0.85rem; color: #64748b; margin: 0;">يتم تسجيل عمليات الدخول والخروج تلقائياً فور استخدام الموظفين للنظام.</p>
               </div>
             </div>
           </div>
@@ -1155,7 +1172,7 @@
 
           <div class="form-row">
             <div class="form-group">
-              <label for="guest-phone">رقم الجوال *</label>
+              <label for="guest-phone">رقم الجوال <span class="field-required" aria-hidden="true">*</span></label>
               <input type="tel" id="guest-phone" required placeholder="05xxxxxxxx" class="form-control form-input">
               <p id="guest-phone-error" class="hidden text-rose-500 text-xs font-bold mt-1.5" style="display:none; color:#f43f5e; font-size:0.76rem; font-weight:700; margin-top:4px;"></p>
             </div>
@@ -1170,7 +1187,7 @@
           </div>
 
           <div class="form-group guest-name-group">
-            <label for="guest-name">اسم النزيل الثلاثي *</label>
+            <label for="guest-name">اسم النزيل الثلاثي <span class="field-required" aria-hidden="true">*</span></label>
             <input type="text" id="guest-name" required placeholder="مثال: محمد عبدالله العمري" class="form-control">
           </div>
           </section>
@@ -1183,7 +1200,7 @@
 
           <div class="form-row">
             <div class="form-group">
-              <label for="booking-type">نوع الحجز *</label>
+              <label for="booking-type">نوع الحجز <span class="field-required" aria-hidden="true">*</span></label>
               <select id="booking-type" class="form-control">
                 <option value="عادي" selected>حجز عادي (يومي)</option>
                 <option value="استخدام يومي">استخدام يومي (مغادرة نفس اليوم الساعة 2 ظهرًا)</option>
@@ -1193,7 +1210,7 @@
             </div>
 
             <div class="form-group">
-              <label for="room-select">اختيار الغرفة *</label>
+              <label for="room-select">اختيار الغرفة <span class="field-required" aria-hidden="true">*</span></label>
               <select id="room-select" required class="form-control">
                 <option value="">-- اختر الغرفة --</option>
               </select>
@@ -1202,11 +1219,11 @@
 
           <div class="form-row">
             <div class="form-group">
-              <label for="check-in-date">تاريخ الوصول *</label>
+              <label for="check-in-date">تاريخ الوصول <span class="field-required" aria-hidden="true">*</span></label>
               <input type="date" id="check-in-date" required class="form-control">
             </div>
             <div class="form-group" id="check-out-container">
-              <label for="check-out-date" id="check-out-label">تاريخ المغادرة <span id="check-out-required-star">*</span></label>
+              <label for="check-out-date" id="check-out-label">تاريخ المغادرة <span id="check-out-required-star" class="field-required" aria-hidden="true">*</span></label>
               <input type="date" id="check-out-date" required class="form-control">
             </div>
           </div>
@@ -1223,7 +1240,7 @@
           <div class="form-row">
             <div class="form-group">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                <label id="booking-rate-label" for="nightly-rate-input" style="margin-bottom: 0;">السعر اليومي للحجز (ريال) *</label>
+                <label id="booking-rate-label" for="nightly-rate-input" style="margin-bottom: 0;">السعر اليومي للحجز (ر.س) <span class="field-required" aria-hidden="true">*</span></label>
                 <span id="room-default-rate-badge" style="font-size: 0.72rem; color: #64748b; font-weight: 600;"></span>
               </div>
               <input type="number" id="nightly-rate-input" step="any" min="0" placeholder="0.00" class="form-control" style="font-weight: 700; color: #1e293b;">
@@ -1231,7 +1248,7 @@
             </div>
 
             <div class="form-group">
-              <label for="discount-amount-input">قيمة الخصم (ريال)</label>
+              <label for="discount-amount-input">قيمة الخصم (ر.س)</label>
               <input type="number" id="discount-amount-input" step="any" min="0" placeholder="0.00" value="0" class="form-control" style="font-weight: 700; color: #b91c1c;">
               <span class="form-hint">يُخصم مباشرة من إجمالي الإقامة</span>
             </div>
@@ -1239,14 +1256,14 @@
 
           <div class="form-row">
             <div class="form-group" id="discount-reason-container">
-              <label for="discount-reason-input">سبب الخصم <span style="color:#b91c1c;">*</span></label>
+              <label for="discount-reason-input">سبب الخصم <span class="field-required" aria-hidden="true">*</span></label>
               <input type="text" id="discount-reason-input" placeholder="مثال: خصم عميل دائم / تخفيض إدارة" class="form-control">
               <span class="form-hint" style="visibility: hidden;">-</span>
             </div>
 
             <div class="form-group">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                <label for="total-price" id="total-price-label" style="margin-bottom: 0;">السعر الإجمالي النهائي للإقامة (ريال) *</label>
+                <label for="total-price" id="total-price-label" style="margin-bottom: 0;">السعر الإجمالي النهائي للإقامة (ر.س) <span class="field-required" aria-hidden="true">*</span></label>
                 <span id="price-calculation-breakdown" style="font-size: 0.74rem; font-weight: 700; color: #05963d; display: none;"></span>
               </div>
               <input type="number" id="total-price" required min="0" step="any" placeholder="0.00" class="form-control" style="font-weight: 800; font-size: 1.05rem; color: #1e293b; background: #f8fafc;">
@@ -1263,7 +1280,7 @@
 
           <div class="form-row">
             <div class="form-group">
-              <label for="payment-method">طريقة السداد *</label>
+              <label for="payment-method">طريقة السداد <span class="field-required" aria-hidden="true">*</span></label>
               <select id="payment-method" required class="form-control">
                 <option value="نقداً" selected>نقداً (Cash)</option>
                 <option value="بطاقة / مدى">بطاقة / مدى / فيزا (Card)</option>
@@ -1272,7 +1289,7 @@
               <span class="form-hint" style="visibility: hidden;">-</span>
             </div>
             <div class="form-group">
-              <label for="paid-amount">المبلغ المدفوع مقدماً *</label>
+              <label for="paid-amount">المبلغ المدفوع مقدماً <span class="field-required" aria-hidden="true">*</span></label>
               <input type="number" id="paid-amount" required min="0" step="0.5" placeholder="0.00" class="form-control" style="font-weight: 700; color: #047831;">
               <span class="form-hint" style="visibility: hidden;">-</span>
             </div>
@@ -1288,7 +1305,7 @@
               <label>المبلغ المتبقي على النزيل</label>
               <div id="remaining-balance-badge" class="remaining-balance-badge">
                 <span>المتبقي:</span>
-                <span id="remaining-balance-val">0.00 ريال</span>
+                <span id="remaining-balance-val">0.00 ر.س</span>
               </div>
               <span class="form-hint" style="visibility: hidden;">-</span>
             </div>
@@ -1471,12 +1488,12 @@
         <!-- Guest Info Section -->
         <div style="font-size: 0.8rem; font-weight: 800; color: #64748b; margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px;">👤 بيانات النزيل</div>
         <div class="form-group" style="margin-bottom: 12px;">
-          <label for="edit-inv-guest-name" style="display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; color: #334155;">اسم النزيل *</label>
+          <label for="edit-inv-guest-name" style="display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; color: #334155;">اسم النزيل <span class="field-required" aria-hidden="true">*</span></label>
           <input type="text" id="edit-inv-guest-name" required class="form-control" style="font-weight: 600;">
         </div>
         <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
           <div class="form-group" style="margin-bottom: 0;">
-            <label for="edit-inv-guest-phone" style="display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; color: #334155;">رقم الجوال *</label>
+            <label for="edit-inv-guest-phone" style="display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; color: #334155;">رقم الجوال <span class="field-required" aria-hidden="true">*</span></label>
             <input type="tel" id="edit-inv-guest-phone" required class="form-control" placeholder="05xxxxxxxx">
           </div>
           <div class="form-group" style="margin-bottom: 0;">
@@ -1489,17 +1506,17 @@
         <div style="font-size: 0.8rem; font-weight: 800; color: #64748b; margin-bottom: 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px;">💰 المبالغ المالية وطريقة السداد</div>
         <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
           <div class="form-group" style="margin-bottom: 0;">
-            <label for="edit-inv-total-price" style="display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; color: #334155;">السعر الإجمالي (ريال) *</label>
+            <label for="edit-inv-total-price" style="display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; color: #334155;">السعر الإجمالي (ر.س) <span class="field-required" aria-hidden="true">*</span></label>
             <input type="number" id="edit-inv-total-price" required min="1" step="0.5" class="form-control" style="font-weight: 700; color: #1e1b4b;">
           </div>
           <div class="form-group" style="margin-bottom: 0;">
-            <label for="edit-inv-paid-amount" style="display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; color: #334155;">المبلغ المدفوع (ريال) *</label>
+            <label for="edit-inv-paid-amount" style="display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; color: #334155;">المبلغ المدفوع (ر.س) <span class="field-required" aria-hidden="true">*</span></label>
             <input type="number" id="edit-inv-paid-amount" required min="0" step="0.5" class="form-control" style="font-weight: 700; color: #047831;">
           </div>
         </div>
         <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
           <div class="form-group" style="margin-bottom: 0;">
-            <label for="edit-inv-deposit-amount" style="display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; color: #334155;">رصيد التأمين المسجل (ريال)</label>
+            <label for="edit-inv-deposit-amount" style="display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; color: #334155;">رصيد التأمين المسجل (ر.س)</label>
             <input type="number" id="edit-inv-deposit-amount" min="0" step="10" class="form-control" value="0" readonly>
             <small style="display:block;margin-top:4px;color:#64748b;">تتم تسويته من شاشة الإلغاء أو تسجيل المغادرة للحفاظ على سجل الحركات.</small>
           </div>
@@ -1516,7 +1533,7 @@
         <!-- Live Remaining Preview -->
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center;">
           <span style="font-size: 0.82rem; font-weight: 700; color: #475569;">المبلغ المتبقي المحسوب:</span>
-          <span id="edit-inv-remaining-preview" style="font-size: 0.95rem; font-weight: 800; color: #05963d;">0.00 ريال</span>
+          <span id="edit-inv-remaining-preview" style="font-size: 0.95rem; font-weight: 800; color: #05963d;">0.00 ر.س</span>
         </div>
 
         <div class="modal-layout__footer" style="display: flex; gap: 10px; justify-content: flex-end;">
@@ -1541,7 +1558,7 @@
         <input type="hidden" id="edit-guest-id">
 
         <div class="form-group" style="margin-bottom: 14px;">
-          <label for="edit-guest-name" style="display: block; font-size: 0.85rem; font-weight: 700; margin-bottom: 6px; color: #334155;">اسم النزيل الكامل *</label>
+          <label for="edit-guest-name" style="display: block; font-size: 0.85rem; font-weight: 700; margin-bottom: 6px; color: #334155;">اسم النزيل الكامل <span class="field-required" aria-hidden="true">*</span></label>
           <input type="text" id="edit-guest-name" required class="form-control" style="font-weight: 700; font-size: 0.9rem;" placeholder="أدخل اسم النزيل">
         </div>
 
@@ -2187,8 +2204,16 @@
                 <!-- Populated dynamically via JS -->
               </tbody>
             </table>
-            <div id="daily-backups-empty" style="display: none; padding: 30px; text-align: center; color: var(--text-muted);">
-              لا توجد نسخ احتياطية محفوظة حالياً في هذا المجلد.
+            <div id="daily-backups-empty" class="empty-state-unified" style="display: none; padding: 36px 20px; text-align: center;">
+              <div class="empty-icon-wrap" style="width: 48px; height: 48px; border-radius: 50%; background: #f1f5f9; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; color: #64748b;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+              </div>
+              <h3 style="font-size: 0.95rem; font-weight: 800; color: #1e293b; margin: 0 0 4px;">لا توجد نسخ احتياطية</h3>
+              <p style="font-size: 0.8rem; color: #64748b; margin: 0;">لا توجد نسخ احتياطية محفوظة حالياً في هذا المجلد.</p>
             </div>
           </div>
         </div>
@@ -2224,19 +2249,19 @@
       <form id="edit-room-form" class="modal-layout__body" style="padding: 24px;">
         <input type="hidden" id="edit-room-id">
         <div class="form-group" style="margin-bottom: 16px;">
-          <label for="edit-room-number" style="font-weight: 700; margin-bottom: 6px; display: block; color: #1e293b;">رقم الغرفة *</label>
+          <label for="edit-room-number" style="font-weight: 700; margin-bottom: 6px; display: block; color: #1e293b;">رقم الغرفة <span class="field-required" aria-hidden="true">*</span></label>
           <input type="text" id="edit-room-number" required class="form-control">
         </div>
         <div class="form-group" style="margin-bottom: 16px;">
-          <label for="edit-room-type" style="font-weight: 700; margin-bottom: 6px; display: block; color: #1e293b;">نوع الغرفة *</label>
+          <label for="edit-room-type" style="font-weight: 700; margin-bottom: 6px; display: block; color: #1e293b;">نوع الغرفة <span class="field-required" aria-hidden="true">*</span></label>
           <input list="room-types-list" type="text" id="edit-room-type" required class="form-control">
         </div>
         <div class="form-group" style="margin-bottom: 16px;">
-          <label for="edit-room-price" style="font-weight: 700; margin-bottom: 6px; display: block; color: #1e293b;">السعر اليومي (ريال) *</label>
+          <label for="edit-room-price" style="font-weight: 700; margin-bottom: 6px; display: block; color: #1e293b;">السعر اليومي (ر.س) <span class="field-required" aria-hidden="true">*</span></label>
           <input type="number" id="edit-room-price" required min="0" step="10" class="form-control">
         </div>
         <div class="form-group" style="margin-bottom: 16px;">
-          <label for="edit-room-monthly-price" style="font-weight: 700; margin-bottom: 6px; display: block; color: #1e293b;">السعر الشهري (ريال) *</label>
+          <label for="edit-room-monthly-price" style="font-weight: 700; margin-bottom: 6px; display: block; color: #1e293b;">السعر الشهري (ر.س) <span class="field-required" aria-hidden="true">*</span></label>
           <input type="number" id="edit-room-monthly-price" required min="0.01" step="0.01" class="form-control">
           <small style="display:block;margin-top:4px;color:#64748b;">الغرف الحالية تحتاج إلى تحديد سعر شهري قبل استقبال حجز شهري جديد.</small>
         </div>
@@ -2527,27 +2552,27 @@
           <!-- Metric 1: Calculated Total -->
           <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px; text-align: center;">
             <div style="font-size: 0.72rem; font-weight: 700; color: #64748b; margin-bottom: 4px;">إجمالي الإقامة الفعلي</div>
-            <div id="settle-total-price-display" style="font-size: 1.05rem; font-weight: 900; color: #1e1b4b;">0.00 ريال</div>
+            <div id="settle-total-price-display" style="font-size: 1.05rem; font-weight: 900; color: #1e1b4b;">0.00 ر.س</div>
             <div id="settle-rate-calculation-hint" style="font-size: 0.68rem; color: #94a3b8;">(الليالي × سعر الليلة)</div>
           </div>
 
           <!-- Metric 2: Already Paid -->
           <div style="background: #f0fdf5; border: 1px solid #86efaf; border-radius: 10px; padding: 10px; text-align: center;">
             <div style="font-size: 0.72rem; font-weight: 700; color: #166535; margin-bottom: 4px;">المسدد سابقاً</div>
-            <div id="settle-paid-amount-display" style="font-size: 1.05rem; font-weight: 900; color: #15803e;">0.00 ريال</div>
+            <div id="settle-paid-amount-display" style="font-size: 1.05rem; font-weight: 900; color: #15803e;">0.00 ر.س</div>
             <div style="font-size: 0.68rem; color: #16a34d;">(Paid So Far)</div>
           </div>
 
           <!-- Metric 3: Net Balance Due or Credit -->
           <div id="settle-balance-box" style="background: #fef2f2; border: 1.5px solid #fca5a5; border-radius: 10px; padding: 10px; text-align: center;">
             <div id="settle-balance-label" style="font-size: 0.72rem; font-weight: 700; color: #991b1b; margin-bottom: 4px;">المتبقي للتحصيل</div>
-            <div id="settle-balance-value" style="font-size: 1.1rem; font-weight: 900; color: #dc2626;">0.00 ريال</div>
+            <div id="settle-balance-value" style="font-size: 1.1rem; font-weight: 900; color: #dc2626;">0.00 ر.س</div>
             <div id="settle-balance-sub" style="font-size: 0.68rem; color: #dc2626;">(Net Balance)</div>
           </div>
         </div>
 
         <div id="settle-deposit-section" style="display:none; margin-bottom:14px; padding:12px; border:1px solid #c4b5fd; border-radius:10px; background:#f5f3ff;">
-          <div style="font-size:.84rem; font-weight:800; color:#5b21b6; margin-bottom:8px;">تسوية التأمين المسجل: <span id="settle-deposit-held">0.00 ريال</span></div>
+          <div style="font-size:.84rem; font-weight:800; color:#5b21b6; margin-bottom:8px;">تسوية التأمين المسجل: <span id="settle-deposit-held">0.00 ر.س</span></div>
           <div style="font-size:.74rem; color:#64748b; margin-bottom:8px;">اختر استخدام التأمين في حساب الإقامة أو رده للنزيل. يمكن الاحتفاظ بجزء منه مع توثيق السبب.</div>
           <label for="settle-deposit-disposition" style="font-size:.8rem; font-weight:700; display:block; margin-bottom:4px;">إجراء التأمين</label>
           <select id="settle-deposit-disposition" class="form-control" style="font-weight:700;">
@@ -2586,7 +2611,7 @@
             </label>
           </div>
           <div id="settle-policy-reason-wrap" style="display:none; margin-top:8px;">
-            <label for="settle-policy-reason-input" style="font-weight:700; font-size:0.8rem; color:#3730a3; margin-bottom:4px; display:block;">سبب اختيار الليالي الفعلية <span style="color:#b91c1c;">*</span></label>
+            <label for="settle-policy-reason-input" style="font-weight:700; font-size:0.8rem; color:#3730a3; margin-bottom:4px; display:block;">سبب اختيار الليالي الفعلية <span class="field-required" aria-hidden="true">*</span></label>
             <input type="text" id="settle-policy-reason-input" placeholder="مثال: طلب النزيل إنهاء الحجز مبكراً" class="form-control" style="font-size:0.82rem;">
           </div>
         </div>
@@ -2595,18 +2620,18 @@
         <div id="settle-discount-section" style="display: none; margin-bottom: 12px;">
           <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
             <div class="form-group" style="margin-bottom: 0;">
-              <label for="settle-discount-input" style="font-weight: 700; font-size: 0.82rem; color: #334155; margin-bottom: 4px; display: block;">خصم تسوية المغادرة (ريال) <span style="color:#b91c1c; font-size:0.7rem;">(مدير النظام فقط)</span></label>
+              <label for="settle-discount-input" style="font-weight: 700; font-size: 0.82rem; color: #334155; margin-bottom: 4px; display: block;">خصم تسوية المغادرة (ر.س) <span style="color:#b91c1c; font-size:0.7rem;">(مدير النظام فقط)</span></label>
               <input type="number" id="settle-discount-input" min="0" step="any" placeholder="0.00" value="0" class="form-control" style="font-weight: 700; color: #b91c1c;">
             </div>
             <div class="form-group" style="margin-bottom: 0;">
-              <label for="settle-discount-reason-input" style="font-weight: 700; font-size: 0.82rem; color: #334155; margin-bottom: 4px; display: block;">سبب الخصم <span style="color:#b91c1c;">*</span></label>
+              <label for="settle-discount-reason-input" style="font-weight: 700; font-size: 0.82rem; color: #334155; margin-bottom: 4px; display: block;">سبب الخصم <span class="field-required" aria-hidden="true">*</span></label>
               <input type="text" id="settle-discount-reason-input" placeholder="مثال: خصم تسوية / إكرامية" class="form-control" style="font-size: 0.82rem;">
             </div>
           </div>
         </div>
 
         <div id="settle-late-checkout-section" style="display:none; margin-bottom:14px; padding:10px 12px; border:1px solid #fed7aa; border-radius:10px; background:#fff7ed;">
-          <label for="settle-late-checkout-fee" style="font-size:.82rem; font-weight:800; color:#9a3412; display:block; margin-bottom:5px;">مبلغ إضافي اختياري لتأخير المغادرة (ريال)</label>
+          <label for="settle-late-checkout-fee" style="font-size:.82rem; font-weight:800; color:#9a3412; display:block; margin-bottom:5px;">مبلغ إضافي اختياري لتأخير المغادرة (ر.س)</label>
           <input type="number" id="settle-late-checkout-fee" min="0" step="0.01" value="0" class="form-control" style="font-weight:700;">
           <div style="font-size:.72rem; color:#9a3412; margin-top:5px;">الموعد المعتاد للمغادرة الساعة 2 ظهرًا. أضف مبلغًا يدويًا عند الحاجة أو اتركه صفرًا.</div>
         </div>
@@ -2614,7 +2639,7 @@
         <!-- Net total (read-only for non-contract – value set by JS from backend preview) -->
         <div class="form-group modal-section-card" style="margin-bottom: 14px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-            <label for="settle-final-total-input" style="font-weight: 700; font-size: 0.82rem; color: #334155;">الإجمالي الصافي المعتمد للحساب (ريال)</label>
+            <label for="settle-final-total-input" style="font-weight: 700; font-size: 0.82rem; color: #334155;">الإجمالي الصافي المعتمد للحساب (ر.س)</label>
             <span id="settle-breakdown-hint" style="font-size: 0.72rem; color: #64748b;">(الأساس - الخصم)</span>
           </div>
           <input type="number" id="settle-final-total-input" min="0" step="any" class="form-control" style="font-weight: 800; font-size: 1rem; color: #1e1b4b; background: #f8fafc;">
@@ -2624,7 +2649,7 @@
         <div id="settle-payment-section" class="modal-section-card" style="margin-bottom: 18px;">
           <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
             <div class="form-group" style="margin-bottom: 0;">
-              <label for="settle-pay-now-input" style="font-weight: 700; font-size: 0.82rem; color: #334155; margin-bottom: 4px; display: block;">المبلغ المحصل الآن (ريال)</label>
+              <label for="settle-pay-now-input" style="font-weight: 700; font-size: 0.82rem; color: #334155; margin-bottom: 4px; display: block;">المبلغ المحصل الآن (ر.س)</label>
               <input type="number" id="settle-pay-now-input" min="0" step="any" class="form-control" placeholder="0.00" style="font-weight: 800; font-size: 1rem; color: #047831;">
             </div>
             <div class="form-group" style="margin-bottom: 0;">
@@ -2644,10 +2669,10 @@
           <div style="font-weight: 800; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
             <span>ℹ️ استرداد مبلغ للنزيل:</span>
           </div>
-          <div style="margin-bottom: 10px;">النزيل دفع أكثر من المستحق بمقدار <strong id="settle-refund-amount" style="color: #1d4ed8;">0.00 ريال</strong>. يرجى استرداد هذا المبلغ للنزيل وتسجيله أدناه.</div>
+          <div style="margin-bottom: 10px;">النزيل دفع أكثر من المستحق بمقدار <strong id="settle-refund-amount" style="color: #1d4ed8;">0.00 ر.س</strong>. يرجى استرداد هذا المبلغ للنزيل وتسجيله أدناه.</div>
           <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
             <div class="form-group" style="margin-bottom: 0;">
-              <label for="settle-refund-amount-input" style="font-weight: 700; font-size: 0.78rem; color: #1e40af; margin-bottom: 3px; display: block;">مبلغ الاسترداد (ريال)</label>
+              <label for="settle-refund-amount-input" style="font-weight: 700; font-size: 0.78rem; color: #1e40af; margin-bottom: 3px; display: block;">مبلغ الاسترداد (ر.س)</label>
               <input type="number" id="settle-refund-amount-input" readonly min="0" step="any" class="form-control" placeholder="0.00" style="font-weight: 800; font-size: 0.95rem; color: #1d4ed8; background: #f1f5f9; cursor: default;">
             </div>
             <div class="form-group" style="margin-bottom: 0;">

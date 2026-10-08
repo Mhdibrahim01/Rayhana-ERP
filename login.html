@@ -10,87 +10,242 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            cairo: ['Cairo', 'sans-serif'],
-          },
-          colors: {
-            brand: {
-              forest: '#1a432a',
-              forestHover: '#143621',
-              gold: '#a67c52',
-            }
-          }
-        }
-      }
-    }
-  </script>
-  <link rel="stylesheet" href="styles.css">
+  <!-- Design Tokens & Shared Components (100% Offline Compatible) -->
+  <link rel="stylesheet" href="design-tokens.css">
   
   <style>
-    /* Specific scoped rules for login to guarantee 100% centering and zero screen-width stretching */
+    /* Scoped styling for Login View powered by Design Tokens */
     body.login-body {
       min-height: 100vh;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       margin: 0;
-      padding: 1.5rem;
-      background-color: #f8fafc;
+      padding: var(--space-xl);
+      background-color: var(--color-bg-app);
       background-image: 
         radial-gradient(circle at 15% 15%, rgba(236, 253, 243, 0.9) 0%, transparent 45%),
         radial-gradient(circle at 85% 15%, rgba(254, 243, 199, 0.45) 0%, transparent 40%),
         radial-gradient(circle at 50% 85%, rgba(241, 245, 249, 0.95) 0%, transparent 55%),
         linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #f1f5f9 100%);
-      font-family: 'Cairo', system-ui, sans-serif;
-      overflow-y: auto !important;
+      font-family: var(--font-family-sans);
+      overflow-y: auto;
+      position: relative;
     }
+
+    /* Ambient Dynamic Pastel Orbs */
+    .login-orb {
+      position: fixed;
+      border-radius: var(--radius-pill);
+      pointer-events: none;
+      filter: blur(80px);
+      z-index: 0;
+    }
+    .login-orb-top {
+      top: -6rem;
+      left: -5rem;
+      width: 24rem;
+      height: 24rem;
+      background-color: rgba(80, 191, 123, 0.28);
+    }
+    .login-orb-bottom {
+      bottom: -6rem;
+      right: -5rem;
+      width: 24rem;
+      height: 24rem;
+      background-color: rgba(245, 158, 11, 0.18);
+    }
+    .login-orb-center {
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 32rem;
+      height: 32rem;
+      background-color: rgba(80, 191, 123, 0.16);
+      filter: blur(100px);
+    }
+
+    /* Login Card Container */
     .login-container-card {
-      max-width: 440px !important;
-      width: 100% !important;
-      margin: 0 auto !important;
-      background: rgba(255, 255, 255, 0.75) !important;
-      backdrop-filter: blur(24px) saturate(180%) !important;
-      -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
-      border: 1px solid rgba(255, 255, 255, 0.85) !important;
-      border-radius: 1.5rem !important;
-      box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.06), 0 8px 20px -6px rgba(0, 0, 0, 0.04), inset 0 1px 1px 0 #ffffff !important;
-      padding: 2.25rem !important;
-      position: relative !important;
-      z-index: 10 !important;
+      max-width: 440px;
+      width: 100%;
+      margin: 0 auto;
+      background: rgba(255, 255, 255, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.95);
+      border-radius: 24px;
+      box-shadow: 0 20px 50px -10px rgba(15, 23, 42, 0.08), 0 8px 20px -6px rgba(15, 23, 42, 0.04), inset 0 1px 1px 0 #ffffff;
+      padding: 2.25rem;
+      position: relative;
+      z-index: 10;
+      box-sizing: border-box;
+      animation: modal-dialog-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Logo & Header */
+    .login-header {
+      text-align: center;
+      margin-bottom: 1.75rem;
+    }
+    .login-logo-wrapper {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+      border-radius: var(--radius-lg);
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid var(--color-border-subtle);
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 1rem;
+    }
+    .login-logo-img {
+      width: 64px;
+      height: 64px;
+      border-radius: var(--radius-md);
+      object-fit: cover;
+    }
+    .login-title {
+      font-size: 1.5rem;
+      font-weight: 900;
+      color: var(--color-text-main);
+      margin: 0;
+      line-height: 1.3;
+      letter-spacing: -0.02em;
+    }
+    .login-subtitle {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--color-text-muted);
+      margin: 6px 0 0;
+    }
+
+    /* Error Alert */
+    .login-alert-box {
+      margin-bottom: 1.25rem;
+      padding: 12px 14px;
+      border-radius: var(--radius-md);
+      background: var(--color-danger-bg);
+      border: 1px solid var(--color-danger-border);
+      color: var(--color-danger-text);
+      font-size: 0.82rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Form Fields */
+    .login-form-group {
+      margin-bottom: 1rem;
+    }
+    .login-label {
+      display: block;
+      font-size: 0.80rem;
+      font-weight: 800;
+      color: var(--color-text-body);
+      margin-bottom: 6px;
+      padding-right: 2px;
+    }
+    .login-input {
+      width: 100%;
+      height: 44px;
+      padding: 0 14px;
+      border-radius: var(--radius-md);
+      background: #ffffff;
+      border: 1px solid var(--color-border-strong);
+      color: var(--color-text-main);
+      font-size: 0.92rem;
+      font-weight: 600;
+      box-sizing: border-box;
+      transition: all var(--motion-fast);
+    }
+    .login-input:focus {
+      border-color: var(--color-brand-forest) !important;
+      box-shadow: var(--focus-ring) !important;
+      outline: none;
+    }
+
+    /* Submit Button */
+    .btn-login-submit {
+      width: 100%;
+      height: 46px;
+      border-radius: var(--radius-md);
+      background: var(--color-brand-forest);
+      color: #ffffff;
+      font-size: 0.95rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(26, 67, 42, 0.25);
+      transition: all var(--motion-fast);
+      margin-top: 0.5rem;
+    }
+    .btn-login-submit:hover:not(:disabled) {
+      background: var(--color-brand-forest-hover);
+      box-shadow: 0 6px 20px rgba(26, 67, 42, 0.35);
+    }
+    .btn-login-submit:active:not(:disabled) {
+      transform: scale(0.985);
+    }
+
+    /* Security Footer */
+    .login-security-notice {
+      padding-top: 1rem;
+      margin-top: 1.25rem;
+      border-top: 1px solid var(--color-border-subtle);
+      text-align: center;
+    }
+    .login-security-text {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin: 0;
+    }
+
+    @keyframes modal-dialog-in {
+      from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.98);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
     }
   </style>
 </head>
-<body class="login-body min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-slate-50 font-cairo">
+<body class="login-body">
 
   <!-- Ambient Dynamic Pastel Orbs (Provides frosted glass light refraction) -->
-  <div class="fixed -top-24 -left-20 w-96 h-96 rounded-full login-brand-green-cloud blur-3xl pointer-events-none -z-0"></div>
-  <div class="fixed -bottom-24 -right-20 w-96 h-96 rounded-full bg-amber-100/50 blur-3xl pointer-events-none -z-0"></div>
-  <div class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] h-[520px] rounded-full login-brand-green-glow blur-[100px] pointer-events-none -z-0"></div>
+  <div class="login-orb login-orb-top" aria-hidden="true"></div>
+  <div class="login-orb login-orb-bottom" aria-hidden="true"></div>
+  <div class="login-orb login-orb-center" aria-hidden="true"></div>
 
   <!-- Toast Container -->
   <div id="toast-container"></div>
 
   <!-- Login Card (The Container) -->
-  <main class="login-container-card max-w-md w-full p-8 bg-white/75 backdrop-blur-xl border border-white/80 shadow-[0_20px_50px_rgba(0,0,0,0.06),inset_0_1px_1px_rgba(255,255,255,0.95)] rounded-3xl relative z-10 transition-all">
+  <main class="login-container-card" role="main">
     
     <!-- Logo & Header -->
-    <div class="text-center mb-7">
-      <div class="inline-flex items-center justify-center p-2 rounded-2xl bg-white/90 border border-slate-200/60 shadow-sm mb-4">
-        <img src="assets/rayhana-logo.png" alt="شعار ريحانة للوحدات السكنية" class="w-16 h-16 rounded-xl object-cover shadow-sm">
+    <header class="login-header">
+      <div class="login-logo-wrapper">
+        <img src="assets/rayhana-logo.png" alt="شعار ريحانة للوحدات السكنية" class="login-logo-img">
       </div>
-      <h1 class="text-2xl font-black text-slate-800 tracking-tight leading-snug">ريحانة للوحدات السكنية</h1>
-      <p class="text-xs font-semibold text-slate-500 mt-1">Rayhana Suites • نظام إدارة الحجوزات الفندقية</p>
-    </div>
+      <h1 class="login-title">ريحانة للوحدات السكنية</h1>
+      <p class="login-subtitle">Rayhana Suites • نظام إدارة الحجوزات الفندقية</p>
+    </header>
 
     <!-- Error Alert Box -->
-    <div id="login-error-alert" style="display: none;" class="mb-5 p-3.5 rounded-xl bg-rose-50/90 border border-rose-200/80 text-rose-700 text-xs font-bold flex items-center gap-2">
-      <svg class="w-4 h-4 shrink-0 text-rose-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+    <div id="login-error-alert" style="display: none;" class="login-alert-box" role="alert" aria-live="assertive">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="12" cy="12" r="10"></circle>
         <line x1="12" y1="8" x2="12" y2="12"></line>
         <line x1="12" y1="16" x2="12.01" y2="16"></line>
@@ -99,49 +254,45 @@
     </div>
 
     <!-- Login Form -->
-    <form id="login-form" autocomplete="off" class="space-y-4">
+    <form id="login-form" autocomplete="off">
       
       <!-- Username Field -->
-      <div>
-        <label for="username" class="block text-xs font-bold text-slate-700 mb-1.5 pr-1">اسم المستخدم</label>
-        <div class="relative">
-          <input 
-            type="text" 
-            id="username" 
-            name="username" 
-            required 
-            placeholder="أدخل اسم المستخدم" 
-            autocomplete="username" 
-            autofocus 
-            class="w-full px-4 py-3 rounded-xl bg-white/90 border border-slate-200/90 text-slate-800 text-sm font-semibold placeholder:text-slate-400 focus:outline-none focus:border-[#1a432a] focus:ring-2 focus:ring-[#1a432a]/15 transition-all shadow-sm"
-          >
-        </div>
+      <div class="login-form-group">
+        <label for="username" class="login-label">اسم المستخدم</label>
+        <input 
+          type="text" 
+          id="username" 
+          name="username" 
+          required 
+          placeholder="أدخل اسم المستخدم" 
+          autocomplete="username" 
+          autofocus 
+          class="login-input"
+        >
       </div>
 
       <!-- Password Field -->
-      <div>
-        <label for="password" class="block text-xs font-bold text-slate-700 mb-1.5 pr-1">كلمة المرور</label>
-        <div class="relative">
-          <input 
-            type="password" 
-            id="password" 
-            name="password" 
-            required 
-            placeholder="••••••••" 
-            autocomplete="current-password" 
-            class="w-full px-4 py-3 rounded-xl bg-white/90 border border-slate-200/90 text-slate-800 text-sm font-semibold placeholder:text-slate-400 focus:outline-none focus:border-[#1a432a] focus:ring-2 focus:ring-[#1a432a]/15 transition-all shadow-sm"
-          >
-        </div>
+      <div class="login-form-group">
+        <label for="password" class="login-label">كلمة المرور</label>
+        <input 
+          type="password" 
+          id="password" 
+          name="password" 
+          required 
+          placeholder="••••••••" 
+          autocomplete="current-password" 
+          class="login-input"
+        >
       </div>
 
       <!-- Submit Button -->
-      <div class="pt-2">
+      <div>
         <button 
           type="submit" 
           id="btn-submit" 
-          class="w-full py-3.5 px-4 rounded-xl bg-[#1a432a] hover:bg-[#143621] text-white text-sm font-bold shadow-[0_4px_16px_rgba(26, 67, 42, 0.25)] hover:shadow-[0_6px_20px_rgba(26, 67, 42, 0.35)] transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+          class="btn-login-submit"
         >
-          <svg class="w-4 h-4 stroke-current" fill="none" stroke-width="2" viewBox="0 0 24 24">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
             <polyline points="10 17 15 12 10 7"></polyline>
             <line x1="15" y1="12" x2="3" y2="12"></line>
@@ -151,9 +302,9 @@
       </div>
 
       <!-- System Security Notice -->
-      <div class="pt-3 text-center border-t border-slate-200/60 mt-4">
-        <p class="text-[11px] font-medium text-slate-400 flex items-center justify-center gap-1.5">
-          <svg class="w-3.5 h-3.5 login-brand-green-text" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <div class="login-security-notice">
+        <p class="login-security-text">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color: var(--color-brand-forest);" aria-hidden="true">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
             <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
           </svg>
