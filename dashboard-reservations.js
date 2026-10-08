@@ -1609,7 +1609,7 @@
               </div>
             ` : ''}
           </td>
-          <td class="res-cell-money" style="white-space: nowrap;">
+          <td class="res-cell-money">
             <div class="res-money-total">
               ${(isOverdue || isContract) && effectiveTotal > total ? `
                 ${fmtEffTotal} ر.س <small class="res-accrued-tag">(مستحق)</small>
@@ -1618,8 +1618,13 @@
               `}
             </div>
             <div class="res-money-sub muted">
-              <span>مدفوع: ${fmtPaid} ر.س</span>
-              ${isCredit ? ` • <span class="res-money-sub credit">دائن: ${Math.abs(effectiveRawRemaining).toLocaleString('en-US')} ر.س</span>` : (remaining > 0 ? ` • <span class="res-money-sub remaining">متبقي: ${fmtRem} ر.س</span>` : '')}
+              ${isCredit ? `
+                <span>مدفوع: ${fmtPaid}</span> • <span class="res-money-sub credit">دائن: ${Math.abs(effectiveRawRemaining).toLocaleString('en-US')} ر.س</span>
+              ` : (remaining > 0 ? `
+                <span>مدفوع: ${fmtPaid}</span> • <span class="res-money-sub remaining">متبقي: ${fmtRem} ر.س</span>
+              ` : `
+                <span>مدفوع: ${fmtPaid} ر.س</span>
+              `)}
             </div>
           </td>
           <td class="res-cell-payment">

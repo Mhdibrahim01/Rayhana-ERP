@@ -386,8 +386,8 @@ test('Smart Command Palette (Ctrl+K) & Attention Inbox Unit Tests', async t => {
 
       const { App, CommandPalette } = createCommandPaletteEnv({}, {}, mockApi);
 
-      assert.deepEqual(CommandPalette.getRooms(), []);
-      assert.deepEqual(CommandPalette.getReservations(), []);
+      assert.equal(CommandPalette.getRooms().length, 0);
+      assert.equal(CommandPalette.getReservations().length, 0);
 
       await CommandPalette.syncDataFromDb();
 
@@ -397,6 +397,175 @@ test('Smart Command Palette (Ctrl+K) & Attention Inbox Unit Tests', async t => {
       assert.equal(CommandPalette.getReservations()[0].guest_name, 'عبدالرحمن حمد حكمي');
       assert.equal(App.State.roomsCache.length, 1);
       assert.equal(App.State.reservationsCache.length, 1);
+
+      // Verify that attention inbox detects the unpaid balance on room 202
+      const inbox = CommandPalette.computeAttentionInbox();
+      assert.equal(inbox.unpaidBalances.length, 1);
+      assert.equal(inbox.unpaidBalances[0].reservation.guest_name, 'عبدالرحمن حمد حكمي');
     });
+
+    await t2.test('Room 202 inquiry resolves active occupant even when room status is "محجوزة"', () => {
+      const { CommandPalette } = createCommandPaletteEnv({
+        roomsCache: [{ id: 202, room_number: '202', status: 'محجوزة' }],
+        reservationsCache: [{
+          id: 76,
+          room_id: 202,
+          room_number: '202',
+          status: 'مؤكد',
+          guest_name: 'عبدالرحمن حمد احمد ال ابوالسعود حكمي',
+          guest_phone: '0555123456',
+          total_price: 3000,
+          paid_amount: 1000
+        }]
+      });
+
+      const parsed = CommandPalette.parseCommandIntent('مين في 202');
+      assert.equal(parsed.type, 'room-inquiry');
+      assert.equal(parsed.roomNumber, '202');
+
+      const activeRes = CommandPalette.getReservations().find(r => String(r.room_number) === '202' && r.status === 'مؤكد');
+      assert.ok(activeRes);
+      assert.equal(activeRes.guest_name, 'عبدالرحمن حمد احمد ال ابوالسعود حكمي');
+      assert.equal(activeRes.total_price - activeRes.paid_amount, 2000);
+    });
+  });
+
+  await t.test('Arabic Matching, Text Normalization & Keyboard Layout Transliteration', async t2 => {
+    const { CommandPalette } = createCommandPaletteEnv();
+    const { normalizeArabic, normalizeDigits, stripDiacritics, transliterateEnToAr, parseCommandIntent } = CommandPalette;
+
+    await t2.test('Arabic-Indic digits conversion', () => {
+      assert.equal(normalizeDigits('٢٠٤'), '204');
+      assert.equal(normalizeDigits('١٠٥'), '105');
+      assert.equal(normalizeDigits('٠١٢٣٤٥٦٧٨٩'), '0123456789');
+      assert.equal(normalizeDigits('غرفة ٢٠٤'), 'غرفة 204');
+    });
+
+    await t2.test('Diacritics and Tatweel stripping', () => {
+      assert.equal(stripDiacritics('مُتَأَخِّرٌ'), 'متأخر');
+      assert.equal(stripDiacritics('غُرْفَةٌ'), 'غرفة');
+      assert.equal(stripDiacritics('تـسـكـيـن'), 'تسكين');
+    });
+
+    await t2.test('Arabic character normalization (Alef, Ta-Marbuta, Ya)', () => {
+      assert.equal(normalizeArabic('أحمد'), 'احمد');
+      assert.equal(normalizeArabic('إبراهيم'), 'ابراهيم');
+      assert.equal(normalizeArabic('آمال'), 'امال');
+      assert.equal(normalizeArabic('غرفة'), 'غرفه');
+      assert.equal(normalizeArabic('موسى'), 'موسي');
+      assert.equal(normalizeArabic('مُتَأَخِّرٌ'), 'متاخر');
+      assert.equal(normalizeArabic('غُرْفَةٌ ٢٠٤'), 'غرفه 204');
+    });
+
+    await t2.test('Room inquiries accept Arabic-Indic digits and "غرفه" spelling', () => {
+      const q1 = parseCommandIntent('مين في غرفة ٢٠٤؟');
+      assert.equal(q1.type, 'room-inquiry');
+      assert.equal(q1.roomNumber, '204');
+
+      const q2 = parseCommandIntent('٢٠٤');
+      assert.equal(q2.type, 'room-inquiry');
+      assert.equal(q2.roomNumber, '204');
+
+      const q3 = parseCommandIntent('غرفه 204');
+      assert.equal(q3.type, 'room-inquiry');
+      assert.equal(q3.roomNumber, '204');
+
+      const q4 = parseCommandIntent('غرفة ٢٠٤');
+      assert.equal(q4.type, 'room-inquiry');
+      assert.equal(q4.roomNumber, '204');
+
+      const q5 = parseCommandIntent('مين ساكن في غرفة ٢٠٢');
+      assert.equal(q5.type, 'room-inquiry');
+      assert.equal(q5.roomNumber, '202');
+    });
+
+    await t2.test('Booking intent with Arabic-Indic digits', () => {
+      const b1 = parseCommandIntent('تسكين ١٠٥');
+      assert.equal(b1.type, 'booking-intent');
+      assert.equal(b1.roomNumber, '105');
+
+      const b2 = parseCommandIntent('حجز غرفه ٢٠١');
+      assert.equal(b2.type, 'booking-intent');
+      assert.equal(b2.roomNumber, '201');
+    });
+
+    await t2.test('WhatsApp intent with Arabic-Indic digits', () => {
+      const w1 = parseCommandIntent('واتساب ١٠٢');
+      assert.equal(w1.type, 'whatsapp-intent');
+      assert.equal(w1.target, '102');
+
+      const w2 = parseCommandIntent('واتس غرفه ١٠٢');
+      assert.equal(w2.type, 'whatsapp-intent');
+      assert.equal(w2.target, '102');
+    });
+
+    await t2.test('Operational queries match with Ta-Marbuta or Ha', () => {
+      assert.equal(parseCommandIntent('غرفه فاضيه').type, 'available-intent');
+      assert.equal(parseCommandIntent('غرفة فاضية').type, 'available-intent');
+      assert.equal(parseCommandIntent('غرف متاحه').type, 'available-intent');
+      assert.equal(parseCommandIntent('غرف متاحة').type, 'available-intent');
+      assert.equal(parseCommandIntent('مين متاخر').type, 'late-intent');
+      assert.equal(parseCommandIntent('مين متأخر').type, 'late-intent');
+      assert.equal(parseCommandIntent('نظافه').type, 'cleaning-intent');
+      assert.equal(parseCommandIntent('نظافة').type, 'cleaning-intent');
+      assert.equal(parseCommandIntent('تقرير الورديه').type, 'shift-intent');
+      assert.equal(parseCommandIntent('تقرير الوردية').type, 'shift-intent');
+    });
+
+    await t2.test('English keyboard layout transliteration to Arabic', () => {
+      assert.equal(transliterateEnToAr('ldk td 202'), 'مين في 202');
+      assert.equal(transliterateEnToAr('tg,s hg]v['), 'فلوس الدرج');
+      assert.equal(transliterateEnToAr('yvt thqdm'), 'غرف فاضية');
+      assert.equal(transliterateEnToAr('js;dk 105'), 'تسكين 105');
+
+      // Intent parsing with English layout keystrokes
+      const r1 = parseCommandIntent('ldk td 202');
+      assert.equal(r1.type, 'room-inquiry');
+      assert.equal(r1.roomNumber, '202');
+
+      const r2 = parseCommandIntent('ldk td 204');
+      assert.equal(r2.type, 'room-inquiry');
+      assert.equal(r2.roomNumber, '204');
+
+      const s1 = parseCommandIntent('tg,s hg]v[');
+      assert.equal(s1.type, 'shift-intent');
+
+      const a1 = parseCommandIntent('yvt thqdm');
+      assert.equal(a1.type, 'available-intent');
+
+      const b1 = parseCommandIntent('js;dk 105');
+      assert.equal(b1.type, 'booking-intent');
+      assert.equal(b1.roomNumber, '105');
+    });
+  });
+
+  await t.test('Overdue Checkouts Aggregation Matches Image 2 (5 Late Reservations)', async () => {
+    // Replicating Image 2 scenario: 5 late checkouts in rooms 101, 102, 201, 203, 217
+    const today = '2026-10-08';
+    const mockCheckouts = [
+      { id: 101, reservation_id: 101, room_number: '101', guest_name: 'نزيل 101', status: 'مؤكد', check_out_date: '2026-10-07', is_late: true },
+      { id: 102, reservation_id: 102, room_number: '102', guest_name: 'نزيل 102', status: 'مؤكد', check_out_date: '2026-10-07', is_late: true },
+      { id: 201, reservation_id: 201, room_number: '201', guest_name: 'نزيل 201', status: 'مؤكد', check_out_date: '2026-10-07', is_late: true },
+      { id: 203, reservation_id: 203, room_number: '203', guest_name: 'نزيل 203', status: 'مؤكد', check_out_date: '2026-10-07', is_late: true },
+      { id: 217, reservation_id: 217, room_number: '217', guest_name: 'نزيل 217', status: 'مؤكد', check_out_date: '2026-10-07', is_late: true },
+      { id: 301, reservation_id: 301, room_number: '301', guest_name: 'نزيل 301', status: 'مؤكد', check_out_date: '2026-10-08', is_late: false }
+    ];
+
+    const { CommandPalette } = createCommandPaletteEnv({
+      businessDate: today,
+      todayCheckoutsRows: mockCheckouts,
+      reservationsCache: mockCheckouts
+    }, {
+      isLateCheckout: (res) => Boolean(res.is_late || (res.check_out_date && res.check_out_date < today))
+    });
+
+    const inbox = CommandPalette.computeAttentionInbox();
+    assert.equal(inbox.lateCheckouts.length, 5, 'Must report exactly 5 late checkouts');
+    const lateRoomNumbers = inbox.lateCheckouts.map(item => String(item.reservation.room_number)).sort();
+    assert.equal(JSON.stringify(lateRoomNumbers), JSON.stringify(['101', '102', '201', '203', '217']));
+
+    // And departures today must be exactly 1 (room 301)
+    assert.equal(inbox.departuresToday.length, 1);
+    assert.equal(inbox.departuresToday[0].reservation.room_number, '301');
   });
 });

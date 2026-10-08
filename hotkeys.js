@@ -23,7 +23,7 @@
   }
 
   function visibleModals() {
-    return [...document.querySelectorAll('.modal-backdrop, .reservation-preview-backdrop')]
+    return [...document.querySelectorAll('.modal-backdrop, .reservation-preview-backdrop, .command-palette-backdrop, .attention-inbox-backdrop')]
       .filter(isVisible)
       .map((element, index) => ({
         element,
@@ -52,6 +52,9 @@
   }
 
   function modalHasUnsavedChanges(modal) {
+    if (modal.classList.contains('command-palette-backdrop') || modal.classList.contains('attention-inbox-backdrop') || modal.id === 'command-palette-modal' || modal.id === 'attention-inbox-modal') {
+      return false;
+    }
     const baseline = formBaselines.get(modal);
     if (!baseline) return false;
     const current = controlSnapshot(modal);
@@ -69,9 +72,9 @@
 
   function closeControlFor(modal) {
     const preferred = modal.querySelector([
-      '[data-preview-close]', '[data-modal-close]', 'button.modal-layout__close',
+      '[data-preview-close]', '[data-modal-close]', '[data-command-palette-close]', 'button.modal-layout__close',
       'button[aria-label="إغلاق"]', 'button[title="إغلاق"]', 'button[id^="btn-close"]',
-      'button[data-action="close"]'
+      'button[data-action="close"]', '#btn-close-attention-inbox', '#btn-footer-close-attention'
     ].join(','));
     if (preferred && !preferred.disabled) return preferred;
 
@@ -190,7 +193,7 @@
   function handleKeydown(event) {
     if (event.repeat || event.isComposing) return;
 
-    if (event.code === 'Escape') {
+    if (event.code === 'Escape' || event.key === 'Escape' || event.keyCode === 27) {
       handleEscape(event);
       return;
     }

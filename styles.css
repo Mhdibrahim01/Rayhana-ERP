@@ -8645,6 +8645,8 @@ body.login-body {
   color: #0f172a;
   background: transparent;
   direction: rtl;
+  text-align: right;
+  unicode-bidi: plaintext;
 }
 
 .command-palette-input::placeholder {

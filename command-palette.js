@@ -15,90 +15,180 @@
   let localRoomsCache = null;
   let localReservationsCache = null;
   let localGuestsCache = null;
-  let isSyncing = false;
+  let localTodayCheckouts = null;
+  let syncPromise = null;
 
   function getRooms() {
-    if (Array.isArray(App?.State?.roomsCache) && App.State.roomsCache.length > 0) {
-      return App.State.roomsCache;
+    const appRooms = Array.isArray(App?.State?.roomsCache) ? App.State.roomsCache : [];
+    const localRooms = Array.isArray(localRoomsCache) ? localRoomsCache : [];
+    if (localRooms.length >= appRooms.length && localRooms.length > 0) {
+      return localRooms;
     }
-    if (Array.isArray(localRoomsCache) && localRoomsCache.length > 0) {
-      return localRoomsCache;
+    if (appRooms.length > 0) {
+      return appRooms;
     }
-    return [];
+    return localRooms;
   }
 
   function getReservations() {
-    if (Array.isArray(App?.State?.reservationsCache) && App.State.reservationsCache.length > 0) {
-      return App.State.reservationsCache;
+    const appCache = Array.isArray(App?.State?.reservationsCache) ? App.State.reservationsCache : [];
+    const localCache = Array.isArray(localReservationsCache) ? localReservationsCache : [];
+    if (localCache.length >= appCache.length && localCache.length > 0) {
+      return localCache;
     }
-    if (Array.isArray(localReservationsCache) && localReservationsCache.length > 0) {
-      return localReservationsCache;
+    if (appCache.length > 0) {
+      return appCache;
     }
-    return [];
+    return localCache;
   }
 
   function getGuests() {
-    if (Array.isArray(App?.State?.guestsCache) && App.State.guestsCache.length > 0) {
-      return App.State.guestsCache;
+    const appGuests = Array.isArray(App?.State?.guestsCache) ? App.State.guestsCache : [];
+    const localGuests = Array.isArray(localGuestsCache) ? localGuestsCache : [];
+    if (localGuests.length >= appGuests.length && localGuests.length > 0) {
+      return localGuests;
     }
-    if (Array.isArray(localGuestsCache) && localGuestsCache.length > 0) {
-      return localGuestsCache;
+    if (appGuests.length > 0) {
+      return appGuests;
     }
-    return [];
+    return localGuests;
   }
 
-  async function syncDataFromDb() {
-    if (isSyncing || typeof window === 'undefined' || !window.api) return;
-    isSyncing = true;
-    try {
-      const promises = [
-        typeof window.api.getAllRooms === 'function' ? window.api.getAllRooms().catch(() => null) : Promise.resolve(null),
-        typeof window.api.getAllReservations === 'function' ? window.api.getAllReservations().catch(() => null) : Promise.resolve(null),
-        typeof window.api.getAllGuests === 'function' ? window.api.getAllGuests().catch(() => null) : Promise.resolve(null)
-      ];
+  function syncDataFromDb() {
+    if (typeof window === 'undefined' || !window.api) return Promise.resolve();
+    if (syncPromise) return syncPromise;
 
-      const [roomsRes, resRes, guestsRes] = await Promise.all(promises);
+    syncPromise = (async () => {
+      try {
+        const currentBizDate = String(App?.State?.businessDate || (App?.Helpers?.getLocalDateString ? App.Helpers.getLocalDateString() : new Date().toISOString().slice(0, 10)));
+        const promises = [
+          typeof window.api.getAllRooms === 'function' ? window.api.getAllRooms().catch(() => null) : Promise.resolve(null),
+          typeof window.api.getAllReservations === 'function' ? window.api.getAllReservations().catch(() => null) : Promise.resolve(null),
+          typeof window.api.getAllGuests === 'function' ? window.api.getAllGuests().catch(() => null) : Promise.resolve(null),
+          typeof window.api.getTodayCheckouts === 'function' ? window.api.getTodayCheckouts(currentBizDate).catch(() => null) : Promise.resolve(null)
+        ];
 
-      if (roomsRes?.success && Array.isArray(roomsRes.data)) {
-        localRoomsCache = roomsRes.data;
-        if (!Array.isArray(App.State.roomsCache) || App.State.roomsCache.length === 0) {
-          App.State.roomsCache = roomsRes.data;
-        }
-      }
-      if (resRes?.success && Array.isArray(resRes.data)) {
-        localReservationsCache = resRes.data;
-        if (!Array.isArray(App.State.reservationsCache) || App.State.reservationsCache.length === 0) {
-          App.State.reservationsCache = resRes.data;
-        }
-      }
-      if (guestsRes?.success && Array.isArray(guestsRes.data)) {
-        localGuestsCache = guestsRes.data;
-        if (!Array.isArray(App.State.guestsCache) || App.State.guestsCache.length === 0) {
-          App.State.guestsCache = guestsRes.data;
-        }
-      }
+        const [roomsRes, resRes, guestsRes, checkoutsRes] = await Promise.all(promises);
 
-      if (typeof updateAttentionInbox === 'function') {
-        updateAttentionInbox();
+        if (roomsRes?.success && Array.isArray(roomsRes.data)) {
+          localRoomsCache = roomsRes.data;
+          if (!Array.isArray(App?.State?.roomsCache) || App.State.roomsCache.length === 0) {
+            App.State.roomsCache = roomsRes.data;
+          }
+        }
+        if (resRes?.success && Array.isArray(resRes.data)) {
+          localReservationsCache = resRes.data;
+          if (!Array.isArray(App?.State?.reservationsCache) || App.State.reservationsCache.length === 0) {
+            App.State.reservationsCache = resRes.data;
+          }
+        }
+        if (guestsRes?.success && Array.isArray(guestsRes.data)) {
+          localGuestsCache = guestsRes.data;
+          if (!Array.isArray(App?.State?.guestsCache) || App.State.guestsCache.length === 0) {
+            App.State.guestsCache = guestsRes.data;
+          }
+        }
+        if (checkoutsRes?.success && Array.isArray(checkoutsRes.data)) {
+          localTodayCheckouts = checkoutsRes.data;
+        }
+
+        if (typeof updateAttentionInbox === 'function') {
+          updateAttentionInbox();
+        }
+        if (paletteModal && paletteModal.style.display !== 'none' && paletteInput) {
+          handlePaletteSearch(paletteInput.value);
+        }
+      } catch (err) {
+        console.warn('Failed to sync command palette data:', err);
+      } finally {
+        syncPromise = null;
       }
-      if (paletteModal && paletteModal.style.display !== 'none' && paletteInput) {
-        handlePaletteSearch(paletteInput.value);
-      }
-    } catch (err) {
-      console.warn('Failed to sync command palette data:', err);
-    } finally {
-      isSyncing = false;
-    }
+    })();
+
+    return syncPromise;
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 2. NEEDS-ATTENTION INBOX DATA ENGINE
+  // 2. ARABIC TEXT & KEYBOARD NORMALIZATION
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  const ARABIC_INDIC_DIGITS = {
+    '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4',
+    '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9'
+  };
+
+  const EN_TO_AR_KEYMAP = {
+    'q': 'ض', 'w': 'ص', 'e': 'ث', 'r': 'ق', 't': 'ف', 'y': 'غ', 'u': 'ع', 'i': 'ه', 'o': 'خ', 'p': 'ح', '[': 'ج', ']': 'د',
+    'a': 'ش', 's': 'س', 'd': 'ي', 'f': 'ب', 'g': 'ل', 'h': 'ا', 'j': 'ت', 'k': 'ن', 'l': 'م', ';': 'ك', '\'': 'ط',
+    'z': 'ئ', 'x': 'ء', 'c': 'ؤ', 'v': 'ر', 'b': 'لا', 'n': 'ى', 'm': 'ة', ',': 'و', '.': 'ز', '/': 'ظ',
+    '`': 'ذ',
+    'Q': 'ض', 'W': 'ص', 'E': 'ث', 'R': 'ق', 'T': 'ف', 'Y': 'غ', 'U': 'ع', 'I': 'ه', 'O': 'خ', 'P': 'ح', '{': 'ج', '}': 'د',
+    'A': 'ش', 'S': 'س', 'D': 'ي', 'F': 'ب', 'G': 'ل', 'H': 'ا', 'J': 'ت', 'K': 'ن', 'L': 'م', ':': 'ك', '"': 'ط',
+    'Z': 'ئ', 'X': 'ء', 'C': 'ؤ', 'V': 'ر', 'B': 'لا', 'N': 'ى', 'M': 'ة', '<': 'و', '>': 'ز', '?': 'ظ',
+    '~': 'ذ'
+  };
+
+  function normalizeDigits(str) {
+    if (!str && str !== 0) return '';
+    return String(str).replace(/[٠-٩]/g, d => ARABIC_INDIC_DIGITS[d] || d);
+  }
+
+  function stripDiacritics(str) {
+    if (!str && str !== 0) return '';
+    return String(str)
+      .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, '')
+      .replace(/\u0640/g, '');
+  }
+
+  function normalizeArabic(str) {
+    if (!str && str !== 0) return '';
+    let res = normalizeDigits(String(str));
+    res = stripDiacritics(res);
+    res = res
+      .replace(/[أإآٱ]/g, 'ا')
+      .replace(/ة/g, 'ه')
+      .replace(/[ىئ]/g, 'ي')
+      .trim();
+    return res.toLowerCase();
+  }
+
+  function transliterateEnToAr(str) {
+    if (!str && str !== 0) return '';
+    return String(str)
+      .split('')
+      .map(ch => EN_TO_AR_KEYMAP[ch] || ch)
+      .join('');
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 3. NEEDS-ATTENTION INBOX DATA ENGINE
   // ─────────────────────────────────────────────────────────────────────────────
 
   function computeAttentionInbox() {
-    const reservations = getReservations();
+    const resMap = new Map();
+    getReservations().forEach(r => {
+      if (r && r.id != null) resMap.set(Number(r.id), r);
+    });
+
+    const checkoutsSources = [
+      ...(Array.isArray(localTodayCheckouts) ? localTodayCheckouts : []),
+      ...(Array.isArray(App?.State?.todayCheckoutsRows) ? App.State.todayCheckoutsRows : [])
+    ];
+    checkoutsSources.forEach(r => {
+      const id = Number(r.reservation_id ?? r.id);
+      if (id) {
+        const existing = resMap.get(id);
+        if (existing) {
+          resMap.set(id, { ...existing, ...r });
+        } else {
+          resMap.set(id, r);
+        }
+      }
+    });
+
+    const reservations = [...resMap.values()];
     const rooms = getRooms();
-    const currentBizDate = String(App.State.businessDate || (App.Helpers.getLocalDateString ? App.Helpers.getLocalDateString() : new Date().toISOString().slice(0, 10)));
+    const currentBizDate = String(App?.State?.businessDate || (App?.Helpers?.getLocalDateString ? App.Helpers.getLocalDateString() : new Date().toISOString().slice(0, 10)));
 
     const lateCheckouts = [];
     const departuresToday = [];
@@ -114,7 +204,9 @@
       const checkOutDate = String(res.check_out_date || '').slice(0, 10);
       const isContract = res.booking_type === 'عقد مفتوح';
       const isMonthly = res.booking_type === 'حجز شهري';
-      const isLate = !isContract && Boolean(App.Helpers.isLateCheckout && App.Helpers.isLateCheckout(res));
+      const isOverdueByDate = Boolean(checkOutDate && checkOutDate < currentBizDate);
+      const isLateByHelper = Boolean(App?.Helpers?.isLateCheckout && App.Helpers.isLateCheckout(res));
+      const isLate = !isContract && (isOverdueByDate || isLateByHelper);
 
       const total = Number(res.total_price || 0);
       const paid = Number((res.ledger_paid_amount ?? res.paid_amount) || 0);
@@ -136,7 +228,7 @@
       }
       // 2. Departures due today (not yet late)
       else if (!isContract && checkOutDate === currentBizDate) {
-        const expectedTime = App.Helpers.getExpectedCheckoutTime ? App.Helpers.getExpectedCheckoutTime(res) : '14:00';
+        const expectedTime = App?.Helpers?.getExpectedCheckoutTime ? App.Helpers.getExpectedCheckoutTime(res) : '14:00';
         departuresToday.push({
           id: res.id,
           reservation: res,
@@ -238,127 +330,158 @@
   // 3. NATURAL LANGUAGE & COMMAND INTENT PARSER
   // ─────────────────────────────────────────────────────────────────────────────
 
+  function matchIntentFromNormalizedText(norm, rawQuery) {
+    if (!norm) return { type: 'empty' };
+
+    // A. Unpaid balances / debts intent: "مين عليه فلوس", "مين عليه مبالغ", "مين ما دفع", "المستحقات", "مديونية", "ديون", "unpaid"
+    // MUST BE EVALUATED BEFORE shift-intent (so "فلوس" in "مين عليه فلوس" is not confused with cash drawer)
+    const isUnpaidQuery = /^(?:مستحق|المستحق|ديون|الديون|مديوني|المديوني|غير\s+مدفوع|غير\s+مسدد|unpaid|debts|balances|outstanding)/i.test(norm) ||
+      norm.includes('عليه فلوس') || norm.includes('عليه مبالغ') || norm.includes('ما دفع') ||
+      norm.includes('مستحق') || norm.includes('مبالغ معلقه') || norm.includes('مبالغ معلقة') || norm.includes('باقي فلوس') ||
+      norm.includes('مديون') || norm.includes('ديون');
+    if (isUnpaidQuery) {
+      return {
+        type: 'unpaid-intent',
+        originalQuery: rawQuery
+      };
+    }
+
+    // B. Departures today intent: "مين خارج اليوم", "مغادرات اليوم", "مين بيخرج اليوم", "خروج اليوم", "departures"
+    const isDeparturesQuery = /^(?:مغادر|المغادر|خروج|الخروج|departures?|checkouts?)/i.test(norm) ||
+      norm.includes('خارج اليوم') || norm.includes('بيخرج اليوم') || norm.includes('يخرج اليوم') ||
+      norm.includes('مغادرات') || norm.includes('مغادره اليوم') || norm.includes('مغادرة اليوم') || norm.includes('خروج اليوم') ||
+      norm.includes('leaving today');
+    if (isDeparturesQuery) {
+      return {
+        type: 'departures-intent',
+        originalQuery: rawQuery
+      };
+    }
+
+    // C. Late checkout / Overdue stays intent: "مين متأخر", "المتأخرين", "تأخير", "late"
+    const isLateQuery = /^(?:متاخر|المتاخر|متأخر|المتأخر|تاخير|التاخير|تأخير|التأخير|late|overdue)/i.test(norm) ||
+      norm.includes('متاخر') || norm.includes('متأخر') || norm.includes('تاخير') || norm.includes('تأخير') || norm.includes('overdue');
+    if (isLateQuery) {
+      return {
+        type: 'late-intent',
+        originalQuery: rawQuery
+      };
+    }
+
+    // D. Available rooms intent: "غرف فاضية", "مين فاضي", "غرفة فاضية", "غرف متاحة", "متاحة", "available", "vacant"
+    const hasDigits = /\d+/.test(norm);
+    const isAvailableQuery = !hasDigits && (
+      /^(?:فاضي|الفاضي|فاضيه|الفاضيه|فاضية|الفاضية|متاح|المتاح|متاحه|المتاحه|متاحة|المتاحة|شاغر|الشاغر|شاغره|الشاغره|شاغرة|الشاغرة|available|vacant)/i.test(norm) ||
+      norm.includes('فاضي') || norm.includes('فاضيه') || norm.includes('فاضية') || norm.includes('متاح') || norm.includes('شاغر') || norm.includes('vacant')
+    );
+    if (isAvailableQuery) {
+      return {
+        type: 'available-intent',
+        originalQuery: rawQuery
+      };
+    }
+
+    // E. Occupied rooms intent: "غرف مشغولة", "مين ساكن", "الساكنين", "مشغولة", "occupied", "in-house"
+    const isOccupiedQuery = !hasDigits && (
+      /^(?:مشغول|المشغول|مشغوله|المشغوله|مشغولة|المشغولة|ساكن|الساكن|ساكنين|الساكنين|occupied|in-house)/i.test(norm) ||
+      norm.includes('مشغول') || norm.includes('ساكنين') || (norm.includes('ساكن') && !norm.includes('تسكين')) || norm.includes('occupied')
+    );
+    if (isOccupiedQuery) {
+      return {
+        type: 'occupied-intent',
+        originalQuery: rawQuery
+      };
+    }
+
+    // F. Cleaning rooms: "غرف النظافة", "تنظيف", "نظافة"
+    const isCleaningQuery = /^(?:نظافه|النظافه|نظافة|النظافة|تنظيف|التنظيف|cleaning|dirty)(?:\s|$)/i.test(norm) ||
+      norm.includes('نظافه') || norm.includes('نظافة') || norm.includes('تنظيف') || norm.includes('cleaning');
+    if (isCleaningQuery) {
+      return {
+        type: 'cleaning-intent',
+        originalQuery: rawQuery
+      };
+    }
+
+    // G. Booking / Check-in intent: "تسكين 105", "حجز 105", "تسكين غرفة 105", "حجز جديد"
+    const bookingMatch = norm.match(/^(?:تسكين|حجز|booking|checkin)\s*(?:(?:غرف[هة]|الغرف[هة])\s+)?(\d{1,5})?/i);
+    if (bookingMatch) {
+      return {
+        type: 'booking-intent',
+        roomNumber: bookingMatch[1] ? normalizeDigits(bookingMatch[1]) : null,
+        originalQuery: rawQuery
+      };
+    }
+
+    // H. Cash drawer / Shift report: "فلوس الدرج", "الدرج", "تقرير الوردية", "الخزينة", "الكاش"
+    const isShiftQuery = /^(?:فلوس|كاش|نقديه|نقدية|درج|الدرج|ورديه|وردية|الورديه|الوردية|خزينه|خزينة|الخزينه|الخزينة|audit|shift|cash|drawer)(?:\s|$)/i.test(norm) ||
+      norm.includes('درج') || norm.includes('ورديه') || norm.includes('وردية') || norm.includes('خزينه') || norm.includes('خزينة') || norm.includes('كاش');
+    if (isShiftQuery) {
+      return {
+        type: 'shift-intent',
+        originalQuery: rawQuery
+      };
+    }
+
+    // I. WhatsApp messaging: "واتساب 102", "واتساب محمد", "واتس 102"
+    const whatsappMatch = norm.match(/^(?:واتساب|واتس|whatsapp|رسال[هة])\s*(?:(?:غرف[هة]|الغرف[هة])\s+)?(\S+)?/i);
+    if (whatsappMatch) {
+      return {
+        type: 'whatsapp-intent',
+        target: whatsappMatch[1] ? normalizeDigits(whatsappMatch[1]) : null,
+        originalQuery: rawQuery
+      };
+    }
+
+    // J. Room status inquiry: "مين في غرفة 204؟", "مين في 204", "غرفة 204", "204", "٢٠٤", "مين ساكن في 204"
+    const roomInquiryMatch = norm.match(/^(?:(?:مين\s+(?:في\s+|ساكن\s+(?:في\s+)?)?|من\s+في\s+)?(?:غرف[هة]\s*|الغرف[هة]\s*|رقم\s*)?|رقم\s*)?(\d{1,5})(?:\s*؟|\s*\?|\s*$)/i);
+    if (roomInquiryMatch && roomInquiryMatch[1]) {
+      return {
+        type: 'room-inquiry',
+        roomNumber: normalizeDigits(roomInquiryMatch[1]),
+        originalQuery: rawQuery
+      };
+    }
+
+    // Fallback: General multi-entity search
+    return {
+      type: 'search',
+      query: norm,
+      originalQuery: rawQuery
+    };
+  }
+
   function parseCommandIntent(rawQuery) {
     const query = String(rawQuery || '').trim();
     if (!query) {
       return { type: 'empty' };
     }
 
-    // A. Unpaid balances / debts intent: "مين عليه فلوس", "مين عليه مبالغ", "مين ما دفع", "المستحقات", "مديونية", "ديون", "unpaid"
-    // MUST BE EVALUATED BEFORE shift-intent (so "فلوس" in "مين عليه فلوس" is not confused with cash drawer)
-    const isUnpaidQuery = /^(?:مستحق|المستحق|ديون|الديون|مديوني|المديوني|غير\s+مدفوع|غير\s+مسدد|unpaid|debts|balances|outstanding)/i.test(query) ||
-      query.includes('عليه فلوس') || query.includes('عليه مبالغ') || query.includes('ما دفع') ||
-      query.includes('مستحق') || query.includes('مبالغ معلقة') || query.includes('باقي فلوس') ||
-      query.includes('مديون') || query.includes('ديون');
-    if (isUnpaidQuery) {
+    // 1. Direct normalized Arabic matching (converts digits, strips diacritics & normalizes chars)
+    const norm = normalizeArabic(query);
+    const parsed = matchIntentFromNormalizedText(norm, query);
+    if (parsed.type !== 'search') {
+      return parsed;
+    }
+
+    // 2. If it fell back to search, check if query contains ASCII/English layout characters
+    // (receptionist typed while keyboard was accidentally set to English)
+    if (/[a-zA-Z\[\];',.`]/.test(query)) {
+      const transliterated = transliterateEnToAr(query);
+      const normTrans = normalizeArabic(transliterated);
+      const transliteratedParsed = matchIntentFromNormalizedText(normTrans, query);
+      if (transliteratedParsed.type !== 'search') {
+        return transliteratedParsed;
+      }
       return {
-        type: 'unpaid-intent',
+        type: 'search',
+        query: norm,
+        transliterated: normTrans,
         originalQuery: query
       };
     }
 
-    // B. Departures today intent: "مين خارج اليوم", "مغادرات اليوم", "مين بيخرج اليوم", "خروج اليوم", "departures"
-    const isDeparturesQuery = /^(?:مغادر|المغادر|خروج|الخروج|departures?|checkouts?)/i.test(query) ||
-      query.includes('خارج اليوم') || query.includes('بيخرج اليوم') || query.includes('يخرج اليوم') ||
-      query.includes('مغادرات') || query.includes('مغادرة اليوم') || query.includes('خروج اليوم') ||
-      query.includes('leaving today');
-    if (isDeparturesQuery) {
-      return {
-        type: 'departures-intent',
-        originalQuery: query
-      };
-    }
-
-    // C. Late checkout / Overdue stays intent: "مين متأخر", "المتأخرين", "تأخير", "late"
-    const isLateQuery = /^(?:متأخر|المتأخر|متاخر|المتاخر|تأخير|التأخير|late|overdue)/i.test(query) ||
-      query.includes('متأخر') || query.includes('متاخر') || query.includes('تأخير') || query.includes('overdue');
-    if (isLateQuery) {
-      return {
-        type: 'late-intent',
-        originalQuery: query
-      };
-    }
-
-    // D. Available rooms intent: "غرف فاضية", "مين فاضي", "غرفة فاضية", "غرف متاحة", "متاحة", "available", "vacant"
-    const hasDigits = /\d+/.test(query);
-    const isAvailableQuery = !hasDigits && (
-      /^(?:فاضي|الفاضي|فاضية|الفاضية|متاح|المتاح|متاحة|المتاحة|شاغر|الشاغر|شاغرة|الشاغرة|available|vacant)/i.test(query) ||
-      query.includes('فاضي') || query.includes('فاضية') || query.includes('متاح') || query.includes('شاغر') || query.includes('vacant')
-    );
-    if (isAvailableQuery) {
-      return {
-        type: 'available-intent',
-        originalQuery: query
-      };
-    }
-
-    // E. Occupied rooms intent: "غرف مشغولة", "مين ساكن", "الساكنين", "مشغولة", "occupied", "in-house"
-    const isOccupiedQuery = !hasDigits && (
-      /^(?:مشغول|المشغول|مشغولة|المشغولة|ساكن|الساكن|ساكنين|الساكنين|occupied|in-house)/i.test(query) ||
-      query.includes('مشغول') || query.includes('ساكنين') || (query.includes('ساكن') && !query.includes('تسكين')) || query.includes('occupied')
-    );
-    if (isOccupiedQuery) {
-      return {
-        type: 'occupied-intent',
-        originalQuery: query
-      };
-    }
-
-    // F. Cleaning rooms: "غرف النظافة", "تنظيف", "نظافة"
-    const isCleaningQuery = /^(?:نظافة|النظافة|تنظيف|التنظيف|cleaning|dirty)(?:\s|$)/i.test(query) ||
-      query.includes('نظافة') || query.includes('تنظيف') || query.includes('cleaning');
-    if (isCleaningQuery) {
-      return {
-        type: 'cleaning-intent',
-        originalQuery: query
-      };
-    }
-
-    // G. Booking / Check-in intent: "تسكين 105", "حجز 105", "تسكين غرفة 105", "حجز جديد"
-    const bookingMatch = query.match(/^(?:تسكين|حجز|booking|checkin)\s*(?:غرفة\s+)?(\d{1,5})?/i);
-    if (bookingMatch) {
-      return {
-        type: 'booking-intent',
-        roomNumber: bookingMatch[1] || null,
-        originalQuery: query
-      };
-    }
-
-    // H. Cash drawer / Shift report: "فلوس الدرج", "الدرج", "تقرير الوردية", "الخزينة", "الكاش"
-    const isShiftQuery = /^(?:فلوس|كاش|نقدية|درج|الدرج|وردية|الوردية|خزينة|الخزينة|audit|shift|cash|drawer)(?:\s|$)/i.test(query) ||
-      query.includes('درج') || query.includes('وردية') || query.includes('خزينة') || query.includes('كاش');
-    if (isShiftQuery) {
-      return {
-        type: 'shift-intent',
-        originalQuery: query
-      };
-    }
-
-    // I. WhatsApp messaging: "واتساب 102", "واتساب محمد", "واتس 102"
-    const whatsappMatch = query.match(/^(?:واتساب|واتس|whatsapp|رسالة)\s*(?:غرفة\s+)?(\S+)?/i);
-    if (whatsappMatch) {
-      return {
-        type: 'whatsapp-intent',
-        target: whatsappMatch[1] || null,
-        originalQuery: query
-      };
-    }
-
-    // J. Room status inquiry: "مين في غرفة 204", "مين في 204", "غرفة 204", "204", "مين في 202"
-    const roomInquiryMatch = query.match(/^(?:(?:مين\s+(?:في\s+|ساكن\s+(?:في\s+)?)?|من\s+في\s+)?(?:غرفة\s+|الغرفة\s+|رقم\s+)?|رقم\s+)?(\d{1,5})(?:\s*؟|\s*\?|\s*$)/i);
-    if (roomInquiryMatch && roomInquiryMatch[1]) {
-      return {
-        type: 'room-inquiry',
-        roomNumber: roomInquiryMatch[1],
-        originalQuery: query
-      };
-    }
-
-    // K. General search across entities (guests, rooms, reservations)
-    return {
-      type: 'search',
-      query: query.toLowerCase()
-    };
+    return parsed;
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -384,6 +507,15 @@
     // Close on backdrop click
     paletteModal.addEventListener('click', event => {
       if (event.target === paletteModal) closeCommandPalette();
+    });
+
+    // Close on Escape inside palette modal
+    paletteModal.addEventListener('keydown', event => {
+      if (event.key === 'Escape' || event.code === 'Escape' || event.keyCode === 27) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        closeCommandPalette();
+      }
     });
 
     // Close on hint close buttons
@@ -1059,166 +1191,23 @@
       }
     }
 
-    else if (intent.type === 'unpaid-intent') {
-      const unpaidItems = attention.unpaidBalances || [];
-      if (unpaidItems.length > 0) {
-        unpaidItems.forEach(item => {
-          results.push({
-            category: '💳 مبالغ معلقة ومستحقة',
-            icon: '⚠️',
-            title: item.title,
-            subtitle: item.subtitle,
-            badge: item.badge,
-            isUrgent: true,
-            actionFn: () => executeAttentionAction(item)
-          });
-        });
-      } else {
-        const activeUnpaid = reservations.filter(r => (r.status === 'مؤكد' || r.status === 'late') && ((r.total_price || 0) - (r.paid_amount || 0)) > 0);
-        if (activeUnpaid.length > 0) {
-          activeUnpaid.forEach(r => {
-            const due = (r.total_price || 0) - (r.paid_amount || 0);
-            results.push({
-              category: '💳 مبالغ معلقة ومستحقة',
-              icon: '⚠️',
-              title: `نزيل: ${r.guest_name || 'نزيل'} • متبقي: ${due.toLocaleString()} ر.س`,
-              subtitle: `غرفة ${r.room_number || '-'} • إجمالي: ${(r.total_price || 0).toLocaleString()} • مدفوع: ${(r.paid_amount || 0).toLocaleString()}`,
-              badge: `${due.toLocaleString()} ر.س`,
-              isUrgent: true,
-              actionFn: () => {
-                if (window.openAddPaymentModal) window.openAddPaymentModal(r.id);
-              }
-            });
-          });
-        } else {
-          results.push({
-            category: '💳 المستحقات والمديونيات',
-            icon: '✓',
-            title: 'جميع النزلاء مسددون بالكامل!',
-            subtitle: 'لا توجد مبالغ مستحقة أو مديونيات معلقة على النزلاء الحاليين',
-            badge: 'مسدد بالكامل ✓',
-            actionFn: () => switchViewSection('reservations')
-          });
-        }
-      }
-    }
-
-    else if (intent.type === 'departures-intent') {
-      const departures = attention.departuresToday || [];
-      if (departures.length > 0) {
-        departures.forEach(item => {
-          results.push({
-            category: '🚪 مغادرات اليوم المجدولة',
-            icon: '🚪',
-            title: item.title,
-            subtitle: item.subtitle,
-            badge: item.badge,
-            actionFn: () => executeAttentionAction(item)
-          });
-        });
-      } else {
-        results.push({
-          category: '🚪 مغادرات اليوم',
-          icon: '✓',
-          title: 'لا توجد مغادرات مجدولة لليوم',
-          subtitle: 'جميع النزلاء المقيمين مستمرون في إقامتهم أو تم إنهاء إجراءاتهم',
-          badge: 'اليوم هادئ ✓',
-          actionFn: () => switchViewSection('reservations')
-        });
-      }
-    }
-
-    else if (intent.type === 'late-intent') {
-      const lateItems = attention.lateCheckouts || [];
-      if (lateItems.length > 0) {
-        lateItems.forEach(item => {
-          results.push({
-            category: '⚠️ إقامات متأخرة تجاوزت موعد المغادرة',
-            icon: '🚨',
-            title: item.title,
-            subtitle: item.subtitle,
-            badge: item.badge,
-            isUrgent: true,
-            actionFn: () => executeAttentionAction(item)
-          });
-        });
-      } else {
-        results.push({
-          category: '⚠️ الإقامات المتأخرة',
-          icon: '✓',
-          title: 'لا توجد أي إقامات متأخرة!',
-          subtitle: 'جميع النزلاء المقيمين ضمن فترات إقامتهم المعتمدة',
-          badge: 'منتظم ✓',
-          actionFn: () => switchViewSection('reservations')
-        });
-      }
-    }
-
-    else if (intent.type === 'available-intent') {
-      const availableRooms = rooms.filter(r => r.status === 'متاحة');
-      if (availableRooms.length > 0) {
-        availableRooms.forEach(room => {
-          results.push({
-            category: '🟢 الغرف الشاغرة والمتاحة للتسكين',
-            icon: '🟢',
-            title: `غرفة ${room.room_number} (${room.type || 'عادية'})`,
-            subtitle: `السعر: ${Number(room.price_per_night || 0).toLocaleString()} ر.س/ليلة • الطابق: ${room.floor || '1'}`,
-            badge: 'متاحة',
-            actionFn: () => {
-              if (App.Helpers.initiateRoomBooking) App.Helpers.initiateRoomBooking(room.id);
-            }
-          });
-        });
-      } else {
-        results.push({
-          category: '🟢 الغرف المتاحة',
-          icon: '⚠️',
-          title: 'لا توجد غرف متاحة حالياً (نسبة الإشغال 100%)',
-          subtitle: 'يمكنك مراجعة الغرف تحت التنظيف أو مواعيد المغادرة اليوم',
-          badge: 'إشغال كامل',
-          actionFn: () => switchViewSection('rooms')
-        });
-      }
-    }
-
-    else if (intent.type === 'occupied-intent') {
-      const occupiedRooms = rooms.filter(r => r.status === 'مشغولة');
-      if (occupiedRooms.length > 0) {
-        occupiedRooms.forEach(room => {
-          const res = reservations.find(r => r.room_id === room.id && r.status === 'مؤكد') ||
-            (room.active_reservations ? room.active_reservations[0] : null);
-          results.push({
-            category: '🔴 الغرف المشغولة حالياً',
-            icon: '🔴',
-            title: `غرفة ${room.room_number} • النزيل: ${res ? res.guest_name : 'نزيل مقيم'}`,
-            subtitle: res ? `الجوال: ${res.guest_phone || '-'} • المغادرة: ${res.check_out_date || 'مفتوح'}` : `النوع: ${room.type || 'عادية'}`,
-            badge: 'مشغولة',
-            actionFn: () => {
-              if (res && App.Helpers.openReservationPreview) {
-                App.Helpers.openReservationPreview(res.id);
-              } else {
-                switchViewSection('rooms');
-              }
-            }
-          });
-        });
-      } else {
-        results.push({
-          category: '🔴 الغرف المشغولة',
-          icon: '✓',
-          title: 'لا توجد غرف مشغولة حالياً',
-          subtitle: 'جميع الوحدات شاغرة أو تحت الصيانة',
-          badge: '0 مشغولة',
-          actionFn: () => switchViewSection('rooms')
-        });
-      }
-    }
-
     else if (intent.type === 'search') {
-      const q = intent.query;
+      const q = intent.query || '';
+      const transliterated = intent.transliterated || '';
+
+      const matchText = (field) => {
+        if (!field && field !== 0) return false;
+        const normField = normalizeArabic(field);
+        return (q && normField.includes(q)) || (transliterated && normField.includes(transliterated));
+      };
 
       // Match Rooms
-      rooms.filter(r => String(r.room_number).includes(q) || String(r.type || '').toLowerCase().includes(q)).slice(0, 4).forEach(r => {
+      rooms.filter(r =>
+        normalizeDigits(String(r.room_number)).includes(q) ||
+        (transliterated && normalizeDigits(String(r.room_number)).includes(transliterated)) ||
+        matchText(r.type) ||
+        matchText(r.status)
+      ).slice(0, 5).forEach(r => {
         results.push({
           category: '🚪 الغرف والوحدات',
           icon: r.status === 'متاحة' ? '🟢' : (r.status === 'مشغولة' ? '🔴' : '🧹'),
@@ -1238,9 +1227,10 @@
 
       // Match Active Reservations
       reservations.filter(r =>
-        String(r.id) === q ||
-        String(r.guest_name || '').toLowerCase().includes(q) ||
-        String(r.guest_phone || '').includes(q)
+        normalizeDigits(String(r.id)) === q ||
+        normalizeDigits(String(r.room_number)).includes(q) ||
+        matchText(r.guest_name) ||
+        normalizeDigits(String(r.guest_phone || '')).includes(q)
       ).slice(0, 5).forEach(r => {
         results.push({
           category: '📋 الحجوزات',
@@ -1256,10 +1246,10 @@
 
       // Match Guests
       guests.filter(g =>
-        String(g.name || '').toLowerCase().includes(q) ||
-        String(g.phone || '').includes(q) ||
-        String(g.id_number || '').includes(q)
-      ).slice(0, 4).forEach(g => {
+        matchText(g.name) ||
+        normalizeDigits(String(g.phone || '')).includes(q) ||
+        normalizeDigits(String(g.id_number || '')).includes(q)
+      ).slice(0, 5).forEach(g => {
         results.push({
           category: '👤 قائمة النزلاء',
           icon: '👤',
@@ -1388,6 +1378,15 @@
 
     attentionModal.addEventListener('click', event => {
       if (event.target === attentionModal) closeAttentionInboxModal();
+    });
+
+    // Close on Escape inside attention inbox modal
+    attentionModal.addEventListener('keydown', event => {
+      if (event.key === 'Escape' || event.code === 'Escape' || event.keyCode === 27) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        closeAttentionInboxModal();
+      }
     });
 
     const closeBtn = document.getElementById('btn-close-attention-inbox');
@@ -1683,6 +1682,24 @@
       btnAttention.addEventListener('click', () => openAttentionInboxModal());
     }
 
+    // Global Escape Key Listener (capture phase) to guarantee dismissal
+    window.addEventListener('keydown', event => {
+      if (event.key === 'Escape' || event.code === 'Escape' || event.keyCode === 27) {
+        if (attentionModal && attentionModal.style.display && attentionModal.style.display !== 'none') {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          closeAttentionInboxModal();
+          return;
+        }
+        if (paletteModal && paletteModal.style.display && paletteModal.style.display !== 'none') {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          closeCommandPalette();
+          return;
+        }
+      }
+    }, true);
+
     // Initial Attention Computation (after small delay to allow caches to load)
     setTimeout(updateAttentionInbox, 600);
     setInterval(updateAttentionInbox, 20000);
@@ -1703,6 +1720,10 @@
     computeAttentionInbox,
     updateAttentionInbox,
     syncDataFromDb,
+    normalizeArabic,
+    normalizeDigits,
+    stripDiacritics,
+    transliterateEnToAr,
     getRooms,
     getReservations,
     getGuests

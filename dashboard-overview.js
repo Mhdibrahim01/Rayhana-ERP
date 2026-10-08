@@ -480,8 +480,8 @@
       // 4. Load Recent Reservations into Overview Table
       const resRes = await window.api.getReservationsPage({ page: 1, pageSize: 10, status: 'مؤكد' });
       if (resRes && resRes.success) {
-        App.State.reservationsCache = resRes.data?.rows || [];
-        const activeBookingsCount = Number(resRes.data?.total ?? App.State.reservationsCache.length);
+        App.State.recentReservationsRows = resRes.data?.rows || [];
+        const activeBookingsCount = Number(resRes.data?.total ?? (App.State.reservationsCache?.length || App.State.recentReservationsRows.length));
         const activeBookingsTabCount = document.getElementById('active-bookings-tab-count');
         if (activeBookingsTabCount) activeBookingsTabCount.textContent = String(activeBookingsCount);
         renderOverviewTable();
@@ -496,7 +496,7 @@
   }
 
   function renderOverviewTable() {
-    const recent = App.State.reservationsCache.filter(r => r.status === 'مؤكد').slice(0, 10);
+    const recent = (App.State.recentReservationsRows || App.State.reservationsCache || []).filter(r => r.status === 'مؤكد').slice(0, 10);
     const recentCount = App.DOM.overviewRecentTabCount;
     if (recentCount) recentCount.textContent = String(recent.length);
     if (!recent.length) {
