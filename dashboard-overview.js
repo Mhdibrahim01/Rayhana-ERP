@@ -840,6 +840,47 @@
       if (target) target.textContent = String(count);
     });
 
+    const today = String(App.State.businessDate || App.Helpers.getLocalDateString());
+    let lateCount = 0;
+    let totalOutstanding = 0;
+    let completedCount = 0;
+
+    checkouts.forEach(r => {
+      if (r.status === 'مكتمل') {
+        completedCount++;
+      } else {
+        if (App.Helpers.isLateCheckout(r)) {
+          lateCount++;
+        }
+        const isContract = r.booking_type === 'عقد مفتوح';
+        const storedTotal = Number(r.total_price) || 0;
+        const paid = Number(r.ledger_paid_amount ?? r.paid_amount) || 0;
+        const rate = Number(r.custom_nightly_price || r.price_per_night || 0);
+        const checkIn = String(r.check_in_date || '').slice(0, 10);
+        const checkoutDate = String(r.check_out_date || '').slice(0, 10);
+        const isOverdue = r.status === 'مؤكد' && !isContract && checkoutDate && checkoutDate < today;
+        let total = storedTotal;
+        if ((isContract || isOverdue) && checkIn && checkIn <= today && rate > 0) {
+          const elapsedNights = Math.max(1, Math.floor((Date.parse(today + 'T00:00:00Z') - Date.parse(checkIn + 'T00:00:00Z')) / 86400000));
+          const runningCharge = Math.max(0, Math.round((elapsedNights * rate - Number(r.discount_amount || 0)) * 100) / 100);
+          total = Math.max(storedTotal, runningCharge);
+        }
+        const rawDiff = total - paid;
+        if (rawDiff > 0.005) {
+          totalOutstanding += rawDiff;
+        }
+      }
+    });
+
+    const lateCountEl = document.getElementById('today-summary-late-count');
+    if (lateCountEl) lateCountEl.textContent = lateCount.toLocaleString('en-US');
+
+    const dueAmountEl = document.getElementById('today-summary-due-amount');
+    if (dueAmountEl) dueAmountEl.textContent = `${Math.round(totalOutstanding).toLocaleString('en-US')} ر.س`;
+
+    const completedCountEl = document.getElementById('today-summary-completed-count');
+    if (completedCountEl) completedCountEl.textContent = completedCount.toLocaleString('en-US');
+
     const searchTerm = String(App.DOM.todayCheckoutsSearch?.value || '').trim().toLocaleLowerCase();
     const visibleCheckouts = checkouts.filter(row => {
       const overdue = App.Helpers.isReservationOverdue(row);
@@ -874,26 +915,40 @@
 
     if (App.DOM.todayCheckoutsEmpty) App.DOM.todayCheckoutsEmpty.style.display = 'none';
 
-    const today = String(App.State.businessDate || App.Helpers.getLocalDateString());
     App.DOM.todayCheckoutsTableBody.innerHTML = visibleCheckouts.map(r => {
       const isConfirmed = r.status === 'مؤكد';
       const isCompleted = r.status === 'مكتمل';
       const isLateCheckout = App.Helpers.isLateCheckout(r);
+      const isContract = r.booking_type === 'عقد مفتوح';
+      const checkoutDate = String(r.check_out_date || '').slice(0, 10);
+      const checkOutDisplay = r.check_out_date || (isContract ? 'مفتوح (غير محدد)' : '-');
       const expectedCheckoutTime = App.Helpers.getExpectedCheckoutTime
         ? App.Helpers.getExpectedCheckoutTime(r)
-        : (isConfirmed && r.booking_type !== 'عقد مفتوح' && r.check_out_date && r.check_out_date !== 'مفتوح' ? '14:00' : '');
-      const checkoutDate = String(r.check_out_date || '').slice(0, 10);
-      const statusLabel = isLateCheckout ? getCheckoutDelayLabel(checkoutDate) : (isCompleted ? 'تمت المغادرة' : 'حجز مؤكد');
+        : (isConfirmed && !isContract && r.check_out_date && r.check_out_date !== 'مفتوح' ? '14:00' : '');
+      const departureTimeText = r.checkout_time || expectedCheckoutTime || '';
+
+      const overdueDays = checkoutDate
+        ? Math.max(0, Math.floor((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${checkoutDate}T00:00:00Z`)) / 86400000))
+        : 0;
+      const isOverdue = isConfirmed && !isContract && checkoutDate && checkoutDate < today;
+      const isRowLate = isLateCheckout || isOverdue;
+
+      const overdueLabel = overdueDays === 0 ? 'متأخر اليوم'
+        : overdueDays === 1 ? 'متأخر يوم'
+        : overdueDays === 2 ? 'متأخر يومين'
+        : overdueDays <= 10 ? `متأخر ${overdueDays} أيام` : `متأخر ${overdueDays} يوماً`;
+
+      const statusLabel = isLateCheckout ? getCheckoutDelayLabel(checkoutDate) : (isCompleted ? 'تمت المغادرة ✓' : 'حجز مؤكد');
       const statusTone = isLateCheckout ? 'danger' : (isCompleted ? 'success' : 'neutral');
       const checkoutDetail = r.checkout_time
         ? `المغادرة الفعلية: ${checkoutDate} · ${String(r.checkout_time).slice(0, 5)}`
         : (expectedCheckoutTime && checkoutDate ? `المغادرة المتوقعة: ${checkoutDate} · ${expectedCheckoutTime}` : '');
-      const isContract = r.booking_type === 'عقد مفتوح';
+
       const storedTotal = Number(r.total_price) || 0;
       const paid = Number(r.ledger_paid_amount ?? r.paid_amount) || 0;
       const rate = Number(r.custom_nightly_price || r.price_per_night || 0);
       const checkIn = String(r.check_in_date || '').slice(0, 10);
-      const isOverdue = r.status === 'مؤكد' && !isContract && checkoutDate && checkoutDate < today;
+
       let total = storedTotal;
       let elapsedNights = 0;
       if ((isContract || isOverdue) && checkIn && checkIn <= today && rate > 0) {
@@ -907,26 +962,55 @@
       const guestName = String(r.guest_name || '');
 
       return `
-        <tr class="${isLateCheckout ? 'late-checkout-row' : ''}">
+        <tr class="${isRowLate ? 'late-checkout-row' : ''}">
           <td data-label="رقم الغرفة" style="text-align: center;">
             <button type="button" class="checkout-room-chip clickable-room-chip" data-action="preview-reservation" data-id="${App.Helpers.escapeHtml(r.reservation_id ?? r.id)}" title="عرض تفاصيل الغرفة ${App.Helpers.escapeHtml(r.room_number)}">
               ${App.Helpers.escapeHtml(r.room_number)}
             </button>
           </td>
-          <td data-label="اسم النزيل">
-            <div class="checkout-cell-stack checkout-guest-stack">
-              <div class="checkout-guest-name" title="${App.Helpers.escapeHtml(guestName)}">${App.Helpers.escapeHtml(guestName)}</div>
-              ${r.guest_id_number ? `<small class="guest-id-number">هوية: ${App.Helpers.escapeHtml(r.guest_id_number)}</small>` : ''}
+          <td class="res-cell-guest" data-label="بيانات النزيل">
+            <div class="res-guest-name" title="${App.Helpers.escapeHtml(guestName)}">${App.Helpers.escapeHtml(guestName)}</div>
+            <div class="res-guest-meta">
+              ${r.guest_id_number ? `<span>هوية: <bdi dir="ltr">${App.Helpers.escapeHtml(r.guest_id_number)}</bdi></span>` : ''}
+              ${r.guest_id_number && r.guest_phone ? `<span class="res-meta-dot">•</span>` : ''}
+              ${r.guest_phone ? `<span dir="ltr"><bdi>${App.Helpers.escapeHtml(r.guest_phone)}</bdi></span>` : ''}
             </div>
           </td>
-          <td class="checkout-phone" data-label="رقم الجوال"><bdi dir="ltr">${App.Helpers.escapeHtml(r.guest_phone || '-')}</bdi></td>
-          <td class="checkout-date-cell" data-label="تاريخ الوصول">
-            <div class="checkout-cell-stack checkout-date-stack">${renderDateTimeCell(r.check_in_date, r.booking_time, '-', 'الوصول')}</div>
+          <td class="res-cell-dates" data-label="الوصول والمغادرة">
+            <div class="res-date-line">
+              <span class="res-date-label">وصول:</span>
+              <span class="res-date-val"><bdi dir="ltr">${App.Helpers.escapeHtml(r.check_in_date || '-')}</bdi></span>
+              ${r.booking_time ? `<span class="res-time-val">${App.Helpers.escapeHtml(String(r.booking_time).slice(0, 5))}</span>` : ''}
+            </div>
+            <div class="res-date-line">
+              <span class="res-date-label">مغادرة:</span>
+              <span class="res-date-val"><bdi dir="ltr">${App.Helpers.escapeHtml(checkOutDisplay)}</bdi></span>
+              ${departureTimeText ? `<span class="res-time-val">${App.Helpers.escapeHtml(String(departureTimeText).slice(0, 5))}</span>` : ''}
+            </div>
+            ${isLateCheckout && overdueDays > 0 ? `
+              <div class="res-late-departure-tag">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <span>${App.Helpers.escapeHtml(overdueLabel)}</span>
+              </div>
+            ` : ''}
           </td>
-          <td class="checkout-money-cell" data-label="المبلغ والمدفوع">
-            <strong>${total.toLocaleString('en-US')} ر.س ${(isOverdue || isContract) && total > storedTotal ? '<small style="color: #b91c1c; font-size: 0.70rem; font-weight: 700;">(مستحق حتى اليوم)</small>' : ''}</strong>
-            <small>مدفوع: ${paid.toLocaleString('en-US')} ر.س</small>
-            ${isCredit ? `<small style="color: #2563eb; font-weight: 700;">رصيد دائن: ${Math.abs(rawDiff).toLocaleString('en-US')} ر.س</small>` : (balance > 0 ? `<small class="checkout-balance-due">المتبقي: ${balance.toLocaleString('en-US')} ر.س</small>` : '<small class="checkout-balance-settled">لا يوجد رصيد مستحق</small>')}
+          <td class="res-cell-money" data-label="المبلغ والمدفوع">
+            <div class="res-money-total">
+              ${(isOverdue || isContract) && total > storedTotal ? `
+                ${total.toLocaleString('en-US')} ر.س <small class="res-accrued-tag">(مستحق)</small>
+              ` : `
+                ${total.toLocaleString('en-US')} ر.س
+              `}
+            </div>
+            <div class="res-money-sub muted">
+              ${isCredit ? `
+                <span>مدفوع: ${paid.toLocaleString('en-US')}</span> • <span class="res-money-sub credit">دائن: ${Math.abs(rawDiff).toLocaleString('en-US')} ر.س</span>
+              ` : (balance > 0 ? `
+                <span>مدفوع: ${paid.toLocaleString('en-US')}</span> • <span class="res-money-sub remaining">متبقي: ${balance.toLocaleString('en-US')} ر.س</span>
+              ` : `
+                <span>مدفوع: ${paid.toLocaleString('en-US')} ر.س</span>
+              `)}
+            </div>
           </td>
           <td data-label="حالة الحجز">
             <div class="checkouts-status-stack">
@@ -937,32 +1021,28 @@
           <td data-label="إجراء المغادرة" style="text-align: center;">
             ${isConfirmed ? `
               <div class="overview-row-actions ${isLateCheckout ? 'overview-row-actions-late-checkout' : ''}" role="group" aria-label="إجراءات الحجز">
-                ${isLateCheckout ? `
-                  <button type="button" class="btn-row icon-ghost checkout-row-action checkout-row-action-preview" data-action="preview-reservation" data-id="${r.id}" title="معاينة تفاصيل الحجز" aria-label="معاينة تفاصيل الحجز">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                  </button>
-                  <button type="button" class="btn-row secondary checkout-row-action checkout-row-action-extend" data-action="extend" data-id="${r.id}" title="تمديد فترة الإقامة" aria-label="تمديد فترة الإقامة">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
-                  </button>
-                  <button type="button" class="btn-row primary checkout-danger late-checkout-button late-checkout-button-primary" data-action="checkout" data-id="${r.id}" title="تسوية فورية وتسجيل المغادرة" aria-label="تسوية فورية وتسجيل المغادرة"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg></button>
-                  <button type="button" class="btn-row icon-ghost checkout-row-action" data-action="invoice" data-id="${r.id}" title="معاينة سند الاستلام والإقامة" aria-label="معاينة سند الاستلام والإقامة"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h7"></path></svg></button>
-                ` : `
-                  <button type="button" class="btn-row icon-ghost checkout-row-action checkout-row-action-preview" data-action="preview-reservation" data-id="${r.id}" title="معاينة تفاصيل الحجز" aria-label="معاينة تفاصيل الحجز">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                  </button>
-                  <button type="button" class="btn-row secondary checkout-row-action checkout-row-action-extend" data-action="extend" data-id="${r.id}" title="تمديد فترة الإقامة" aria-label="تمديد فترة الإقامة">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
-                  </button>
-                  <button type="button" class="btn-row icon-ghost checkout-row-action" data-action="invoice" data-id="${r.id}" title="معاينة سند الاستلام والإقامة" aria-label="معاينة سند الاستلام والإقامة">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h7"></path></svg>
-                  </button>
-                  <button type="button" class="btn-row primary checkout-danger checkout-row-action checkout-row-action-primary" data-action="checkout" data-id="${r.id}" title="تسجيل مغادرة النزيل وتسليم الغرفة" aria-label="تسجيل مغادرة النزيل وتسليم الغرفة">
+                <button type="button" class="btn-row icon-ghost checkout-row-action checkout-row-action-preview" data-action="preview-reservation" data-id="${r.id}" title="معاينة تفاصيل الحجز" aria-label="معاينة تفاصيل الحجز">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                </button>
+                <button type="button" class="btn-row secondary checkout-row-action checkout-row-action-extend" data-action="extend" data-id="${r.id}" title="تمديد فترة الإقامة" aria-label="تمديد فترة الإقامة">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+                </button>
+                <button type="button" class="btn-row primary checkout-danger ${isLateCheckout ? 'late-checkout-button late-checkout-button-primary' : 'checkout-row-action checkout-row-action-primary'}" data-action="checkout" data-id="${r.id}" title="${isLateCheckout ? 'تسوية فورية وتسجيل المغادرة' : 'تسجيل مغادرة النزيل وتسليم الغرفة'}" aria-label="${isLateCheckout ? 'تسوية فورية وتسجيل المغادرة' : 'تسجيل مغادرة النزيل وتسليم الغرفة'}">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                  </button>
-                `}
+                </button>
+                <button type="button" class="btn-row icon-ghost checkout-row-action" data-action="invoice" data-id="${r.id}" title="معاينة سند الاستلام والإقامة" aria-label="معاينة سند الاستلام والإقامة">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h7"></path></svg>
+                </button>
               </div>
             ` : isCompleted ? `
-              ${renderDashboardStatusBadge('تمت المغادرة ✓', 'success')}
+              <div class="overview-row-actions" role="group" aria-label="إجراءات الحجز المكتمل">
+                <button type="button" class="btn-row icon-ghost checkout-row-action checkout-row-action-preview" data-action="preview-reservation" data-id="${r.id}" title="معاينة تفاصيل الحجز" aria-label="معاينة تفاصيل الحجز">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                </button>
+                <button type="button" class="btn-row icon-ghost checkout-row-action" data-action="invoice" data-id="${r.id}" title="معاينة سند الاستلام والإقامة" aria-label="معاينة سند الاستلام والإقامة">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h7"></path></svg>
+                </button>
+              </div>
             ` : `<span style="color: var(--text-secondary); font-size: 0.8rem;">-</span>`}
           </td>
         </tr>

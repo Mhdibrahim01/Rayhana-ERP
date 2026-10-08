@@ -316,6 +316,25 @@
           </div>
           <div class="card overview-table-panel active" id="widget-today-checkouts" data-overview-table-panel role="tabpanel" aria-labelledby="tab-today-checkouts" style="margin-bottom: 24px; overflow: hidden;">
             <div class="card-body" style="padding: 0;">
+              <!-- Summary Strip -->
+              <div id="today-checkouts-summary-strip" class="today-checkouts-summary-strip" dir="rtl">
+                <div class="today-summary-chip chip-late" id="today-summary-late-chip" title="مغادرات متأخرة تجاوزت موعد الخروج">
+                  <span class="summary-chip-icon">⚠️</span>
+                  <span class="summary-chip-label">مغادرات متأخرة:</span>
+                  <strong class="summary-chip-value" id="today-summary-late-count">0</strong>
+                </div>
+                <div class="today-summary-chip chip-due" id="today-summary-due-chip" title="إجمالي المبالغ المستحقة غير المسددة لمغادرات اليوم">
+                  <span class="summary-chip-icon">💳</span>
+                  <span class="summary-chip-label">مبالغ مستحقة:</span>
+                  <strong class="summary-chip-value" id="today-summary-due-amount">0 ر.س</strong>
+                </div>
+                <div class="today-summary-chip chip-completed" id="today-summary-completed-chip" title="مغادرات تم إنهاء إجراءاتها اليوم">
+                  <span class="summary-chip-icon">✓</span>
+                  <span class="summary-chip-label">مكتملة اليوم:</span>
+                  <strong class="summary-chip-value" id="today-summary-completed-count">0</strong>
+                </div>
+              </div>
+
               <div class="today-checkouts-toolbar" dir="rtl">
                 <label class="today-checkouts-search-wrap">
                   <span class="today-checkouts-search-icon" aria-hidden="true">⌕</span>
@@ -338,19 +357,17 @@
                 <table class="today-checkouts-table" style="margin: 0;">
                   <colgroup>
                     <col style="width: 8%;">
+                    <col style="width: 26%;">
                     <col style="width: 20%;">
-                    <col style="width: 12%;">
-                    <col style="width: 13%;">
-                    <col style="width: 20%;">
-                    <col style="width: 10%;">
-                    <col style="width: 17%;">
+                    <col style="width: 18%;">
+                    <col style="width: 14%;">
+                    <col style="width: 14%;">
                   </colgroup>
                   <thead>
                     <tr>
                       <th style="text-align: center;">رقم الغرفة</th>
-                      <th>اسم النزيل</th>
-                      <th>رقم الجوال</th>
-                      <th>تاريخ الوصول</th>
+                      <th>بيانات النزيل</th>
+                      <th>الوصول والمغادرة</th>
                       <th>المبلغ والمدفوع</th>
                       <th>حالة الحجز</th>
                       <th style="text-align: center;">إجراء المغادرة</th>
