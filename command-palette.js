@@ -1746,12 +1746,73 @@
             });
           }
         } else {
+          // Identify late checkouts using ctx.attention.lateCheckouts without recalculating
+          const lateCheckoutIds = new Set(
+            (ctx.attention?.lateCheckouts || []).map(item => String(item.id || item.reservation?.id))
+          );
+
+          // Find active confirmed reservations with outstanding balances
+          const unpaidList = ctx.reservations
+            .filter(r => r.status === 'مؤكد')
+            .map(r => {
+              const fin = getResFin(r, ctx.currentBizDate);
+              const isOverdue = lateCheckoutIds.has(String(r.id));
+              return { res: r, fin, isOverdue };
+            })
+            .filter(item => item.fin.remaining > 0.005);
+
+          if (unpaidList.length === 0) {
+            ctx.results.push({
+              category: '💳 سندات القبض والتحصيل المباشر',
+              icon: '✓',
+              title: 'لا توجد مبالغ معلقة ✓',
+              subtitle: 'جميع الحجوزات المؤكدة مسددة بالكامل ولا توجد ديون حالية',
+              badge: 'مسدد بالكامل'
+            });
+            return;
+          }
+
+          // Sort: late checkouts first, then descending by remaining amount
+          unpaidList.sort((a, b) => {
+            if (a.isOverdue !== b.isOverdue) return a.isOverdue ? -1 : 1;
+            return b.fin.remaining - a.fin.remaining;
+          });
+
+          const topUnpaid = unpaidList.slice(0, 8);
+
+          topUnpaid.forEach(({ res, fin, isOverdue }) => {
+            const displayRoom = res.room_number || '-';
+            const guestName = res.guest_name || 'نزيل';
+            const remainingFormatted = fin.remaining.toLocaleString('en-US');
+            const paidFormatted = fin.paid.toLocaleString('en-US');
+            const totalFormatted = fin.effectiveTotal.toLocaleString('en-US');
+
+            ctx.results.push({
+              category: '💳 سندات القبض والتحصيل المباشر',
+              icon: isOverdue ? '⚠️' : '💳',
+              title: `تحصيل دفعة • غرفة ${displayRoom} • ${guestName}`,
+              subtitle: `${isOverdue ? '⚠️ متأخر عن المغادرة • ' : ''}المدفوع: ${paidFormatted} ر.س • المتبقي: ${remainingFormatted} ر.س • الإجمالي: ${totalFormatted} ر.س`,
+              badge: `${remainingFormatted} ر.س`,
+              isUrgent: isOverdue,
+              actionFn: () => {
+                if (window.openAddPaymentModal) {
+                  window.openAddPaymentModal(res.id);
+                } else if (App?.Helpers?.openReservationPreview) {
+                  App.Helpers.openReservationPreview(res.id);
+                } else {
+                  showMissingHelperToast();
+                }
+              }
+            });
+          });
+
+          // Last item: open attention inbox for all unpaid balances
           ctx.results.push({
-            category: '💳 سندات القبض والتحصيل',
-            icon: '💳',
-            title: 'تسجيل سند قبض ودفعات سداد',
-            subtitle: 'حدد رقم الغرفة لتحصيل دفعة (مثال: "قبض 103" أو "سند 103")',
-            badge: 'سند قبض',
+            category: '💳 سندات القبض والتحصيل المباشر',
+            icon: '📋',
+            title: 'عرض كل المستحقات',
+            subtitle: `فتح صندوق المهام لاستعراض كافة الحجوزات المطلوبة (${unpaidList.length} حجز)`,
+            badge: `${unpaidList.length} حجز`,
             actionFn: () => openAttentionInboxModal('unpaid-balance')
           });
         }
