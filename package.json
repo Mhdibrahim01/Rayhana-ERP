@@ -1,6 +1,6 @@
 {
   "name": "rayhana-suites",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "ريحانة للوحدات السكنية - Rayhana Residential Units ERP",
   "main": "main.js",
   "author": "Rayhana Management",
@@ -85,6 +85,8 @@
       "dashboard-rooms.js",
       "dashboard-reservations.js",
       "dashboard.js",
+      "hotkeys.js",
+      "design-tokens.css",
       "styles.css",
       "assets/**/*",
       "node_modules/**/*"
