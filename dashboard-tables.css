@@ -943,6 +943,7 @@
   #view-overview .monthly-revenue-track { width: min(36px, 78%); height: 170px; flex-basis: 170px; }
   #view-overview .monthly-revenue-value { font-size: 9px; }
   #view-overview .monthly-revenue-month { font-size: 10px; }
+}
 /* Reservations page visual refresh, isolated from dashboard widgets and other tables. */
 #view-reservations .reservations-page-card {
   padding: 0;
@@ -1137,6 +1138,7 @@
   font-size: 11px;
   line-height: 1.15;
   white-space: nowrap;
+}
 #view-reservations .reservations-pagination {
   margin-top: 12px;
   padding: 12px 16px;
@@ -1178,7 +1180,6 @@
   font-size: 12px;
   line-height: 1.15;
   white-space: nowrap;
-}
 }
 
 /* Match the dashboard booking widgets' and reservation table's action buttons to the compact outlined icon style. */

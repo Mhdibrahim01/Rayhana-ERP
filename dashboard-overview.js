@@ -422,6 +422,8 @@
       }
       const reservations = reservationsResult.data || [];
       const rooms = roomsResult.data || [];
+      App.State.roomsCache = rooms;
+      App.State.reservationsCache = reservations;
       renderOccupancyForecast(reservations, rooms);
       renderExecutiveSummaryKpis(stats, reservations, rooms, shiftSummaryResult?.success ? shiftSummaryResult.data : null);
     } catch (err) {

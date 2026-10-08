@@ -9,12 +9,95 @@
   if (!App) return;
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 1. NEEDS-ATTENTION INBOX DATA ENGINE
+  // 1. DATA CACHING & DATABASE HYDRATION
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  let localRoomsCache = null;
+  let localReservationsCache = null;
+  let localGuestsCache = null;
+  let isSyncing = false;
+
+  function getRooms() {
+    if (Array.isArray(App?.State?.roomsCache) && App.State.roomsCache.length > 0) {
+      return App.State.roomsCache;
+    }
+    if (Array.isArray(localRoomsCache) && localRoomsCache.length > 0) {
+      return localRoomsCache;
+    }
+    return [];
+  }
+
+  function getReservations() {
+    if (Array.isArray(App?.State?.reservationsCache) && App.State.reservationsCache.length > 0) {
+      return App.State.reservationsCache;
+    }
+    if (Array.isArray(localReservationsCache) && localReservationsCache.length > 0) {
+      return localReservationsCache;
+    }
+    return [];
+  }
+
+  function getGuests() {
+    if (Array.isArray(App?.State?.guestsCache) && App.State.guestsCache.length > 0) {
+      return App.State.guestsCache;
+    }
+    if (Array.isArray(localGuestsCache) && localGuestsCache.length > 0) {
+      return localGuestsCache;
+    }
+    return [];
+  }
+
+  async function syncDataFromDb() {
+    if (isSyncing || typeof window === 'undefined' || !window.api) return;
+    isSyncing = true;
+    try {
+      const promises = [
+        typeof window.api.getAllRooms === 'function' ? window.api.getAllRooms().catch(() => null) : Promise.resolve(null),
+        typeof window.api.getAllReservations === 'function' ? window.api.getAllReservations().catch(() => null) : Promise.resolve(null),
+        typeof window.api.getAllGuests === 'function' ? window.api.getAllGuests().catch(() => null) : Promise.resolve(null)
+      ];
+
+      const [roomsRes, resRes, guestsRes] = await Promise.all(promises);
+
+      if (roomsRes?.success && Array.isArray(roomsRes.data)) {
+        localRoomsCache = roomsRes.data;
+        if (!Array.isArray(App.State.roomsCache) || App.State.roomsCache.length === 0) {
+          App.State.roomsCache = roomsRes.data;
+        }
+      }
+      if (resRes?.success && Array.isArray(resRes.data)) {
+        localReservationsCache = resRes.data;
+        if (!Array.isArray(App.State.reservationsCache) || App.State.reservationsCache.length === 0) {
+          App.State.reservationsCache = resRes.data;
+        }
+      }
+      if (guestsRes?.success && Array.isArray(guestsRes.data)) {
+        localGuestsCache = guestsRes.data;
+        if (!Array.isArray(App.State.guestsCache) || App.State.guestsCache.length === 0) {
+          App.State.guestsCache = guestsRes.data;
+        }
+      }
+
+      if (typeof updateAttentionInbox === 'function') {
+        updateAttentionInbox();
+      }
+      if (paletteModal && paletteModal.style.display !== 'none' && paletteInput) {
+        handlePaletteSearch(paletteInput.value);
+      }
+    } catch (err) {
+      console.warn('Failed to sync command palette data:', err);
+    } finally {
+      isSyncing = false;
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 2. NEEDS-ATTENTION INBOX DATA ENGINE
   // ─────────────────────────────────────────────────────────────────────────────
 
   function computeAttentionInbox() {
-    const reservations = Array.isArray(App.State.reservationsCache) ? App.State.reservationsCache : [];
-    const rooms = Array.isArray(App.State.roomsCache) ? App.State.roomsCache : [];
+    const reservations = getReservations();
+    const rooms = getRooms();
     const currentBizDate = String(App.State.businessDate || (App.Helpers.getLocalDateString ? App.Helpers.getLocalDateString() : new Date().toISOString().slice(0, 10)));
 
     const lateCheckouts = [];
