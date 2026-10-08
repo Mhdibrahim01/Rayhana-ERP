@@ -148,6 +148,23 @@
         </div>
 
         <div class="topbar-actions">
+          <!-- Command Palette Button (Ctrl + K) -->
+          <button id="btn-open-command-palette" type="button" class="btn btn-secondary btn-sm topbar-command-palette-btn" title="البحث الذكي وشريط الأوامر الفورية (Ctrl + K)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <span>أمر سريع</span>
+            <kbd class="hotkey-chip" style="font-size: 0.68rem; padding: 1px 5px; background: rgba(0,0,0,0.06); border-radius: 4px;">Ctrl+K</kbd>
+          </button>
+
+          <!-- Needs-Attention Inbox Button -->
+          <button id="btn-open-attention-inbox" type="button" class="btn btn-secondary btn-sm topbar-attention-btn" title="صندوق المهام والتنبيهات العاجلة">
+            <span>⚡</span>
+            <span>المهام العاجلة</span>
+            <span id="attention-badge-count" class="badge-attention-count">0</span>
+          </button>
+
           <!-- User Manual Button (All Roles) -->
           <button id="btn-open-user-manual" type="button" class="btn btn-secondary btn-sm" title="دليل الاستخدام والمساعدة السريعة (F1)" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: #166535; background: #f0fdf5; border: 1.5px solid #86efaf; cursor: pointer;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -230,6 +247,9 @@
               </button>
             </div>
           </section>
+
+          <!-- Needs-Attention Overview Widget -->
+          <section id="overview-attention-widget" class="overview-attention-widget" dir="rtl"></section>
 
           <section class="overview-executive-kpis" aria-label="ملخص مؤشرات التشغيل والوردية" dir="rtl">
             <button id="overview-kpi-occupancy" type="button" class="executive-kpi executive-kpi-occupancy" aria-label="عرض الغرف المشغولة">
@@ -481,17 +501,127 @@
              SECTION 2: RESERVATIONS (سجل الحجوزات + تصدير واستيراد Excel)
              ================================================================== -->
         <div id="view-reservations" class="view-section" style="display: none;">
+          <!-- Top Header / Page Title & Actions -->
+          <div class="reservations-header-bar">
+            <div class="reservations-title-wrap">
+              <div class="reservations-title-meta">
+                <span class="reservations-meta-dot"></span>
+                <span>إدارة الإقامة</span>
+              </div>
+              <h2 class="reservations-main-title">سجل الحجوزات</h2>
+              <p class="reservations-main-sub">تابع الإقامات والمدفوعات ومواعيد المغادرة من مكان واحد.</p>
+            </div>
+            <div class="reservations-page-actions">
+              <button id="btn-res-new-booking" class="btn btn-primary btn-sm reservations-new-booking" title="تسجيل حجز فندقي جديد">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                <span>+ تسجيل حجز جديد</span><kbd class="hotkey-chip hotkey-chip-dark" aria-hidden="true">F2</kbd>
+              </button>
+
+              <button id="btn-export-reservations-excel" class="btn-excel-export" title="تصدير جدول الحجوزات إلى ملف Excel (.xlsx)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span>تصدير Excel</span>
+              </button>
+
+              <label class="btn-excel-import" title="استيراد حجوزات من ملف Excel (.xlsx)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <span>استيراد Excel</span>
+                <input type="file" id="input-import-reservations-excel" accept=".xlsx, .xls" style="display: none;">
+              </label>
+            </div>
+          </div>
+
+          <!-- 1. Summary Cards (4 across) -->
+          <div class="res-summary-cards" id="res-summary-cards">
+            <!-- Card 1: إقامات نشطة -->
+            <div class="res-summary-card" data-summary-target="مؤكد" title="عرض الحجوزات النشطة">
+              <div class="res-card-icon icon-teal">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+              </div>
+              <div class="res-card-content">
+                <span class="res-card-label">إقامات نشطة</span>
+                <span class="res-card-value" id="res-summary-active">0</span>
+                <span class="res-card-sub">نزيلاً حالياً</span>
+              </div>
+            </div>
+
+            <!-- Card 2: تحتاج متابعة -->
+            <div class="res-summary-card" data-summary-target="late" title="عرض الحجوزات المتأخرة">
+              <div class="res-card-icon icon-amber">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                  <line x1="12" y1="9" x2="12" y2="13"></line>
+                  <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+              </div>
+              <div class="res-card-content">
+                <span class="res-card-label">تحتاج متابعة</span>
+                <span class="res-card-value" id="res-summary-late">0</span>
+                <span class="res-card-sub">مغادرة متأخرة</span>
+              </div>
+            </div>
+
+            <!-- Card 3: مبالغ مستحقة -->
+            <div class="res-summary-card" data-summary-target="unpaid" title="عرض الحجوزات غير المسددة">
+              <div class="res-card-icon icon-blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+                  <line x1="2" y1="10" x2="22" y2="10"></line>
+                </svg>
+              </div>
+              <div class="res-card-content">
+                <span class="res-card-label">مبالغ مستحقة</span>
+                <span class="res-card-value" id="res-summary-due">0</span>
+                <span class="res-card-sub">ر.س متبقية</span>
+              </div>
+            </div>
+
+            <!-- Card 4: إشغال الغرف -->
+            <div class="res-summary-card" data-summary-target="rooms" title="عرض حالة الغرف">
+              <div class="res-card-icon icon-emerald">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 21h18"></path>
+                  <path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"></path>
+                  <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                  <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                  <line x1="9" y1="13" x2="9.01" y2="13"></line>
+                  <line x1="15" y1="13" x2="15.01" y2="13"></line>
+                  <line x1="9" y1="17" x2="9.01" y2="17"></line>
+                  <line x1="15" y1="17" x2="15.01" y2="17"></line>
+                </svg>
+              </div>
+              <div class="res-card-content">
+                <span class="res-card-label">إشغال الغرف</span>
+                <span class="res-card-value" id="res-summary-occupancy">0%</span>
+                <span class="res-card-sub" id="res-summary-rooms-sub">من 0 غرفة</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Main Table Card -->
           <div class="card reservations-page-card">
-            <div class="table-toolbar reservations-toolbar" style="flex-wrap: wrap; gap: 12px;">
-              <!-- Filter Tabs -->
-              <div class="filter-tabs-bar reservations-filter-tabs" id="res-filter-tabs">
-                <button class="filter-tab-btn active" data-filter="all">جميع الحجوزات</button>
-                <button class="filter-tab-btn" data-filter="مؤكد">مؤكدة (نشطة)</button>
-                <button class="filter-tab-btn" data-filter="مكتمل">مكتملة (تم الخروج)</button>
-                <button class="filter-tab-btn" data-filter="ملغي">ملغاة</button>
+            <!-- Search & Filter Bar -->
+            <div class="res-search-filters-bar">
+              <div class="res-header-badge-side">
+                <span class="res-section-title">الحجوزات</span>
+                <span class="res-total-count-pill" id="res-total-count-pill">0 حجزاً</span>
               </div>
 
-              <!-- Search -->
               <div class="search-box reservations-page-search">
                 <span class="search-icon">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -499,37 +629,88 @@
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                   </svg>
                 </span>
-                <input type="text" id="search-all-reservations" placeholder="بحث بالاسم، رقم الغرفة، الجوال... ( / )">
+                <input type="text" id="search-all-reservations" placeholder="ابحث بالاسم، رقم الحجز، أو الغرفة... ( / )">
               </div>
 
-              <!-- Action Buttons: New Reservation + Excel Import & Export Buttons -->
-              <div class="reservations-page-actions" style="display: flex; align-items: center; gap: 8px;">
-                <button id="btn-res-new-booking" class="btn btn-primary btn-sm reservations-new-booking" title="تسجيل حجز فندقي جديد">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                  </svg>
-                  <span>+ تسجيل حجز جديد</span><kbd class="hotkey-chip hotkey-chip-dark" aria-hidden="true">F2</kbd>
-                </button>
-
-                <button id="btn-export-reservations-excel" class="btn-excel-export" title="تصدير جدول الحجوزات إلى ملف Excel (.xlsx)">
+              <div class="res-filter-button-wrap">
+                <button type="button" id="btn-res-filters" class="btn-res-filters" title="تصفية وفرز الحجوزات">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
                   </svg>
-                  <span>تصدير Excel</span>
+                  <span>فلاتر</span>
+                  <span id="res-filter-badge" class="res-filter-badge" style="display: none;">0</span>
                 </button>
+              </div>
+            </div>
 
-                <label class="btn-excel-import" title="استيراد حجوزات من ملف Excel (.xlsx)">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="17 8 12 3 7 8"></polyline>
-                    <line x1="12" y1="3" x2="12" y2="15"></line>
-                  </svg>
-                  <span>استيراد Excel</span>
-                  <input type="file" id="input-import-reservations-excel" accept=".xlsx, .xls" style="display: none;">
-                </label>
+            <!-- Tabs with count pills -->
+            <div class="res-tabs-bar" id="res-filter-tabs">
+              <button type="button" class="res-tab-item active" data-filter="all">
+                <span>الكل</span>
+                <span class="res-tab-pill" id="tab-pill-all">0</span>
+              </button>
+              <button type="button" class="res-tab-item" data-filter="مؤكد">
+                <span>نشطة</span>
+                <span class="res-tab-pill" id="tab-pill-active">0</span>
+              </button>
+              <button type="button" class="res-tab-item" data-filter="today">
+                <span>اليوم</span>
+                <span class="res-tab-pill" id="tab-pill-today">0</span>
+              </button>
+              <button type="button" class="res-tab-item" data-filter="late">
+                <span>متأخرة</span>
+                <span class="res-tab-pill" id="tab-pill-late">0</span>
+              </button>
+              <button type="button" class="res-tab-item" data-filter="مكتمل">
+                <span>مكتملة</span>
+                <span class="res-tab-pill" id="tab-pill-completed">0</span>
+              </button>
+              <button type="button" class="res-tab-item" data-filter="ملغي">
+                <span>ملغاة</span>
+                <span class="res-tab-pill" id="tab-pill-cancelled">0</span>
+              </button>
+            </div>
+
+            <!-- Active filter chips and Clear all -->
+            <div class="res-active-chips-bar" id="res-active-chips-bar" style="display: none;">
+              <div class="res-active-chips-list" id="res-active-chips-list">
+                <!-- dynamic chips -->
+              </div>
+              <button type="button" id="btn-clear-res-filters" class="btn-clear-all-filters">مسح الكل</button>
+            </div>
+
+            <!-- Filter Popover Panel (hidden by default) -->
+            <div id="res-filters-popover" class="res-filters-popover" style="display: none;">
+              <div class="res-popover-header">
+                <h4>تصفية وفرز الحجوزات</h4>
+                <button type="button" id="btn-close-res-filters" class="res-popover-close">&times;</button>
+              </div>
+              <div class="res-popover-body">
+                <div class="form-group" style="margin-bottom: 12px;">
+                  <label style="display: block; font-size: 0.8rem; font-weight: 700; color: #475569; margin-bottom: 6px;">الترتيب حسب:</label>
+                  <select id="res-sort-by-select" class="form-control" style="width: 100%; padding: 7px 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: 600; font-size: 0.84rem;">
+                    <option value="id_desc">الأحدث أولاً (افتراضي)</option>
+                    <option value="checkout_asc">موعد المغادرة (الأقرب أولاً)</option>
+                    <option value="checkin_desc">موعد الوصول (الأحدث أولاً)</option>
+                    <option value="total_desc">المبلغ الإجمالي (الأعلى أولاً)</option>
+                    <option value="room_asc">رقم الغرفة</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 16px;">
+                  <label style="display: block; font-size: 0.8rem; font-weight: 700; color: #475569; margin-bottom: 6px;">طريقة السداد / الدفع:</label>
+                  <select id="reservations-payment-type-filter" class="form-control" style="width: 100%; padding: 7px 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: 600; font-size: 0.84rem;">
+                    <option value="all">جميع الحالات</option>
+                    <option value="unpaid">غير مدفوع (به متبقي)</option>
+                    <option value="paid">مدفوع بالكامل</option>
+                    <option value="cash">نقداً</option>
+                    <option value="transfer">تحويل بنكي</option>
+                    <option value="card">بطاقة / مدى / شبكة</option>
+                  </select>
+                </div>
+                <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                  <button type="button" id="btn-reset-res-filters" class="btn btn-secondary btn-sm" style="padding: 6px 12px; font-weight: 700;">إعادة ضبط</button>
+                  <button type="button" id="btn-apply-res-filters" class="btn btn-primary btn-sm" style="padding: 6px 14px; font-weight: 800;">تطبيق الفلاتر</button>
+                </div>
               </div>
             </div>
 
@@ -2753,6 +2934,93 @@
     </div>
   </div>
 
+  <!-- Floating Overflow Actions Dropdown Menu for Reservations Table -->
+  <div id="res-overflow-dropdown" class="res-overflow-dropdown" style="display: none;" role="menu" aria-label="خيارات الحجز الإضافية"></div>
+
+  <!-- Smart Command Palette Modal (Ctrl + K) -->
+  <div id="command-palette-modal" class="command-palette-backdrop" role="dialog" aria-modal="true" aria-label="شريط الأوامر السريع والبحث الذكي" dir="rtl">
+    <div class="command-palette-dialog">
+      <div class="command-palette-header">
+        <span class="command-palette-header-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </span>
+        <input type="text" id="command-palette-input" class="command-palette-input" placeholder="اكتب أمراً أو ابحث... مثلاً: مين في 204؟، تسكين 105، فلوس الدرج، واتساب 102" autocomplete="off" spellcheck="false">
+        <button type="button" class="command-palette-close-btn" data-command-palette-close aria-label="إغلاق">&times;</button>
+      </div>
+      <div class="command-palette-hints">
+        <span class="command-palette-hints-label">أمثلة سريعة:</span>
+        <button type="button" class="command-palette-hint-chip" data-query="مين في 204">مين في 204؟</button>
+        <button type="button" class="command-palette-hint-chip" data-query="تسكين 105">تسكين 105</button>
+        <button type="button" class="command-palette-hint-chip" data-query="فلوس الدرج">فلوس الدرج</button>
+        <button type="button" class="command-palette-hint-chip" data-query="تقرير الوردية">تقرير الوردية</button>
+        <button type="button" class="command-palette-hint-chip" data-query="واتساب">واتساب نزيل</button>
+        <button type="button" class="command-palette-hint-chip" data-query="تنظيف">غرف النظافة</button>
+      </div>
+      <div id="command-palette-results" class="command-palette-results" role="listbox"></div>
+      <div class="command-palette-footer">
+        <div class="command-palette-footer-keys">
+          <span><kbd>↑</kbd> <kbd>↓</kbd> للتنقل</span>
+          <span><kbd>Enter</kbd> للاختيار والفتح</span>
+          <span><kbd>Esc</kbd> للإغلاق</span>
+        </div>
+        <span id="command-palette-results-count">-- خيار</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Needs-Attention Inbox Modal (صندوق المهام والتنبيهات العاجلة) -->
+  <div id="attention-inbox-modal" class="attention-inbox-backdrop" role="dialog" aria-modal="true" aria-label="صندوق المهام والتنبيهات العاجلة" dir="rtl">
+    <div class="attention-inbox-dialog">
+      <div class="modal-layout__header" style="padding: 16px 20px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; background: #ffffff;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 1.4rem;">⚡</span>
+          <div>
+            <h2 style="font-size: 1.1rem; font-weight: 800; color: #1e293b; margin: 0;">صندوق المهام والتنبيهات العاجلة (Needs Attention)</h2>
+            <p style="font-size: 0.8rem; color: #64748b; margin: 2px 0 0;">متابعة فورية للمتأخرات، المغادرات، المستحقات المعلقة، والنظافة</p>
+          </div>
+        </div>
+        <button type="button" id="btn-close-attention-inbox" class="modal-layout__close-btn" aria-label="إغلاق">&times;</button>
+      </div>
+      <div id="attention-inbox-tabs" class="attention-inbox-tabs">
+        <button type="button" class="attention-tab is-active btn-primary" data-tab="all">
+          <span>الكل</span>
+          <span id="tab-cnt-all" class="attention-tab-count">0</span>
+        </button>
+        <button type="button" class="attention-tab" data-tab="late-checkout">
+          <span>⚠️ متأخرون عن المغادرة</span>
+          <span id="tab-cnt-late" class="attention-tab-count">0</span>
+        </button>
+        <button type="button" class="attention-tab" data-tab="departures-today">
+          <span>🚪 مغادرات اليوم</span>
+          <span id="tab-cnt-dept" class="attention-tab-count">0</span>
+        </button>
+        <button type="button" class="attention-tab" data-tab="unpaid-balance">
+          <span>💳 مستحقات معلقة</span>
+          <span id="tab-cnt-unpaid" class="attention-tab-count">0</span>
+        </button>
+        <button type="button" class="attention-tab" data-tab="dirty-rooms">
+          <span>🧹 بانتظار النظافة</span>
+          <span id="tab-cnt-dirty" class="attention-tab-count">0</span>
+        </button>
+        <button type="button" class="attention-tab" data-tab="monthly-due">
+          <span>📅 تجديد شهري</span>
+          <span id="tab-cnt-monthly" class="attention-tab-count">0</span>
+        </button>
+        <button type="button" class="attention-tab" data-tab="legacy-deposit">
+          <span>💰 تأمينات سابقة</span>
+          <span id="tab-cnt-deposit" class="attention-tab-count">0</span>
+        </button>
+      </div>
+      <div id="attention-inbox-list" class="attention-inbox-list"></div>
+      <div class="modal-layout__footer" style="padding: 12px 20px; border-top: 1px solid #e2e8f0; background: #f8fafc; display: flex; justify-content: flex-end;">
+        <button type="button" id="btn-footer-close-attention" class="btn btn-secondary" style="font-weight: 700; padding: 6px 16px; border-radius: 8px;">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
   <script src="dashboard-app.js"></script>
     <script src="dashboard-overview.js"></script>
     <script src="dashboard-logs.js"></script>
@@ -2761,6 +3029,7 @@
     <script src="dashboard-rooms.js"></script>
     <script src="dashboard-reservations.js"></script>
     <script src="dashboard.js"></script>
+    <script src="command-palette.js"></script>
     <script src="hotkeys.js"></script>
 </body>
 </html>

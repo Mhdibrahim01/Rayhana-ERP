@@ -109,24 +109,45 @@ const RESERVATION_LIST_SQL = `
   JOIN rooms rm ON r.room_id = rm.id
 `;
 
-function buildReservationListFilter({ search = '', status = 'all', paymentType = 'all' } = {}) {
+function buildReservationListFilter({ search = '', status = 'all', paymentType = 'all', sortBy = 'id_desc' } = {}) {
   const conditions = [];
   const params = [];
+  const todayStr = connection.getCurrentBusinessDate();
 
-  if (status === 'ملغي') {
+  if (status === 'ملغي' || status === 'cancelled') {
     conditions.push("r.status IN ('ملغي', 'ملغي جزئي')");
-  } else if (['مؤكد', 'مكتمل'].includes(status)) {
-    conditions.push('r.status = ?');
-    params.push(status);
+  } else if (status === 'مؤكد' || status === 'active') {
+    conditions.push("r.status = 'مؤكد'");
+  } else if (status === 'مكتمل' || status === 'completed') {
+    conditions.push("r.status = 'مكتمل'");
+  } else if (status === 'late' || status === 'متأخرة') {
+    conditions.push("r.status = 'مؤكد' AND r.booking_type != 'عقد مفتوح' AND r.check_out_date < ?");
+    params.push(todayStr);
+  } else if (status === 'today' || status === 'اليوم') {
+    conditions.push("r.status = 'مؤكد' AND (r.check_out_date = ? OR r.check_in_date = ?)");
+    params.push(todayStr, todayStr);
   }
 
-  const allowedPaymentTypes = new Set([
-    'advance_payment', 'balance_payment', 'extension_payment', 'late_checkout_fee',
-    'checkout_settlement', 'refund', 'deposit_applied', 'legacy_unclassified'
-  ]);
-  if (allowedPaymentTypes.has(paymentType)) {
-    conditions.push('EXISTS (SELECT 1 FROM payments p WHERE p.reservation_id = r.id AND p.payment_type = ?)');
-    params.push(paymentType);
+  // Payment filtering
+  if (paymentType === 'unpaid') {
+    conditions.push("(COALESCE(r.paid_amount, 0) < r.total_price AND r.status != 'ملغي')");
+  } else if (paymentType === 'paid') {
+    conditions.push("(COALESCE(r.paid_amount, 0) >= r.total_price AND r.total_price > 0)");
+  } else if (paymentType === 'cash') {
+    conditions.push("r.payment_method = 'نقداً'");
+  } else if (paymentType === 'transfer') {
+    conditions.push("r.payment_method = 'تحويل بنكي'");
+  } else if (paymentType === 'card') {
+    conditions.push("r.payment_method IN ('بطاقة / مدى', 'شبكة')");
+  } else {
+    const allowedPaymentTypes = new Set([
+      'advance_payment', 'balance_payment', 'extension_payment', 'late_checkout_fee',
+      'checkout_settlement', 'refund', 'deposit_applied', 'legacy_unclassified'
+    ]);
+    if (allowedPaymentTypes.has(paymentType)) {
+      conditions.push('EXISTS (SELECT 1 FROM payments p WHERE p.reservation_id = r.id AND p.payment_type = ?)');
+      params.push(paymentType);
+    }
   }
 
   const normalizedSearch = String(search || '').trim().slice(0, 120);
@@ -156,10 +177,10 @@ function getAllReservations() {
   return queryAll(`${RESERVATION_LIST_SQL} ORDER BY r.id DESC`);
 }
 
-function getReservationsPage({ page = 1, pageSize = 50, search = '', status = 'all', paymentType = 'all', exportAll = false } = {}) {
+function getReservationsPage({ page = 1, pageSize = 50, search = '', status = 'all', paymentType = 'all', exportAll = false, sortBy = 'id_desc' } = {}) {
   const normalizedPageSize = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 50));
   const normalizedPage = Math.max(1, parseInt(page, 10) || 1);
-  const filter = buildReservationListFilter({ search, status, paymentType });
+  const filter = buildReservationListFilter({ search, status, paymentType, sortBy });
   const count = queryOne(
     `SELECT COUNT(*) AS total FROM reservations r JOIN guests g ON r.guest_id = g.id JOIN rooms rm ON r.room_id = rm.id ${filter.sql}`,
     filter.params
@@ -171,17 +192,64 @@ function getReservationsPage({ page = 1, pageSize = 50, search = '', status = 'a
   const paginationParams = exportAll
     ? []
     : [normalizedPageSize, (effectivePage - 1) * normalizedPageSize];
+
+  let orderSql = 'ORDER BY r.id DESC';
+  if (sortBy === 'checkout_asc') {
+    orderSql = 'ORDER BY r.check_out_date ASC, r.id DESC';
+  } else if (sortBy === 'checkin_desc') {
+    orderSql = 'ORDER BY r.check_in_date DESC, r.id DESC';
+  } else if (sortBy === 'total_desc') {
+    orderSql = 'ORDER BY r.total_price DESC, r.id DESC';
+  } else if (sortBy === 'room_asc') {
+    orderSql = 'ORDER BY CAST(rm.room_number AS INTEGER) ASC, rm.room_number ASC, r.id DESC';
+  }
+
   const rows = queryAll(
-    `${RESERVATION_LIST_SQL} ${filter.sql} ORDER BY r.id DESC ${paginationSql}`,
+    `${RESERVATION_LIST_SQL} ${filter.sql} ${orderSql} ${paginationSql}`,
     [...filter.params, ...paginationParams]
   );
+
+  const todayStr = connection.getCurrentBusinessDate();
+  const summaryRow = queryOne(`
+    SELECT
+      COUNT(*) AS total,
+      SUM(CASE WHEN r.status = 'مؤكد' THEN 1 ELSE 0 END) AS activeCount,
+      SUM(CASE WHEN r.status = 'مؤكد' AND (r.check_out_date = ? OR r.check_in_date = ?) THEN 1 ELSE 0 END) AS todayCount,
+      SUM(CASE WHEN r.status = 'مؤكد' AND r.booking_type != 'عقد مفتوح' AND r.check_out_date < ? THEN 1 ELSE 0 END) AS lateCount,
+      SUM(CASE WHEN r.status = 'مكتمل' THEN 1 ELSE 0 END) AS completedCount,
+      SUM(CASE WHEN r.status IN ('ملغي', 'ملغي جزئي') THEN 1 ELSE 0 END) AS cancelledCount,
+      SUM(CASE WHEN r.status = 'مؤكد' AND r.total_price > COALESCE(r.paid_amount, 0) THEN (r.total_price - COALESCE(r.paid_amount, 0)) ELSE 0 END) AS dueAmount
+    FROM reservations r
+  `, [todayStr, todayStr, todayStr]);
+
+  const roomStats = queryOne(`
+    SELECT
+      COUNT(*) AS totalRooms,
+      SUM(CASE WHEN status = 'مشغولة' THEN 1 ELSE 0 END) AS occupiedRooms
+    FROM rooms
+  `);
+
+  const totalRooms = Number(roomStats?.totalRooms || 0);
+  const occupiedRooms = Number(roomStats?.occupiedRooms || 0);
 
   return {
     rows,
     total,
     page: effectivePage,
     pageSize: normalizedPageSize,
-    totalPages
+    totalPages,
+    summary: {
+      total: Number(summaryRow?.total || 0),
+      activeCount: Number(summaryRow?.activeCount || 0),
+      todayCount: Number(summaryRow?.todayCount || 0),
+      lateCount: Number(summaryRow?.lateCount || 0),
+      completedCount: Number(summaryRow?.completedCount || 0),
+      cancelledCount: Number(summaryRow?.cancelledCount || 0),
+      dueAmount: connection.roundMoney(Number(summaryRow?.dueAmount || 0)),
+      totalRooms,
+      occupiedRooms,
+      occupancyRate: totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0
+    }
   };
 }
 

@@ -1,0 +1,105 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { withSafeDatabase } = require('./helpers/safe-temp-db');
+
+test('reservations modernization: summary statistics, filters, and sorting', async () => {
+  await withSafeDatabase(async (db, connection) => {
+    const todayStr = connection.getCurrentBusinessDate();
+    const [y, m, d] = todayStr.split('-').map(Number);
+
+    const prevDate2 = new Date(Date.UTC(y, m - 1, d - 2)).toISOString().slice(0, 10);
+    const prevDate1 = new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
+    const nextDate1 = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+
+    // Get rooms
+    const rooms = db.getAllRooms();
+    assert.ok(rooms.length >= 4, 'Should have at least 4 rooms seeded');
+
+    // 1. Create an active reservation on time (check_in: today, check_out: tomorrow)
+    const res1 = db.createReservation({
+      guestName: 'نزيل أول نقداً',
+      guestPhone: '0501112233',
+      guestIdNumber: '1099887766',
+      roomId: rooms[0].id,
+      bookingType: 'عادي',
+      checkInDate: todayStr,
+      checkOutDate: nextDate1,
+      totalPrice: 200,
+      paidAmount: 200,
+      paymentMethod: 'نقداً'
+    });
+
+    // 2. Create an overdue/late active reservation (check_in: 2 days ago, check_out: yesterday, unpaid)
+    const res2 = db.createReservation({
+      guestName: 'نزيل متأخر تحويل',
+      guestPhone: '0502223344',
+      guestIdNumber: '1088776655',
+      roomId: rooms[1].id,
+      bookingType: 'عادي',
+      checkInDate: prevDate2,
+      checkOutDate: prevDate1,
+      totalPrice: 300,
+      paidAmount: 100,
+      paymentMethod: 'تحويل بنكي'
+    });
+
+    // 3. Create a reservation departing today
+    const res3 = db.createReservation({
+      guestName: 'نزيل مغادر اليوم بطاقة',
+      guestPhone: '0503334455',
+      guestIdNumber: '1077665544',
+      roomId: rooms[2].id,
+      bookingType: 'عادي',
+      checkInDate: prevDate1,
+      checkOutDate: todayStr,
+      totalPrice: 250,
+      paidAmount: 0,
+      paymentMethod: 'بطاقة / مدى'
+    });
+
+    // Test summary data
+    const pageAll = db.getReservationsPage({ page: 1, pageSize: 50 });
+    assert.ok(pageAll.summary, 'Summary object must exist in getReservationsPage result');
+    assert.equal(pageAll.summary.total, 3);
+    assert.equal(pageAll.summary.activeCount, 3);
+    assert.equal(pageAll.summary.lateCount, 1, 'res2 should be counted as late');
+    assert.equal(pageAll.summary.todayCount, 2, 'res1 (arriving today) and res3 (departing today) should be counted');
+    assert.equal(pageAll.summary.dueAmount, 450, 'res2 due: 200 + res3 due: 250 = 450');
+
+    // Test status filters
+    const pageLate = db.getReservationsPage({ status: 'late' });
+    assert.equal(pageLate.total, 1);
+    assert.equal(pageLate.rows[0].id, res2.reservationId);
+
+    const pageToday = db.getReservationsPage({ status: 'today' });
+    assert.equal(pageToday.total, 2);
+
+    // Test payment filters
+    const pageUnpaid = db.getReservationsPage({ paymentType: 'unpaid' });
+    assert.equal(pageUnpaid.total, 2, 'res2 and res3 have remaining due');
+
+    const pagePaid = db.getReservationsPage({ paymentType: 'paid' });
+    assert.equal(pagePaid.total, 1);
+    assert.equal(pagePaid.rows[0].id, res1.reservationId);
+
+    const pageCash = db.getReservationsPage({ paymentType: 'cash' });
+    assert.equal(pageCash.total, 1);
+    assert.equal(pageCash.rows[0].payment_method, 'نقداً');
+
+    const pageTransfer = db.getReservationsPage({ paymentType: 'transfer' });
+    assert.equal(pageTransfer.total, 1);
+    assert.equal(pageTransfer.rows[0].payment_method, 'تحويل بنكي');
+
+    const pageCard = db.getReservationsPage({ paymentType: 'card' });
+    assert.equal(pageCard.total, 1);
+    assert.equal(pageCard.rows[0].payment_method, 'بطاقة / مدى');
+
+    // Test sorting
+    const pageSortTotal = db.getReservationsPage({ sortBy: 'total_desc' });
+    assert.equal(pageSortTotal.rows[0].id, res2.reservationId, 'res2 (300) should be first when sorting by total_desc');
+
+    const pageSortCheckout = db.getReservationsPage({ sortBy: 'checkout_asc' });
+    assert.equal(pageSortCheckout.rows[0].id, res2.reservationId, 'res2 (yesterday) should be first when sorting by checkout_asc');
+    assert.equal(pageSortCheckout.rows[1].id, res3.reservationId, 'res3 (today) should be second');
+  });
+});

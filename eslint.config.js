@@ -87,11 +87,11 @@ module.exports = [
   },
   {
     files: ['**/*.js'],
-    ignores: ['dashboard.js', 'dashboard-*.js', 'login.js', 'renderer.js', 'hotkeys.js'],
+    ignores: ['dashboard.js', 'dashboard-*.js', 'login.js', 'renderer.js', 'hotkeys.js', 'command-palette.js'],
     languageOptions: { globals: nodeGlobals }
   },
   {
-    files: ['dashboard.js', 'dashboard-*.js', 'login.js', 'renderer.js', 'hotkeys.js'],
+    files: ['dashboard.js', 'dashboard-*.js', 'login.js', 'renderer.js', 'hotkeys.js', 'command-palette.js'],
     languageOptions: { sourceType: 'script', globals: browserGlobals }
   },
   {

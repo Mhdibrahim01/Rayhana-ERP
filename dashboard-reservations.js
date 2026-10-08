@@ -147,7 +147,7 @@
   const btnCheckoutWithoutSettle = document.getElementById('btn-checkout-without-settle');
   const btnConfirmSettleCheckout = document.getElementById('btn-confirm-settle-checkout');
   const btnSubmit = document.getElementById('btn-confirm-extend-stay');
-  const resFilterTabs = document.querySelectorAll('#res-filter-tabs .filter-tab-btn');
+  const resFilterTabs = document.querySelectorAll('#res-filter-tabs .res-tab-item, #res-filter-tabs .filter-tab-btn');
   const ARABIC_MONTHS = App.Helpers.ARABIC_MONTHS;
   function roundMoney(val) { return App.Helpers.roundMoney(val); }
   function getLocalDateString(d) { return App.Helpers.getLocalDateString(d); }
@@ -214,6 +214,7 @@
   function sendReservationWhatsApp(id) { return window.sendReservationWhatsApp(id); }
 
   let currentReservationFilter = 'all';
+  let currentSortBy = 'id_desc';
   let reservationsTableRows = [];
   let reservationsTableTotal = 0;
   let reservationsTablePage = 1;
@@ -1419,7 +1420,8 @@
         pageSize: reservationsTablePageSize,
         search: searchAllReservations.value || '',
         status: currentReservationFilter,
-        paymentType: reservationsPaymentTypeFilter?.value || 'all'
+        paymentType: reservationsPaymentTypeFilter?.value || 'all',
+        sortBy: currentSortBy || 'id_desc'
       });
       if (!res || !res.success) {
         console.error('Error loading reservations:', res?.error || 'Unknown error');
@@ -1442,6 +1444,42 @@
       reservationsTableRows.forEach(item => cacheById.set(Number(item.id), item));
       window.DashboardApp.State.reservationsCache = [...cacheById.values()];
 
+      // Update Summary Cards & Tabs from data.summary
+      if (data.summary) {
+        const sum = data.summary;
+        const elActive = document.getElementById('res-summary-active');
+        const elLate = document.getElementById('res-summary-late');
+        const elDue = document.getElementById('res-summary-due');
+        const elOcc = document.getElementById('res-summary-occupancy');
+        const elRoomsSub = document.getElementById('res-summary-rooms-sub');
+
+        if (elActive) elActive.textContent = Number(sum.activeCount || 0).toLocaleString('en-US');
+        if (elLate) elLate.textContent = Number(sum.lateCount || 0).toLocaleString('en-US');
+        if (elDue) elDue.textContent = Number(sum.dueAmount || 0).toLocaleString('en-US');
+        if (elOcc) elOcc.textContent = `${Number(sum.occupancyRate || 0)}%`;
+        if (elRoomsSub) elRoomsSub.textContent = `من ${sum.totalRooms} غرفة (${sum.occupiedRooms} مشغولة)`;
+
+        const pillAll = document.getElementById('tab-pill-all');
+        const pillActive = document.getElementById('tab-pill-active');
+        const pillToday = document.getElementById('tab-pill-today');
+        const pillLate = document.getElementById('tab-pill-late');
+        const pillCompleted = document.getElementById('tab-pill-completed');
+        const pillCancelled = document.getElementById('tab-pill-cancelled');
+
+        if (pillAll) pillAll.textContent = Number(sum.total || 0).toLocaleString('en-US');
+        if (pillActive) pillActive.textContent = Number(sum.activeCount || 0).toLocaleString('en-US');
+        if (pillToday) pillToday.textContent = Number(sum.todayCount || 0).toLocaleString('en-US');
+        if (pillLate) pillLate.textContent = Number(sum.lateCount || 0).toLocaleString('en-US');
+        if (pillCompleted) pillCompleted.textContent = Number(sum.completedCount || 0).toLocaleString('en-US');
+        if (pillCancelled) pillCancelled.textContent = Number(sum.cancelledCount || 0).toLocaleString('en-US');
+      }
+
+      const resTotalPill = document.getElementById('res-total-count-pill');
+      if (resTotalPill) {
+        resTotalPill.textContent = `${reservationsTableTotal.toLocaleString('en-US')} حجزاً`;
+      }
+
+      updateActiveFilterChips();
       renderAllReservationsTable();
     } catch (err) {
       console.error('Error loading reservations:', err);
@@ -1449,6 +1487,7 @@
   }
 
   function renderAllReservationsTable() {
+    closeReservationsOverflowMenu();
     const filtered = reservationsTableRows;
     const totalPages = Math.max(1, Math.ceil(reservationsTableTotal / reservationsTablePageSize));
     const firstRow = reservationsTableTotal ? ((reservationsTablePage - 1) * reservationsTablePageSize) + 1 : 0;
@@ -1489,7 +1528,6 @@
       const paid = parseFloat((r.ledger_paid_amount ?? r.paid_amount) || 0);
       const deposit = parseFloat(r.deposit_ledger_balance || 0);
       const legacyDeposit = Number(r.deposit_legacy_unreconciled || 0) === 1 ? parseFloat(r.deposit_amount || 0) : 0;
-      const typeBadge = getBookingTypeBadge(r.booking_type);
       const checkOutDisplay = r.check_out_date || (isContract ? 'مفتوح (غير محدد)' : '-');
       const overdueDate = String(r.check_out_date || '').slice(0, 10);
       const businessToday = window.DashboardApp.State.businessDate || getLocalDateString();
@@ -1513,119 +1551,99 @@
       const effectiveRawRemaining = effectiveTotal - paid;
       const isCredit = effectiveRawRemaining < -0.005;
       const remaining = Math.max(0, effectiveRawRemaining);
-      const canCollectBalance = isConfirmed || r.status === 'ملغي جزئي' || (r.status === 'مكتمل' && remaining > 0.005);
-      const fmtTotal = total.toLocaleString();
-      const fmtEffTotal = effectiveTotal.toLocaleString();
-      const fmtPaid = paid.toLocaleString();
-      const fmtRem = remaining.toLocaleString();
-      const fmtDep = deposit.toLocaleString();
+      const fmtTotal = total.toLocaleString('en-US');
+      const fmtEffTotal = effectiveTotal.toLocaleString('en-US');
+      const fmtPaid = paid.toLocaleString('en-US');
+      const fmtRem = remaining.toLocaleString('en-US');
+
       let paymentStatusForDisplay;
       if (isContract || isOverdue) {
         paymentStatusForDisplay = isCredit ? 'رصيد دائن' : (remaining <= 0.005 ? 'مدفوع بالكامل' : (paid > 0 ? 'مدفوع جزئياً' : 'غير مدفوع'));
       } else {
         paymentStatusForDisplay = isCredit ? 'مدفوع بالكامل' : (r.payment_status || 'غير مدفوع');
       }
+
       const overdueLabel = overdueDays === 0 ? 'متأخر اليوم'
         : overdueDays === 1 ? 'متأخر يوم'
           : overdueDays === 2 ? 'متأخر يومين'
             : overdueDays <= 10 ? `متأخر ${overdueDays} أيام` : `متأخر ${overdueDays} يوماً`;
-      const overdueBadge = renderOverdueBadge(r, overdueLabel);
+
       const expectedCheckoutTime = App.Helpers.getExpectedCheckoutTime
         ? App.Helpers.getExpectedCheckoutTime(r)
         : (isConfirmed && !isContract && r.check_out_date && r.check_out_date !== 'مفتوح' ? '14:00' : '');
-      const departureTime = r.checkout_time
-        ? `<small class="reservation-date-time"><span>وقت المغادرة الفعلي</span><bdi>${escapeHtml(r.checkout_time)}</bdi></small>`
-        : (expectedCheckoutTime ? `<small class="reservation-date-time"><span>وقت المغادرة المتوقع</span><bdi>${expectedCheckoutTime}</bdi></small>` : '');
+      const departureTimeText = r.checkout_time || expectedCheckoutTime || '';
+
+      const isRowLate = isLateCheckout || isOverdue;
 
       return `
-        <tr class="${isLateCheckout ? 'late-checkout-row' : ''}">
+        <tr class="${isRowLate ? 'late-checkout-row' : ''}">
           <td style="font-family: monospace; font-weight: 700; color: var(--primary); white-space: nowrap;">#${r.id}</td>
-          <td class="reservation-guest-details">
-            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; line-height: 1.2;">
-              <span style="font-weight: 800; color: #1e293b; font-size: 0.9rem;">${escapeHtml(r.guest_name)}</span>
-              ${typeBadge}
+          <td class="res-cell-guest">
+            <div class="res-guest-name">${escapeHtml(r.guest_name)}</div>
+            <div class="res-guest-meta">
+              ${r.guest_id_number ? `<span>هوية: ${escapeHtml(r.guest_id_number)}</span>` : ''}
+              ${r.guest_id_number && r.guest_phone ? `<span class="res-meta-dot">•</span>` : ''}
+              ${r.guest_phone ? `<span dir="ltr"><bdi>${escapeHtml(r.guest_phone)}</bdi></span>` : ''}
             </div>
-            ${r.guest_id_number ? `<div style="font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; line-height: 1.2; margin-top: 2px;">هوية: ${escapeHtml(r.guest_id_number)}</div>` : ''}
-            ${r.guest_phone ? `<div class="reservation-guest-phone"><span dir="rtl">جوال:</span> <bdi dir="ltr">${escapeHtml(r.guest_phone)}</bdi></div>` : ''}
           </td>
           <td data-label="رقم الغرفة" style="white-space: nowrap; text-align: center;">
             <button type="button" class="checkout-room-chip clickable-room-chip" data-action="preview-reservation" data-id="${r.id}" title="عرض تفاصيل الغرفة ${escapeHtml(r.room_number)}">
               ${escapeHtml(r.room_number)}
             </button>
           </td>
-          <td class="reservation-date-range">
-            <div class="reservation-date-item">
-              <span class="reservation-date-kind">الوصول</span>
-              <div class="reservation-date-values">
-                <bdi dir="ltr">${escapeHtml(r.check_in_date || '-')}</bdi>
-                ${r.booking_time ? `<small class="reservation-date-time"><span>وقت التسجيل</span><bdi>${escapeHtml(r.booking_time)}</bdi></small>` : ''}
+          <td class="res-cell-dates">
+            <div class="res-date-line">
+              <span class="res-date-label">وصول:</span>
+              <span class="res-date-val"><bdi dir="ltr">${escapeHtml(r.check_in_date || '-')}</bdi></span>
+              ${r.booking_time ? `<span class="res-time-val">${escapeHtml(r.booking_time)}</span>` : ''}
+            </div>
+            <div class="res-date-line">
+              <span class="res-date-label">مغادرة:</span>
+              <span class="res-date-val"><bdi dir="ltr">${escapeHtml(checkOutDisplay)}</bdi></span>
+              ${departureTimeText ? `<span class="res-time-val">${escapeHtml(departureTimeText)}</span>` : ''}
+            </div>
+            ${isOverdue ? `
+              <div class="res-late-departure-tag">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <span>${escapeHtml(overdueLabel)}</span>
               </div>
-            </div>
-            <div class="reservation-date-item">
-              <span class="reservation-date-kind">المغادرة</span>
-              <div class="reservation-date-values">
-                <bdi dir="ltr">${escapeHtml(checkOutDisplay)}</bdi>
-                ${departureTime}
-              </div>
-            </div>
+            ` : ''}
           </td>
-          <td style="white-space: nowrap; line-height: 1.2;">
-            ${(isOverdue || isContract) && effectiveTotal > total ? `
-              <div style="font-weight: 800; color: #1e293b; font-size: 0.88rem; line-height: 1.2;">${fmtEffTotal} ر.س <small style="color: #b91c1c; font-size: 0.70rem; font-weight: 700;">(مستحق حتى اليوم)</small></div>
-              <div style="font-size: 0.70rem; color: #64748b; font-weight: 600; line-height: 1.2; margin-top: 1px;">${isContract ? `عقد مفتوح (${elapsedStayNights} ليالٍ)` : `أصل الحجز: ${fmtTotal} ر.س (${overdueDays} ليالٍ متأخرة)`}</div>
-            ` : `
-              <div style="font-weight: 800; color: #1e293b; font-size: 0.88rem; line-height: 1.2;">${fmtTotal} ر.س</div>
-            `}
-            ${r.original_calculated_charge != null ? `<div style="font-size: 0.70rem; color: #64748b; font-weight: 600; line-height: 1.2; margin-top: 2px;" title="المبلغ الأصلي قبل تعديل الإدارة">معدل يدوياً (أصلي: ${parseFloat(r.original_calculated_charge).toLocaleString()} ر.س)</div>` : ''}
-            ${parseFloat(r.discount_amount || 0) > 0 ? `<div style="font-size: 0.70rem; color: #b91c1c; font-weight: 700; line-height: 1.2; margin-top: 2px;">خصم: ${parseFloat(r.discount_amount).toLocaleString()} ر.س ${r.discount_reason ? `(${escapeHtml(r.discount_reason)})` : ''}</div>` : ''}
-            <div style="font-size: 0.74rem; color: #05963d; font-weight: 600; line-height: 1.2; margin-top: 2px;">مدفوع: ${fmtPaid} ر.س</div>
-            ${isCredit ? `<div style="font-size: 0.72rem; color: #2563eb; font-weight: 800; line-height: 1.2; margin-top: 2px;">رصيد دائن: ${Math.abs(effectiveRawRemaining).toLocaleString()} ر.س</div>` : (remaining > 0 ? `<div style="font-size: 0.72rem; color: #dc2626; font-weight: 700; line-height: 1.2; margin-top: 2px;">متبقي: ${fmtRem} ر.س ${(isOverdue || isContract) ? '<small>(حتى اليوم)</small>' : ''}</div>` : '')}
-            ${deposit > 0 ? `<div style="font-size: 0.70rem; color: #4338ca; line-height: 1.2; margin-top: 2px;">تأمين مسجل: ${fmtDep} ر.س</div>` : ''}
-            ${legacyDeposit > 0 ? `<div style="font-size: 0.70rem; color: #9a3412; line-height: 1.2; margin-top: 2px;">تأمين قديم للمراجعة: ${legacyDeposit.toLocaleString()} ر.س</div>` : ''}
-          </td>
-          <td>
-            <div class="reservation-payment-details">
-              <span class="badge badge-unified" style="background: rgba(0,0,0,0.04); color: #334155; border: 1px solid #cbd5e1; font-weight: 600;">${escapeHtml(r.payment_method || 'نقداً')}</span>
-              <div>${getPaymentStatusBadge(paymentStatusForDisplay)}</div>
+          <td class="res-cell-money" style="white-space: nowrap;">
+            <div class="res-money-total">
+              ${(isOverdue || isContract) && effectiveTotal > total ? `
+                ${fmtEffTotal} ر.س <small class="res-accrued-tag">(مستحق)</small>
+              ` : `
+                ${fmtTotal} ر.س
+              `}
+            </div>
+            <div class="res-money-sub muted">
+              <span>مدفوع: ${fmtPaid} ر.س</span>
+              ${isCredit ? ` • <span class="res-money-sub credit">دائن: ${Math.abs(effectiveRawRemaining).toLocaleString('en-US')} ر.س</span>` : (remaining > 0 ? ` • <span class="res-money-sub remaining">متبقي: ${fmtRem} ر.س</span>` : '')}
             </div>
           </td>
-          <td class="reservation-status-cell">
-            ${getReservationStatusBadge(r.status)}
-            ${overdueBadge ? `<span class="reservation-late-status">${overdueBadge}</span>` : ''}
+          <td class="res-cell-payment">
+            <div class="res-payment-badge-wrap">${getPaymentStatusBadge(paymentStatusForDisplay)}</div>
+            <div class="res-payment-method-sub">${escapeHtml(r.payment_method || 'نقداً')}</div>
+          </td>
+          <td class="res-cell-status">
+            <div class="res-status-badge-wrap">${getReservationStatusBadge(r.status)}</div>
+            <div class="res-booking-type-sub">${escapeHtml(r.booking_type || 'يومي')}</div>
           </td>
           <td style="text-align: center;">
-            <div class="btn-row-group overview-row-actions reservation-actions-list ${isLateCheckout ? 'overview-row-actions-late-checkout reservation-actions-list-late' : ''}" role="group" aria-label="إجراءات الحجز">
-              <button type="button" class="btn-row icon-ghost checkout-row-action checkout-row-action-preview" data-action="preview-reservation" data-id="${r.id}" title="معاينة تفاصيل الحجز" aria-label="معاينة تفاصيل الحجز">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-              </button>
-              ${isConfirmed && r.check_out_date && r.check_out_date !== 'مفتوح' ? `
-                <button type="button" class="btn-row secondary checkout-row-action checkout-row-action-extend" data-action="extend" data-id="${r.id}" title="تمديد فترة الإقامة" aria-label="تمديد فترة الإقامة">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
-                </button>
-              ` : ''}
+            <div class="res-actions-pair">
               ${isConfirmed && canCheckOut ? `
-                <button type="button" class="btn-row primary checkout-danger checkout-row-action checkout-row-action-primary" data-action="checkout" data-id="${r.id}" title="تسجيل مغادرة وتسليم الغرفة" aria-label="تسجيل مغادرة وتسليم الغرفة">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                <button type="button" class="btn-res-action-primary action-checkout" data-action="checkout" data-id="${r.id}" title="تسجيل مغادرة وتسليم الغرفة" aria-label="تسجيل مغادرة وتسليم الغرفة">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                 </button>
-              ` : ''}
-              <button type="button" class="btn-row icon-ghost checkout-row-action" data-action="invoice" data-id="${r.id}" title="طباعة سند الاستلام والإقامة (فاتورة)" aria-label="طباعة سند الاستلام والإقامة">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h7"></path></svg>
+              ` : `
+                <button type="button" class="btn-res-action-primary action-preview" data-action="preview-reservation" data-id="${r.id}" title="معاينة تفاصيل الحجز" aria-label="معاينة تفاصيل الحجز">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                </button>
+              `}
+              <button type="button" class="btn-res-action-overflow" data-action="overflow" data-id="${r.id}" title="خيارات إضافية" aria-label="خيارات إضافية">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>
               </button>
-              ${canCollectBalance && (remaining > 0 || (isConfirmed && isContract)) ? `
-                <button type="button" class="btn-row checkout-row-action" data-action="add-payment" data-id="${r.id}" onclick="event.stopPropagation(); window.openAddPaymentModal && window.openAddPaymentModal(${r.id});" title="تسجيل دفعة سداد جديدة" aria-label="تسجيل دفعة سداد جديدة">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
-                </button>
-              ` : ''}
-              ${isConfirmed ? `
-                <button type="button" class="btn-row checkout-row-action" data-action="whatsapp" data-id="${r.id}" title="مراسلة النزيل عبر واتساب" aria-label="مراسلة النزيل عبر واتساب">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-                </button>
-              ` : ''}
-              ${isConfirmed && canCancel ? `
-                <button type="button" class="btn-row checkout-danger checkout-row-action" data-action="cancel" data-id="${r.id}" title="${r.check_in_date === (hotelBizDate || getLocalDateString()) ? 'إبطال / إلغاء الحجز المباشر' : 'إلغاء الحجز'}" aria-label="إلغاء الحجز">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m5.6 5.6 12.8 12.8"></path></svg>
-                </button>
-              ` : ''}
             </div>
           </td>
         </tr>
@@ -1636,12 +1654,218 @@
     allReservationsTableBody.innerHTML = rowsHtml;
   }
 
+  // Overflow Actions Dropdown
+  function openReservationsOverflowMenu(triggerBtn, reservationId) {
+    const dropdown = document.getElementById('res-overflow-dropdown');
+    if (!dropdown) return;
+
+    if (dropdown.dataset.activeId === String(reservationId) && dropdown.style.display === 'flex') {
+      closeReservationsOverflowMenu();
+      return;
+    }
+
+    const r = findLoadedReservation(reservationId);
+    if (!r) return;
+
+    const isConfirmed = r.status === 'مؤكد';
+    const hotelBizDate = getOperationalBusinessDate() || getLocalDateString();
+    const isArrivalDate = r.check_in_date ? (r.check_in_date >= hotelBizDate) : false;
+    const hasStarted = r.check_in_date ? !isArrivalDate : false;
+    const canCheckOut = isConfirmed && (hotelBizDate >= r.check_in_date);
+    const canCancel = isConfirmed && !hasStarted;
+    const isContract = r.booking_type === 'عقد مفتوح';
+    const total = parseFloat(r.total_price || 0);
+    const paid = parseFloat((r.ledger_paid_amount ?? r.paid_amount) || 0);
+    const remaining = Math.max(0, total - paid);
+    const canCollectBalance = isConfirmed || r.status === 'ملغي جزئي' || (r.status === 'مكتمل' && remaining > 0.005);
+
+    const items = [];
+
+    // Preview
+    items.push(`
+      <button type="button" class="res-overflow-item" data-action="preview-reservation" data-id="${r.id}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        <span>معاينة تفاصيل الحجز</span>
+      </button>
+    `);
+
+    // Edit guest
+    items.push(`
+      <button type="button" class="res-overflow-item" data-action="edit-guest" data-id="${r.id}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+        <span>تعديل بيانات النزيل</span>
+      </button>
+    `);
+
+    // Extend stay
+    if (isConfirmed && r.check_out_date && r.check_out_date !== 'مفتوح') {
+      items.push(`
+        <button type="button" class="res-overflow-item" data-action="extend" data-id="${r.id}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+          <span>تمديد فترة الإقامة</span>
+        </button>
+      `);
+    }
+
+    // Add payment
+    if (canCollectBalance && (remaining > 0 || (isConfirmed && isContract))) {
+      items.push(`
+        <button type="button" class="res-overflow-item" data-action="add-payment" data-id="${r.id}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+          <span>تسجيل دفعة سداد جديدة</span>
+        </button>
+      `);
+    }
+
+    // Checkout
+    if (isConfirmed && canCheckOut) {
+      items.push(`
+        <button type="button" class="res-overflow-item" data-action="checkout" data-id="${r.id}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+          <span>تسجيل خروج وتسليم الغرفة</span>
+        </button>
+      `);
+    }
+
+    // Invoice
+    items.push(`
+      <button type="button" class="res-overflow-item" data-action="invoice" data-id="${r.id}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h7"></path></svg>
+        <span>طباعة الفاتورة / سند الإقامة</span>
+      </button>
+    `);
+
+    // WhatsApp
+    if (isConfirmed) {
+      items.push(`
+        <button type="button" class="res-overflow-item" data-action="whatsapp" data-id="${r.id}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+          <span>مراسلة النزيل عبر واتساب</span>
+        </button>
+      `);
+    }
+
+    // Cancel / Void
+    if (isConfirmed && canCancel) {
+      const isSameDay = r.check_in_date === hotelBizDate;
+      items.push(`
+        <button type="button" class="res-overflow-item item-danger" data-action="cancel" data-id="${r.id}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle><path d="m5.6 5.6 12.8 12.8"></path></svg>
+          <span>${isSameDay ? 'إبطال / إلغاء الحجز المباشر' : 'إلغاء الحجز'}</span>
+        </button>
+      `);
+    }
+
+    dropdown.innerHTML = items.join('');
+    dropdown.dataset.activeId = String(reservationId);
+    dropdown.style.display = 'flex';
+
+    // Position dropdown near the button
+    const btnRect = triggerBtn.getBoundingClientRect();
+    const dWidth = dropdown.offsetWidth || 210;
+    const dHeight = dropdown.offsetHeight || 220;
+
+    let left = btnRect.right - dWidth;
+    if (left < 10) left = btnRect.left;
+    if (left + dWidth > window.innerWidth - 10) left = window.innerWidth - dWidth - 10;
+    if (left < 10) left = 10;
+
+    let top = btnRect.bottom + 4;
+    if (top + dHeight > window.innerHeight - 10) {
+      top = Math.max(10, btnRect.top - dHeight - 4);
+    }
+
+    dropdown.style.left = `${left}px`;
+    dropdown.style.top = `${top}px`;
+  }
+
+  function closeReservationsOverflowMenu() {
+    const dropdown = document.getElementById('res-overflow-dropdown');
+    if (dropdown) {
+      dropdown.style.display = 'none';
+      dropdown.dataset.activeId = '';
+    }
+  }
+
+  function setReservationFilterTab(filterValue) {
+    currentReservationFilter = filterValue;
+    const tabs = document.querySelectorAll('#res-filter-tabs .res-tab-item, #res-filter-tabs .filter-tab-btn');
+    tabs.forEach(btn => {
+      if (btn.dataset.filter === filterValue) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+  }
+
+  function updateActiveFilterChips() {
+    const container = document.getElementById('res-active-chips-bar');
+    const list = document.getElementById('res-active-chips-list');
+    const badge = document.getElementById('res-filter-badge');
+    if (!container || !list) return;
+
+    const chips = [];
+    let filterCount = 0;
+
+    if (currentReservationFilter && currentReservationFilter !== 'all') {
+      const statusLabels = {
+        'مؤكد': 'الحالة: نشطة',
+        'today': 'الحالة: اليوم',
+        'late': 'الحالة: متأخرة',
+        'مكتمل': 'الحالة: مكتملة',
+        'ملغي': 'الحالة: ملغاة'
+      };
+      chips.push(`<span class="res-active-chip"><span>${statusLabels[currentReservationFilter] || currentReservationFilter}</span><button type="button" class="res-chip-close" data-chip-clear="status" title="إزالة الفلتر" aria-label="إزالة فلتر الحالة">&times;</button></span>`);
+    }
+
+    const payVal = reservationsPaymentTypeFilter?.value || 'all';
+    if (payVal !== 'all') {
+      filterCount++;
+      const payLabels = {
+        'unpaid': 'الدفع: غير مسدد (متبقي)',
+        'paid': 'الدفع: مسدد بالكامل',
+        'cash': 'طريقة الدفع: نقداً',
+        'transfer': 'طريقة الدفع: تحويل بنكي',
+        'card': 'طريقة الدفع: مدى / شبكة'
+      };
+      chips.push(`<span class="res-active-chip"><span>${payLabels[payVal] || payVal}</span><button type="button" class="res-chip-close" data-chip-clear="payment" title="إزالة الفلتر" aria-label="إزالة فلتر الدفع">&times;</button></span>`);
+    }
+
+    if (currentSortBy && currentSortBy !== 'id_desc') {
+      filterCount++;
+      const sortLabels = {
+        'checkout_asc': 'الترتيب: موعد المغادرة',
+        'checkin_desc': 'الترتيب: موعد الوصول',
+        'total_desc': 'الترتيب: المبلغ الأعلى',
+        'room_asc': 'الترتيب: رقم الغرفة'
+      };
+      chips.push(`<span class="res-active-chip"><span>${sortLabels[currentSortBy] || currentSortBy}</span><button type="button" class="res-chip-close" data-chip-clear="sort" title="إزالة الفلتر" aria-label="إزالة فلتر الترتيب">&times;</button></span>`);
+    }
+
+    const searchVal = String(searchAllReservations?.value || '').trim();
+    if (searchVal) {
+      chips.push(`<span class="res-active-chip"><span>بحث: "${escapeHtml(searchVal)}"</span><button type="button" class="res-chip-close" data-chip-clear="search" title="إزالة البحث" aria-label="إزالة البحث">&times;</button></span>`);
+    }
+
+    if (badge) {
+      badge.textContent = filterCount;
+      badge.style.display = filterCount > 0 ? 'inline-flex' : 'none';
+    }
+
+    if (chips.length > 0) {
+      list.innerHTML = chips.join('');
+      container.style.display = 'flex';
+    } else {
+      list.innerHTML = '';
+      container.style.display = 'none';
+    }
+  }
+
   // Filter tabs for reservations
   resFilterTabs.forEach(btn => {
     btn.addEventListener('click', () => {
-      resFilterTabs.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      currentReservationFilter = btn.dataset.filter;
+      setReservationFilterTab(btn.dataset.filter || 'all');
       reservationsTablePage = 1;
       loadReservationsData();
     });
@@ -1661,6 +1885,117 @@
       loadReservationsData();
     });
   }
+
+  // Popover & Filter UI
+  const btnResFilters = document.getElementById('btn-res-filters');
+  const resFiltersPopover = document.getElementById('res-filters-popover');
+  const btnCloseResFilters = document.getElementById('btn-close-res-filters');
+  const btnApplyResFilters = document.getElementById('btn-apply-res-filters');
+  const btnResetResFilters = document.getElementById('btn-reset-res-filters');
+  const resSortBySelect = document.getElementById('res-sort-by-select');
+  const resActiveChipsBar = document.getElementById('res-active-chips-bar');
+  const btnClearResFilters = document.getElementById('btn-clear-res-filters');
+
+  if (btnResFilters && resFiltersPopover) {
+    btnResFilters.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isVisible = resFiltersPopover.style.display === 'block';
+      resFiltersPopover.style.display = isVisible ? 'none' : 'block';
+    });
+
+    if (btnCloseResFilters) {
+      btnCloseResFilters.addEventListener('click', () => {
+        resFiltersPopover.style.display = 'none';
+      });
+    }
+
+    if (btnApplyResFilters) {
+      btnApplyResFilters.addEventListener('click', () => {
+        if (resSortBySelect) currentSortBy = resSortBySelect.value || 'id_desc';
+        resFiltersPopover.style.display = 'none';
+        loadReservationsData(true);
+      });
+    }
+
+    if (btnResetResFilters) {
+      btnResetResFilters.addEventListener('click', () => {
+        if (resSortBySelect) resSortBySelect.value = 'id_desc';
+        if (reservationsPaymentTypeFilter) reservationsPaymentTypeFilter.value = 'all';
+        currentSortBy = 'id_desc';
+        resFiltersPopover.style.display = 'none';
+        loadReservationsData(true);
+      });
+    }
+
+    document.addEventListener('click', (e) => {
+      if (resFiltersPopover.style.display === 'block') {
+        if (!resFiltersPopover.contains(e.target) && !btnResFilters.contains(e.target)) {
+          resFiltersPopover.style.display = 'none';
+        }
+      }
+    });
+  }
+
+  // Active Chips Clear & Clear All
+  if (resActiveChipsBar) {
+    resActiveChipsBar.addEventListener('click', (e) => {
+      const clearBtn = e.target.closest('[data-chip-clear]');
+      if (!clearBtn) return;
+      const chipType = clearBtn.dataset.chipClear;
+      if (chipType === 'status') {
+        setReservationFilterTab('all');
+      } else if (chipType === 'payment') {
+        if (reservationsPaymentTypeFilter) reservationsPaymentTypeFilter.value = 'all';
+      } else if (chipType === 'sort') {
+        currentSortBy = 'id_desc';
+        if (resSortBySelect) resSortBySelect.value = 'id_desc';
+      } else if (chipType === 'search') {
+        if (searchAllReservations) searchAllReservations.value = '';
+      }
+      loadReservationsData(true);
+    });
+  }
+
+  if (btnClearResFilters) {
+    btnClearResFilters.addEventListener('click', () => {
+      setReservationFilterTab('all');
+      if (reservationsPaymentTypeFilter) reservationsPaymentTypeFilter.value = 'all';
+      currentSortBy = 'id_desc';
+      if (resSortBySelect) resSortBySelect.value = 'id_desc';
+      if (searchAllReservations) searchAllReservations.value = '';
+      loadReservationsData(true);
+    });
+  }
+
+  // Summary Cards Clicks
+  const resSummaryCards = document.querySelectorAll('.res-summary-card');
+  resSummaryCards.forEach(card => {
+    card.addEventListener('click', () => {
+      const target = card.dataset.summaryTarget;
+      if (!target) return;
+      if (target === 'rooms') {
+        const roomsNavLink = document.querySelector('.nav-link[data-section="rooms"]');
+        if (roomsNavLink) roomsNavLink.click();
+        return;
+      }
+      if (target === 'unpaid') {
+        if (reservationsPaymentTypeFilter) {
+          reservationsPaymentTypeFilter.value = 'unpaid';
+        }
+        loadReservationsData(true);
+        return;
+      }
+      if (target === 'مؤكد' || target === 'late') {
+        setReservationFilterTab(target);
+        loadReservationsData(true);
+        return;
+      }
+    });
+  });
+
+  // Close overflow on resize or scroll
+  window.addEventListener('resize', closeReservationsOverflowMenu);
+  window.addEventListener('scroll', closeReservationsOverflowMenu, true);
 
   if (btnReservationsPrevPage) {
     btnReservationsPrevPage.addEventListener('click', () => {
@@ -3180,11 +3515,30 @@
   // GLOBAL ACTIONS: CHECKOUT, CANCEL, INVOICE, QUICK-BOOK & QUICK-READY
   // =========================================================================
   document.addEventListener('click', async (e) => {
+    // If clicking outside overflow menu, close it
+    const overflowDropdown = document.getElementById('res-overflow-dropdown');
+    if (overflowDropdown && overflowDropdown.style.display !== 'none') {
+      if (!e.target.closest('#res-overflow-dropdown') && !e.target.closest('button[data-action="overflow"]')) {
+        closeReservationsOverflowMenu();
+      }
+    }
+
     const btn = e.target.closest('button[data-action]');
     if (!btn) return;
 
     const action = btn.dataset.action;
     const id = parseInt(btn.dataset.id || btn.getAttribute('data-id'), 10);
+
+    if (action === 'overflow') {
+      e.stopPropagation();
+      openReservationsOverflowMenu(btn, id);
+      return;
+    }
+
+    if (btn.closest('#res-overflow-dropdown')) {
+      closeReservationsOverflowMenu();
+    }
+
     if (btn.closest('#reservation-preview-modal') && ['invoice', 'whatsapp', 'extend', 'checkout'].includes(action)) {
       const previewModal = document.getElementById('reservation-preview-modal');
       if (previewModal) previewModal.style.display = 'none';

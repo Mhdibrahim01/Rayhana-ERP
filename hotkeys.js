@@ -121,7 +121,8 @@
     helpPopover.innerHTML = `
       <div class="front-desk-hotkeys-help-heading"><strong>اختصارات لوحة المفاتيح</strong><button type="button" aria-label="إغلاق" data-hotkeys-help-close>&times;</button></div>
       <div class="front-desk-hotkeys-help-row"><span>حجز / تسكين جديد</span><kbd>F2</kbd></div>
-      <div class="front-desk-hotkeys-help-row"><span>البحث في الصفحة الحالية</span><span><kbd>/</kbd> أو <kbd>Ctrl</kbd> + <kbd>K</kbd></span></div>
+      <div class="front-desk-hotkeys-help-row"><span>شريط الأوامر والبحث الذكي</span><span><kbd>Ctrl</kbd> + <kbd>K</kbd></span></div>
+      <div class="front-desk-hotkeys-help-row"><span>البحث في الصفحة الحالية</span><kbd>/</kbd></div>
       <div class="front-desk-hotkeys-help-row"><span>إغلاق النافذة الحالية</span><kbd>Esc</kbd></div>`;
     document.body.appendChild(helpPopover);
     helpPopover.addEventListener('click', event => {
@@ -203,10 +204,16 @@
       return;
     }
 
-    const isSearchShortcut = (event.code === 'Slash' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey)
-      || ((event.ctrlKey || event.metaKey) && event.code === 'KeyK');
-    if (isSearchShortcut) {
-      if (event.code === 'Slash' && isEditingSurface(event.target)) return;
+    if ((event.ctrlKey || event.metaKey) && event.code === 'KeyK') {
+      stopShortcut(event);
+      if (typeof window.openCommandPalette === 'function') {
+        window.openCommandPalette();
+      }
+      return;
+    }
+
+    if (event.code === 'Slash' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
+      if (isEditingSurface(event.target)) return;
       const search = getCurrentSearch();
       if (!search) return;
       stopShortcut(event);

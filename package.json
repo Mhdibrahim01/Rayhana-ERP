@@ -85,6 +85,7 @@
       "dashboard-rooms.js",
       "dashboard-reservations.js",
       "dashboard.js",
+      "command-palette.js",
       "hotkeys.js",
       "design-tokens.css",
       "styles.css",

@@ -5,7 +5,7 @@ const path = require('path');
 const espree = require('espree');
 
 const ROOT = path.resolve(__dirname, '..');
-const EXCLUDED_DIRS = new Set(['.git', '.test-output', 'dist', 'node_modules', 'scratch']);
+const EXCLUDED_DIRS = new Set(['.git', '.test-output', '.worktrees', 'dist', 'node_modules', 'scratch']);
 
 function walkFiles(root = ROOT, extension = null) {
   const files = [];
