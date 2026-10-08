@@ -1530,7 +1530,9 @@
           : overdueDays === 2 ? 'متأخر يومين'
             : overdueDays <= 10 ? `متأخر ${overdueDays} أيام` : `متأخر ${overdueDays} يوماً`;
       const overdueBadge = renderOverdueBadge(r, overdueLabel);
-      const expectedCheckoutTime = isConfirmed && !isContract && r.check_out_date && r.check_out_date !== 'مفتوح' ? '14:00' : '';
+      const expectedCheckoutTime = App.Helpers.getExpectedCheckoutTime
+        ? App.Helpers.getExpectedCheckoutTime(r)
+        : (isConfirmed && !isContract && r.check_out_date && r.check_out_date !== 'مفتوح' ? '14:00' : '');
       const departureTime = r.checkout_time
         ? `<small class="reservation-date-time"><span>وقت المغادرة الفعلي</span><bdi>${escapeHtml(r.checkout_time)}</bdi></small>`
         : (expectedCheckoutTime ? `<small class="reservation-date-time"><span>وقت المغادرة المتوقع</span><bdi>${expectedCheckoutTime}</bdi></small>` : '');
