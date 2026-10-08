@@ -244,4 +244,29 @@ test('Financial Ledger Integrity & Life Cycle Fixes (F-03, F-04, F-05, F-08, F-0
     assert.ok(content.includes('deposit-legacy-badge'), 'dashboard-rooms.js must contain deposit-legacy-badge');
     assert.ok(content.includes('(قديم ⚠️)'), 'dashboard-rooms.js must render (قديم ⚠️)');
   });
+
+  await t.test('night_audits table migration adds missing closed_by and shift audit columns', async () => {
+    await withSafeDatabase(async (db, conn) => {
+      const columns = conn.queryAll('PRAGMA table_info("night_audits")');
+      const columnNames = columns.map(c => c.name);
+      assert.ok(columnNames.includes('closed_by'), 'night_audits must contain closed_by column');
+      assert.ok(columnNames.includes('shift_reconciliation_required'), 'night_audits must contain shift_reconciliation_required');
+      assert.ok(columnNames.includes('shift_reconciled_at'), 'night_audits must contain shift_reconciled_at');
+      assert.ok(columnNames.includes('shift_reconciled_by'), 'night_audits must contain shift_reconciled_by');
+      assert.ok(columnNames.includes('summary_json'), 'night_audits must contain summary_json');
+
+      const insertStmt = conn.db.prepare(`
+        INSERT INTO night_audits (
+          closed_business_date, business_date, next_business_date, user_id, closed_by, created_at,
+          shift_reconciliation_required, shift_reconciled_at, shift_reconciled_by,
+          payment_count, payment_net, deposit_movement_count, deposit_net, summary_json
+        ) VALUES ('2026-10-01', '2026-10-01', '2026-10-02', 1, 'Admin User', CURRENT_TIMESTAMP, 0, NULL, NULL, 0, 0, 0, 0, '{}')
+      `);
+      insertStmt.run();
+      insertStmt.free();
+
+      const inserted = conn.queryOne("SELECT closed_by FROM night_audits WHERE closed_business_date = '2026-10-01'");
+      assert.equal(inserted.closed_by, 'Admin User', 'closed_by must be properly stored');
+    });
+  });
 });
