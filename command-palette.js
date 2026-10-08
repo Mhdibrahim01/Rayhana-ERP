@@ -329,6 +329,13 @@
     // Exact match is already handled cleanly by normal intent matching
     if (vocab.has(token)) return null;
 
+    // Prefix guard: if token is a strict prefix of any keyword, treat as incomplete input for suggestions, not a typo
+    for (const [kw] of vocab) {
+      if (kw.startsWith(token) && token.length < kw.length) {
+        return null;
+      }
+    }
+
     const maxAllowedDist = token.length <= 6 ? 1 : 2;
     let minDist = maxAllowedDist + 1;
     let candidates = [];
@@ -406,6 +413,130 @@
     if (!remaining) return null;
 
     return `${remaining} ${num}`;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // 2.2 PREFIX COMMAND SUGGESTIONS (COMMAND AUTOCOMPLETION)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  const COMMAND_METADATA = {
+    'invoice': { icon: '🧾', label: 'فاتورة', subtitle: 'إصدار ومعاينة الفاتورة الضريبية', requiresArg: true, canonical: 'فاتورة' },
+    'voucher': { icon: '💳', label: 'سند قبض', subtitle: 'تسجيل سند قبض وتحصيل مالي', requiresArg: true, canonical: 'سند' },
+    'extend': { icon: '📅', label: 'تمديد إقامة', subtitle: 'تمديد حجز وإقامة نزيل', requiresArg: true, canonical: 'تمديد' },
+    'whatsapp': { icon: '💬', label: 'واتساب', subtitle: 'إرسال رسالة واتساب للنزيل', requiresArg: true, canonical: 'واتساب' },
+    'booking': { icon: '➕', label: 'تسكين وحجز', subtitle: 'تسجيل حجز أو تسكين جديد', requiresArg: true, canonical: 'تسكين' },
+    'room-inquiry': { icon: '🚪', label: 'استعلام الغرفة', subtitle: 'استعراض بيانات وحالة الغرفة', requiresArg: true, canonical: 'غرفة' },
+    'shift': { icon: '💵', label: 'تقرير الوردية', subtitle: 'عرض تقرير إقفال الوردية والخزينة', requiresArg: false },
+    'unpaid': { icon: '💳', label: 'ديون ومستحقات', subtitle: 'استعراض الحجوزات والديون غير المسددة', requiresArg: false },
+    'departures': { icon: '🚪', label: 'مغادرات اليوم', subtitle: 'استعراض المغادرات المقررة لتاريخ اليوم', requiresArg: false },
+    'late': { icon: '⏰', label: 'متأخرون عن المغادرة', subtitle: 'استعراض النزلاء المتأخرين عن المغادرة', requiresArg: false },
+    'available': { icon: '🟢', label: 'غرف متاحة', subtitle: 'استعراض الغرف الشاغرة الجاهزة للتسكين', requiresArg: false },
+    'occupied': { icon: '🔴', label: 'غرف مشغولة', subtitle: 'استعراض الغرف المسكونة والمحجوزة', requiresArg: false },
+    'cleaning': { icon: '🧹', label: 'غرف تحت التنظيف', subtitle: 'استعراض الغرف التي تنتظر النظافة والصيانة', requiresArg: false },
+    'floor': { icon: '🏢', label: 'تصفية بالطابق', subtitle: 'تصفية واستعراض الغرف حسب الطابق', requiresArg: false },
+    'blacklist': { icon: '⛔', label: 'قائمة الحظر', subtitle: 'استعراض النزلاء المحظورين أمنياً', requiresArg: false },
+    'backup': { icon: '💾', label: 'نسخ احتياطي', subtitle: 'إنشاء نسخة احتياطية فورية لقاعدة البيانات', requiresArg: false }
+  };
+
+  /**
+   * Generates up to 3 prefix command suggestions when full command intent match fails
+   */
+  function getPrefixCommandSuggestions(rawQuery, intent, context) {
+    const norm = (intent && intent.query) ? intent.query : normalize(rawQuery);
+    if (!norm) return [];
+
+    const tokens = norm.split(' ').filter(Boolean);
+    const prefixToken = tokens.find(t => !/^\d+$/.test(t));
+    if (!prefixToken || prefixToken.length < 2 || /^[@#!]/.test(prefixToken)) {
+      return [];
+    }
+
+    const prefixLen = prefixToken.length;
+    const vocab = getKeywordVocab();
+    const candidateMap = new Map(); // commandId -> { cmd, kw, canonical }
+
+    for (const [kw, entries] of vocab) {
+      if (prefixLen === 2 && kw.length < 4) continue;
+      if (kw.startsWith(prefixToken)) {
+        entries.forEach(entry => {
+          const cmd = COMMAND_REGISTRY.find(c => c.id === entry.commandId);
+          if (!cmd) return;
+          if (!candidateMap.has(cmd.id) || candidateMap.get(cmd.id).kw.length > kw.length) {
+            candidateMap.set(cmd.id, { cmd, kw, canonical: entry.canonical });
+          }
+        });
+      }
+    }
+
+    if (candidateMap.size === 0) return [];
+
+    const recentItems = getRecentItems();
+    const candidates = Array.from(candidateMap.values());
+
+    candidates.sort((a, b) => {
+      const recentIndexA = recentItems.findIndex(r =>
+        r.title?.includes(a.cmd.name) || r.title?.includes(a.canonical) || (a.cmd.id && r.id?.includes(a.cmd.id))
+      );
+      const recentIndexB = recentItems.findIndex(r =>
+        r.title?.includes(b.cmd.name) || r.title?.includes(b.canonical) || (b.cmd.id && r.id?.includes(b.cmd.id))
+      );
+      const rankA = recentIndexA >= 0 ? recentIndexA : 999;
+      const rankB = recentIndexB >= 0 ? recentIndexB : 999;
+      if (rankA !== rankB) return rankA - rankB;
+      return a.kw.length - b.kw.length;
+    });
+
+    const topCandidates = candidates.slice(0, 3);
+    const results = [];
+
+    topCandidates.forEach(({ cmd, canonical }) => {
+      const meta = COMMAND_METADATA[cmd.id] || {
+        icon: '⚡',
+        label: cmd.name,
+        subtitle: '',
+        requiresArg: false,
+        canonical
+      };
+
+      const titleText = meta.label || canonical;
+      const subtitleText = meta.subtitle || cmd.name;
+
+      results.push({
+        category: '🎯 أوامر مقترحة',
+        icon: meta.icon || '⚡',
+        title: titleText,
+        subtitle: subtitleText,
+        badge: meta.requiresArg ? 'إكمال ⇥' : 'تشغيل ↵',
+        isSuggestion: true,
+        preventClose: meta.requiresArg,
+        actionFn: () => {
+          if (meta.requiresArg) {
+            const canonicalWord = meta.canonical || canonical;
+            let autocompletedText = '';
+            if (rawQuery && rawQuery.includes(prefixToken)) {
+              autocompletedText = rawQuery.replace(new RegExp(prefixToken, 'i'), canonicalWord).trim() + ' ';
+            } else {
+              autocompletedText = canonicalWord + ' ';
+            }
+
+            if (paletteInput) {
+              paletteInput.value = autocompletedText;
+              paletteInput.focus();
+              handlePaletteSearch(autocompletedText);
+            }
+          } else {
+            closeCommandPalette();
+            const subContext = { ...context, results: [] };
+            cmd.handle(subContext, {});
+            if (subContext.results.length > 0 && typeof subContext.results[0].actionFn === 'function') {
+              subContext.results[0].actionFn();
+            }
+          }
+        }
+      });
+    });
+
+    return results;
   }
 
   // Pre-normalized search cache (WeakMap) to eliminate redundant per-keystroke normalizations
@@ -2535,6 +2666,15 @@
   }
 
   function handlePaletteKeydown(e) {
+    if (e.key === 'Tab') {
+      const firstSuggestion = currentItemsList.find(item => item.isSuggestion);
+      if (firstSuggestion) {
+        e.preventDefault();
+        executePaletteItem(firstSuggestion);
+        return;
+      }
+    }
+
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       moveSelection(1);
@@ -2754,6 +2894,12 @@
       if (matchingCmd) {
         matchingCmd.handle(context, intent.matchResult || intent);
       } else {
+        // Prefix command suggestions (autocompletion)
+        const suggestions = getPrefixCommandSuggestions(rawQuery, intent, context);
+        if (suggestions.length > 0) {
+          suggestions.forEach(s => context.results.push(s));
+        }
+
         // Fallback: Ranked multi-entity search
         searchMultiEntity(intent.query, intent.transliterated, context);
       }
@@ -2835,6 +2981,10 @@
 
   function executePaletteItem(item) {
     if (!item) return;
+    if (item.preventClose) {
+      safeExecute(item.actionFn);
+      return;
+    }
     recordRecentItem(item);
     closeCommandPalette();
     safeExecute(item.actionFn);
@@ -3317,6 +3467,7 @@
     correctToken,
     getKeywordVocab,
     getEntityWordSet,
+    getPrefixCommandSuggestions,
     computeAttentionInbox,
     updateAttentionInbox,
     syncDataFromDb,
