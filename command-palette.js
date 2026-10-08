@@ -17,41 +17,44 @@
   let localGuestsCache = null;
   let localTodayCheckouts = null;
   let syncPromise = null;
+  let paletteAttentionCache = null;
+
+  function getCurrentBizDate() {
+    if (App?.State?.businessDate) {
+      return String(App.State.businessDate);
+    }
+    if (typeof App?.Helpers?.getLocalDateString === 'function') {
+      return String(App.Helpers.getLocalDateString());
+    }
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
 
   function getRooms() {
     const appRooms = Array.isArray(App?.State?.roomsCache) ? App.State.roomsCache : [];
-    const localRooms = Array.isArray(localRoomsCache) ? localRoomsCache : [];
-    if (localRooms.length >= appRooms.length && localRooms.length > 0) {
-      return localRooms;
-    }
     if (appRooms.length > 0) {
       return appRooms;
     }
-    return localRooms;
+    return Array.isArray(localRoomsCache) ? localRoomsCache : [];
   }
 
   function getReservations() {
     const appCache = Array.isArray(App?.State?.reservationsCache) ? App.State.reservationsCache : [];
-    const localCache = Array.isArray(localReservationsCache) ? localReservationsCache : [];
-    if (localCache.length >= appCache.length && localCache.length > 0) {
-      return localCache;
-    }
     if (appCache.length > 0) {
       return appCache;
     }
-    return localCache;
+    return Array.isArray(localReservationsCache) ? localReservationsCache : [];
   }
 
   function getGuests() {
     const appGuests = Array.isArray(App?.State?.guestsCache) ? App.State.guestsCache : [];
-    const localGuests = Array.isArray(localGuestsCache) ? localGuestsCache : [];
-    if (localGuests.length >= appGuests.length && localGuests.length > 0) {
-      return localGuests;
-    }
     if (appGuests.length > 0) {
       return appGuests;
     }
-    return localGuests;
+    return Array.isArray(localGuestsCache) ? localGuestsCache : [];
   }
 
   function syncDataFromDb() {
@@ -60,7 +63,7 @@
 
     syncPromise = (async () => {
       try {
-        const currentBizDate = String(App?.State?.businessDate || (App?.Helpers?.getLocalDateString ? App.Helpers.getLocalDateString() : new Date().toISOString().slice(0, 10)));
+        const currentBizDate = getCurrentBizDate();
         const promises = [
           typeof window.api.getAllRooms === 'function' ? window.api.getAllRooms().catch(() => null) : Promise.resolve(null),
           typeof window.api.getAllReservations === 'function' ? window.api.getAllReservations().catch(() => null) : Promise.resolve(null),
@@ -95,6 +98,9 @@
         if (typeof updateAttentionInbox === 'function') {
           updateAttentionInbox();
         }
+        if (typeof buildSearchIndex === 'function') {
+          buildSearchIndex();
+        }
         if (paletteModal && paletteModal.style.display !== 'none' && paletteInput) {
           handlePaletteSearch(paletteInput.value);
         }
@@ -109,7 +115,7 @@
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 2. ARABIC TEXT & KEYBOARD NORMALIZATION (BATCH 2)
+  // 2. ARABIC TEXT & KEYBOARD NORMALIZATION
   // ─────────────────────────────────────────────────────────────────────────────
 
   const ARABIC_INDIC_AND_PERSIAN_DIGITS = {
@@ -158,7 +164,6 @@
     if (!str && str !== 0) return '';
     let res = normalizeDigits(String(str));
     res = stripDiacritics(res);
-    res = canonicalizeTypoWords(res);
     res = res
       .replace(/[أإآٱ]/g, 'ا')
       .replace(/ة/g, 'ه')
@@ -166,6 +171,7 @@
       .toLowerCase()
       .replace(/\s+/g, ' ')
       .trim();
+    res = canonicalizeTypoWords(res);
     return res;
   }
 
@@ -177,6 +183,63 @@
       .split('')
       .map(ch => EN_TO_AR_KEYMAP[ch] || ch)
       .join('');
+  }
+
+  // Pre-normalized search cache (WeakMap) to eliminate redundant per-keystroke normalizations
+  const entitySearchCache = new WeakMap();
+
+  function getEntityNormalizedField(entity, fieldKey) {
+    if (!entity || typeof entity !== 'object') return '';
+    let cached = entitySearchCache.get(entity);
+    if (!cached) {
+      cached = {};
+      entitySearchCache.set(entity, cached);
+    }
+    if (cached[fieldKey] !== undefined) {
+      return cached[fieldKey];
+    }
+    const val = entity[fieldKey];
+    const normalizedVal = (val || val === 0) ? normalize(String(val)) : '';
+    cached[fieldKey] = normalizedVal;
+    return normalizedVal;
+  }
+
+  function buildSearchIndex() {
+    const rooms = getRooms();
+    const reservations = getReservations();
+    const guests = getGuests();
+
+    rooms.forEach(r => {
+      if (r && typeof r === 'object') {
+        entitySearchCache.set(r, {
+          room_number: normalize(String(r.room_number || '')),
+          type: normalize(String(r.type || '')),
+          status: normalize(String(r.status || ''))
+        });
+      }
+    });
+
+    reservations.forEach(res => {
+      if (res && typeof res === 'object') {
+        entitySearchCache.set(res, {
+          id: normalize(String(res.id || '')),
+          guest_name: normalize(String(res.guest_name || '')),
+          guest_phone: normalize(String(res.guest_phone || '')),
+          room_number: normalize(String(res.room_number || ''))
+        });
+      }
+    });
+
+    guests.forEach(g => {
+      if (g && typeof g === 'object') {
+        entitySearchCache.set(g, {
+          name: normalize(String(g.name || '')),
+          phone: normalize(String(g.phone || '')),
+          id_number: normalize(String(g.id_number || '')),
+          national_id: normalize(String(g.national_id || ''))
+        });
+      }
+    });
   }
 
   const RECENT_ITEMS_STORAGE_KEY = 'rayhana_palette_recent_mru';
@@ -200,7 +263,7 @@
         id: item.id || `rec-${Date.now()}`,
         title: item.title,
         subtitle: item.subtitle || '',
-        icon: item.icon || '🕒',
+        icon: typeof item.icon === 'string' ? item.icon.slice(0, 10) : '🕒',
         badge: item.badge || 'سابق'
       });
       list = list.slice(0, 5);
@@ -209,7 +272,7 @@
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 3. SHARED FINANCIAL HELPER ADAPTER (BATCH 1)
+  // 3. SHARED FINANCIAL HELPER ADAPTER
   // ─────────────────────────────────────────────────────────────────────────────
 
   function getResFin(res, bizDate) {
@@ -239,7 +302,7 @@
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 4. NEEDS-ATTENTION INBOX DATA ENGINE (BATCH 1)
+  // 4. NEEDS-ATTENTION INBOX DATA ENGINE
   // ─────────────────────────────────────────────────────────────────────────────
 
   function computeAttentionInbox() {
@@ -266,7 +329,7 @@
 
     const reservations = [...resMap.values()];
     const rooms = getRooms();
-    const currentBizDate = String(App?.State?.businessDate || (App?.Helpers?.getLocalDateString ? App.Helpers.getLocalDateString() : new Date().toISOString().slice(0, 10)));
+    const currentBizDate = getCurrentBizDate();
 
     const lateCheckouts = [];
     const departuresToday = [];
@@ -505,7 +568,7 @@
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 5. COMMAND REGISTRY & PARSER (BATCHES 2 & 3)
+  // 5. COMMAND REGISTRY & PARSER
   // ─────────────────────────────────────────────────────────────────────────────
 
   const COMMAND_REGISTRY = [
@@ -1162,7 +1225,7 @@
       id: 'voucher',
       name: 'سند قبض وتحصيل دفعة',
       match: (norm) => {
-        const m = norm.match(/^(?:سند(?:\s+قبض)?|قبض|تحصيل|دفع[هة]?|سداد)\s*(?:(?:غرف[هة]|الغرف[هة]|حجز)\s+)*(\d{1,5})?/i);
+        const m = norm.match(/^(?:سند(?:\s+قبض)?|قبض|تحصيل|دفع[هة]?|سداد|receipt|payment|pay)(?=\s|\d|$)\s*(?:(?:غرف[هة]|الغرف[هة]|حجز)\s*)*(\d{1,5})?$/i);
         if (m) {
           return { targetNumber: m[1] ? normalizeDigits(m[1]) : null };
         }
@@ -1524,7 +1587,7 @@
       return parsed;
     }
 
-    if (/[a-zA-Z\[\];',.`]/.test(query)) {
+    if (/[a-zA-Z]/.test(query)) {
       const transliterated = transliterateEnToAr(query);
       const normTrans = normalize(transliterated);
       const transliteratedParsed = matchIntentFromNormalizedText(normTrans, query);
@@ -1543,16 +1606,14 @@
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 6. RANKED MULTI-ENTITY SEARCH (BATCH 2)
+  // 6. RANKED MULTI-ENTITY SEARCH
   // ─────────────────────────────────────────────────────────────────────────────
 
   function searchMultiEntity(normQuery, transliterated, ctx) {
     const q = normQuery || '';
     const trans = transliterated || '';
 
-    function computeMatchScore(targetField) {
-      if (!targetField && targetField !== 0) return 0;
-      const normTarget = normalize(String(targetField));
+    function computeMatchScore(normTarget) {
       if (!normTarget || (!q && !trans)) return 0;
 
       let score = 0;
@@ -1575,9 +1636,9 @@
     // 1. Rooms
     const roomMatches = [];
     ctx.rooms.forEach(r => {
-      const numScore = computeMatchScore(r.room_number);
-      const typeScore = computeMatchScore(r.type);
-      const statusScore = computeMatchScore(r.status);
+      const numScore = computeMatchScore(getEntityNormalizedField(r, 'room_number'));
+      const typeScore = computeMatchScore(getEntityNormalizedField(r, 'type'));
+      const statusScore = computeMatchScore(getEntityNormalizedField(r, 'status'));
       const maxScore = Math.max(numScore * 1.2, typeScore, statusScore);
       if (maxScore > 0) {
         roomMatches.push({ room: r, score: maxScore });
@@ -1605,10 +1666,10 @@
     // 2. Reservations
     const resMatches = [];
     ctx.reservations.forEach(r => {
-      const idScore = computeMatchScore(r.id);
-      const roomScore = computeMatchScore(r.room_number);
-      const nameScore = computeMatchScore(r.guest_name);
-      const phoneScore = computeMatchScore(r.guest_phone);
+      const idScore = computeMatchScore(getEntityNormalizedField(r, 'id'));
+      const roomScore = computeMatchScore(getEntityNormalizedField(r, 'room_number'));
+      const nameScore = computeMatchScore(getEntityNormalizedField(r, 'guest_name'));
+      const phoneScore = computeMatchScore(getEntityNormalizedField(r, 'guest_phone'));
       const maxScore = Math.max(idScore * 1.5, roomScore, nameScore, phoneScore);
       if (maxScore > 0) {
         resMatches.push({ res: r, score: maxScore });
@@ -1635,9 +1696,12 @@
     // 3. Guests
     const guestMatches = [];
     ctx.guests.forEach(g => {
-      const nameScore = computeMatchScore(g.name);
-      const phoneScore = computeMatchScore(g.phone);
-      const idScore = computeMatchScore(g.id_number);
+      const nameScore = computeMatchScore(getEntityNormalizedField(g, 'name'));
+      const phoneScore = computeMatchScore(getEntityNormalizedField(g, 'phone'));
+      const idScore = Math.max(
+        computeMatchScore(getEntityNormalizedField(g, 'id_number')),
+        computeMatchScore(getEntityNormalizedField(g, 'national_id'))
+      );
       const maxScore = Math.max(nameScore, phoneScore, idScore);
       if (maxScore > 0) {
         guestMatches.push({ guest: g, score: maxScore });
@@ -1664,7 +1728,7 @@
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 7. COMMAND PALETTE UI CONTROLLER (BATCH 3)
+  // 7. COMMAND PALETTE UI CONTROLLER
   // ─────────────────────────────────────────────────────────────────────────────
 
   let paletteModal = null;
@@ -1688,15 +1752,6 @@
     // Close on backdrop click
     paletteModal.addEventListener('click', event => {
       if (event.target === paletteModal) closeCommandPalette();
-    });
-
-    // Close on Escape inside palette modal
-    paletteModal.addEventListener('keydown', event => {
-      if (event.key === 'Escape' || event.code === 'Escape' || event.keyCode === 27) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        closeCommandPalette();
-      }
     });
 
     // Trap focus inside modal
@@ -1764,6 +1819,10 @@
     // Refresh database cache in background
     syncDataFromDb();
 
+    // Refresh session attention cache and rebuild search index
+    paletteAttentionCache = computeAttentionInbox();
+    buildSearchIndex();
+
     paletteModal.style.display = 'flex';
     paletteInput.value = initialQuery;
     paletteInput.focus();
@@ -1784,12 +1843,6 @@
   }
 
   function handlePaletteKeydown(e) {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      closeCommandPalette();
-      return;
-    }
-
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       moveSelection(1);
@@ -1851,8 +1904,9 @@
     const rooms = getRooms();
     const reservations = getReservations();
     const guests = getGuests();
-    const attention = computeAttentionInbox();
-    const currentBizDate = String(App?.State?.businessDate || (App?.Helpers?.getLocalDateString ? App.Helpers.getLocalDateString() : new Date().toISOString().slice(0, 10)));
+    const attention = paletteAttentionCache || computeAttentionInbox();
+    paletteAttentionCache = attention;
+    const currentBizDate = getCurrentBizDate();
 
     const context = {
       rawQuery,
@@ -2017,7 +2071,7 @@
              role="option"
              aria-selected="${isSelected}">
           <div class="command-palette-item-main">
-            <div class="command-palette-item-icon">${item.icon || '⚡'}</div>
+            <div class="command-palette-item-icon">${escapePaletteText(item.icon || '⚡')}</div>
             <div class="command-palette-item-texts">
               <div class="command-palette-item-title">${escapePaletteText(item.title)}</div>
               <div class="command-palette-item-subtitle">${escapePaletteText(item.subtitle || '')}</div>
@@ -2152,15 +2206,6 @@
 
     attentionModal.addEventListener('click', event => {
       if (event.target === attentionModal) closeAttentionInboxModal();
-    });
-
-    // Close on Escape inside attention inbox modal
-    attentionModal.addEventListener('keydown', event => {
-      if (event.key === 'Escape' || event.code === 'Escape' || event.keyCode === 27) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        closeAttentionInboxModal();
-      }
     });
 
     // Trap focus inside attention modal
@@ -2379,6 +2424,7 @@
 
   function updateAttentionInbox() {
     const data = computeAttentionInbox();
+    paletteAttentionCache = data;
 
     // 1. Topbar Badge & Button
     const badgeCount = document.getElementById('attention-badge-count');
