@@ -302,49 +302,7 @@
 #view-reservations .reservations-table td:nth-child(6) { width: 13%; }
 #view-reservations .reservations-table th:nth-child(4) { width: 16%; }
 #view-reservations .reservations-table td:nth-child(4) { width: 16%; }
-#view-reservations .reservation-actions-list {
-  display: grid;
-  grid-template-columns: repeat(6, 30px);
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
-#view-reservations .reservation-actions-list-late {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
-#view-reservations .reservation-actions-list-late .btn-row {
-  flex: 0 0 36px;
-  width: 36px;
-  min-width: 36px;
-  height: 36px;
-  min-height: 36px;
-  padding: 0;
-}
-#view-reservations .reservation-actions-list .btn-row {
-  flex: 0 0 36px;
-  width: 36px;
-  min-width: 36px;
-  height: 36px;
-  min-height: 36px;
-  border-radius: 10px;
-}
-#view-reservations .reservations-table td:nth-child(8) { padding-inline: 4px; }
-#view-reservations .reservations-table .reservation-actions-list .btn-action-icon {
-  box-sizing: border-box;
-  flex: 0 0 30px;
-  width: 30px !important;
-  min-width: 30px;
-  height: 30px !important;
-  border-radius: 8px !important;
-}
-#view-reservations .reservation-actions-list .btn-row svg {
-  width: 15px;
-  height: 15px;
-}
+#view-reservations .reservations-table td:nth-child(8) { padding-inline: 4px; text-align: center; }
 #view-reservations .reservation-status-cell {
   white-space: normal;
   line-height: 1.2;
@@ -1073,7 +1031,7 @@
 #view-reservations .reservations-table th:nth-child(7),
 #view-reservations .reservations-table td:nth-child(7) { width: 8%; }
 #view-reservations .reservations-table th:nth-child(8),
-#view-reservations .reservations-table td:nth-child(8) { width: 21%; }
+#view-reservations .reservations-table td:nth-child(8) { width: 22%; min-width: 220px; }
 
 #view-reservations .reservations-table td:nth-child(1) {
   color: #176244;
@@ -1105,80 +1063,6 @@
   font-size: 11px;
   line-height: 1.15;
   white-space: nowrap;
-}
-#view-reservations .reservations-table .reservation-actions-list {
-  display: flex;
-  justify-content: center;
-  gap: 4px;
-  flex-wrap: nowrap;
-}
-#view-reservations .reservations-table .reservation-actions-list .btn-action-icon,
-#view-reservations .reservations-table .reservation-actions-list .btn-row {
-  box-sizing: border-box;
-  flex: 0 0 38px;
-  width: 38px !important;
-  min-width: 38px;
-  height: 40px !important;
-  min-height: 40px;
-  border-radius: 11px !important;
-}
-
-#view-reservations .reservations-table .reservation-actions-list [data-action="invoice"] {
-  border: 1px solid #c7d2fe !important;
-  background: #eef2ff !important;
-  color: #4338ff !important;
-  box-shadow: 0 1px 3px rgba(67, 56, 202, .12);
-}
-#view-reservations .reservations-table .reservation-actions-list [data-action="add-payment"] {
-  border: 1px solid #a7f3c4 !important;
-  background: #ecfdf3 !important;
-  color: #00845a !important;
-  box-shadow: none !important;
-}
-#view-reservations .reservations-table .reservation-actions-list [data-action="extend"] {
-  border: 1px solid #fed7aa !important;
-  background: #fffaf0 !important;
-  color: #c2410c !important;
-}
-#view-reservations .reservations-table .reservation-actions-list [data-action="checkout"] {
-  border: 1px solid #fecdd3 !important;
-  background: #fff1f2 !important;
-  color: #e11d48 !important;
-  box-shadow: none !important;
-}
-#view-reservations .reservations-table .reservation-actions-list [data-action="cancel"] {
-  border: 1px solid #fecdd3 !important;
-  background: #fff1f2 !important;
-  color: #e11d48 !important;
-}
-#view-reservations .reservations-table .reservation-actions-list [data-action="whatsapp"] {
-  border: 1px solid #a7f3c4 !important;
-  background: #ecfdf3 !important;
-  color: #00a66f !important;
-}
-#view-reservations .reservations-table .reservation-actions-list [data-action="invoice"]:hover { background: #e0e7ff !important; }
-#view-reservations .reservations-table .reservation-actions-list [data-action="add-payment"]:hover,
-#view-reservations .reservations-table .reservation-actions-list [data-action="whatsapp"]:hover { background: #d1fae5 !important; }
-#view-reservations .reservations-table .reservation-actions-list [data-action="extend"]:hover { background: #ffedd5 !important; }
-#view-reservations .reservations-table .reservation-actions-list [data-action="checkout"]:hover,
-#view-reservations .reservations-table .reservation-actions-list [data-action="cancel"]:hover { background: #ffe4e6 !important; }
-
-#view-reservations .reservations-table .reservation-actions-list [data-action="invoice"] { order: 0; }
-#view-reservations .reservations-table .reservation-actions-list [data-action="checkout"] { order: 1; }
-#view-reservations .reservations-table .reservation-actions-list [data-action="extend"] { order: 2; }
-#view-reservations .reservations-table .reservation-actions-list [data-action="add-payment"] { order: 3; }
-#view-reservations .reservations-table .reservation-actions-list [data-action="whatsapp"] { order: 4; }
-#view-reservations .reservations-table .reservation-actions-list [data-action="cancel"] { order: 5; }
-
-#view-reservations .reservations-table .reservation-actions-list [data-action="invoice"] svg {
-  width: 18px;
-  height: 18px;
-}
-#view-reservations .reservations-table .reservation-actions-list [data-action="cancel"] svg {
-  width: 18px;
-  height: 18px;
-}
-
 #view-reservations .reservations-pagination {
   margin-top: 12px;
   padding: 12px 16px;
@@ -1223,8 +1107,8 @@
 }
 }
 
-/* Match the dashboard booking widgets' action buttons to the compact outlined icon style. */
-:is(#widget-today-checkouts, #widget-recent-bookings) .overview-row-actions {
+/* Match the dashboard booking widgets' and reservation table's action buttons to the compact outlined icon style. */
+:is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) :is(.overview-row-actions, .reservation-actions-list) {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1241,8 +1125,8 @@
 #widget-recent-bookings .recent-bookings-table th:nth-child(4) { width: 15%; }
 #widget-recent-bookings .recent-bookings-table th:nth-child(8) { width: 19%; }
 
-:is(#widget-today-checkouts, #widget-recent-bookings) .overview-row-actions .btn-row,
-:is(#widget-today-checkouts, #widget-recent-bookings) .overview-row-actions .btn-action-icon,
+:is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) :is(.overview-row-actions, .reservation-actions-list) .btn-row,
+:is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) :is(.overview-row-actions, .reservation-actions-list) .btn-action-icon,
 #widget-today-checkouts .overview-row-actions .late-checkout-button {
   box-sizing: border-box;
   display: inline-flex;
@@ -1258,51 +1142,51 @@
   box-shadow: 0 2px 4px rgba(15, 23, 42, .06);
 }
 
-:is(#widget-today-checkouts, #widget-recent-bookings) .overview-row-actions svg {
+:is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) :is(.overview-row-actions, .reservation-actions-list) svg {
   width: 18px !important;
   height: 18px !important;
 }
 
-:is(#widget-today-checkouts, #widget-recent-bookings) .overview-row-actions [data-action="whatsapp"],
-:is(#widget-today-checkouts, #widget-recent-bookings) .overview-row-actions [data-action="add-payment"] {
+:is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) :is(.overview-row-actions, .reservation-actions-list) [data-action="whatsapp"],
+:is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) :is(.overview-row-actions, .reservation-actions-list) [data-action="add-payment"] {
   border: 1px solid #86efac !important;
   background: #ecfdf3 !important;
   color: #00a66f !important;
 }
-:is(#widget-today-checkouts, #widget-recent-bookings) .overview-row-actions [data-action="extend"] {
+:is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) :is(.overview-row-actions, .reservation-actions-list) [data-action="extend"] {
   border: 1px solid #fed7aa !important;
   background: #fffaf0 !important;
   color: #ea580c !important;
 }
-:is(#widget-today-checkouts, #widget-recent-bookings) .overview-row-actions [data-action="checkout"] {
+:is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) :is(.overview-row-actions, .reservation-actions-list) [data-action="checkout"] {
   border: 1px solid #fecdd3 !important;
   background: #fff1f2 !important;
   color: #e11d48 !important;
 }
-:is(#widget-today-checkouts, #widget-recent-bookings) .overview-row-actions [data-action="invoice"],
-:is(#widget-today-checkouts, #widget-recent-bookings) .overview-row-actions [data-action="preview-reservation"] {
+:is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) :is(.overview-row-actions, .reservation-actions-list) [data-action="invoice"],
+:is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) :is(.overview-row-actions, .reservation-actions-list) [data-action="preview-reservation"] {
   border: 1px solid #c7d2fe !important;
   background: #eef2ff !important;
   color: #4f46e5 !important;
 }
-:is(#widget-today-checkouts, #widget-recent-bookings) .overview-row-actions [data-action="cancel"] {
+:is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) :is(.overview-row-actions, .reservation-actions-list) [data-action="cancel"] {
   border: 1px solid #fecdd3 !important;
   background: #fff1f2 !important;
   color: #e11d48 !important;
 }
 
-:is(#widget-today-checkouts, #widget-recent-bookings) .overview-row-actions [data-action="whatsapp"]:hover,
-:is(#widget-today-checkouts, #widget-recent-bookings) .overview-row-actions [data-action="add-payment"]:hover { background: #d1fae5 !important; }
-:is(#widget-today-checkouts, #widget-recent-bookings) .overview-row-actions [data-action="extend"]:hover { background: #ffedd5 !important; }
-:is(#widget-today-checkouts, #widget-recent-bookings) .overview-row-actions [data-action="checkout"]:hover,
-:is(#widget-today-checkouts, #widget-recent-bookings) .overview-row-actions [data-action="cancel"]:hover { background: #ffe4e6 !important; }
-:is(#widget-today-checkouts, #widget-recent-bookings) .overview-row-actions [data-action="invoice"]:hover,
-:is(#widget-today-checkouts, #widget-recent-bookings) .overview-row-actions [data-action="preview-reservation"]:hover { background: #e0e7ff !important; }
+:is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) :is(.overview-row-actions, .reservation-actions-list) [data-action="whatsapp"]:hover,
+:is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) :is(.overview-row-actions, .reservation-actions-list) [data-action="add-payment"]:hover { background: #d1fae5 !important; }
+:is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) :is(.overview-row-actions, .reservation-actions-list) [data-action="extend"]:hover { background: #ffedd5 !important; }
+:is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) :is(.overview-row-actions, .reservation-actions-list) [data-action="checkout"]:hover,
+:is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) :is(.overview-row-actions, .reservation-actions-list) [data-action="cancel"]:hover { background: #ffe4e6 !important; }
+:is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) :is(.overview-row-actions, .reservation-actions-list) [data-action="invoice"]:hover,
+:is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) :is(.overview-row-actions, .reservation-actions-list) [data-action="preview-reservation"]:hover { background: #e0e7ff !important; }
 
 @media (max-width: 900px) {
-  :is(#widget-today-checkouts, #widget-recent-bookings) .overview-row-actions { gap: 4px; }
-  :is(#widget-today-checkouts, #widget-recent-bookings) .overview-row-actions .btn-row,
-  :is(#widget-today-checkouts, #widget-recent-bookings) .overview-row-actions .btn-action-icon,
+  :is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) :is(.overview-row-actions, .reservation-actions-list) { gap: 4px; }
+  :is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) :is(.overview-row-actions, .reservation-actions-list) .btn-row,
+  :is(#widget-today-checkouts, #widget-recent-bookings, #view-reservations) :is(.overview-row-actions, .reservation-actions-list) .btn-action-icon,
   #widget-today-checkouts .overview-row-actions .late-checkout-button {
     flex-basis: 38px;
     width: 38px !important;
@@ -1311,4 +1195,55 @@
     min-height: 42px;
     border-radius: 13px !important;
   }
+}
+
+/* Interactive room numbers across tables */
+.clickable-room-number {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid #86efac;
+  border-radius: 9px;
+  background: #ecfdf3;
+  color: #1a432a;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+}
+.clickable-room-number:hover {
+  background: #d1fae5;
+  border-color: #34d399;
+  color: #065f28;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.2);
+}
+.clickable-room-number:focus-visible {
+  outline: 2px solid #059669;
+  outline-offset: 2px;
+}
+
+button.checkout-room-chip,
+.checkout-room-chip.clickable-room-chip {
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+button.checkout-room-chip:hover,
+.checkout-room-chip.clickable-room-chip:hover {
+  background: #d1fae5;
+  border-color: #34d399;
+  color: #065f28;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.2);
+}
+button.checkout-room-chip:focus-visible,
+.checkout-room-chip.clickable-room-chip:focus-visible {
+  outline: 2px solid #059669;
+  outline-offset: 2px;
 }

@@ -563,7 +563,7 @@
       return '<tr class="' + (isLate ? 'overview-late-booking-row' : '') + '">' +
         '<td class="overview-booking-number-cell" data-label="رقم الحجز"><bdi class="overview-booking-number" dir="ltr">' + e(bookingNumber) + '</bdi></td>' +
         '<td class="overview-booking-guest-cell" data-label="بيانات النزيل"><strong class="overview-booking-guest-name" title="' + e(r.guest_name || '') + '">' + e(r.guest_name || '-') + '</strong><small class="overview-booking-guest-phone" dir="ltr">' + e(r.guest_phone || '—') + '</small></td>' +
-        '<td class="overview-booking-room-cell" data-label="الغرفة والنوع"><span class="overview-booking-room">' + e(r.room_number || '-') + '</span><small class="overview-booking-room-type" title="' + e(r.room_type || '') + '">' + e(r.room_type || '-') + '</small></td>' +
+        '<td class="overview-booking-room-cell" data-label="الغرفة والنوع"><button type="button" class="clickable-room-number overview-booking-room" data-action="preview-reservation" data-id="' + e(r.id) + '" title="عرض تفاصيل الغرفة ' + e(r.room_number || '') + '">' + e(r.room_number || '-') + '</button><small class="overview-booking-room-type" title="' + e(r.room_type || '') + '">' + e(r.room_type || '-') + '</small></td>' +
         '<td class="overview-booking-date" data-label="الوصول والمغادرة"><span class="overview-date-line"><small>من</small><bdi>' + e(String(r.check_in_date || '-').slice(0, 10)) + '</bdi></span><span class="overview-date-line"><small>إلى</small>' + (isContract ? '<strong class="overview-open-contract">عقد مفتوح</strong>' : '<bdi>' + e(String(r.check_out_date || '-').slice(0, 10)) + '</bdi>') + '</span></td>' +
         '<td class="overview-booking-financial" data-label="المبلغ والمدفوع"><strong>' + total.toLocaleString() + ' ر.س</strong>' + (isContract ? '<small>' + elapsedNights + (elapsedNights === 1 ? ' ليلة' : ' ليالٍ') + ' × ' + rate.toLocaleString() + ' ر.س</small>' : '') + balanceLine + '</td>' +
         '<td class="overview-booking-method" data-label="طريقة السداد">' + e(r.payment_method || '—') + '</td>' +
@@ -897,9 +897,9 @@
       return `
         <tr class="${isLateCheckout ? 'late-checkout-row' : ''}">
           <td data-label="رقم الغرفة">
-            <span class="checkout-room-chip" title="${App.Helpers.escapeHtml(r.room_number)}">
+            <button type="button" class="checkout-room-chip clickable-room-chip" data-action="preview-reservation" data-id="${App.Helpers.escapeHtml(r.reservation_id ?? r.id)}" title="عرض تفاصيل الغرفة ${App.Helpers.escapeHtml(r.room_number)}">
               ${App.Helpers.escapeHtml(r.room_number)}
-            </span>
+            </button>
           </td>
           <td class="checkout-room-type" data-label="نوع الغرفة" title="${App.Helpers.escapeHtml(r.room_type || '')}">${App.Helpers.escapeHtml(r.room_type || '')}</td>
           <td data-label="اسم النزيل">
@@ -1059,6 +1059,17 @@
 
     modal.style.display = 'flex';
     modal.querySelector('[data-preview-close]')?.focus();
+  };
+
+  window.openRoomDetailsModal = async function(id) {
+    if (typeof App.Helpers.openReservationPreview === 'function') {
+      const parsed = parseInt(id, 10);
+      const room = App.State.roomsCache?.find(r => r.id === parsed || r.room_number == id);
+      if (room && room.active_reservations?.[0]?.id) {
+        return await App.Helpers.openReservationPreview(room.active_reservations[0].id);
+      }
+      return await App.Helpers.openReservationPreview(parsed || id);
+    }
   };
 
   App.Helpers.initOverview = function() {

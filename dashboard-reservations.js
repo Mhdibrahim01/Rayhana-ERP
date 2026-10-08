@@ -1547,7 +1547,7 @@
             ${r.guest_phone ? `<div class="reservation-guest-phone"><span dir="rtl">جوال:</span> <bdi dir="ltr">${escapeHtml(r.guest_phone)}</bdi></div>` : ''}
           </td>
           <td style="white-space: nowrap; line-height: 1.2;">
-            <span style="font-weight: 800; color: #1a432a; line-height: 1.2;">غرفة ${escapeHtml(r.room_number)}</span>
+            <button type="button" class="clickable-room-number" data-action="preview-reservation" data-id="${r.id}" title="عرض تفاصيل الغرفة ${escapeHtml(r.room_number)}">غرفة ${escapeHtml(r.room_number)}</button>
             <div style="font-size: 0.72rem; color: var(--text-muted); line-height: 1.2; margin-top: 2px;">${escapeHtml(r.room_type || '')}</div>
           </td>
           <td class="reservation-date-range">
@@ -1591,49 +1591,38 @@
             ${overdueBadge ? `<span class="reservation-late-status">${overdueBadge}</span>` : ''}
           </td>
           <td style="text-align: center;">
-            <div class="reservation-actions-list ${isLateCheckout ? 'reservation-actions-list-late' : ''}" role="group" aria-label="إجراءات الحجز">
-              ${isLateCheckout ? `
-                <button type="button" class="btn-row icon-ghost" data-action="whatsapp" data-id="${r.id}" title="مراسلة النزيل عبر واتساب" aria-label="مراسلة النزيل عبر واتساب">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-                </button>
-                <button type="button" class="btn-row primary" data-action="checkout" data-id="${r.id}" title="تسوية فورية وتسجيل المغادرة" aria-label="تسوية فورية وتسجيل المغادرة">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H5v14h4M14 8l4 4-4 4M18 12H9"></path></svg>
-                </button>
-                <button type="button" class="btn-row icon-ghost" data-action="extend" data-id="${r.id}" title="تمديد فترة الإقامة" aria-label="تمديد فترة الإقامة">
+            <div class="btn-row-group overview-row-actions reservation-actions-list ${isLateCheckout ? 'overview-row-actions-late-checkout reservation-actions-list-late' : ''}" role="group" aria-label="إجراءات الحجز">
+              <button type="button" class="btn-row icon-ghost checkout-row-action checkout-row-action-preview" data-action="preview-reservation" data-id="${r.id}" title="معاينة تفاصيل الحجز" aria-label="معاينة تفاصيل الحجز">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </button>
+              ${isConfirmed && r.check_out_date && r.check_out_date !== 'مفتوح' ? `
+                <button type="button" class="btn-row secondary checkout-row-action checkout-row-action-extend" data-action="extend" data-id="${r.id}" title="تمديد فترة الإقامة" aria-label="تمديد فترة الإقامة">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
                 </button>
-                <button type="button" class="btn-row icon-ghost" data-action="invoice" data-id="${r.id}" title="طباعة سند الاستلام والإقامة (فاتورة)" aria-label="طباعة سند الاستلام والإقامة">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6M8 13h8M8 17h8"></path></svg>
+              ` : ''}
+              ${isConfirmed && canCheckOut ? `
+                <button type="button" class="btn-row primary checkout-danger checkout-row-action checkout-row-action-primary" data-action="checkout" data-id="${r.id}" title="تسجيل مغادرة وتسليم الغرفة" aria-label="تسجيل مغادرة وتسليم الغرفة">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                 </button>
-              ` : `
-              <button type="button" class="btn-action-icon" data-action="invoice" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #f0fdf5; color: #166535; border: 1.5px solid #bbf7d2; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="طباعة سند الاستلام والإقامة (فاتورة)">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6M8 13h8M8 17h8"></path></svg>
+              ` : ''}
+              <button type="button" class="btn-row icon-ghost checkout-row-action" data-action="invoice" data-id="${r.id}" title="طباعة سند الاستلام والإقامة (فاتورة)" aria-label="طباعة سند الاستلام والإقامة">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5M9 13h7M9 17h7"></path></svg>
               </button>
               ${canCollectBalance && (remaining > 0 || (isConfirmed && isContract)) ? `
-                <button type="button" class="btn-action-icon btn-pay" data-action="add-payment" data-id="${r.id}" onclick="event.stopPropagation(); window.openAddPaymentModal && window.openAddPaymentModal(${r.id});" style="width: 30px; height: 30px; padding: 0; background: #a67c52; color: #ffffff; border: none; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; box-shadow: 0 2px 8px rgba(166, 124, 82, 0.35);" title="تسجيل دفعة سداد جديدة">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+                <button type="button" class="btn-row checkout-row-action" data-action="add-payment" data-id="${r.id}" onclick="event.stopPropagation(); window.openAddPaymentModal && window.openAddPaymentModal(${r.id});" title="تسجيل دفعة سداد جديدة" aria-label="تسجيل دفعة سداد جديدة">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
                 </button>
               ` : ''}
               ${isConfirmed ? `
-                ${r.check_out_date && r.check_out_date !== 'مفتوح' ? `
-                  ${isLateCheckout ? `
-                  <button type="button" class="late-checkout-button late-checkout-button-secondary" data-action="extend" data-id="${r.id}" title="تمديد فترة الإقامة">⏳ تمديد الإقامة</button>
-                  ` : `
-                  <button type="button" class="btn-action-icon" data-action="extend" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #eff6ff; color: #1e40af; border: 1.5px solid #bfdbfe; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="تمديد فترة الإقامة">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                  </button>
-                  `}
-                ` : ''}
-                ${canCheckOut ? (isLateCheckout ? `<button type="button" class="late-checkout-button late-checkout-button-primary" data-action="checkout" data-id="${r.id}" title="تسوية فورية وتسجيل المغادرة">🚪 خروج فوري</button>` : `<button type="button" class="btn-action-icon" data-action="checkout" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #ffffff; color: #334155; border: 1.5px solid #cbd5e1; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="تسجيل مغادرة وتسليم الغرفة">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                </button>`) : ''}
-                <button type="button" class="btn-action-icon" data-action="whatsapp" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #f0fdf5; color: #16a34d; border: 1.5px solid #86efaf; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="مراسلة النزيل عبر واتساب">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+                <button type="button" class="btn-row checkout-row-action" data-action="whatsapp" data-id="${r.id}" title="مراسلة النزيل عبر واتساب" aria-label="مراسلة النزيل عبر واتساب">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
                 </button>
-              ${canCancel ? `<button type="button" class="btn-action-icon" data-action="cancel" data-id="${r.id}" style="width: 30px; height: 30px; padding: 0; background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;" title="${r.check_in_date === getLocalDateString() ? 'إبطال / إلغاء الحجز المباشر' : 'إلغاء الحجز'}">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"></circle><path d="m5.6 5.6 12.8 12.8"></path></svg>
-                </button>` : ''}
-              ` : ''}`}
+              ` : ''}
+              ${isConfirmed && canCancel ? `
+                <button type="button" class="btn-row checkout-danger checkout-row-action" data-action="cancel" data-id="${r.id}" title="${r.check_in_date === getLocalDateString() ? 'إبطال / إلغاء الحجز المباشر' : 'إلغاء الحجز'}" aria-label="إلغاء الحجز">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m5.6 5.6 12.8 12.8"></path></svg>
+                </button>
+              ` : ''}
             </div>
           </td>
         </tr>

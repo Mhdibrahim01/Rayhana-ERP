@@ -6894,6 +6894,41 @@ body.login-body {
 }
 
 /* Shared RTL modal system: reservation, stay extension, and room details. */
+@keyframes modal-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes modal-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+:is(.modal-backdrop, .modal-layout-backdrop, .reservation-preview-backdrop, .modal, .modal-overlay):not([style*="display: none"]) {
+  animation: modal-backdrop-in 0.15s ease-out;
+}
+
+:is(.modal-backdrop, .modal-layout-backdrop, .reservation-preview-backdrop, .modal, .modal-overlay) :is(.modal-layout, .modal-glass-container, .modal-dialog, .modal-content, .modal-box, .checkout-settle-card, .reservation-preview-dialog, [role="dialog"]) {
+  animation: modal-dialog-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.modal-backdrop, .modal-layout-backdrop, .reservation-preview-backdrop, .modal, .modal-overlay):not([style*="display: none"]),
+  :is(.modal-backdrop, .modal-layout-backdrop, .reservation-preview-backdrop, .modal, .modal-overlay) :is(.modal-layout, .modal-glass-container, .modal-dialog, .modal-content, .modal-box, .checkout-settle-card, .reservation-preview-dialog, [role="dialog"]) {
+    animation: none !important;
+  }
+}
+
 .modal-layout-backdrop,
 .reservation-preview-backdrop {
   background: rgba(15, 23, 42, 0.6) !important;
@@ -7315,23 +7350,23 @@ body.login-body {
   }
 }
 
-/* New Booking: fixed-height desktop composition with every field kept visible. */
+/* New Booking: Symmetrical, balanced desktop & mobile composition */
 #new-reservation-modal {
   overflow: hidden !important;
 }
 
 #new-reservation-modal > .modal-glass-container.modal-layout {
   display: flex !important;
-  width: min(1100px, 94vw) !important;
-  max-width: 1100px !important;
+  width: min(1080px, 94vw) !important;
+  max-width: 1080px !important;
   max-height: calc(100vh - 32px) !important;
   flex-direction: column !important;
 }
 
 #new-reservation-modal > .modal-glass-container.modal-layout > .modal-layout__header {
   flex: 0 0 auto;
-  min-height: 64px;
-  padding: 10px 20px !important;
+  min-height: 60px;
+  padding: 12px 22px !important;
   background: #fff !important;
   color: #0f172a !important;
   border-bottom: 1px solid #e2e8f0 !important;
@@ -7340,13 +7375,13 @@ body.login-body {
 #new-reservation-modal > .modal-glass-container.modal-layout > .modal-layout__body {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: hidden !important;
-  padding: 16px !important;
+  overflow-y: auto !important;
+  padding: 16px 20px !important;
 }
 
 #new-reservation-modal #reservation-form {
   display: grid;
-  height: 100%;
+  width: 100%;
   min-height: 0;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-areas:
@@ -7357,11 +7392,11 @@ body.login-body {
     "footer footer";
   align-content: stretch;
   align-items: stretch;
-  gap: 8px;
+  gap: 14px;
 }
 
-#autofill-guest-status { grid-area: autofill; }
-#banned-guest-warning { grid-area: banned; }
+#autofill-guest-status { grid-area: autofill; margin-bottom: 0 !important; }
+#banned-guest-warning { grid-area: banned; margin-bottom: 0 !important; }
 #reservation-form > section:nth-of-type(1) { grid-area: guest; }
 #reservation-form > section:nth-of-type(2) { grid-area: stay; }
 #reservation-form > section:nth-of-type(3) { grid-area: pricing; }
@@ -7369,117 +7404,141 @@ body.login-body {
 #reservation-form > .modal-layout__footer { grid-area: footer; }
 
 #new-reservation-modal #reservation-form > .modal-section-card {
-  display: grid;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
   min-width: 0;
   min-height: 0;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  align-content: start;
-  align-items: start;
-  gap: 6px 10px;
-  padding: 10px !important;
+  gap: 10px;
+  padding: 14px 16px !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04) !important;
 }
 
 #new-reservation-modal #reservation-form > .modal-section-card > .modal-section-card__header {
-  grid-column: 1 / -1;
-  min-height: 0;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  min-height: 28px;
   margin: 0 0 2px !important;
-  padding: 0 0 6px !important;
-  font-size: 15px !important;
+  padding: 0 0 8px !important;
+  font-size: 0.88rem !important;
+  font-weight: 800 !important;
+  color: #1e293b !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+#new-reservation-modal #reservation-form .form-row {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+  margin: 0 !important;
+  width: 100% !important;
+  align-items: start !important;
 }
 
 #new-reservation-modal #reservation-form .form-group {
   min-width: 0;
+  width: 100%;
   margin: 0 !important;
+  display: flex;
+  flex-direction: column;
 }
 
 #new-reservation-modal #reservation-form .form-group label,
 #new-reservation-modal #reservation-form label:not(.modal-section-card__header) {
-  margin-bottom: 4px !important;
-  font-size: 13px !important;
+  margin-bottom: 5px !important;
+  font-size: 0.8rem !important;
+  font-weight: 700 !important;
+  color: #334155 !important;
+  line-height: 1.3 !important;
 }
 
 #new-reservation-modal #reservation-form .form-control,
 #new-reservation-modal #reservation-form .form-input,
 #new-reservation-modal #reservation-form input:not([type="checkbox"]):not([type="radio"]),
 #new-reservation-modal #reservation-form select,
-#new-reservation-modal #reservation-form textarea {
-  height: 38px;
-  min-height: 38px;
-  padding: 6px 10px !important;
-  font-size: 13px !important;
+#new-reservation-modal #reservation-form textarea,
+#new-reservation-modal #reservation-form .remaining-balance-badge {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  padding: 8px 12px !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 9px !important;
+  font-size: 0.84rem !important;
+  color: #1e293b !important;
+  background: #fff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-#new-reservation-modal #reservation-form .form-row {
-  display: grid !important;
-  grid-column: 1 / -1;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 10px !important;
-  margin: 0 !important;
+#new-reservation-modal #reservation-form select {
+  padding-inline-end: 28px !important;
 }
 
-/* Guest card: contact/ID row, one-line hint, then full-width guest name. */
-#new-reservation-modal #reservation-form > section:nth-of-type(1) > .form-row,
-#new-reservation-modal #reservation-form > section:nth-of-type(1) > .form-group {
-  grid-column: 1 / -1;
+#new-reservation-modal #reservation-form .remaining-balance-badge {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  background: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #92400e !important;
+  font-weight: 800 !important;
+  box-shadow: none !important;
 }
 
-#new-reservation-modal #reservation-form > section:nth-of-type(1) > div:not(.modal-section-card__header):not(.form-row):not(.form-group) {
-  grid-column: 1 / -1;
-  overflow: hidden;
-  margin: 0 !important;
-  font-size: 12px !important;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+#new-reservation-modal #reservation-form .form-hint,
+#new-reservation-modal #reservation-form .form-group > small,
+#new-reservation-modal #reservation-form .form-group > span:not(.badge) {
+  font-size: 0.72rem !important;
+  line-height: 1.3 !important;
+  margin-top: 4px;
+  color: #64748b !important;
+  min-height: 16px;
+  display: block;
 }
 
-/* Stay card: booking type and room share the first row; dates share the next. */
-#new-reservation-modal #reservation-form > section:nth-of-type(2) > .form-group {
-  grid-column: span 1;
+#new-reservation-modal #reservation-form .guest-autofill-hint,
+#new-reservation-modal #reservation-form .stay-details-hints {
+  font-size: 0.73rem !important;
+  line-height: 1.35 !important;
+  min-height: 18px;
+  display: flex;
+  align-items: center;
 }
 
-#new-reservation-modal #reservation-form > section:nth-of-type(2) > .form-row {
-  grid-column: 1 / -1;
+#new-reservation-modal #reservation-form .guest-autofill-hint {
+  color: #a67c52 !important;
+  font-weight: 700 !important;
 }
 
-/* Pricing and cashier cards remain two-column and sit level with each other. */
-#new-reservation-modal #reservation-form > section:nth-of-type(3) > .form-row {
-  grid-column: 1 / -1;
-}
-
-#new-reservation-modal #reservation-form > section:nth-of-type(3) > .form-group {
-  grid-column: span 1;
-}
-
-#new-reservation-modal #reservation-form > section:nth-of-type(4) > .form-row {
-  grid-column: 1 / -1;
-}
-
-#new-reservation-modal #reservation-form > section:nth-of-type(4) small,
-#new-reservation-modal #reservation-form > section:nth-of-type(2) .form-group > span,
-#new-reservation-modal #reservation-form > section:nth-of-type(3) .form-group > span {
-  font-size: 11px !important;
-  line-height: 1.25;
+#new-reservation-modal #reservation-form .stay-details-hints {
+  color: #64748b !important;
+  font-weight: 600 !important;
 }
 
 #new-reservation-modal #reservation-form .modal-layout__footer {
   position: static !important;
   display: flex !important;
-  min-height: 56px;
-  height: 56px;
+  min-height: 54px;
+  height: 54px;
   align-items: center;
   justify-content: flex-start;
-  gap: 8px;
+  gap: 10px;
   margin: 0 !important;
-  padding: 6px 0 0 !important;
+  padding: 10px 0 0 !important;
   border-top: 1px solid #e2e8f0 !important;
   background: #fff !important;
 }
 
 #new-reservation-modal #reservation-form .modal-layout__footer button {
-  min-height: 40px;
-  flex: 0 0 auto !important;
-  padding: 8px 16px !important;
+  min-height: 42px;
+  padding: 9px 20px !important;
+  font-weight: 700 !important;
+  border-radius: 9px !important;
 }
 
 /* The earlier ID-scoped gradient used !important, so override it at equal scope. */
@@ -7815,7 +7874,8 @@ body.login-body {
   #new-reservation-modal #reservation-form .form-input,
   #new-reservation-modal #reservation-form input:not([type="checkbox"]):not([type="radio"]),
   #new-reservation-modal #reservation-form select,
-  #new-reservation-modal #reservation-form textarea {
+  #new-reservation-modal #reservation-form textarea,
+  #new-reservation-modal #reservation-form .remaining-balance-badge {
     height: 34px;
     min-height: 34px;
     padding-block: 4px !important;
