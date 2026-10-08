@@ -235,7 +235,7 @@
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 2. NATURAL LANGUAGE & COMMAND INTENT PARSER
+  // 3. NATURAL LANGUAGE & COMMAND INTENT PARSER
   // ─────────────────────────────────────────────────────────────────────────────
 
   function parseCommandIntent(rawQuery) {
@@ -244,47 +244,67 @@
       return { type: 'empty' };
     }
 
-    // A. Room status inquiry: "مين في غرفة 204", "مين في 204", "غرفة 204", "204"
-    const roomInquiryMatch = query.match(/^(?:مين\s+في\s+(?:غرفة\s+)?|غرفة\s+|رقم\s+)?(\d{2,4})(?:\s*؟|\s*\?|\s*$)/i);
-    if (roomInquiryMatch && roomInquiryMatch[1]) {
+    // A. Unpaid balances / debts intent: "مين عليه فلوس", "مين عليه مبالغ", "مين ما دفع", "المستحقات", "مديونية", "ديون", "unpaid"
+    // MUST BE EVALUATED BEFORE shift-intent (so "فلوس" in "مين عليه فلوس" is not confused with cash drawer)
+    const isUnpaidQuery = /^(?:مستحق|المستحق|ديون|الديون|مديوني|المديوني|غير\s+مدفوع|غير\s+مسدد|unpaid|debts|balances|outstanding)/i.test(query) ||
+      query.includes('عليه فلوس') || query.includes('عليه مبالغ') || query.includes('ما دفع') ||
+      query.includes('مستحق') || query.includes('مبالغ معلقة') || query.includes('باقي فلوس') ||
+      query.includes('مديون') || query.includes('ديون');
+    if (isUnpaidQuery) {
       return {
-        type: 'room-inquiry',
-        roomNumber: roomInquiryMatch[1],
+        type: 'unpaid-intent',
         originalQuery: query
       };
     }
 
-    // B. Booking / Check-in intent: "تسكين 105", "حجز 105", "تسكين غرفة 105", "حجز جديد"
-    const bookingMatch = query.match(/^(?:تسكين|حجز|booking|checkin)\s*(?:غرفة\s+)?(\d{2,4})?/i);
-    if (bookingMatch) {
+    // B. Departures today intent: "مين خارج اليوم", "مغادرات اليوم", "مين بيخرج اليوم", "خروج اليوم", "departures"
+    const isDeparturesQuery = /^(?:مغادر|المغادر|خروج|الخروج|departures?|checkouts?)/i.test(query) ||
+      query.includes('خارج اليوم') || query.includes('بيخرج اليوم') || query.includes('يخرج اليوم') ||
+      query.includes('مغادرات') || query.includes('مغادرة اليوم') || query.includes('خروج اليوم') ||
+      query.includes('leaving today');
+    if (isDeparturesQuery) {
       return {
-        type: 'booking-intent',
-        roomNumber: bookingMatch[1] || null,
+        type: 'departures-intent',
         originalQuery: query
       };
     }
 
-    // C. Cash drawer / Shift report: "فلوس الدرج", "الدرج", "تقرير الوردية", "الخزينة", "الكاش"
-    const isShiftQuery = /^(?:فلوس|كاش|نقدية|درج|الدرج|وردية|الوردية|خزينة|الخزينة|audit|shift|cash|drawer)(?:\s|$)/i.test(query) ||
-      query.includes('درج') || query.includes('وردية') || query.includes('خزينة') || query.includes('كاش');
-    if (isShiftQuery) {
+    // C. Late checkout / Overdue stays intent: "مين متأخر", "المتأخرين", "تأخير", "late"
+    const isLateQuery = /^(?:متأخر|المتأخر|متاخر|المتاخر|تأخير|التأخير|late|overdue)/i.test(query) ||
+      query.includes('متأخر') || query.includes('متاخر') || query.includes('تأخير') || query.includes('overdue');
+    if (isLateQuery) {
       return {
-        type: 'shift-intent',
+        type: 'late-intent',
         originalQuery: query
       };
     }
 
-    // D. WhatsApp messaging: "واتساب 102", "واتساب محمد", "واتس 102"
-    const whatsappMatch = query.match(/^(?:واتساب|واتس|whatsapp|رسالة)\s*(?:غرفة\s+)?(\S+)?/i);
-    if (whatsappMatch) {
+    // D. Available rooms intent: "غرف فاضية", "مين فاضي", "غرفة فاضية", "غرف متاحة", "متاحة", "available", "vacant"
+    const hasDigits = /\d+/.test(query);
+    const isAvailableQuery = !hasDigits && (
+      /^(?:فاضي|الفاضي|فاضية|الفاضية|متاح|المتاح|متاحة|المتاحة|شاغر|الشاغر|شاغرة|الشاغرة|available|vacant)/i.test(query) ||
+      query.includes('فاضي') || query.includes('فاضية') || query.includes('متاح') || query.includes('شاغر') || query.includes('vacant')
+    );
+    if (isAvailableQuery) {
       return {
-        type: 'whatsapp-intent',
-        target: whatsappMatch[1] || null,
+        type: 'available-intent',
         originalQuery: query
       };
     }
 
-    // E. Cleaning rooms: "غرف النظافة", "تنظيف", "نظافة"
+    // E. Occupied rooms intent: "غرف مشغولة", "مين ساكن", "الساكنين", "مشغولة", "occupied", "in-house"
+    const isOccupiedQuery = !hasDigits && (
+      /^(?:مشغول|المشغول|مشغولة|المشغولة|ساكن|الساكن|ساكنين|الساكنين|occupied|in-house)/i.test(query) ||
+      query.includes('مشغول') || query.includes('ساكنين') || (query.includes('ساكن') && !query.includes('تسكين')) || query.includes('occupied')
+    );
+    if (isOccupiedQuery) {
+      return {
+        type: 'occupied-intent',
+        originalQuery: query
+      };
+    }
+
+    // F. Cleaning rooms: "غرف النظافة", "تنظيف", "نظافة"
     const isCleaningQuery = /^(?:نظافة|النظافة|تنظيف|التنظيف|cleaning|dirty)(?:\s|$)/i.test(query) ||
       query.includes('نظافة') || query.includes('تنظيف') || query.includes('cleaning');
     if (isCleaningQuery) {
@@ -294,7 +314,47 @@
       };
     }
 
-    // F. General search across entities (guests, rooms, reservations)
+    // G. Booking / Check-in intent: "تسكين 105", "حجز 105", "تسكين غرفة 105", "حجز جديد"
+    const bookingMatch = query.match(/^(?:تسكين|حجز|booking|checkin)\s*(?:غرفة\s+)?(\d{1,5})?/i);
+    if (bookingMatch) {
+      return {
+        type: 'booking-intent',
+        roomNumber: bookingMatch[1] || null,
+        originalQuery: query
+      };
+    }
+
+    // H. Cash drawer / Shift report: "فلوس الدرج", "الدرج", "تقرير الوردية", "الخزينة", "الكاش"
+    const isShiftQuery = /^(?:فلوس|كاش|نقدية|درج|الدرج|وردية|الوردية|خزينة|الخزينة|audit|shift|cash|drawer)(?:\s|$)/i.test(query) ||
+      query.includes('درج') || query.includes('وردية') || query.includes('خزينة') || query.includes('كاش');
+    if (isShiftQuery) {
+      return {
+        type: 'shift-intent',
+        originalQuery: query
+      };
+    }
+
+    // I. WhatsApp messaging: "واتساب 102", "واتساب محمد", "واتس 102"
+    const whatsappMatch = query.match(/^(?:واتساب|واتس|whatsapp|رسالة)\s*(?:غرفة\s+)?(\S+)?/i);
+    if (whatsappMatch) {
+      return {
+        type: 'whatsapp-intent',
+        target: whatsappMatch[1] || null,
+        originalQuery: query
+      };
+    }
+
+    // J. Room status inquiry: "مين في غرفة 204", "مين في 204", "غرفة 204", "204", "مين في 202"
+    const roomInquiryMatch = query.match(/^(?:(?:مين\s+(?:في\s+|ساكن\s+(?:في\s+)?)?|من\s+في\s+)?(?:غرفة\s+|الغرفة\s+|رقم\s+)?|رقم\s+)?(\d{1,5})(?:\s*؟|\s*\?|\s*$)/i);
+    if (roomInquiryMatch && roomInquiryMatch[1]) {
+      return {
+        type: 'room-inquiry',
+        roomNumber: roomInquiryMatch[1],
+        originalQuery: query
+      };
+    }
+
+    // K. General search across entities (guests, rooms, reservations)
     return {
       type: 'search',
       query: query.toLowerCase()
@@ -355,6 +415,9 @@
     ensurePaletteElements();
     if (!paletteModal) return;
 
+    // Refresh database cache in background
+    syncDataFromDb();
+
     paletteModal.style.display = 'flex';
     paletteInput.value = initialQuery;
     paletteInput.focus();
@@ -413,9 +476,9 @@
   function handlePaletteSearch(rawQuery) {
     if (!paletteResults) return;
     const intent = parseCommandIntent(rawQuery);
-    const rooms = Array.isArray(App.State.roomsCache) ? App.State.roomsCache : [];
-    const reservations = Array.isArray(App.State.reservationsCache) ? App.State.reservationsCache : [];
-    const guests = Array.isArray(App.State.guestsCache) ? App.State.guestsCache : [];
+    const rooms = getRooms();
+    const reservations = getReservations();
+    const guests = getGuests();
     const attention = computeAttentionInbox();
 
     const results = [];
@@ -503,69 +566,320 @@
       });
     }
 
+    else if (intent.type === 'unpaid-intent') {
+      const unpaidItems = reservations
+        .filter(r => r.status === 'مؤكد')
+        .map(r => {
+          const total = Number(r.total_price || 0);
+          const paid = Number((r.ledger_paid_amount ?? r.paid_amount) || 0);
+          const balance = Math.max(0, total - paid);
+          return { res: r, balance, total, paid };
+        })
+        .filter(item => item.balance > 0.005)
+        .sort((a, b) => b.balance - a.balance);
+
+      if (unpaidItems.length > 0) {
+        const totalDebt = unpaidItems.reduce((acc, cur) => acc + cur.balance, 0);
+        results.push({
+          category: `💳 المستحقات والمديونيات المعلقة (${unpaidItems.length} نزلاء)`,
+          icon: '📊',
+          title: `إجمالي المستحقات غير المسددة: ${totalDebt.toLocaleString()} ر.س`,
+          subtitle: `يوجد ${unpaidItems.length} حجز نشط بمبالغ معلقة بحاجة للتحصيل`,
+          badge: `${totalDebt.toLocaleString()} ر.س`,
+          actionFn: () => openAttentionInboxModal('unpaid-balance')
+        });
+
+        unpaidItems.forEach(({ res: r, balance, total, paid }) => {
+          results.push({
+            category: '💳 نزلاء عليهم مبالغ معلقة',
+            icon: '⚠️',
+            title: `غرفة ${r.room_number || '-'} • ${r.guest_name || 'نزيل'} (متبقي: ${balance.toLocaleString()} ر.س)`,
+            subtitle: `الجوال: ${r.guest_phone || '-'} • المسدد: ${paid.toLocaleString()} من ${total.toLocaleString()} ر.س • المغادرة: ${r.check_out_date || '-'}`,
+            badge: `${balance.toLocaleString()} ر.س ⚠️`,
+            actionFn: () => {
+              if (window.openAddPaymentModal) {
+                window.openAddPaymentModal(r.id);
+              } else if (App.Helpers.openReservationPreview) {
+                App.Helpers.openReservationPreview(r.id);
+              }
+            }
+          });
+        });
+      } else {
+        results.push({
+          category: '💳 المستحقات والمديونيات',
+          icon: '✓',
+          title: 'لا توجد أي مبالغ معلقة أو غير مسددة!',
+          subtitle: 'جميع الحجوزات النشطة تم سداد قيمتها بالكامل',
+          badge: 'مسدد بالكامل ✓',
+          actionFn: () => switchViewSection('reservations')
+        });
+      }
+    }
+
+    else if (intent.type === 'departures-intent') {
+      const currentBizDate = String(App.State.businessDate || (App.Helpers.getLocalDateString ? App.Helpers.getLocalDateString() : new Date().toISOString().slice(0, 10)));
+      const departingStays = reservations.filter(r =>
+        r.status === 'مؤكد' &&
+        r.booking_type !== 'عقد مفتوح' &&
+        String(r.check_out_date || '').slice(0, 10) === currentBizDate
+      );
+
+      if (departingStays.length > 0) {
+        results.push({
+          category: `🚪 مغادرات اليوم المتوقعة (${departingStays.length} غرفة)`,
+          icon: '🚪',
+          title: `قائمة المغادرين اليوم (${currentBizDate})`,
+          subtitle: `إجمالي ${departingStays.length} غرفة مقررة مغادرتها اليوم`,
+          badge: `${departingStays.length} مغادرة`,
+          actionFn: () => openAttentionInboxModal('departures-today')
+        });
+
+        departingStays.forEach(r => {
+          const total = Number(r.total_price || 0);
+          const paid = Number((r.ledger_paid_amount ?? r.paid_amount) || 0);
+          const balance = Math.max(0, total - paid);
+          const expectedTime = App.Helpers.getExpectedCheckoutTime ? App.Helpers.getExpectedCheckoutTime(r) : '14:00';
+          results.push({
+            category: '🚪 مغادرة اليوم',
+            icon: '🚪',
+            title: `غرفة ${r.room_number || '-'} • النزيل: ${r.guest_name || 'نزيل'}`,
+            subtitle: `موعد الإخلاء: ${expectedTime || '14:00'} • الجوال: ${r.guest_phone || '-'} • المتبقي: ${balance.toLocaleString()} ر.س ${balance > 0 ? '⚠️' : '✓'}`,
+            badge: balance > 0 ? 'متبقي مالي' : 'جاهز للإخلاء',
+            actionFn: () => {
+              if (App.Helpers.openContractSettleModal) {
+                App.Helpers.openContractSettleModal(r);
+              } else if (App.Helpers.openReservationPreview) {
+                App.Helpers.openReservationPreview(r.id);
+              }
+            }
+          });
+        });
+      } else {
+        results.push({
+          category: '🚪 مغادرات اليوم',
+          icon: '✓',
+          title: 'لا توجد مغادرات مقررة لليوم الحالي',
+          subtitle: `تاريخ العمل الفندقي: ${currentBizDate}`,
+          badge: 'لا توجد مغادرات',
+          actionFn: () => switchViewSection('reservations')
+        });
+      }
+    }
+
+    else if (intent.type === 'late-intent') {
+      const lateStays = reservations.filter(r =>
+        r.status === 'مؤكد' &&
+        r.booking_type !== 'عقد مفتوح' &&
+        Boolean(App.Helpers.isLateCheckout && App.Helpers.isLateCheckout(r))
+      );
+
+      if (lateStays.length > 0) {
+        results.push({
+          category: `⚠️ النزلاء المتأخرون عن المغادرة (${lateStays.length})`,
+          icon: '⚠️',
+          title: `يوجد ${lateStays.length} نزيل تجاوزوا موعد الخروج المحدد`,
+          subtitle: 'يجب التواصل معهم للتمديد أو تسليم الغرفة فوراً',
+          badge: 'متأخرون ⚠️',
+          actionFn: () => openAttentionInboxModal('late-checkout')
+        });
+
+        lateStays.forEach(r => {
+          const total = Number(r.total_price || 0);
+          const paid = Number((r.ledger_paid_amount ?? r.paid_amount) || 0);
+          const balance = Math.max(0, total - paid);
+          results.push({
+            category: '⚠️ نزيل متأخر',
+            icon: '🔴',
+            title: `غرفة ${r.room_number || '-'} • ${r.guest_name || 'نزيل'}`,
+            subtitle: `تاريخ المغادرة السابق: ${r.check_out_date || '-'} • الجوال: ${r.guest_phone || '-'} • المتبقي: ${balance.toLocaleString()} ر.س`,
+            badge: 'تجاوز المغادرة ⚠️',
+            actionFn: () => {
+              if (App.Helpers.openContractSettleModal) {
+                App.Helpers.openContractSettleModal(r);
+              } else if (App.Helpers.openReservationPreview) {
+                App.Helpers.openReservationPreview(r.id);
+              }
+            }
+          });
+        });
+      } else {
+        results.push({
+          category: '⚠️ النزلاء المتأخرون',
+          icon: '✓',
+          title: 'لا يوجد أي نزلاء متأخرين عن المغادرة حالياً',
+          subtitle: 'جميع الإقامات منتظمة وفق جداول المغادرة',
+          badge: 'منضبط ✓',
+          actionFn: () => switchViewSection('reservations')
+        });
+      }
+    }
+
+    else if (intent.type === 'available-intent') {
+      const availRooms = rooms.filter(r => r.status === 'متاحة');
+      if (availRooms.length > 0) {
+        results.push({
+          category: `🟢 الغرف المتاحة للتشغيل (${availRooms.length} غرف)`,
+          icon: '🟢',
+          title: `عدد الغرف الشاغرة الجاهزة: ${availRooms.length} غرفة`,
+          subtitle: 'انقر على أي غرفة لبدء تسكين فوري',
+          badge: `${availRooms.length} شاغرة`,
+          actionFn: () => switchViewSection('rooms')
+        });
+
+        availRooms.forEach(r => {
+          results.push({
+            category: '🟢 غرفة متاحة للتسكين',
+            icon: '🟢',
+            title: `غرفة ${r.room_number} (${r.type || 'عادية'}) • الطابق ${r.floor || '1'}`,
+            subtitle: `السعر: ${Number(r.price_per_night || 0).toLocaleString()} ر.س/ليلة • جاهزة للتسكين الفوري`,
+            badge: 'تسكين ➕',
+            actionFn: () => {
+              if (App.Helpers.initiateRoomBooking) {
+                App.Helpers.initiateRoomBooking(r.id);
+              } else {
+                switchViewSection('rooms');
+              }
+            }
+          });
+        });
+      } else {
+        results.push({
+          category: '🟢 الغرف المتاحة',
+          icon: 'ℹ️',
+          title: 'لا توجد غرف شاغرة متاحة حالياً!',
+          subtitle: 'نسبة الإشغال 100% أو الغرف تحت التنظيف والصيانة',
+          badge: 'ممتلئ',
+          actionFn: () => switchViewSection('rooms')
+        });
+      }
+    }
+
+    else if (intent.type === 'occupied-intent') {
+      const occRooms = rooms.filter(r => r.status === 'مشغولة' || r.status === 'محجوزة');
+      if (occRooms.length > 0) {
+        results.push({
+          category: `🔴 الغرف المشغولة والمحجوزة (${occRooms.length} غرف)`,
+          icon: '🔴',
+          title: `إجمالي الغرف المسكونة والمحجوزة: ${occRooms.length} غرفة`,
+          subtitle: 'استعراض النزلاء المقيمين وتفاصيل الإقامة',
+          badge: `${occRooms.length} مسكونة`,
+          actionFn: () => switchViewSection('rooms')
+        });
+
+        occRooms.forEach(room => {
+          const activeRes = reservations.find(r => (r.room_id === room.id || String(r.room_number) === String(room.room_number)) && r.status === 'مؤكد');
+          results.push({
+            category: '🔴 غرفة مشغولة',
+            icon: '🔴',
+            title: `غرفة ${room.room_number} • النزيل: ${activeRes ? activeRes.guest_name : 'نزيل مقيم'}`,
+            subtitle: activeRes ? `الجوال: ${activeRes.guest_phone || '-'} • المغادرة: ${activeRes.check_out_date || 'مفتوح'}` : `حالة الغرفة: ${room.status}`,
+            badge: room.status,
+            actionFn: () => {
+              if (activeRes && App.Helpers.openReservationPreview) {
+                App.Helpers.openReservationPreview(activeRes.id);
+              } else {
+                switchViewSection('rooms');
+              }
+            }
+          });
+        });
+      } else {
+        results.push({
+          category: '🔴 الغرف المشغولة',
+          icon: 'ℹ️',
+          title: 'لا توجد غرف مشغولة حالياً',
+          subtitle: 'الفندق خالٍ من النزلاء حالياً',
+          badge: 'فارغ',
+          actionFn: () => switchViewSection('rooms')
+        });
+      }
+    }
+
     else if (intent.type === 'room-inquiry') {
       const roomNum = intent.roomNumber;
       const room = rooms.find(r => String(r.room_number) === roomNum || String(r.id) === roomNum);
 
-      if (room) {
-        if (room.status === 'مشغولة') {
-          const activeRes = reservations.find(r => r.room_id === room.id && r.status === 'مؤكد') ||
-            (room.active_reservations ? room.active_reservations[0] : null);
+      // Find active reservation: check by room_id or by room_number string
+      const activeRes = reservations.find(r =>
+        ((room && r.room_id === room.id) || String(r.room_number) === roomNum) &&
+        r.status === 'مؤكد'
+      ) || (room && room.active_reservations ? room.active_reservations[0] : null);
+
+      if (room || activeRes) {
+        const displayRoomNum = room ? room.room_number : (activeRes ? activeRes.room_number : roomNum);
+        const statusText = room ? room.status : (activeRes ? 'مشغولة' : 'غير محددة');
+
+        // Case A: Room has an active reservation / occupant (whether marked as 'مشغولة' or 'محجوزة')
+        if (activeRes) {
+          const total = Number(activeRes.total_price || 0);
+          const paid = Number((activeRes.ledger_paid_amount ?? activeRes.paid_amount) || 0);
+          const balance = Math.max(0, total - paid);
 
           results.push({
-            category: `🚪 تفاصيل الغرفة ${room.room_number}`,
+            category: `🚪 تفاصيل الغرفة ${displayRoomNum}`,
             icon: '🔴',
-            title: `غرفة ${room.room_number} (مشغولة) • النزيل: ${activeRes ? activeRes.guest_name : 'نزيل مقيم'}`,
-            subtitle: activeRes ? `الجوال: ${activeRes.guest_phone || '-'} • المغادرة: ${activeRes.check_out_date || 'مفتوح'} • المتبقي: ${Number((activeRes.total_price || 0) - (activeRes.paid_amount || 0)).toLocaleString()} ر.س` : 'الغرفة مشغولة بحجز نشط',
-            badge: 'مشغولة',
+            title: `غرفة ${displayRoomNum} (${statusText}) • النزيل: ${activeRes.guest_name || 'نزيل مقيم'}`,
+            subtitle: `الجوال: ${activeRes.guest_phone || '-'} • المغادرة: ${activeRes.check_out_date || 'مفتوح'} • المتبقي: ${balance.toLocaleString()} ر.س ${balance > 0 ? '⚠️' : '✓'}`,
+            badge: statusText,
             actionFn: () => {
-              if (activeRes && App.Helpers.openReservationPreview) {
+              if (App.Helpers.openReservationPreview) {
                 App.Helpers.openReservationPreview(activeRes.id);
               }
             }
           });
 
-          if (activeRes) {
-            results.push({
-              category: `⚡ إجراءات سريعة للغرفة ${room.room_number}`,
-              icon: '🧾',
-              title: `تسجيل مغادرة وتصفية الحساب • غرفة ${room.room_number}`,
-              subtitle: `إنهاء إقامة النزيل (${activeRes.guest_name}) واستلام المفتاح`,
-              badge: 'مغادرة',
-              actionFn: () => {
-                if (App.Helpers.openContractSettleModal) App.Helpers.openContractSettleModal(activeRes);
+          results.push({
+            category: `⚡ إجراءات سريعة للغرفة ${displayRoomNum}`,
+            icon: '🧾',
+            title: `تسجيل مغادرة وتصفية الحساب • غرفة ${displayRoomNum}`,
+            subtitle: `إنهاء إقامة النزيل (${activeRes.guest_name}) وتسليم الغرفة`,
+            badge: 'مغادرة',
+            actionFn: () => {
+              if (App.Helpers.openContractSettleModal) {
+                App.Helpers.openContractSettleModal(activeRes);
+              } else if (App.Helpers.openReservationPreview) {
+                App.Helpers.openReservationPreview(activeRes.id);
               }
-            });
-
-            if (activeRes.guest_phone) {
-              results.push({
-                category: `⚡ إجراءات سريعة للغرفة ${room.room_number}`,
-                icon: '💬',
-                title: `مراسلة النزيل (${activeRes.guest_name}) عبر واتساب`,
-                subtitle: `إرسال رسالة سريعة إلى ${activeRes.guest_phone}`,
-                badge: 'WhatsApp',
-                actionFn: () => {
-                  if (window.sendReservationWhatsApp) window.sendReservationWhatsApp(activeRes.id);
-                }
-              });
             }
+          });
 
+          if (activeRes.guest_phone) {
             results.push({
-              category: `⚡ إجراءات سريعة للغرفة ${room.room_number}`,
-              icon: '💳',
-              title: `تسجيل دفعة سداد جديدة • غرفة ${room.room_number}`,
-              subtitle: `تحصيل مبلغ مالي للنزيل (${activeRes.guest_name})`,
-              badge: 'سداد',
+              category: `⚡ إجراءات سريعة للغرفة ${displayRoomNum}`,
+              icon: '💬',
+              title: `مراسلة النزيل (${activeRes.guest_name}) عبر واتساب`,
+              subtitle: `إرسال رسالة سريعة إلى ${activeRes.guest_phone}`,
+              badge: 'WhatsApp',
               actionFn: () => {
-                if (window.openAddPaymentModal) window.openAddPaymentModal(activeRes.id);
+                if (window.sendReservationWhatsApp) window.sendReservationWhatsApp(activeRes.id);
               }
             });
           }
-        } else if (room.status === 'متاحة') {
+
+          if (balance > 0) {
+            results.push({
+              category: `⚡ إجراءات سريعة للغرفة ${displayRoomNum}`,
+              icon: '💳',
+              title: `تسجيل دفعة سداد جديدة • متبقي ${balance.toLocaleString()} ر.س`,
+              subtitle: `تحصيل مبلغ مالي للنزيل (${activeRes.guest_name})`,
+              badge: 'سداد دفعة',
+              actionFn: () => {
+                if (window.openAddPaymentModal) {
+                  window.openAddPaymentModal(activeRes.id);
+                } else if (App.Helpers.openReservationPreview) {
+                  App.Helpers.openReservationPreview(activeRes.id);
+                }
+              }
+            });
+          }
+        }
+        // Case B: Room is vacant / available
+        else if (room && room.status === 'متاحة') {
           results.push({
-            category: `🚪 تفاصيل الغرفة ${room.room_number}`,
+            category: `🚪 تفاصيل الغرفة ${displayRoomNum}`,
             icon: '🟢',
-            title: `غرفة ${room.room_number} (متاحة للتشغيل)`,
+            title: `غرفة ${displayRoomNum} (متاحة للتشغيل)`,
             subtitle: `النوع: ${room.type || 'عادية'} • السعر: ${Number(room.price_per_night || 0).toLocaleString()} ر.س/ليلة • الطابق: ${room.floor || '1'}`,
             badge: 'متاحة ✓',
             actionFn: () => {
@@ -574,38 +888,42 @@
           });
 
           results.push({
-            category: `⚡ إجراءات سريعة للغرفة ${room.room_number}`,
+            category: `⚡ إجراءات سريعة للغرفة ${displayRoomNum}`,
             icon: '➕',
-            title: `تسكين فوري للغرفة ${room.room_number}`,
+            title: `تسكين فوري للغرفة ${displayRoomNum}`,
             subtitle: 'فتح نموذج حجز جديد واختيار هذه الغرفة تلقائياً',
             badge: 'تسكين',
             actionFn: () => {
               if (App.Helpers.initiateRoomBooking) App.Helpers.initiateRoomBooking(room.id);
             }
           });
-        } else if (room.status === 'تنظيف') {
+        }
+        // Case C: Room under cleaning
+        else if (room && room.status === 'تنظيف') {
           results.push({
-            category: `🚪 تفاصيل الغرفة ${room.room_number}`,
+            category: `🚪 تفاصيل الغرفة ${displayRoomNum}`,
             icon: '🧹',
-            title: `غرفة ${room.room_number} (تحت التنظيف)`,
+            title: `غرفة ${displayRoomNum} (تحت التنظيف)`,
             subtitle: 'الغرفة بانتظار إشعار عمال النظافة قبل إتاحتها للحجز',
             badge: 'تنظيف',
             actionFn: () => markRoomCleanDirectly(room)
           });
           results.push({
-            category: `⚡ إجراءات سريعة للغرفة ${room.room_number}`,
+            category: `⚡ إجراءات سريعة للغرفة ${displayRoomNum}`,
             icon: '✓',
-            title: `تحويل غرفة ${room.room_number} إلى "متاحة" فوراً`,
+            title: `تحويل غرفة ${displayRoomNum} إلى "متاحة" فوراً`,
             subtitle: 'تأكيد اكتمال التنظيف وتجهيز الغرفة للتسكين',
             badge: 'اعتماد',
             actionFn: () => markRoomCleanDirectly(room)
           });
-        } else {
+        }
+        // Case D: Other status (maintenance, etc.)
+        else if (room) {
           results.push({
-            category: `🚪 تفاصيل الغرفة ${room.room_number}`,
+            category: `🚪 تفاصيل الغرفة ${displayRoomNum}`,
             icon: '🛠️',
-            title: `غرفة ${room.room_number} (حالة: ${room.status})`,
-            subtitle: `النوع: ${room.type || 'عادية'}`,
+            title: `غرفة ${displayRoomNum} (حالة: ${room.status})`,
+            subtitle: `النوع: ${room.type || 'عادية'} • الطابق: ${room.floor || '1'}`,
             badge: room.status,
             actionFn: () => switchViewSection('rooms')
           });
@@ -736,6 +1054,161 @@
           title: 'جميع الغرف نظيفة ومتاحة!',
           subtitle: 'لا توجد أي غرف بحالة "تنظيف" حالياً',
           badge: 'ممتاز ✓',
+          actionFn: () => switchViewSection('rooms')
+        });
+      }
+    }
+
+    else if (intent.type === 'unpaid-intent') {
+      const unpaidItems = attention.unpaidBalances || [];
+      if (unpaidItems.length > 0) {
+        unpaidItems.forEach(item => {
+          results.push({
+            category: '💳 مبالغ معلقة ومستحقة',
+            icon: '⚠️',
+            title: item.title,
+            subtitle: item.subtitle,
+            badge: item.badge,
+            isUrgent: true,
+            actionFn: () => executeAttentionAction(item)
+          });
+        });
+      } else {
+        const activeUnpaid = reservations.filter(r => (r.status === 'مؤكد' || r.status === 'late') && ((r.total_price || 0) - (r.paid_amount || 0)) > 0);
+        if (activeUnpaid.length > 0) {
+          activeUnpaid.forEach(r => {
+            const due = (r.total_price || 0) - (r.paid_amount || 0);
+            results.push({
+              category: '💳 مبالغ معلقة ومستحقة',
+              icon: '⚠️',
+              title: `نزيل: ${r.guest_name || 'نزيل'} • متبقي: ${due.toLocaleString()} ر.س`,
+              subtitle: `غرفة ${r.room_number || '-'} • إجمالي: ${(r.total_price || 0).toLocaleString()} • مدفوع: ${(r.paid_amount || 0).toLocaleString()}`,
+              badge: `${due.toLocaleString()} ر.س`,
+              isUrgent: true,
+              actionFn: () => {
+                if (window.openAddPaymentModal) window.openAddPaymentModal(r.id);
+              }
+            });
+          });
+        } else {
+          results.push({
+            category: '💳 المستحقات والمديونيات',
+            icon: '✓',
+            title: 'جميع النزلاء مسددون بالكامل!',
+            subtitle: 'لا توجد مبالغ مستحقة أو مديونيات معلقة على النزلاء الحاليين',
+            badge: 'مسدد بالكامل ✓',
+            actionFn: () => switchViewSection('reservations')
+          });
+        }
+      }
+    }
+
+    else if (intent.type === 'departures-intent') {
+      const departures = attention.departuresToday || [];
+      if (departures.length > 0) {
+        departures.forEach(item => {
+          results.push({
+            category: '🚪 مغادرات اليوم المجدولة',
+            icon: '🚪',
+            title: item.title,
+            subtitle: item.subtitle,
+            badge: item.badge,
+            actionFn: () => executeAttentionAction(item)
+          });
+        });
+      } else {
+        results.push({
+          category: '🚪 مغادرات اليوم',
+          icon: '✓',
+          title: 'لا توجد مغادرات مجدولة لليوم',
+          subtitle: 'جميع النزلاء المقيمين مستمرون في إقامتهم أو تم إنهاء إجراءاتهم',
+          badge: 'اليوم هادئ ✓',
+          actionFn: () => switchViewSection('reservations')
+        });
+      }
+    }
+
+    else if (intent.type === 'late-intent') {
+      const lateItems = attention.lateCheckouts || [];
+      if (lateItems.length > 0) {
+        lateItems.forEach(item => {
+          results.push({
+            category: '⚠️ إقامات متأخرة تجاوزت موعد المغادرة',
+            icon: '🚨',
+            title: item.title,
+            subtitle: item.subtitle,
+            badge: item.badge,
+            isUrgent: true,
+            actionFn: () => executeAttentionAction(item)
+          });
+        });
+      } else {
+        results.push({
+          category: '⚠️ الإقامات المتأخرة',
+          icon: '✓',
+          title: 'لا توجد أي إقامات متأخرة!',
+          subtitle: 'جميع النزلاء المقيمين ضمن فترات إقامتهم المعتمدة',
+          badge: 'منتظم ✓',
+          actionFn: () => switchViewSection('reservations')
+        });
+      }
+    }
+
+    else if (intent.type === 'available-intent') {
+      const availableRooms = rooms.filter(r => r.status === 'متاحة');
+      if (availableRooms.length > 0) {
+        availableRooms.forEach(room => {
+          results.push({
+            category: '🟢 الغرف الشاغرة والمتاحة للتسكين',
+            icon: '🟢',
+            title: `غرفة ${room.room_number} (${room.type || 'عادية'})`,
+            subtitle: `السعر: ${Number(room.price_per_night || 0).toLocaleString()} ر.س/ليلة • الطابق: ${room.floor || '1'}`,
+            badge: 'متاحة',
+            actionFn: () => {
+              if (App.Helpers.initiateRoomBooking) App.Helpers.initiateRoomBooking(room.id);
+            }
+          });
+        });
+      } else {
+        results.push({
+          category: '🟢 الغرف المتاحة',
+          icon: '⚠️',
+          title: 'لا توجد غرف متاحة حالياً (نسبة الإشغال 100%)',
+          subtitle: 'يمكنك مراجعة الغرف تحت التنظيف أو مواعيد المغادرة اليوم',
+          badge: 'إشغال كامل',
+          actionFn: () => switchViewSection('rooms')
+        });
+      }
+    }
+
+    else if (intent.type === 'occupied-intent') {
+      const occupiedRooms = rooms.filter(r => r.status === 'مشغولة');
+      if (occupiedRooms.length > 0) {
+        occupiedRooms.forEach(room => {
+          const res = reservations.find(r => r.room_id === room.id && r.status === 'مؤكد') ||
+            (room.active_reservations ? room.active_reservations[0] : null);
+          results.push({
+            category: '🔴 الغرف المشغولة حالياً',
+            icon: '🔴',
+            title: `غرفة ${room.room_number} • النزيل: ${res ? res.guest_name : 'نزيل مقيم'}`,
+            subtitle: res ? `الجوال: ${res.guest_phone || '-'} • المغادرة: ${res.check_out_date || 'مفتوح'}` : `النوع: ${room.type || 'عادية'}`,
+            badge: 'مشغولة',
+            actionFn: () => {
+              if (res && App.Helpers.openReservationPreview) {
+                App.Helpers.openReservationPreview(res.id);
+              } else {
+                switchViewSection('rooms');
+              }
+            }
+          });
+        });
+      } else {
+        results.push({
+          category: '🔴 الغرف المشغولة',
+          icon: '✓',
+          title: 'لا توجد غرف مشغولة حالياً',
+          subtitle: 'جميع الوحدات شاغرة أو تحت الصيانة',
+          badge: '0 مشغولة',
           actionFn: () => switchViewSection('rooms')
         });
       }
@@ -1196,6 +1669,9 @@
     ensurePaletteElements();
     ensureAttentionModal();
 
+    // Sync database data right away so cache is ready before user interactions
+    syncDataFromDb();
+
     // Wire Topbar Button
     const btnPalette = document.getElementById('btn-open-command-palette');
     if (btnPalette) {
@@ -1225,7 +1701,11 @@
     close: closeCommandPalette,
     parseCommandIntent,
     computeAttentionInbox,
-    updateAttentionInbox
+    updateAttentionInbox,
+    syncDataFromDb,
+    getRooms,
+    getReservations,
+    getGuests
   };
 
   if (document.readyState === 'loading') {

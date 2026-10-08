@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-function createCommandPaletteEnv(mockState = {}, mockHelpers = {}) {
+function createCommandPaletteEnv(mockState = {}, mockHelpers = {}, mockApi = null) {
   const App = {
     State: {
       businessDate: '2026-10-08',
@@ -30,6 +30,9 @@ function createCommandPaletteEnv(mockState = {}, mockHelpers = {}) {
     setTimeout: () => {},
     setInterval: () => {}
   };
+  if (mockApi) {
+    windowMock.api = mockApi;
+  }
 
   const documentMock = {
     getElementById: () => null,
@@ -79,6 +82,12 @@ test('Smart Command Palette (Ctrl+K) & Attention Inbox Unit Tests', async t => {
 
       assert.equal(parse('مين في 204').type, 'room-inquiry');
       assert.equal(parse('مين في 204').roomNumber, '204');
+
+      assert.equal(parse('مين في 202').type, 'room-inquiry');
+      assert.equal(parse('مين في 202').roomNumber, '202');
+
+      assert.equal(parse('مين ساكن في 202').type, 'room-inquiry');
+      assert.equal(parse('مين ساكن في 202').roomNumber, '202');
 
       assert.equal(parse('غرفة 302').type, 'room-inquiry');
       assert.equal(parse('غرفة 302').roomNumber, '302');
@@ -132,11 +141,35 @@ test('Smart Command Palette (Ctrl+K) & Attention Inbox Unit Tests', async t => {
       assert.equal(waEn.target, '204');
     });
 
-    await t2.test('Cleaning intents match cleaning keywords', () => {
-      assert.equal(parse('تنظيف').type, 'cleaning-intent');
-      assert.equal(parse('نظافة').type, 'cleaning-intent');
-      assert.equal(parse('غرف النظافة').type, 'cleaning-intent');
-      assert.equal(parse('cleaning').type, 'cleaning-intent');
+    await t2.test('Operational query intents (unpaid, departures, late, available, occupied)', () => {
+      assert.equal(parse('مين عليه فلوس').type, 'unpaid-intent');
+      assert.equal(parse('مين عليه فلوس؟').type, 'unpaid-intent');
+      assert.equal(parse('مين عليه مبالغ').type, 'unpaid-intent');
+      assert.equal(parse('مين ما دفع').type, 'unpaid-intent');
+      assert.equal(parse('المستحقات').type, 'unpaid-intent');
+      assert.equal(parse('مديونية').type, 'unpaid-intent');
+      assert.equal(parse('ديون').type, 'unpaid-intent');
+      assert.equal(parse('unpaid').type, 'unpaid-intent');
+      assert.equal(parse('debts').type, 'unpaid-intent');
+
+      assert.equal(parse('مين خارج اليوم').type, 'departures-intent');
+      assert.equal(parse('مغادرات اليوم').type, 'departures-intent');
+      assert.equal(parse('departures').type, 'departures-intent');
+
+      assert.equal(parse('مين متأخر').type, 'late-intent');
+      assert.equal(parse('المتأخرين').type, 'late-intent');
+      assert.equal(parse('تأخير').type, 'late-intent');
+      assert.equal(parse('late').type, 'late-intent');
+
+      assert.equal(parse('غرف فاضية').type, 'available-intent');
+      assert.equal(parse('مين فاضي').type, 'available-intent');
+      assert.equal(parse('غرف متاحة').type, 'available-intent');
+      assert.equal(parse('available').type, 'available-intent');
+
+      assert.equal(parse('غرف مشغولة').type, 'occupied-intent');
+      assert.equal(parse('مين ساكن').type, 'occupied-intent');
+      assert.equal(parse('مشغولة').type, 'occupied-intent');
+      assert.equal(parse('occupied').type, 'occupied-intent');
     });
 
     await t2.test('General queries fall back to multi-entity search', () => {
@@ -336,6 +369,34 @@ test('Smart Command Palette (Ctrl+K) & Attention Inbox Unit Tests', async t => {
       assert.equal(cleanInbox.dirtyRooms.length, 0);
       assert.equal(cleanInbox.monthlyDue.length, 0);
       assert.equal(cleanInbox.legacyDeposits.length, 0);
+    });
+  });
+
+  await t.test('Data Hydration & Fallback Engine', async t2 => {
+    await t2.test('Falls back to local cache when App.State caches are empty and syncs from API', async () => {
+      const mockRooms = [{ id: 202, room_number: '202', status: 'محجوزة' }];
+      const mockRes = [{ id: 76, room_id: 202, room_number: '202', status: 'مؤكد', guest_name: 'عبدالرحمن حمد حكمي', total_price: 3000, paid_amount: 1000 }];
+      const mockGuests = [{ id: 1, name: 'عبدالرحمن حمد حكمي', phone: '0555123456' }];
+
+      const mockApi = {
+        getAllRooms: async () => ({ success: true, data: mockRooms }),
+        getAllReservations: async () => ({ success: true, data: mockRes }),
+        getAllGuests: async () => ({ success: true, data: mockGuests })
+      };
+
+      const { App, CommandPalette } = createCommandPaletteEnv({}, {}, mockApi);
+
+      assert.deepEqual(CommandPalette.getRooms(), []);
+      assert.deepEqual(CommandPalette.getReservations(), []);
+
+      await CommandPalette.syncDataFromDb();
+
+      assert.equal(CommandPalette.getRooms().length, 1);
+      assert.equal(CommandPalette.getRooms()[0].room_number, '202');
+      assert.equal(CommandPalette.getReservations().length, 1);
+      assert.equal(CommandPalette.getReservations()[0].guest_name, 'عبدالرحمن حمد حكمي');
+      assert.equal(App.State.roomsCache.length, 1);
+      assert.equal(App.State.reservationsCache.length, 1);
     });
   });
 });
