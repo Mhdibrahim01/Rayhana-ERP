@@ -142,10 +142,23 @@
       .replace(/\u0640/g, '');
   }
 
+  function canonicalizeTypoWords(str) {
+    if (!str) return '';
+    return str
+      .replace(/(^|\s+)تسيكن(?=\s+|$)/g, '$1تسكين')
+      .replace(/(^|\s+)مغاردرات(?=\s+|$)/g, '$1مغادرات')
+      .replace(/(^|\s+)مسغوله(?=\s+|$)/g, '$1مشغوله')
+      .replace(/(^|\s+)وريديه(?=\s+|$)/g, '$1ورديه')
+      .replace(/(^|\s+)فتوره(?=\s+|$)/g, '$1فاتوره')
+      .replace(/(^|\s+)تميد(?=\s+|$)/g, '$1تمديد')
+      .replace(/(^|\s+)بخث(?=\s+|$)/g, '$1بحث');
+  }
+
   function normalize(str) {
     if (!str && str !== 0) return '';
     let res = normalizeDigits(String(str));
     res = stripDiacritics(res);
+    res = canonicalizeTypoWords(res);
     res = res
       .replace(/[أإآٱ]/g, 'ا')
       .replace(/ة/g, 'ه')
@@ -164,6 +177,35 @@
       .split('')
       .map(ch => EN_TO_AR_KEYMAP[ch] || ch)
       .join('');
+  }
+
+  const RECENT_ITEMS_STORAGE_KEY = 'rayhana_palette_recent_mru';
+
+  function getRecentItems() {
+    if (typeof localStorage === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem(RECENT_ITEMS_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function recordRecentItem(item) {
+    if (!item || !item.title || typeof localStorage === 'undefined') return;
+    try {
+      let list = getRecentItems();
+      list = list.filter(i => i.title !== item.title);
+      list.unshift({
+        id: item.id || `rec-${Date.now()}`,
+        title: item.title,
+        subtitle: item.subtitle || '',
+        icon: item.icon || '🕒',
+        badge: item.badge || 'سابق'
+      });
+      list = list.slice(0, 5);
+      localStorage.setItem(RECENT_ITEMS_STORAGE_KEY, JSON.stringify(list));
+    } catch {}
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -975,13 +1017,17 @@
         }
 
         if (matchedReservations.length > 0) {
+          const isWelcome = ctx.rawQuery && /ترحيب|welcome/i.test(ctx.rawQuery);
+          const isInvoice = ctx.rawQuery && /فاتور|invoice/i.test(ctx.rawQuery);
+          const templateName = isWelcome ? 'رسالة ترحيبية' : (isInvoice ? 'بيانات الفاتورة' : 'محادثة سريعة');
+
           matchedReservations.forEach(r => {
             ctx.results.push({
               category: '💬 مراسلة واتساب فورية',
               icon: '💬',
-              title: `واتساب النزيل: ${r.guest_name || 'نزيل'} • غرفة ${r.room_number || '-'}`,
+              title: `واتساب (${templateName}) • ${r.guest_name || 'نزيل'} (غرفة ${r.room_number || '-'})`,
               subtitle: `رقم الجوال: ${r.guest_phone || 'غير مسجل'} • تاريخ المغادرة: ${r.check_out_date || '-'}`,
-              badge: 'WhatsApp',
+              badge: isWelcome ? 'ترحيب 👋' : (isInvoice ? 'فاتورة 🧾' : 'WhatsApp'),
               actionFn: () => {
                 if (window.sendReservationWhatsApp) {
                   window.sendReservationWhatsApp(r.id);
@@ -1000,6 +1046,276 @@
             badge: 'غير متوفر'
           });
         }
+      }
+    },
+    {
+      id: 'extend',
+      name: 'تمديد إقامة النزيل',
+      match: (norm) => {
+        const m = norm.match(/^(?:تمديد|extend)(?:\s+(?:حجز|اقام[هة]))?\s*(?:(?:غرف[هة]|الغرف[هة]|حجز)\s+)*(\d{1,5})?/i);
+        if (m) {
+          return { roomNumber: m[1] ? normalizeDigits(m[1]) : null };
+        }
+        return null;
+      },
+      handle: (ctx, match) => {
+        const roomNum = match?.roomNumber;
+        if (roomNum) {
+          const activeRes = ctx.reservations.find(r =>
+            (String(r.room_number) === roomNum || String(r.id) === roomNum) &&
+            r.status === 'مؤكد'
+          );
+          if (activeRes) {
+            ctx.results.push({
+              category: '📅 تمديد الإقامة',
+              icon: '📅',
+              title: `تمديد إقامة النزيل: ${activeRes.guest_name || 'نزيل'} • غرفة ${activeRes.room_number || '-'}`,
+              subtitle: `المغادرة المقررة: ${activeRes.check_out_date || '-'} • فتح نافذة التمديد واحتساب الليالي`,
+              badge: 'تمديد فوري 📅',
+              actionFn: () => {
+                if (window.openExtendStayModal) {
+                  window.openExtendStayModal(activeRes.id);
+                } else if (App?.Helpers?.openReservationPreview) {
+                  App.Helpers.openReservationPreview(activeRes.id);
+                } else {
+                  showMissingHelperToast();
+                }
+              }
+            });
+          } else {
+            ctx.results.push({
+              category: '📅 تمديد الإقامة',
+              icon: '❓',
+              title: `لا يوجد حجز مؤكد للغرفة ${roomNum} لتمديد إقامته`,
+              subtitle: 'تأكد من رقم الغرفة أو وجود حجز نشط في النظام',
+              badge: 'غير متاح',
+              actionFn: () => switchViewSection('reservations')
+            });
+          }
+        } else {
+          ctx.results.push({
+            category: '📅 تمديد الإقامة',
+            icon: '📅',
+            title: 'تمديد إقامة حجز نشط',
+            subtitle: 'حدد رقم الغرفة لتمديد الحجز فوراً (مثال: "تمديد 104")',
+            badge: 'تمديد',
+            actionFn: () => switchViewSection('reservations')
+          });
+        }
+      }
+    },
+    {
+      id: 'invoice',
+      name: 'معاينة وطباعة الفاتورة',
+      match: (norm) => {
+        const m = norm.match(/^(?:فاتور[هة]|الفاتور[هة]|طباع[هة]\s+فاتور[هة]|invoice)\s*(?:(?:غرف[هة]|الغرف[هة]|حجز)\s+)*(\d{1,5})?/i);
+        if (m) {
+          return { targetNumber: m[1] ? normalizeDigits(m[1]) : null };
+        }
+        return null;
+      },
+      handle: (ctx, match) => {
+        const target = match?.targetNumber;
+        if (target) {
+          const res = ctx.reservations.find(r =>
+            String(r.id) === target || String(r.room_number) === target
+          );
+          if (res) {
+            ctx.results.push({
+              category: '🧾 الفواتير والمستندات',
+              icon: '🧾',
+              title: `معاينة الفاتورة الضريبية • غرفة ${res.room_number || '-'}`,
+              subtitle: `النزيل: ${res.guest_name || 'نزيل'} • حجز #${res.id} • الإجمالي: ${Number(res.total_price || 0).toLocaleString('en-US')} ر.س`,
+              badge: 'فاتورة ضريبية 🧾',
+              actionFn: () => {
+                if (window.openInvoiceModal) {
+                  window.openInvoiceModal(res.id);
+                } else if (App?.Helpers?.openReservationPreview) {
+                  App.Helpers.openReservationPreview(res.id);
+                } else {
+                  showMissingHelperToast();
+                }
+              }
+            });
+          } else {
+            ctx.results.push({
+              category: '🧾 الفواتير والمستندات',
+              icon: '❓',
+              title: `لم يتم العثور على حجز أو غرفة بالرقم "${target}" لإصدار الفاتورة`,
+              subtitle: 'تأكد من رقم الحجز أو رقم الغرفة المدخل',
+              badge: 'غير موجود'
+            });
+          }
+        } else {
+          ctx.results.push({
+            category: '🧾 الفواتير والمستندات',
+            icon: '🧾',
+            title: 'إصدار ومعاينة الفاتورة الضريبية',
+            subtitle: 'حدد رقم الغرفة أو الحجز (مثال: "فاتورة 202" أو "فاتورة 58")',
+            badge: 'الفواتير',
+            actionFn: () => switchViewSection('reservations')
+          });
+        }
+      }
+    },
+    {
+      id: 'voucher',
+      name: 'سند قبض وتحصيل دفعة',
+      match: (norm) => {
+        const m = norm.match(/^(?:سند(?:\s+قبض)?|قبض|تحصيل|دفع[هة]?|سداد)\s*(?:(?:غرف[هة]|الغرف[هة]|حجز)\s+)*(\d{1,5})?/i);
+        if (m) {
+          return { targetNumber: m[1] ? normalizeDigits(m[1]) : null };
+        }
+        return null;
+      },
+      handle: (ctx, match) => {
+        const target = match?.targetNumber;
+        if (target) {
+          const res = ctx.reservations.find(r =>
+            (String(r.id) === target || String(r.room_number) === target) && r.status === 'مؤكد'
+          );
+          if (res) {
+            const fin = getResFin(res, ctx.currentBizDate);
+            ctx.results.push({
+              category: '💳 سندات القبض والتحصيل',
+              icon: '💳',
+              title: `تحصيل دفعة وتسجيل سند قبض • غرفة ${res.room_number || '-'}`,
+              subtitle: `النزيل: ${res.guest_name || 'نزيل'} • المتبقي: ${fin.remaining.toLocaleString('en-US')} ر.س من ${fin.effectiveTotal.toLocaleString('en-US')} ر.س`,
+              badge: 'سند قبض 💳',
+              actionFn: () => {
+                if (window.openAddPaymentModal) {
+                  window.openAddPaymentModal(res.id);
+                } else if (App?.Helpers?.openReservationPreview) {
+                  App.Helpers.openReservationPreview(res.id);
+                } else {
+                  showMissingHelperToast();
+                }
+              }
+            });
+          } else {
+            ctx.results.push({
+              category: '💳 سندات القبض والتحصيل',
+              icon: '❓',
+              title: `لا يوجد حجز مؤكد للغرفة أو الرقم "${target}" لتسجيل سند قبض`,
+              subtitle: 'تأكد من رقم الغرفة أو حالة الحجز',
+              badge: 'غير متاح'
+            });
+          }
+        } else {
+          ctx.results.push({
+            category: '💳 سندات القبض والتحصيل',
+            icon: '💳',
+            title: 'تسجيل سند قبض ودفعات سداد',
+            subtitle: 'حدد رقم الغرفة لتحصيل دفعة (مثال: "قبض 103" أو "سند 103")',
+            badge: 'سند قبض',
+            actionFn: () => openAttentionInboxModal('unpaid-balance')
+          });
+        }
+      }
+    },
+    {
+      id: 'floor',
+      name: 'تصفية الغرف حسب الطابق',
+      match: (norm) => {
+        const m = norm.match(/^(?:الدور|طابق|الطابق|floor)\s*(\d{1,2}|الاول|الأول|الثاني|الثالث|الرابع|الخامس)?/i);
+        if (m) {
+          let fl = m[1];
+          if (fl === 'الاول' || fl === 'الأول') fl = '1';
+          else if (fl === 'الثاني') fl = '2';
+          else if (fl === 'الثالث') fl = '3';
+          else if (fl === 'الرابع') fl = '4';
+          else if (fl === 'الخامس') fl = '5';
+          return { floor: fl ? normalizeDigits(fl) : null };
+        }
+        return null;
+      },
+      handle: (ctx, match) => {
+        const floor = match?.floor;
+        if (floor) {
+          const floorRooms = ctx.rooms.filter(r => String(r.floor) === String(floor));
+          const availableCount = floorRooms.filter(r => r.status === 'متاحة').length;
+          const occupiedCount = floorRooms.filter(r => r.status === 'مشغولة' || r.status === 'محجوزة').length;
+
+          ctx.results.push({
+            category: '🏢 تصفية الغرف بالطابق',
+            icon: '🏢',
+            title: `استعراض غرف الطابق ${floor} (${floorRooms.length} غرف)`,
+            subtitle: `${availableCount} غرف متاحة • ${occupiedCount} غرف مسكونة ومحجوزة`,
+            badge: `الطابق ${floor}`,
+            actionFn: () => {
+              switchViewSection('rooms');
+              const filterSelect = document.getElementById('filter-floor') || document.getElementById('search-rooms');
+              if (filterSelect) {
+                if (filterSelect.tagName === 'SELECT') {
+                  filterSelect.value = floor;
+                  filterSelect.dispatchEvent(new Event('change'));
+                } else {
+                  filterSelect.value = `طابق ${floor}`;
+                  filterSelect.dispatchEvent(new Event('input'));
+                }
+              }
+            }
+          });
+        } else {
+          ctx.results.push({
+            category: '🏢 تصفية الغرف بالطابق',
+            icon: '🏢',
+            title: 'استعراض خريطة الغرف حسب الطوابق',
+            subtitle: 'اكتب "طابق 1" أو "الدور الثاني" لفرز الغرف فوراً',
+            badge: 'خريطة الأدوار',
+            actionFn: () => switchViewSection('rooms')
+          });
+        }
+      }
+    },
+    {
+      id: 'blacklist',
+      name: 'قائمة النزلاء المحظورين',
+      match: (norm) => {
+        return /^(?:محظور|المحظور|المحظورين|بلاك\s*ليست|قا[يئ]م[هة]\s+الحظر|blacklist|banned)/i.test(norm) ||
+          norm.includes('محظور') || norm.includes('بلاك ليست') || norm.includes('الحظر') || norm.includes('حظر');
+      },
+      handle: (ctx) => {
+        const bannedGuests = ctx.guests.filter(g => g.is_banned);
+        ctx.results.push({
+          category: '⛔ النزلاء المحظورون أمنياً',
+          icon: '⛔',
+          title: `قائمة النزلاء المحظورين (${bannedGuests.length} مسجلين)`,
+          subtitle: `استعراض ملفات وأرقام هويات النزلاء الممنوعين من التسكين`,
+          badge: `${bannedGuests.length} محظور ⛔`,
+          actionFn: () => {
+            switchViewSection('guests');
+            const searchInput = document.getElementById('search-guests');
+            if (searchInput) {
+              searchInput.value = 'محظور';
+              searchInput.dispatchEvent(new Event('input'));
+            }
+          }
+        });
+      }
+    },
+    {
+      id: 'backup',
+      name: 'النسخ الاحتياطي الفوري',
+      match: (norm) => {
+        return /^(?:نسخ[هة]\s+احتياطي[هة]|النسخ[هة]\s+الاحتياطي[هة]|باك\s*اب|باكاب|backup)/i.test(norm) ||
+          norm.includes('احتياطيه') || norm.includes('احتياطية') || norm.includes('باك اب');
+      },
+      handle: (ctx) => {
+        ctx.results.push({
+          category: '💾 النسخ الاحتياطي والأمان',
+          icon: '💾',
+          title: 'إنشاء وحفظ نسخة احتياطية فورية (Daily Backup)',
+          subtitle: 'تصدير نسخة كاملة لقاعدة بيانات الفندق وحفظها بأمان',
+          badge: 'نسخ احتياطي 💾',
+          actionFn: () => {
+            if (typeof window.openDailyBackupModal === 'function') {
+              window.openDailyBackupModal();
+            } else {
+              showMissingHelperToast();
+            }
+          }
+        });
       }
     },
     {
@@ -1491,6 +1807,16 @@
       if (currentSelectedIndex >= 0 && currentSelectedIndex < currentItemsList.length) {
         executePaletteItem(currentItemsList[currentSelectedIndex]);
       }
+      return;
+    }
+
+    if ((e.ctrlKey || e.metaKey) && e.key >= '1' && e.key <= '5') {
+      const targetIdx = parseInt(e.key, 10) - 1;
+      if (targetIdx >= 0 && targetIdx < currentItemsList.length) {
+        e.preventDefault();
+        executePaletteItem(currentItemsList[targetIdx]);
+        return;
+      }
     }
   }
 
@@ -1539,6 +1865,26 @@
     };
 
     if (intent.type === 'empty') {
+      // 0. Recent Items (if any recorded in localStorage)
+      const recent = getRecentItems();
+      if (recent.length > 0) {
+        recent.forEach(rec => {
+          context.results.push({
+            category: '🕒 تم الوصول إليها مؤخراً',
+            icon: rec.icon || '🕒',
+            title: rec.title,
+            subtitle: rec.subtitle || 'سجل العمليات السابقة',
+            badge: rec.badge || 'أخير',
+            actionFn: () => {
+              if (paletteInput) {
+                paletteInput.value = rec.title;
+                handlePaletteSearch(rec.title);
+              }
+            }
+          });
+        });
+      }
+
       // 1. High-priority attention items (if any exist)
       if (attention.totalCount > 0) {
         const topAttention = attention.deduplicatedAllItems.slice(0, 4);
@@ -1677,7 +2023,10 @@
               <div class="command-palette-item-subtitle">${escapePaletteText(item.subtitle || '')}</div>
             </div>
           </div>
-          ${item.badge ? `<span class="command-palette-item-badge">${escapePaletteText(item.badge)}</span>` : ''}
+          <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+            ${item.badge ? `<span class="command-palette-item-badge">${escapePaletteText(item.badge)}</span>` : ''}
+            ${index < 5 ? `<kbd class="command-palette-keyhint" title="اضغط Ctrl+${index + 1}">Ctrl+${index + 1}</kbd>` : ''}
+          </div>
         </div>
       `;
     });
@@ -1705,6 +2054,7 @@
 
   function executePaletteItem(item) {
     if (!item) return;
+    recordRecentItem(item);
     closeCommandPalette();
     safeExecute(item.actionFn);
   }

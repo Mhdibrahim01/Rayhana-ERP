@@ -723,5 +723,74 @@ test('Smart Command Palette (Ctrl+K) & Attention Inbox Unit Tests', async t => {
       assert.equal(parsed.type, 'whatsapp-intent');
       assert.equal(parsed.target, 'محمد عبدالله ال سعود');
     });
+
+    await t2.test('Advanced Front-Desk Operational Intents (Extend, Invoice, Voucher, Floor, Blacklist, Backup)', () => {
+      const { CommandPalette } = createCommandPaletteEnv();
+      const parse = CommandPalette.parseCommandIntent;
+
+      // 1. Extend intent
+      const ext1 = parse('تمديد 104');
+      assert.equal(ext1.type, 'extend-intent');
+      assert.equal(ext1.roomNumber, '104');
+
+      const ext2 = parse('تمديد حجز غرفه 202');
+      assert.equal(ext2.type, 'extend-intent');
+      assert.equal(ext2.roomNumber, '202');
+
+      // 2. Invoice intent
+      const inv1 = parse('فاتورة 202');
+      assert.equal(inv1.type, 'invoice-intent');
+      assert.equal(inv1.targetNumber, '202');
+
+      const inv2 = parse('طباعة فاتورة 58');
+      assert.equal(inv2.type, 'invoice-intent');
+      assert.equal(inv2.targetNumber, '58');
+
+      // 3. Voucher / Payment intent
+      const pay1 = parse('قبض 103');
+      assert.equal(pay1.type, 'voucher-intent');
+      assert.equal(pay1.targetNumber, '103');
+
+      const pay2 = parse('سند قبض غرفة 205');
+      assert.equal(pay2.type, 'voucher-intent');
+      assert.equal(pay2.targetNumber, '205');
+
+      // 4. Floor filter intent
+      const fl1 = parse('طابق 2');
+      assert.equal(fl1.type, 'floor-intent');
+      assert.equal(fl1.floor, '2');
+
+      const fl2 = parse('الدور الثاني');
+      assert.equal(fl2.type, 'floor-intent');
+      assert.equal(fl2.floor, '2');
+
+      // 5. Blacklist intent
+      assert.equal(parse('المحظورين').type, 'blacklist-intent');
+      assert.equal(parse('بلاك ليست').type, 'blacklist-intent');
+      assert.equal(parse('قائمة الحظر').type, 'blacklist-intent');
+
+      // 6. Backup intent
+      assert.equal(parse('نسخة احتياطية').type, 'backup-intent');
+      assert.equal(parse('باك اب').type, 'backup-intent');
+    });
+
+    await t2.test('Typo tolerance corrects common receptionist spelling errors', () => {
+      const { CommandPalette } = createCommandPaletteEnv();
+      const parse = CommandPalette.parseCommandIntent;
+
+      // Typo "تسيكن" -> "تسكين"
+      const t1 = parse('تسيكن 105');
+      assert.equal(t1.type, 'booking-intent');
+      assert.equal(t1.roomNumber, '105');
+
+      // Typo "مغاردرات" -> "مغادرات"
+      const t2 = parse('مغاردرات اليوم');
+      assert.equal(t2.type, 'departures-intent');
+
+      // Typo "تميد" -> "تمديد"
+      const t3 = parse('تميد 201');
+      assert.equal(t3.type, 'extend-intent');
+      assert.equal(t3.roomNumber, '201');
+    });
   });
 });

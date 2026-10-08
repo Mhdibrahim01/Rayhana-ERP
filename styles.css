@@ -8807,6 +8807,21 @@ body.login-body {
   flex-shrink: 0;
 }
 
+.command-palette-keyhint {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #64748b;
+  font-family: inherit;
+  flex-shrink: 0;
+  margin-right: 6px;
+  display: inline-block;
+  line-height: 1.2;
+}
+
 .command-palette-footer {
   display: flex;
   align-items: center;
