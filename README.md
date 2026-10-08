@@ -4,8 +4,8 @@
 
 ![Rayhana Logo](rayhana-logo.png)
 
-### **نظام إدارة الفنادق والشقق الفندقية المتكامل (Desktop ERP)**
-**An Enterprise-Grade, RTL-First Hospitality & Property Management System built with Electron, Node.js & SQLite**
+### **نظام إدارة الفنادق والشقق الفندقية المتكامل (Desktop PMS)**
+**An EntPMSrise-Grade, RTL-First Hospitality & Property Management System built with Electron, Node.js & SQLite**
 
 [![Electron](https://img.shields.io/badge/Electron-29.4.6-47848F?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
@@ -34,7 +34,7 @@
 
 ## 📖 عن النظام (Overview)
 
-**نظام ريحانة (Rayhana ERP)** هو تطبيق مكتبي عالي الكفاءة مخصص لإدارة الفنادق، الأجنحة الفندقية، والشقق المفروشة. صُمم النظام بالكامل ليعمل محلياً (Offline-First) بأعلى درجات الأمان والسرعة، مع واجهة مستخدم عربية احترافية من اليمين لليسار (RTL) تدعم سير العمل الفندقي الحقيقي: من التسكين السريع، الجرد الليلي ومحاسبة الوردية، إلى إصدار الفواتير وسندات القبض ومراسلة النزلاء عبر واتساب.
+**نظام ريحانة (Rayhana PMS)** هو تطبيق مكتبي عالي الكفاءة مخصص لإدارة الفنادق، الأجنحة الفندقية، والشقق المفروشة. صُمم النظام بالكامل ليعمل محلياً (Offline-First) بأعلى درجات الأمان والسرعة، مع واجهة مستخدم عربية احترافية من اليمين لليسار (RTL) تدعم سير العمل الفندقي الحقيقي: من التسكين السريع، الجرد الليلي ومحاسبة الوردية، إلى إصدار الفواتير وسندات القبض ومراسلة النزلاء عبر واتساب.
 
 ### 🎯 أهداف التصميم
 - **السرعة الفائقة:** إنجاز كافة العمليات دون مغادرة لوحة المفاتيح عبر لوحة الأوامر الذكية (`Ctrl + K`).
@@ -129,7 +129,7 @@
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│                   Rayhana ERP Desktop                  │
+│                   Rayhana PMS Desktop                  │
 ├────────────────────────────────────────────────────────┤
 │  Frontend Layer (Electron Renderer)                    │
 │  - HTML5 / Vanilla Modular JavaScript (RTL)            │
@@ -157,7 +157,7 @@
 ## 📂 هيكل المشروع (Project Directory Tree)
 
 ```text
-Rayhana-ERP/
+Rayhana-PMS/
 ├── assets/                  # الأيقونات والوسائط الثابتة
 ├── db/                      # طبقة قاعدة البيانات والـ Migrations
 │   ├── index.js             # تهيئة قاعدة البيانات والاتصال
@@ -199,8 +199,8 @@ Rayhana-ERP/
 ### خطوات التثبيت والتشغيل:
 1. **استنساخ المستودع (Clone):**
    ```bash
-   git clone https://github.com/your-username/Rayhana-ERP.git
-   cd Rayhana-ERP
+   git clone https://github.com/your-username/Rayhana-PMS.git
+   cd Rayhana-PMS
    ```
 
 2. **تثبيت الحزم البرمجية (Dependencies):**
@@ -268,7 +268,7 @@ npm run guard
    - يحفظ نسخة مشفرة من قاعدة البيانات في:
      `%APPDATA%\rayhana-suites\backups\`
    - يحفظ نسخة مرآة إضافية في مجلد المستندات:
-     `%USERPROFILE%\Documents\Rayhana_Backups\`
+     `%USPMSROFILE%\Documents\Rayhana_Backups\`
    - **آلية التعويض عند الإغلاق (Catch-up):** إذا كان الجهاز مغلقاً وقت منتصف الليل، يقوم النظام بإنشاء نسخة فورية عند أول فتح صباحاً.
    - تدوير تلقائي يحفظ آخر 60 يوماً من النسخ.
 
@@ -282,7 +282,7 @@ npm run guard
 
 ## 🌐 English Summary
 
-**Rayhana ERP** is a modern, reliable, and secure desktop Property Management System (PMS) tailored for hotels, residential units, and furnished suites. 
+**Rayhana PMS** is a modern, reliable, and secure desktop Property Management System (PMS) tailored for hotels, residential units, and furnished suites. 
 
 ### Key Highlights:
 - **Offline-First Desktop App**: Powered by Electron 29 and local SQLite database (`sql.js`), guaranteeing high performance and zero external downtime.
