@@ -457,15 +457,15 @@
     if (bType === 'عقد مفتوح') {
       const remaining = total - paid;
       if (remaining < -0.005) {
-        remainingBalanceVal.textContent = `رصيد دائن: ${Math.abs(remaining).toFixed(2)} ريال`;
+        remainingBalanceVal.textContent = `رصيد دائن: ${Math.abs(remaining).toFixed(2)} ر.س`;
         remainingBalanceVal.style.color = '#2563eb';
       } else {
-        remainingBalanceVal.textContent = `${Math.max(0, remaining).toFixed(2)} ريال`;
+        remainingBalanceVal.textContent = `${Math.max(0, remaining).toFixed(2)} ر.س`;
         remainingBalanceVal.style.color = remaining > 0 ? '#dc2626' : '#05963d';
       }
     } else {
       const remaining = Math.max(0, total - paid);
-      remainingBalanceVal.textContent = `${remaining.toFixed(2)} ريال`;
+      remainingBalanceVal.textContent = `${remaining.toFixed(2)} ر.س`;
       remainingBalanceVal.style.color = remaining > 0 ? '#dc2626' : '#05963d';
     }
   }
@@ -505,7 +505,7 @@
     const monthlyRate = selectedOption ? Number(selectedOption.dataset.monthlyPrice || 0) : 0;
     const dailyRate = selectedOption ? Number(selectedOption.dataset.price || 0) : 0;
     const useMonthlyRate = bType === 'حجز شهري';
-    if (bookingRateLabel) bookingRateLabel.textContent = useMonthlyRate ? 'السعر الشهري (ريال) *' : (bType === 'استخدام يومي' ? 'سعر الاستخدام اليومي (ريال) *' : 'سعر الليلة للحجز (ريال) *');
+    if (bookingRateLabel) bookingRateLabel.innerHTML = useMonthlyRate ? 'السعر الشهري (ر.س) <span class="field-required">*</span>' : (bType === 'استخدام يومي' ? 'سعر الاستخدام اليومي (ر.س) <span class="field-required">*</span>' : 'سعر الليلة للحجز (ر.س) <span class="field-required">*</span>');
     if (nightlyRateInput) {
       nightlyRateInput.disabled = useMonthlyRate && !(monthlyRate > 0);
       nightlyRateInput.value = useMonthlyRate ? (monthlyRate > 0 ? monthlyRate : '') : (dailyRate > 0 ? dailyRate : '');
@@ -611,7 +611,7 @@
 
     if (roomDefaultRateBadge) {
       if (defaultRoomPrice > 0) {
-        roomDefaultRateBadge.textContent = `(الأساسي: ${defaultRoomPrice.toLocaleString()} ${bType === 'حجز شهري' ? 'ريال/شهر' : 'ريال/يوم'})`;
+        roomDefaultRateBadge.textContent = `(الأساسي: ${defaultRoomPrice.toLocaleString()} ${bType === 'حجز شهري' ? 'ر.س/شهر' : 'ر.س/يوم'})`;
       } else {
         roomDefaultRateBadge.textContent = '';
       }
@@ -635,7 +635,7 @@
       if (priceCalculationBreakdown) {
         if (effectiveRate > 0) {
           priceCalculationBreakdown.style.display = 'inline';
-          priceCalculationBreakdown.textContent = `سعر الليلة المعتمد: ${effectiveRate} ريال`;
+          priceCalculationBreakdown.textContent = `سعر الليلة المعتمد: ${effectiveRate} ر.س`;
         } else {
           priceCalculationBreakdown.style.display = 'none';
         }
@@ -1283,7 +1283,7 @@
       opt.value = targetRoom.id;
       opt.dataset.price = targetRoom.price_per_night;
       opt.dataset.monthlyPrice = targetRoom.monthly_price || '';
-      opt.textContent = `غرفة رقم ${targetRoom.room_number} (${targetRoom.type}) - ${targetRoom.price_per_night} ريال/يوم · ${targetRoom.monthly_price || 'غير محدد'} ريال/شهر`;
+      opt.textContent = `غرفة رقم ${targetRoom.room_number} (${targetRoom.type}) - ${targetRoom.price_per_night} ر.س/يوم · ${targetRoom.monthly_price || 'غير محدد'} ر.س/شهر`;
       roomSelect.appendChild(opt);
     }
 
@@ -1298,7 +1298,7 @@
     }
     if (roomDefaultRateBadge && targetRoom) {
       const isMonthly = bookingTypeSelect?.value === 'حجز شهري';
-      roomDefaultRateBadge.textContent = `(الأساسي: ${isMonthly ? (targetRoom.monthly_price || 'غير محدد') + ' ريال/شهر' : targetRoom.price_per_night + ' ريال/يوم'})`;
+      roomDefaultRateBadge.textContent = `(الأساسي: ${isMonthly ? (targetRoom.monthly_price || 'غير محدد') + ' ر.س/شهر' : targetRoom.price_per_night + ' ر.س/يوم'})`;
     }
     if (discountAmountInput) discountAmountInput.value = '0';
     if (discountReasonInput) discountReasonInput.value = '';
@@ -1548,9 +1548,10 @@
             ${r.guest_id_number ? `<div style="font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; line-height: 1.2; margin-top: 2px;">هوية: ${escapeHtml(r.guest_id_number)}</div>` : ''}
             ${r.guest_phone ? `<div class="reservation-guest-phone"><span dir="rtl">جوال:</span> <bdi dir="ltr">${escapeHtml(r.guest_phone)}</bdi></div>` : ''}
           </td>
-          <td style="white-space: nowrap; line-height: 1.2;">
-            <button type="button" class="clickable-room-number" data-action="preview-reservation" data-id="${r.id}" title="عرض تفاصيل الغرفة ${escapeHtml(r.room_number)}">غرفة ${escapeHtml(r.room_number)}</button>
-            <div style="font-size: 0.72rem; color: var(--text-muted); line-height: 1.2; margin-top: 2px;">${escapeHtml(r.room_type || '')}</div>
+          <td data-label="رقم الغرفة" style="white-space: nowrap; text-align: center;">
+            <button type="button" class="checkout-room-chip clickable-room-chip" data-action="preview-reservation" data-id="${r.id}" title="عرض تفاصيل الغرفة ${escapeHtml(r.room_number)}">
+              ${escapeHtml(r.room_number)}
+            </button>
           </td>
           <td class="reservation-date-range">
             <div class="reservation-date-item">
@@ -1570,26 +1571,26 @@
           </td>
           <td style="white-space: nowrap; line-height: 1.2;">
             ${(isOverdue || isContract) && effectiveTotal > total ? `
-              <div style="font-weight: 800; color: #1e293b; font-size: 0.88rem; line-height: 1.2;">${fmtEffTotal} ريال <small style="color: #b91c1c; font-size: 0.70rem; font-weight: 700;">(مستحق حتى اليوم)</small></div>
-              <div style="font-size: 0.70rem; color: #64748b; font-weight: 600; line-height: 1.2; margin-top: 1px;">${isContract ? `عقد مفتوح (${elapsedStayNights} ليالٍ)` : `أصل الحجز: ${fmtTotal} ريال (${overdueDays} ليالٍ متأخرة)`}</div>
+              <div style="font-weight: 800; color: #1e293b; font-size: 0.88rem; line-height: 1.2;">${fmtEffTotal} ر.س <small style="color: #b91c1c; font-size: 0.70rem; font-weight: 700;">(مستحق حتى اليوم)</small></div>
+              <div style="font-size: 0.70rem; color: #64748b; font-weight: 600; line-height: 1.2; margin-top: 1px;">${isContract ? `عقد مفتوح (${elapsedStayNights} ليالٍ)` : `أصل الحجز: ${fmtTotal} ر.س (${overdueDays} ليالٍ متأخرة)`}</div>
             ` : `
-              <div style="font-weight: 800; color: #1e293b; font-size: 0.88rem; line-height: 1.2;">${fmtTotal} ريال</div>
+              <div style="font-weight: 800; color: #1e293b; font-size: 0.88rem; line-height: 1.2;">${fmtTotal} ر.س</div>
             `}
-            ${r.original_calculated_charge != null ? `<div style="font-size: 0.70rem; color: #64748b; font-weight: 600; line-height: 1.2; margin-top: 2px;" title="المبلغ الأصلي قبل تعديل الإدارة">معدل يدوياً (أصلي: ${parseFloat(r.original_calculated_charge).toLocaleString()} ريال)</div>` : ''}
-            ${parseFloat(r.discount_amount || 0) > 0 ? `<div style="font-size: 0.70rem; color: #b91c1c; font-weight: 700; line-height: 1.2; margin-top: 2px;">خصم: ${parseFloat(r.discount_amount).toLocaleString()} ريال ${r.discount_reason ? `(${escapeHtml(r.discount_reason)})` : ''}</div>` : ''}
-            <div style="font-size: 0.74rem; color: #05963d; font-weight: 600; line-height: 1.2; margin-top: 2px;">مدفوع: ${fmtPaid}</div>
-            ${isCredit ? `<div style="font-size: 0.72rem; color: #2563eb; font-weight: 800; line-height: 1.2; margin-top: 2px;">رصيد دائن: ${Math.abs(effectiveRawRemaining).toLocaleString()} ريال</div>` : (remaining > 0 ? `<div style="font-size: 0.72rem; color: #dc2626; font-weight: 700; line-height: 1.2; margin-top: 2px;">متبقي: ${fmtRem} ريال ${(isOverdue || isContract) ? '<small>(حتى اليوم)</small>' : ''}</div>` : '')}
-            ${deposit > 0 ? `<div style="font-size: 0.70rem; color: #4338ca; line-height: 1.2; margin-top: 2px;">تأمين مسجل: ${fmtDep}</div>` : ''}
-            ${legacyDeposit > 0 ? `<div style="font-size: 0.70rem; color: #9a3412; line-height: 1.2; margin-top: 2px;">تأمين قديم للمراجعة: ${legacyDeposit.toLocaleString()}</div>` : ''}
+            ${r.original_calculated_charge != null ? `<div style="font-size: 0.70rem; color: #64748b; font-weight: 600; line-height: 1.2; margin-top: 2px;" title="المبلغ الأصلي قبل تعديل الإدارة">معدل يدوياً (أصلي: ${parseFloat(r.original_calculated_charge).toLocaleString()} ر.س)</div>` : ''}
+            ${parseFloat(r.discount_amount || 0) > 0 ? `<div style="font-size: 0.70rem; color: #b91c1c; font-weight: 700; line-height: 1.2; margin-top: 2px;">خصم: ${parseFloat(r.discount_amount).toLocaleString()} ر.س ${r.discount_reason ? `(${escapeHtml(r.discount_reason)})` : ''}</div>` : ''}
+            <div style="font-size: 0.74rem; color: #05963d; font-weight: 600; line-height: 1.2; margin-top: 2px;">مدفوع: ${fmtPaid} ر.س</div>
+            ${isCredit ? `<div style="font-size: 0.72rem; color: #2563eb; font-weight: 800; line-height: 1.2; margin-top: 2px;">رصيد دائن: ${Math.abs(effectiveRawRemaining).toLocaleString()} ر.س</div>` : (remaining > 0 ? `<div style="font-size: 0.72rem; color: #dc2626; font-weight: 700; line-height: 1.2; margin-top: 2px;">متبقي: ${fmtRem} ر.س ${(isOverdue || isContract) ? '<small>(حتى اليوم)</small>' : ''}</div>` : '')}
+            ${deposit > 0 ? `<div style="font-size: 0.70rem; color: #4338ca; line-height: 1.2; margin-top: 2px;">تأمين مسجل: ${fmtDep} ر.س</div>` : ''}
+            ${legacyDeposit > 0 ? `<div style="font-size: 0.70rem; color: #9a3412; line-height: 1.2; margin-top: 2px;">تأمين قديم للمراجعة: ${legacyDeposit.toLocaleString()} ر.س</div>` : ''}
           </td>
           <td>
             <div class="reservation-payment-details">
-              <span class="badge" style="background: rgba(0,0,0,0.04); color: #334155; border: 1px solid #cbd5e1; font-weight: 600;">${escapeHtml(r.payment_method || 'نقداً')}</span>
+              <span class="badge badge-unified" style="background: rgba(0,0,0,0.04); color: #334155; border: 1px solid #cbd5e1; font-weight: 600;">${escapeHtml(r.payment_method || 'نقداً')}</span>
               <div>${getPaymentStatusBadge(paymentStatusForDisplay)}</div>
             </div>
           </td>
           <td class="reservation-status-cell">
-            ${getReservationStatusBadge(r.status).replace('تم تسجيل الخروج', 'مكتمل')}
+            ${getReservationStatusBadge(r.status)}
             ${overdueBadge ? `<span class="reservation-late-status">${overdueBadge}</span>` : ''}
           </td>
           <td style="text-align: center;">
@@ -2248,7 +2249,7 @@
       // Guest owes money
       if (settleBalanceBox) { settleBalanceBox.style.background = '#fef2f2'; settleBalanceBox.style.borderColor = '#fca5a5'; }
       if (settleBalanceLabel) { settleBalanceLabel.textContent = 'المتبقي للتحصيل'; settleBalanceLabel.style.color = '#991b1b'; }
-      if (settleBalanceValue) { settleBalanceValue.textContent = `${netBalance.toFixed(2)} ريال`; settleBalanceValue.style.color = '#dc2626'; }
+      if (settleBalanceValue) { settleBalanceValue.textContent = `${netBalance.toFixed(2)} ر.س`; settleBalanceValue.style.color = '#dc2626'; }
       if (settleBalanceSub) { settleBalanceSub.textContent = '(مستحق على النزيل)'; settleBalanceSub.style.color = '#dc2626'; }
       if (settlePaymentSection) settlePaymentSection.style.display = 'block';
       if (settlePayNowInput) settlePayNowInput.value = netBalance.toFixed(2);
@@ -2259,19 +2260,19 @@
       const absCredit = Math.abs(netBalance);
       if (settleBalanceBox) { settleBalanceBox.style.background = '#eff6ff'; settleBalanceBox.style.borderColor = '#93c5fd'; }
       if (settleBalanceLabel) { settleBalanceLabel.textContent = 'استرداد للنزيل'; settleBalanceLabel.style.color = '#1e40af'; }
-      if (settleBalanceValue) { settleBalanceValue.textContent = `${absCredit.toFixed(2)} ريال`; settleBalanceValue.style.color = '#2563eb'; }
+      if (settleBalanceValue) { settleBalanceValue.textContent = `${absCredit.toFixed(2)} ر.س`; settleBalanceValue.style.color = '#2563eb'; }
       if (settleBalanceSub) { settleBalanceSub.textContent = '(مبلغ مسترد للنزيل)'; settleBalanceSub.style.color = '#2563eb'; }
       if (settlePaymentSection) settlePaymentSection.style.display = 'none';
       if (settlePayNowInput) settlePayNowInput.value = '0.00';
       if (settleRefundBanner) settleRefundBanner.style.display = 'block';
-      if (settleRefundAmount) settleRefundAmount.textContent = `${absCredit.toFixed(2)} ريال`;
+      if (settleRefundAmount) settleRefundAmount.textContent = `${absCredit.toFixed(2)} ر.س`;
       if (settleRefundAmountInput) settleRefundAmountInput.value = absCredit.toFixed(2);
       if (btnConfirmSettleCheckout) btnConfirmSettleCheckout.textContent = 'تأكيد الاسترداد وتسجيل المغادرة ✓';
     } else {
       // Perfectly balanced
       if (settleBalanceBox) { settleBalanceBox.style.background = '#f0fdf5'; settleBalanceBox.style.borderColor = '#86efaf'; }
       if (settleBalanceLabel) { settleBalanceLabel.textContent = 'صافي الحساب'; settleBalanceLabel.style.color = '#166535'; }
-      if (settleBalanceValue) { settleBalanceValue.textContent = '0.00 ريال'; settleBalanceValue.style.color = '#05963d'; }
+      if (settleBalanceValue) { settleBalanceValue.textContent = '0.00 ر.س'; settleBalanceValue.style.color = '#05963d'; }
       if (settleBalanceSub) { settleBalanceSub.textContent = '(الحساب خالص بالكامل)'; settleBalanceSub.style.color = '#05963d'; }
       if (settlePaymentSection) settlePaymentSection.style.display = 'none';
       if (settlePayNowInput) settlePayNowInput.value = '0.00';
@@ -2307,7 +2308,7 @@
     if (settleRoomInfo) settleRoomInfo.textContent = `غرفة ${res.room_number || '-'} (${contractTypeLabel})`;
     if (settleCheckinDate) settleCheckinDate.textContent = res.check_in_date || todayStr;
     if (settleCheckoutDate) settleCheckoutDate.textContent = todayStr;
-    if (settlePaidAmountDisplay) settlePaidAmountDisplay.textContent = `${paidSoFar.toFixed(2)} ريال`;
+    if (settlePaidAmountDisplay) settlePaidAmountDisplay.textContent = `${paidSoFar.toFixed(2)} ر.س`;
 
     if (!isContract) {
       // Non-contract: fetch authoritative settlement from backend
@@ -2336,7 +2337,7 @@
 
           const isDayUse = res.booking_type === 'استخدام يومي';
           const nightsLabel = isDayUse ? 'يوم استخدام' : (s.actualNights === 1 ? 'ليلة' : 'ليالٍ');
-          const rateUnit = isDayUse ? 'ريال/يوم' : 'ريال/ليلة';
+          const rateUnit = isDayUse ? 'ر.س/يوم' : 'ر.س/ليلة';
           const rateNote = res.booking_type === 'حجز شهري' ? ' - سعر الشهر المعتمد' : (res.custom_nightly_price ? ' - سعر خاص' : '');
           if (settleNightsCount) {
             if (settlePolicyState.applicable) {
@@ -2346,18 +2347,18 @@
               settleNightsCount.textContent =
                 `${s.actualNights} ${nightsLabel} فعلية من ${settlePolicyState.bookedNights} ${nightsWord} محجوزة ` +
                 (res.booking_type === 'حجز شهري'
-                  ? `(قيمة الشهر ${Number(settlePolicyState.contractValue || 0).toLocaleString()} ريال)`
+                  ? `(قيمة الشهر ${Number(settlePolicyState.contractValue || 0).toLocaleString()} ر.س)`
                   : `(بسعر ${s.effectiveNightlyRate.toLocaleString()} ${rateUnit}${rateNote})`);
             } else {
               settleNightsCount.textContent = res.booking_type === 'حجز شهري'
-                ? `${s.actualNights} ${nightsLabel} (قيمة الشهر ${Number(s.baseCharge || 0).toLocaleString()} ريال)`
+                ? `${s.actualNights} ${nightsLabel} (قيمة الشهر ${Number(s.baseCharge || 0).toLocaleString()} ر.س)`
                 : `${s.actualNights} ${nightsLabel} (بسعر ${s.effectiveNightlyRate.toLocaleString()} ${rateUnit}${rateNote})`;
             }
           }
           if (settleTotalPriceDisplay) {
             // Under the contract policy the chargeable base is the full booked value.
             const baseShown = settlePolicyState.applicable ? settlePolicyState.contractValue : s.baseCharge;
-            settleTotalPriceDisplay.textContent = `${Number(baseShown).toFixed(2)} ريال`;
+            settleTotalPriceDisplay.textContent = `${Number(baseShown).toFixed(2)} ر.س`;
           }
           if (settleFinalTotalInput) settleFinalTotalInput.value = s.netCharge.toFixed(2);
           // Pre-fill the discount with the amount STORED on the reservation, not
@@ -2394,8 +2395,8 @@
             : nights;
           const appliedDiscount = nights < bookedNights ? 0 : Math.min(base, existDisc);
           const net = Math.max(0, roundMoney(base - appliedDiscount));
-          if (settleNightsCount) settleNightsCount.textContent = `${nights} ${nights === 1 ? 'ليلة' : 'ليالٍ'} (بسعر ${pricePerNight.toLocaleString()} ريال/ليلة)`;
-          if (settleTotalPriceDisplay) settleTotalPriceDisplay.textContent = `${base.toFixed(2)} ريال`;
+          if (settleNightsCount) settleNightsCount.textContent = `${nights} ${nights === 1 ? 'ليلة' : 'ليالٍ'} (بسعر ${pricePerNight.toLocaleString()} ر.س/ليلة)`;
+          if (settleTotalPriceDisplay) settleTotalPriceDisplay.textContent = `${base.toFixed(2)} ر.س`;
           if (settleFinalTotalInput) settleFinalTotalInput.value = net.toFixed(2);
           if (settleDiscountInput) settleDiscountInput.value = appliedDiscount > 0 ? appliedDiscount.toFixed(2) : '0';
           if (settleDiscountReasonInput) settleDiscountReasonInput.value = res.discount_reason || '';
@@ -2414,8 +2415,8 @@
       const calculatedBase = roundMoney(nights * pricePerNight);
       const existingDiscount = roundMoney(res.discount_amount || 0);
       const rateNote = res.custom_nightly_price ? ' - سعر خاص' : '';
-      if (settleNightsCount) settleNightsCount.textContent = `${nights} ${nights === 1 ? 'ليلة' : 'ليالٍ'} (بسعر ${pricePerNight.toLocaleString()} ريال/ليلة${rateNote})`;
-      if (settleTotalPriceDisplay) settleTotalPriceDisplay.textContent = `${calculatedBase.toFixed(2)} ريال`;
+      if (settleNightsCount) settleNightsCount.textContent = `${nights} ${nights === 1 ? 'ليلة' : 'ليالٍ'} (بسعر ${pricePerNight.toLocaleString()} ر.س/ليلة${rateNote})`;
+      if (settleTotalPriceDisplay) settleTotalPriceDisplay.textContent = `${calculatedBase.toFixed(2)} ر.س`;
       if (settleDiscountInput) settleDiscountInput.value = existingDiscount > 0 ? existingDiscount.toFixed(2) : '0';
       if (settleDiscountReasonInput) settleDiscountReasonInput.value = res.discount_reason || '';
       const initialNet = Math.max(0, calculatedBase - existingDiscount);
@@ -2439,13 +2440,13 @@
     if (settleDepositSection) {
       const showDeposit = currentDepositAvailable > 0 || currentDepositLegacyUnreconciled;
       settleDepositSection.style.display = showDeposit ? 'block' : 'none';
-      if (settleDepositHeld) settleDepositHeld.textContent = `${currentDepositAvailable.toFixed(2)} ريال`;
+      if (settleDepositHeld) settleDepositHeld.textContent = `${currentDepositAvailable.toFixed(2)} ر.س`;
       if (settleDepositDisposition) settleDepositDisposition.disabled = currentDepositAvailable <= 0;
       if (settleDepositLegacyWarning) {
         settleDepositLegacyWarning.style.display = currentDepositLegacyUnreconciled ? 'block' : 'none';
         if (currentDepositLegacyUnreconciled) {
           const oldAmount = Number(res.deposit_amount || 0).toLocaleString();
-          settleDepositLegacyWarning.textContent = `يوجد رصيد قديم بقيمة ${oldAmount} ريال بلا سند حركة؛ لن يرده النظام تلقائياً قبل مراجعته.`;
+          settleDepositLegacyWarning.textContent = `يوجد رصيد قديم بقيمة ${oldAmount} ر.س بلا سند حركة؛ لن يرده النظام تلقائياً قبل مراجعته.`;
         }
       }
       if (btnReconcileLegacyDeposit) {
@@ -2603,7 +2604,7 @@
         }
         if (settleTotalPriceDisplay) {
           const baseShown = settlePolicyState.applicable ? settlePolicyState.contractValue : currentSettlementPreview.baseCharge;
-          settleTotalPriceDisplay.textContent = `${Number(baseShown).toFixed(2)} ريال`;
+          settleTotalPriceDisplay.textContent = `${Number(baseShown).toFixed(2)} ر.س`;
         }
         updateSettleCalculations();
       } else {
@@ -2645,7 +2646,7 @@
 
       const confirmed = await showConfirmDialog({
         title: 'تسجيل مغادرة بدون تحصيل (آجل)',
-        message: `هل أنت متأكد من تسجيل مغادرة النزيل مع اعتماد إجمالي ${finalTotal.toFixed(2)} ريال وترحيل باقي المبلغ كدين آجل؟\nسيتم إكمال الحجز وتحويل الغرفة إلى "تنظيف".`,
+        message: `هل أنت متأكد من تسجيل مغادرة النزيل مع اعتماد إجمالي ${finalTotal.toFixed(2)} ر.س وترحيل باقي المبلغ كدين آجل؟\nسيتم إكمال الحجز وتحويل الغرفة إلى "تنظيف".`,
         confirmText: 'نعم، مغادرة (آجل)',
         cancelText: 'تراجع',
         isDanger: true
@@ -2744,6 +2745,33 @@
       } else {
         const payNow = parseFloat(settlePayNowInput ? settlePayNowInput.value : 0) || 0;
         const method = settlePaymentMethodSelect ? settlePaymentMethodSelect.value : 'نقداً';
+
+        // Warning prompt if checking out with an outstanding balance
+        const unpaidDue = Math.max(0, netBalance - payNow);
+        if (unpaidDue > 0.005) {
+          const confirmed = await showConfirmDialog({
+            title: 'تنبيه مالي: مستحقات غير مسددة',
+            message: `يوجد مبلغ متبقٍ لم يُسدد قدره (${unpaidDue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س).\nهل أنت متأكد من ترحيل هذا المبلغ كدين آجل وإتمام مغادرة النزيل؟`,
+            confirmText: 'نعم، ترحيل كدين آجل وإتمام المغادرة',
+            cancelText: 'تراجع للتحصيل',
+            isDanger: true
+          });
+          if (!confirmed) return;
+        }
+
+        // Warning prompt if there is an unreconciled legacy deposit
+        if (currentDepositLegacyUnreconciled) {
+          const oldDepAmount = Number(currentSettlingReservation.deposit_amount || 0).toLocaleString();
+          const confirmedDep = await showConfirmDialog({
+            title: 'تنبيه: تأمين تاريخي معلق',
+            message: `يوجد رصيد تأمين قديم مسجل على الحجز بقيمة (${oldDepAmount} ر.س) بلا سند حركة ولم تتم مطابقته.\nلن يتم رد هذا التأمين تلقائياً في السجلات.\nهل ترغب في الاستمرار في تسجيل المغادرة؟`,
+            confirmText: 'الاستمرار في المغادرة',
+            cancelText: 'تراجع للمراجعة',
+            isDanger: true
+          });
+          if (!confirmedDep) return;
+        }
+
         payload = { settleMode: payNow > 0 ? 'collect' : 'defer', collectAmount: payNow, paymentMethod: method, discountAmount: discAmount, discountReason: discReason, lateCheckoutFee: Math.max(0, parseFloat(settleLateCheckoutFeeInput?.value || 0) || 0), ...policyPayload, ...depositPayload };
         if (isContract) payload.finalTotalPrice = finalTotal;
       }

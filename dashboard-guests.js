@@ -75,28 +75,28 @@
               ${totalStays} ${totalStays === 1 ? 'إقامة' : 'إقامات'}
             </span>
           </td>
-          <td style="font-weight: 800; color: var(--primary);">${totalSpent.toLocaleString()} ريال</td>
+          <td style="font-weight: 800; color: var(--primary);">${totalSpent.toLocaleString()} ر.س</td>
           <td style="font-size: 0.8rem; color: var(--text-muted);">${App.Helpers.escapeHtml(String(g.created_at || '').split(' ')[0])}</td>
           <!-- The ban-status column travels with the ban action: a receptionist who can now
                ban a guest must be able to see whether that guest is currently banned.
                Previously both were wrapped in the same isAdmin check. -->
           <td>
-            <span class="badge ${isBanned ? 'badge-cancelled' : 'badge-confirmed'}">
+            <span class="badge-unified ${isBanned ? 'badge-guest-banned' : 'badge-guest-active'}">
               ${isBanned ? 'محظور' : 'نشط'}
             </span>
           </td>
           <td style="text-align: center; white-space: nowrap;">
-            <div style="display: inline-flex; align-items: center; gap: 6px; justify-content: center;">
-              <button type="button" class="btn btn-secondary btn-sm" data-action="edit-guest" data-id="${g.id}" style="padding: 4px 10px; font-size: 0.78rem; font-weight: 700;">
-                تعديل ✏️
+            <div class="btn-row-group overview-row-actions guest-actions-list" role="group" aria-label="إجراءات النزيل" style="justify-content: center;">
+              <button type="button" class="btn-row icon-ghost guest-row-action" data-action="edit-guest" data-id="${g.id}" title="تعديل بيانات النزيل" aria-label="تعديل بيانات النزيل">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
               </button>
-              <!-- Banning is available to every signed-in user, matching the IPC gate in
-                   ipc/guests.js (session required, role not restricted). It was previously
-                   wrapped in an isAdmin check, hiding the button from reception while the
-                   backend would have allowed it anyway. -->
-              <button type="button" class="btn ${isBanned ? 'btn-secondary' : 'btn-danger'} btn-sm" data-action="toggle-ban-guest" data-id="${g.id}" data-name="${App.Helpers.escapeHtml(g.name)}" data-banned="${isBanned ? '1' : '0'}" style="padding: 4px 10px; font-size: 0.78rem; font-weight: 700;">
-                              ${isBanned ? 'إلغاء الحظر' : 'حظر'}
-                            </button>
+              <button type="button" class="btn-row ${isBanned ? 'guest-row-action-unban' : 'checkout-danger guest-row-action-ban'}" data-action="toggle-ban-guest" data-id="${g.id}" data-name="${App.Helpers.escapeHtml(g.name)}" data-banned="${isBanned ? '1' : '0'}" title="${isBanned ? 'إلغاء حظر النزيل' : 'حظر هذا النزيل'}" aria-label="${isBanned ? 'إلغاء حظر النزيل' : 'حظر هذا النزيل'}">
+                ${isBanned ? `
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="m9 12 2 2 4-4"></path></svg>
+                ` : `
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
+                `}
+              </button>
             </div>
           </td>
         </tr>
