@@ -571,7 +571,488 @@
   // 5. COMMAND REGISTRY & PARSER
   // ─────────────────────────────────────────────────────────────────────────────
 
+  // Shared helper to build room actions across room-inquiry and prefix-room commands
+  function buildRoomActions(ctx, roomNum, options = {}) {
+    const room = ctx.rooms.find(r => String(r.room_number) === String(roomNum) || String(r.id) === String(roomNum));
+    const activeRes = ctx.reservations.find(r =>
+      ((room && r.room_id === room.id) || String(r.room_number) === String(roomNum)) &&
+      r.status === 'مؤكد'
+    ) || (room && room.active_reservations ? room.active_reservations[0] : null);
+
+    const resById = options.checkReservationId ? ctx.reservations.find(r => String(r.id) === String(roomNum)) : null;
+
+    if (room || activeRes) {
+      const displayRoomNum = room ? room.room_number : (activeRes ? activeRes.room_number : roomNum);
+      const statusText = room ? room.status : (activeRes ? 'مشغولة' : 'غير محددة');
+
+      if (activeRes) {
+        const fin = getResFin(activeRes, ctx.currentBizDate);
+        const balance = fin.remaining;
+
+        ctx.results.push({
+          category: `🚪 تفاصيل الغرفة ${displayRoomNum}`,
+          icon: '🔴',
+          title: `غرفة ${displayRoomNum} (${statusText}) • النزيل: ${activeRes.guest_name || 'نزيل مقيم'}`,
+          subtitle: `الجوال: ${activeRes.guest_phone || '-'} • المغادرة: ${activeRes.check_out_date || 'مفتوح'} • المتبقي: ${balance.toLocaleString('en-US')} ر.س ${balance > 0 ? '⚠️' : '✓'}`,
+          badge: statusText,
+          actionFn: () => {
+            if (App?.Helpers?.openReservationPreview) {
+              App.Helpers.openReservationPreview(activeRes.id);
+            } else {
+              showMissingHelperToast();
+            }
+          }
+        });
+
+        ctx.results.push({
+          category: `⚡ إجراءات سريعة للغرفة ${displayRoomNum}`,
+          icon: '🧾',
+          title: `تسجيل مغادرة وتصفية الحساب • غرفة ${displayRoomNum}`,
+          subtitle: `إنهاء إقامة النزيل (${activeRes.guest_name}) وتسليم الغرفة`,
+          badge: 'مغادرة',
+          actionFn: () => {
+            if (App?.Helpers?.openContractSettleModal) {
+              App.Helpers.openContractSettleModal(activeRes);
+            } else if (App?.Helpers?.openReservationPreview) {
+              App.Helpers.openReservationPreview(activeRes.id);
+            } else {
+              showMissingHelperToast();
+            }
+          }
+        });
+
+        if (activeRes.guest_phone) {
+          ctx.results.push({
+            category: `⚡ إجراءات سريعة للغرفة ${displayRoomNum}`,
+            icon: '💬',
+            title: `مراسلة النزيل (${activeRes.guest_name}) عبر واتساب`,
+            subtitle: `إرسال رسالة سريعة إلى ${activeRes.guest_phone}`,
+            badge: 'WhatsApp',
+            actionFn: () => {
+              if (window.sendReservationWhatsApp) window.sendReservationWhatsApp(activeRes.id);
+              else showMissingHelperToast();
+            }
+          });
+        }
+
+        if (balance > 0) {
+          ctx.results.push({
+            category: `⚡ إجراءات سريعة للغرفة ${displayRoomNum}`,
+            icon: '💳',
+            title: `تسجيل دفعة سداد جديدة • متبقي ${balance.toLocaleString('en-US')} ر.س`,
+            subtitle: `تحصيل مبلغ مالي للنزيل (${activeRes.guest_name})`,
+            badge: 'سداد دفعة',
+            actionFn: () => {
+              if (window.openAddPaymentModal) {
+                window.openAddPaymentModal(activeRes.id);
+              } else if (App?.Helpers?.openReservationPreview) {
+                App.Helpers.openReservationPreview(activeRes.id);
+              } else {
+                showMissingHelperToast();
+              }
+            }
+          });
+        }
+      } else if (room && room.status === 'متاحة') {
+        ctx.results.push({
+          category: `🚪 تفاصيل الغرفة ${displayRoomNum}`,
+          icon: '🟢',
+          title: `غرفة ${displayRoomNum} (متاحة للتشغيل)`,
+          subtitle: `النوع: ${room.type || 'عادية'} • السعر: ${Number(room.price_per_night || 0).toLocaleString('en-US')} ر.س/ليلة • الطابق: ${room.floor || '1'}`,
+          badge: 'متاحة ✓',
+          actionFn: () => {
+            if (App?.Helpers?.initiateRoomBooking) App.Helpers.initiateRoomBooking(room.id);
+            else switchViewSection('rooms');
+          }
+        });
+
+        ctx.results.push({
+          category: `⚡ إجراءات سريعة للغرفة ${displayRoomNum}`,
+          icon: '➕',
+          title: `تسكين فوري للغرفة ${displayRoomNum}`,
+          subtitle: 'فتح نموذج حجز جديد واختيار هذه الغرفة تلقائياً',
+          badge: 'تسكين',
+          actionFn: () => {
+            if (App?.Helpers?.initiateRoomBooking) App.Helpers.initiateRoomBooking(room.id);
+            else switchViewSection('rooms');
+          }
+        });
+      } else if (room && room.status === 'تنظيف') {
+        ctx.results.push({
+          category: `🚪 تفاصيل الغرفة ${displayRoomNum}`,
+          icon: '🧹',
+          title: `غرفة ${displayRoomNum} (تحت التنظيف)`,
+          subtitle: 'الغرفة بانتظار إشعار عمال النظافة قبل إتاحتها للحجز',
+          badge: 'تنظيف',
+          actionFn: () => requestRoomCleaningCompletion(room)
+        });
+      } else if (room) {
+        ctx.results.push({
+          category: `🚪 تفاصيل الغرفة ${displayRoomNum}`,
+          icon: '🛠️',
+          title: `غرفة ${displayRoomNum} (حالة: ${room.status})`,
+          subtitle: `النوع: ${room.type || 'عادية'} • الطابق: ${room.floor || '1'}`,
+          badge: room.status,
+          actionFn: () => switchViewSection('rooms')
+        });
+      }
+    }
+
+    if (resById && (!activeRes || resById.id !== activeRes.id)) {
+      ctx.results.push({
+        category: '📋 نتيجة رقم الحجز',
+        icon: '📋',
+        title: `حجز رقم #${resById.id} • ${resById.guest_name || 'نزيل'} (غرفة ${resById.room_number || '-'})`,
+        subtitle: `الحالة: ${resById.status} • الوصول: ${resById.check_in_date || '-'} • المغادرة: ${resById.check_out_date || '-'}`,
+        badge: resById.status,
+        actionFn: () => {
+          if (App?.Helpers?.openReservationPreview) {
+            App.Helpers.openReservationPreview(resById.id);
+          } else {
+            showMissingHelperToast();
+          }
+        }
+      });
+    }
+
+    if (!room && !activeRes && !resById) {
+      if (options.checkReservationId) {
+        ctx.results.push({
+          category: 'بحث الغرف والحجوزات',
+          icon: '❓',
+          title: `لم يتم العثور على غرفة أو حجز بالرقم "${roomNum}"`,
+          subtitle: 'تأكد من الرقم المدخل أو استعرض قائمة الغرف والحجوزات',
+          badge: 'غير موجود',
+          actionFn: () => switchViewSection('rooms')
+        });
+      } else {
+        ctx.results.push({
+          category: '🚪 تفاصيل الغرفة',
+          icon: '❓',
+          title: `الغرفة غير موجودة بالرقم "${roomNum}"`,
+          subtitle: 'تأكد من رقم الغرفة المدخل أو استعرض خريطة الغرف',
+          badge: 'غير موجودة',
+          actionFn: () => switchViewSection('rooms')
+        });
+      }
+    }
+  }
+
+  // Prefix commands are placed at the very start of COMMAND_REGISTRY intentionally
+  // to prioritize deterministic symbol shortcuts (#, @, !, r, ق) over natural language commands
   const COMMAND_REGISTRY = [
+    {
+      id: 'prefix-reservation',
+      name: 'البحث السريع برقم الحجز',
+      match: (norm) => {
+        const m = norm.match(/^#\s*(.*)$/);
+        if (m) {
+          return { rawReservationQuery: (m[1] || '').trim() };
+        }
+        return null;
+      },
+      handle: (ctx, match) => {
+        const raw = match?.rawReservationQuery;
+        if (!raw) {
+          ctx.results.push({
+            category: '📋 البحث السريع برقم الحجز',
+            icon: '📋',
+            title: 'اكتب رقم الحجز بعد #',
+            subtitle: 'مثال: #12 أو #105 لعرض ملف الحجز وفاتورته وسندات القبض والتمديد',
+            badge: 'إرشاد'
+          });
+          return;
+        }
+
+        if (!/^\d+$/.test(raw)) {
+          ctx.results.push({
+            category: '📋 البحث السريع برقم الحجز',
+            icon: '⚠️',
+            title: 'رقم الحجز يجب أن يكون أرقاماً فقط',
+            subtitle: 'أدخل رقم الحجز الصحيح (مثال: #12 أو #105)',
+            badge: 'تنبيه'
+          });
+          return;
+        }
+
+        const resId = raw;
+        const res = ctx.reservations.find(r => String(r.id) === resId);
+        if (!res) {
+          ctx.results.push({
+            category: '📋 البحث السريع برقم الحجز',
+            icon: '❓',
+            title: `لا يوجد حجز برقم #${resId}`,
+            subtitle: 'تأكد من رقم الحجز المدخل أو استعرض جدول الحجوزات',
+            badge: 'غير موجود'
+          });
+          return;
+        }
+
+        const fin = getResFin(res, ctx.currentBizDate);
+
+        // 1. Details item
+        ctx.results.push({
+          category: `📋 حجز #${res.id} • غرفة ${res.room_number || '-'}`,
+          icon: '📋',
+          title: `تفاصيل الحجز #${res.id} • ${res.guest_name || 'نزيل'} (غرفة ${res.room_number || '-'})`,
+          subtitle: `الحالة: ${res.status} • الوصول: ${res.check_in_date || '-'} • المغادرة: ${res.check_out_date || '-'} • المتبقي: ${fin.remaining.toLocaleString('en-US')} ر.س`,
+          badge: res.status,
+          actionFn: () => {
+            if (App?.Helpers?.openReservationPreview) {
+              App.Helpers.openReservationPreview(res.id);
+            } else {
+              showMissingHelperToast();
+            }
+          }
+        });
+
+        // 2. Invoice item
+        ctx.results.push({
+          category: `📋 حجز #${res.id} • غرفة ${res.room_number || '-'}`,
+          icon: '🧾',
+          title: `فاتورة الحجز #${res.id}`,
+          subtitle: `استعراض الفاتورة الضريبية والبنود المحسوبة (الإجمالي: ${fin.effectiveTotal.toLocaleString('en-US')} ر.س)`,
+          badge: 'فاتورة ضريبية',
+          actionFn: () => {
+            if (window.openInvoiceModal) {
+              window.openInvoiceModal(res.id);
+            } else if (App?.Helpers?.openReservationPreview) {
+              App.Helpers.openReservationPreview(res.id);
+            } else {
+              showMissingHelperToast();
+            }
+          }
+        });
+
+        // 3. Payment collection item (if remaining > 0)
+        if (fin.remaining > 0.005) {
+          ctx.results.push({
+            category: `📋 حجز #${res.id} • غرفة ${res.room_number || '-'}`,
+            icon: '💳',
+            title: `تحصيل دفعة مالية • متبقي ${fin.remaining.toLocaleString('en-US')} ر.س`,
+            subtitle: `تسجيل سند قبض لحساب النزيل (${res.guest_name || 'نزيل'})`,
+            badge: 'سند قبض 💳',
+            actionFn: () => {
+              if (window.openAddPaymentModal) {
+                window.openAddPaymentModal(res.id);
+              } else if (App?.Helpers?.openReservationPreview) {
+                App.Helpers.openReservationPreview(res.id);
+              } else {
+                showMissingHelperToast();
+              }
+            }
+          });
+        }
+
+        // 4. Departure settlement (if confirmed)
+        if (res.status === 'مؤكد') {
+          ctx.results.push({
+            category: `📋 حجز #${res.id} • غرفة ${res.room_number || '-'}`,
+            icon: '🚪',
+            title: `تسجيل مغادرة وتصفية الحساب • غرفة ${res.room_number || '-'}`,
+            subtitle: `إنهاء إقامة النزيل وتسليم الغرفة`,
+            badge: 'مغادرة',
+            actionFn: () => {
+              if (App?.Helpers?.openContractSettleModal) {
+                App.Helpers.openContractSettleModal(res);
+              } else if (App?.Helpers?.openReservationPreview) {
+                App.Helpers.openReservationPreview(res.id);
+              } else {
+                showMissingHelperToast();
+              }
+            }
+          });
+        }
+
+        // 5. Extend stay (if confirmed or monthly)
+        if (res.status === 'مؤكد' || res.pricing_type === 'شهري') {
+          ctx.results.push({
+            category: `📋 حجز #${res.id} • غرفة ${res.room_number || '-'}`,
+            icon: '📅',
+            title: 'تمديد الإقامة وتحديث المغادرة',
+            subtitle: `إضافة ليالٍ إضافية لحجز الغرفة ${res.room_number || '-'}`,
+            badge: 'تمديد الإقامة',
+            actionFn: () => {
+              if (window.openExtendStayModal) {
+                window.openExtendStayModal(res.id);
+              } else {
+                showMissingHelperToast();
+              }
+            }
+          });
+        }
+      }
+    },
+    {
+      id: 'prefix-guest',
+      name: 'البحث السريع عن النزلاء',
+      match: (norm) => {
+        const m = norm.match(/^@\s*(.*)$/);
+        if (m) {
+          return { rawGuestQuery: (m[1] || '').trim() };
+        }
+        return null;
+      },
+      handle: (ctx, match) => {
+        const query = match?.rawGuestQuery;
+        if (!query) {
+          ctx.results.push({
+            category: '👤 البحث السريع عن النزلاء',
+            icon: '👤',
+            title: 'اكتب اسم أو جوال أو هوية النزيل بعد @',
+            subtitle: 'مثال: @محمد أو @0500 للبحث المباشر في سجل النزلاء وإنشاء حجز فوري',
+            badge: 'إرشاد'
+          });
+          return;
+        }
+
+        function computeScore(normTarget) {
+          if (!normTarget) return 0;
+          if (normTarget === query) return 100;
+          if (normTarget.startsWith(query)) return 80;
+          if (normTarget.split(' ').some(w => w.startsWith(query))) return 60;
+          if (normTarget.includes(query)) return 40;
+          return 0;
+        }
+
+        const guestMatches = [];
+        ctx.guests.forEach(g => {
+          const nameScore = computeScore(getEntityNormalizedField(g, 'name'));
+          const phoneScore = computeScore(getEntityNormalizedField(g, 'phone'));
+          const idScore = Math.max(
+            computeScore(getEntityNormalizedField(g, 'id_number')),
+            computeScore(getEntityNormalizedField(g, 'national_id'))
+          );
+          const maxScore = Math.max(nameScore, phoneScore, idScore);
+          if (maxScore > 0) {
+            guestMatches.push({ guest: g, score: maxScore });
+          }
+        });
+
+        if (!guestMatches.length) {
+          ctx.results.push({
+            category: '👤 البحث السريع عن النزلاء',
+            icon: '❓',
+            title: `لم يتم العثور على نزيل يطابق "${query}"`,
+            subtitle: 'تأكد من الاسم أو رقم الجوال أو الهوية المدخلة',
+            badge: 'غير موجود'
+          });
+          return;
+        }
+
+        guestMatches.sort((a, b) => b.score - a.score).slice(0, 5).forEach(({ guest: g }) => {
+          const isBanned = Boolean(g.is_banned || g.banned === 1 || g.status === 'محظور');
+
+          // Item 1: Open guest file
+          ctx.results.push({
+            category: `👤 النزيل: ${g.name}`,
+            icon: '👤',
+            title: `فتح سجل النزيل • ${g.name}`,
+            subtitle: `الجوال: ${g.phone || '-'} • الهوية: ${g.id_number || g.national_id || '-'} ${isBanned ? '• (محظور ⛔)' : ''}`,
+            badge: isBanned ? 'محظور ⛔' : 'سجل النزيل',
+            actionFn: () => {
+              switchViewSection('guests');
+              const searchInput = document.getElementById('search-guests');
+              if (searchInput) {
+                searchInput.value = g.name;
+                searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+              }
+            }
+          });
+
+          // Item 2: Create new reservation for this guest
+          ctx.results.push({
+            category: `👤 النزيل: ${g.name}`,
+            icon: isBanned ? '⛔' : '➕',
+            title: `إنشاء حجز جديد للنزيل • ${g.name}`,
+            subtitle: isBanned ? 'تنبيه: النزيل مدرج في القائمة السوداء (يتطلب تأكيداً)' : 'فتح نموذج الحجز المباشر وتعبئة بيانات النزيل تلقائياً',
+            badge: isBanned ? 'محظور ⚠️' : 'حجز جديد',
+            actionFn: async () => {
+              if (isBanned) {
+                const showConfirm = App?.Helpers?.showConfirmDialog || window.showConfirmDialog;
+                if (typeof showConfirm === 'function') {
+                  const confirmed = await showConfirm({
+                    title: 'تنبيه: نزيل في قائمة الحظر ⛔',
+                    message: `النزيل (${g.name}) مدرج في القائمة السوداء للمحظورين. هل تريد المتابعة وفتح نموذج الحجز له على أي حال؟`,
+                    confirmText: 'متابعة الحجز',
+                    cancelText: 'إلغاء',
+                    isDanger: true
+                  });
+                  if (!confirmed) return;
+                }
+              }
+
+              const btnOpen = document.getElementById('btn-open-new-reservation-modal');
+              if (btnOpen) btnOpen.click();
+
+              setTimeout(() => {
+                const phoneInput = document.getElementById('guest-phone');
+                const nameInput = document.getElementById('guest-name');
+                const idInput = document.getElementById('guest-id-number');
+
+                if (phoneInput && g.phone) {
+                  phoneInput.value = g.phone;
+                  phoneInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                if (nameInput && g.name) {
+                  nameInput.value = g.name;
+                  nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                if (idInput && (g.id_number || g.national_id)) {
+                  idInput.value = g.id_number || g.national_id;
+                  idInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+
+                if (App?.Helpers?.showToast) {
+                  App.Helpers.showToast(`تم فتح نموذج الحجز وتعبئة بيانات النزيل: ${g.name}`, 'info');
+                }
+              }, 50);
+            }
+          });
+        });
+      }
+    },
+    {
+      id: 'prefix-room',
+      name: 'البحث السريع برقم الغرفة',
+      match: (norm) => {
+        // Match ! followed by anything (allowing validation inside handle)
+        const mExcl = norm.match(/^!\s*(.*)$/);
+        if (mExcl) return { rawRoomQuery: (mExcl[1] || '').trim() };
+
+        // Match r or ق followed by digits or empty (prevent matching receipt, etc.)
+        const mRQ = norm.match(/^(?:r|ق)\s*(\d*)$/);
+        if (mRQ) return { rawRoomQuery: (mRQ[1] || '').trim() };
+
+        return null;
+      },
+      handle: (ctx, match) => {
+        const raw = match?.rawRoomQuery;
+        if (!raw) {
+          ctx.results.push({
+            category: '🚪 الاستعلام السريع عن الغرفة',
+            icon: '🚪',
+            title: 'اكتب رقم الغرفة بعد ! أو r أو ق',
+            subtitle: 'مثال: !206 أو r206 أو ق206 للاستعلام المباشر عن حالة الغرفة والنزيل والتسكين',
+            badge: 'إرشاد'
+          });
+          return;
+        }
+
+        if (!/^\d{1,5}$/.test(raw)) {
+          ctx.results.push({
+            category: '🚪 الاستعلام السريع عن الغرفة',
+            icon: '⚠️',
+            title: 'رقم الغرفة يجب أن يتكون من أرقام فقط',
+            subtitle: 'أدخل رقم الغرفة المطلوب (مثال: !206 أو r206)',
+            badge: 'تنبيه'
+          });
+          return;
+        }
+
+        buildRoomActions(ctx, raw, { checkReservationId: false });
+      }
+    },
     {
       id: 'unpaid',
       name: 'المستحقات والديون المعلقة',
@@ -1393,160 +1874,7 @@
       },
       handle: (ctx, match) => {
         const roomNum = match?.roomNumber;
-        const room = ctx.rooms.find(r => String(r.room_number) === roomNum || String(r.id) === roomNum);
-        const activeRes = ctx.reservations.find(r =>
-          ((room && r.room_id === room.id) || String(r.room_number) === roomNum) &&
-          r.status === 'مؤكد'
-        ) || (room && room.active_reservations ? room.active_reservations[0] : null);
-
-        // Also check if any reservation ID matches this exact number (show both room and reservation results!)
-        const resById = ctx.reservations.find(r => String(r.id) === roomNum);
-
-        if (room || activeRes) {
-          const displayRoomNum = room ? room.room_number : (activeRes ? activeRes.room_number : roomNum);
-          const statusText = room ? room.status : (activeRes ? 'مشغولة' : 'غير محددة');
-
-          if (activeRes) {
-            const fin = getResFin(activeRes, ctx.currentBizDate);
-            const balance = fin.remaining;
-
-            ctx.results.push({
-              category: `🚪 تفاصيل الغرفة ${displayRoomNum}`,
-              icon: '🔴',
-              title: `غرفة ${displayRoomNum} (${statusText}) • النزيل: ${activeRes.guest_name || 'نزيل مقيم'}`,
-              subtitle: `الجوال: ${activeRes.guest_phone || '-'} • المغادرة: ${activeRes.check_out_date || 'مفتوح'} • المتبقي: ${balance.toLocaleString('en-US')} ر.س ${balance > 0 ? '⚠️' : '✓'}`,
-              badge: statusText,
-              actionFn: () => {
-                if (App?.Helpers?.openReservationPreview) {
-                  App.Helpers.openReservationPreview(activeRes.id);
-                } else {
-                  showMissingHelperToast();
-                }
-              }
-            });
-
-            ctx.results.push({
-              category: `⚡ إجراءات سريعة للغرفة ${displayRoomNum}`,
-              icon: '🧾',
-              title: `تسجيل مغادرة وتصفية الحساب • غرفة ${displayRoomNum}`,
-              subtitle: `إنهاء إقامة النزيل (${activeRes.guest_name}) وتسليم الغرفة`,
-              badge: 'مغادرة',
-              actionFn: () => {
-                if (App?.Helpers?.openContractSettleModal) {
-                  App.Helpers.openContractSettleModal(activeRes);
-                } else if (App?.Helpers?.openReservationPreview) {
-                  App.Helpers.openReservationPreview(activeRes.id);
-                } else {
-                  showMissingHelperToast();
-                }
-              }
-            });
-
-            if (activeRes.guest_phone) {
-              ctx.results.push({
-                category: `⚡ إجراءات سريعة للغرفة ${displayRoomNum}`,
-                icon: '💬',
-                title: `مراسلة النزيل (${activeRes.guest_name}) عبر واتساب`,
-                subtitle: `إرسال رسالة سريعة إلى ${activeRes.guest_phone}`,
-                badge: 'WhatsApp',
-                actionFn: () => {
-                  if (window.sendReservationWhatsApp) window.sendReservationWhatsApp(activeRes.id);
-                  else showMissingHelperToast();
-                }
-              });
-            }
-
-            if (balance > 0) {
-              ctx.results.push({
-                category: `⚡ إجراءات سريعة للغرفة ${displayRoomNum}`,
-                icon: '💳',
-                title: `تسجيل دفعة سداد جديدة • متبقي ${balance.toLocaleString('en-US')} ر.س`,
-                subtitle: `تحصيل مبلغ مالي للنزيل (${activeRes.guest_name})`,
-                badge: 'سداد دفعة',
-                actionFn: () => {
-                  if (window.openAddPaymentModal) {
-                    window.openAddPaymentModal(activeRes.id);
-                  } else if (App?.Helpers?.openReservationPreview) {
-                    App.Helpers.openReservationPreview(activeRes.id);
-                  } else {
-                    showMissingHelperToast();
-                  }
-                }
-              });
-            }
-          } else if (room && room.status === 'متاحة') {
-            ctx.results.push({
-              category: `🚪 تفاصيل الغرفة ${displayRoomNum}`,
-              icon: '🟢',
-              title: `غرفة ${displayRoomNum} (متاحة للتشغيل)`,
-              subtitle: `النوع: ${room.type || 'عادية'} • السعر: ${Number(room.price_per_night || 0).toLocaleString('en-US')} ر.س/ليلة • الطابق: ${room.floor || '1'}`,
-              badge: 'متاحة ✓',
-              actionFn: () => {
-                if (App?.Helpers?.initiateRoomBooking) App.Helpers.initiateRoomBooking(room.id);
-                else switchViewSection('rooms');
-              }
-            });
-
-            ctx.results.push({
-              category: `⚡ إجراءات سريعة للغرفة ${displayRoomNum}`,
-              icon: '➕',
-              title: `تسكين فوري للغرفة ${displayRoomNum}`,
-              subtitle: 'فتح نموذج حجز جديد واختيار هذه الغرفة تلقائياً',
-              badge: 'تسكين',
-              actionFn: () => {
-                if (App?.Helpers?.initiateRoomBooking) App.Helpers.initiateRoomBooking(room.id);
-                else switchViewSection('rooms');
-              }
-            });
-          } else if (room && room.status === 'تنظيف') {
-            ctx.results.push({
-              category: `🚪 تفاصيل الغرفة ${displayRoomNum}`,
-              icon: '🧹',
-              title: `غرفة ${displayRoomNum} (تحت التنظيف)`,
-              subtitle: 'الغرفة بانتظار إشعار عمال النظافة قبل إتاحتها للحجز',
-              badge: 'تنظيف',
-              actionFn: () => requestRoomCleaningCompletion(room)
-            });
-          } else if (room) {
-            ctx.results.push({
-              category: `🚪 تفاصيل الغرفة ${displayRoomNum}`,
-              icon: '🛠️',
-              title: `غرفة ${displayRoomNum} (حالة: ${room.status})`,
-              subtitle: `النوع: ${room.type || 'عادية'} • الطابق: ${room.floor || '1'}`,
-              badge: room.status,
-              actionFn: () => switchViewSection('rooms')
-            });
-          }
-        }
-
-        // Also display matching reservation if reservation ID equals query number
-        if (resById && (!activeRes || resById.id !== activeRes.id)) {
-          ctx.results.push({
-            category: '📋 نتيجة رقم الحجز',
-            icon: '📋',
-            title: `حجز رقم #${resById.id} • ${resById.guest_name || 'نزيل'} (غرفة ${resById.room_number || '-'})`,
-            subtitle: `الحالة: ${resById.status} • الوصول: ${resById.check_in_date || '-'} • المغادرة: ${resById.check_out_date || '-'}`,
-            badge: resById.status,
-            actionFn: () => {
-              if (App?.Helpers?.openReservationPreview) {
-                App.Helpers.openReservationPreview(resById.id);
-              } else {
-                showMissingHelperToast();
-              }
-            }
-          });
-        }
-
-        if (!room && !activeRes && !resById) {
-          ctx.results.push({
-            category: 'بحث الغرف والحجوزات',
-            icon: '❓',
-            title: `لم يتم العثور على غرفة أو حجز بالرقم "${roomNum}"`,
-            subtitle: 'تأكد من الرقم المدخل أو استعرض قائمة الغرف والحجوزات',
-            badge: 'غير موجود',
-            actionFn: () => switchViewSection('rooms')
-          });
-        }
+        buildRoomActions(ctx, roomNum, { checkReservationId: true });
       }
     }
   ];
