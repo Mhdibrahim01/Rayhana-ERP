@@ -286,7 +286,17 @@ async function init(dbPath) {
       { table: 'payments', column: 'created_at', sql: 'ALTER TABLE payments ADD COLUMN created_at DATETIME' },
       { table: 'payments', column: 'business_date', sql: 'ALTER TABLE payments ADD COLUMN business_date TEXT' },
       { table: 'deposit_movements', column: 'created_at', sql: 'ALTER TABLE deposit_movements ADD COLUMN created_at DATETIME' },
-      { table: 'deposit_movements', column: 'business_date', sql: 'ALTER TABLE deposit_movements ADD COLUMN business_date TEXT' }
+      { table: 'deposit_movements', column: 'business_date', sql: 'ALTER TABLE deposit_movements ADD COLUMN business_date TEXT' },
+      { table: 'night_audits', column: 'business_date', sql: 'ALTER TABLE night_audits ADD COLUMN business_date TEXT' },
+      { table: 'night_audits', column: 'closed_by', sql: 'ALTER TABLE night_audits ADD COLUMN closed_by TEXT' },
+      { table: 'night_audits', column: 'shift_reconciliation_required', sql: 'ALTER TABLE night_audits ADD COLUMN shift_reconciliation_required INTEGER NOT NULL DEFAULT 0' },
+      { table: 'night_audits', column: 'shift_reconciled_at', sql: 'ALTER TABLE night_audits ADD COLUMN shift_reconciled_at DATETIME' },
+      { table: 'night_audits', column: 'shift_reconciled_by', sql: 'ALTER TABLE night_audits ADD COLUMN shift_reconciled_by INTEGER' },
+      { table: 'night_audits', column: 'payment_count', sql: 'ALTER TABLE night_audits ADD COLUMN payment_count INTEGER NOT NULL DEFAULT 0' },
+      { table: 'night_audits', column: 'payment_net', sql: 'ALTER TABLE night_audits ADD COLUMN payment_net REAL NOT NULL DEFAULT 0' },
+      { table: 'night_audits', column: 'deposit_movement_count', sql: 'ALTER TABLE night_audits ADD COLUMN deposit_movement_count INTEGER NOT NULL DEFAULT 0' },
+      { table: 'night_audits', column: 'deposit_net', sql: 'ALTER TABLE night_audits ADD COLUMN deposit_net REAL NOT NULL DEFAULT 0' },
+      { table: 'night_audits', column: 'summary_json', sql: "ALTER TABLE night_audits ADD COLUMN summary_json TEXT NOT NULL DEFAULT '{}'" }
     ];
     for (const migration of migrations) {
       try {

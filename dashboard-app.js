@@ -50,10 +50,8 @@ window.DashboardApp = {
     if (checkOutDate < todayStr) return true;
     if (checkOutDate > todayStr) return false;
 
-    // Use the configured hotel timezone cutoff (default 14:00) instead of
-    // the server's local time, so hotels in different zones detect late
-    // checkouts at the correct wall-clock hour.
-    const cutoffHour = 14;
+    // Use the configured hotel timezone cutoff (default 14:00, or 18:00 for day use / late checkout)
+    const cutoffHour = (reservation.booking_type === 'استخدام يومي' || Number(reservation.late_checkout_fee || 0) > 0) ? 18 : 14;
     let hotelHour;
     try {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -65,6 +63,26 @@ window.DashboardApp = {
       hotelHour = new Date().getHours();
     }
     return hotelHour >= cutoffHour;
+  }
+
+  function getExpectedCheckoutTime(reservation) {
+    if (!reservation) return '';
+    const isConfirmed = reservation.status === 'مؤكد';
+    if (!isConfirmed) return '';
+
+    const checkOutDate = String(reservation.check_out_date || '').slice(0, 10);
+    const isContract = reservation.booking_type === 'عقد مفتوح' || !checkOutDate || checkOutDate === 'مفتوح';
+    if (isContract) return '';
+
+    if (reservation.booking_type === 'استخدام يومي') {
+      return '18:00';
+    }
+
+    if (Number(reservation.late_checkout_fee || 0) > 0) {
+      return '18:00';
+    }
+
+    return '14:00';
   }
 
   function isReservationOverdue(reservation) {
@@ -229,6 +247,7 @@ window.DashboardApp = {
   App.Helpers.getHotelBusinessDate = getHotelBusinessDate;
   window.getHotelBusinessDate = getHotelBusinessDate;
   App.Helpers.isLateCheckout = isLateCheckout;
+  App.Helpers.getExpectedCheckoutTime = getExpectedCheckoutTime;
   App.Helpers.isReservationOverdue = isReservationOverdue;
   App.Helpers.renderOverdueBadge = renderOverdueBadge;
   App.Helpers.showToast = showToast;

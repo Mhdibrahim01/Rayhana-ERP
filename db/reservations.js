@@ -552,7 +552,7 @@ function createReservation({
       }
     }
 
-    if (currentRoom && (currentRoom.status === 'متاحة' || currentRoom.status === 'محجوزة')) {
+    if (currentRoom && (currentRoom.status === 'متاحة' || currentRoom.status === 'محجوزة' || (assignedRoomStatus === 'مشغولة' && currentRoom.status === 'تنظيف'))) {
       const roomStmt = db.prepare("UPDATE rooms SET status = ? WHERE id = ?");
       roomStmt.run([assignedRoomStatus, parsedRoomId]);
       roomStmt.free();
@@ -716,7 +716,9 @@ function computeCheckoutSettlement(reservationId, {
   if (!targetId || isNaN(targetId)) throw new Error('معرف الحجز غير صالح.');
 
   const res = queryOne(`
-    SELECT r.id, r.booking_type, r.check_in_date, r.check_out_date, r.total_price, r.paid_amount, r.deposit_amount,
+    SELECT r.id, r.booking_type, r.check_in_date, r.check_out_date, r.total_price, r.paid_amount,
+           COALESCE((SELECT SUM(amount) FROM payments WHERE reservation_id = r.id), r.paid_amount) AS ledger_paid_amount,
+           r.deposit_amount,
             r.custom_nightly_price, r.monthly_rate_snapshot, r.monthly_extension_amount,
             r.discount_amount, r.discount_reason, r.status, rm.price_per_night
     FROM reservations r
@@ -806,7 +808,10 @@ function computeCheckoutSettlement(reservationId, {
     throw new Error('مبلغ تأخير المغادرة يجب أن يكون صفراً أو أكبر.');
   }
 
-  const paidAmount = roundMoney(res.paid_amount || 0);
+  const ledgerPaid = (res.ledger_paid_amount !== null && res.ledger_paid_amount !== undefined)
+    ? Number(res.ledger_paid_amount)
+    : Number(res.paid_amount || 0);
+  const paidAmount = roundMoney(ledgerPaid);
   const depositLedger = getDepositLedger(targetId);
   const depositAvailable = depositLedger.balance;
   const difference = isOpenContract ? null : roundMoney(netCharge + normalizedLateCheckoutFee - paidAmount);
@@ -882,7 +887,9 @@ function checkoutReservation(reservationId, {
   if (!targetId || isNaN(targetId)) throw new Error('معرف الحجز غير صالح.');
 
   const res = queryOne(`
-    SELECT r.id, r.room_id, r.total_price, r.paid_amount, r.deposit_amount, r.payment_method, r.payment_status, r.booking_type,
+    SELECT r.id, r.room_id, r.total_price, r.paid_amount,
+           COALESCE((SELECT SUM(amount) FROM payments WHERE reservation_id = r.id), r.paid_amount) AS ledger_paid_amount,
+           r.deposit_amount, r.payment_method, r.payment_status, r.booking_type,
            r.check_in_date, r.check_out_date, r.original_calculated_charge, r.status,
             r.custom_nightly_price, r.monthly_rate_snapshot, r.monthly_extension_amount,
             r.discount_amount, r.discount_reason,
@@ -1044,7 +1051,10 @@ function checkoutReservation(reservationId, {
   // the late fee is orthogonal and applies identically under both policies.
   const finalTotal = roundMoney(accommodationNetTotal + normalizedLateCheckoutFee);
 
-  const currentPaid = roundMoney(res.paid_amount || 0);
+  const ledgerPaid = (res.ledger_paid_amount !== null && res.ledger_paid_amount !== undefined)
+    ? Number(res.ledger_paid_amount)
+    : Number(res.paid_amount || 0);
+  const currentPaid = roundMoney(ledgerPaid);
   const depositLedger = getDepositLedger(targetId);
   const depositHeld = depositLedger.balance;
   if (!['refund', 'apply', 'retain'].includes(depositDisposition)) {
@@ -1211,6 +1221,9 @@ function checkoutReservation(reservationId, {
       if (rawRefund <= 0) {
         throw new Error('مبلغ الاسترداد يجب أن يكون أكبر من الصفر.');
       }
+      if (currentPaid <= 0 && depositApplied <= 0) {
+        throw new Error('لا يمكن تسجيل استرداد نقدي لعدم وجود دفعات مسجلة في السجل.');
+      }
       if (roundMoney(Math.abs(rawRefund - exactRefundDue)) > 0.005) {
         throw new Error(
           `مبلغ الاسترداد (${rawRefund} ريال) يجب أن يساوي الفرق الفعلي المستحق (${exactRefundDue} ريال).`
@@ -1260,7 +1273,7 @@ function checkoutReservation(reservationId, {
 
     // Preserve original reservation payment method. Only set it at checkout if the
     // reservation had zero prior payments or had no payment method set.
-    const originalPaid = roundMoney(res.paid_amount || 0);
+    const originalPaid = currentPaid;
     const updateMethod = (resolvedMode === 'collect' && (originalPaid === 0 || !res.payment_method)) ? effMethod : null;
 
     stmt1.run([
@@ -1332,7 +1345,8 @@ function extendReservation({
   if (!targetId || isNaN(targetId)) throw new Error('معرف الحجز غير صالح.');
 
   const res = queryOne(`
-    SELECT r.*, rm.room_number, rm.type AS room_type, rm.price_per_night, g.name AS guest_name
+    SELECT r.*, rm.room_number, rm.type AS room_type, rm.price_per_night, g.name AS guest_name,
+           (SELECT SUM(p.amount) FROM payments p WHERE p.reservation_id = r.id) AS ledger_paid_amount
     FROM reservations r
     JOIN rooms rm ON r.room_id = rm.id
     JOIN guests g ON r.guest_id = g.id
@@ -1420,7 +1434,8 @@ function extendReservation({
     throw new Error(`تعذر تمديد الإقامة: الغرفة رقم (${res.room_number}) محجوزة مسبقاً لنزيل آخر (${conflict.guest_name}) من تاريخ ${conflict.check_in_date} إلى ${conflictOut}.`);
   }
 
-  const currentPaid = roundMoney(res.paid_amount || 0);
+  const hasLedger = res.ledger_paid_amount !== null && res.ledger_paid_amount !== undefined;
+  const currentPaid = roundMoney(hasLedger ? Number(res.ledger_paid_amount) : (res.paid_amount || 0));
   const currentTotal = roundMoney(res.total_price || 0);
   const newTotal = roundMoney(currentTotal + calcAdditionalCost);
 
@@ -1519,6 +1534,7 @@ function cancelReservation(reservationId, actualDepartureDate = null, manualOver
 
   const res = queryOne(`
     SELECT r.id, r.room_id, r.check_in_date, r.check_out_date, r.total_price, r.paid_amount,
+           (SELECT SUM(p.amount) FROM payments p WHERE p.reservation_id = r.id) AS ledger_paid_amount,
            r.status,
            r.custom_nightly_price,
            rm.price_per_night
@@ -1541,7 +1557,8 @@ function cancelReservation(reservationId, actualDepartureDate = null, manualOver
     throw new Error('الإقامة بدأت بالفعل. استخدم تسجيل الخروج لتصفية الحساب بدلاً من إلغاء الحجز.');
   }
   const effectiveDeparture = today;
-  const paidAmount = roundMoney(res.paid_amount || 0);
+  const hasLedger = res.ledger_paid_amount !== null && res.ledger_paid_amount !== undefined;
+  const paidAmount = roundMoney(hasLedger ? Number(res.ledger_paid_amount) : (res.paid_amount || 0));
   const depositLedger = getDepositLedger(targetId);
   let depositRefunded = 0;
 
@@ -1747,8 +1764,8 @@ function addPaymentToReservation({ reservationId, amount, paymentMethod = 'نق�
     throw new Error('لا يمكن تسجيل دفعات لحجز ملغي.');
   }
 
-  const ledgerPaid = res.status === 'ملغي جزئي' ? Number(res.ledger_paid_amount) : NaN;
-  const currentPaid = roundMoney(Number.isFinite(ledgerPaid) ? ledgerPaid : (res.paid_amount || 0));
+  const hasLedger = res.ledger_paid_amount !== null && res.ledger_paid_amount !== undefined;
+  const currentPaid = roundMoney(hasLedger ? Number(res.ledger_paid_amount) : (res.paid_amount || 0));
   const totalPrice = roundMoney(res.total_price || 0);
   const isContract = res.booking_type === 'عقد مفتوح';
   const todayStr = connection.getCurrentBusinessDate ? connection.getCurrentBusinessDate() : getLocalDateString();
@@ -1827,7 +1844,7 @@ function addPaymentToReservation({ reservationId, amount, paymentMethod = 'نق�
 
     // 2. Update reservations table
     // Preserve initial reservation payment method if one was already set or paid for
-    const prevPaid = roundMoney(res.paid_amount || 0);
+    const prevPaid = currentPaid;
     const updatePayMethod = (prevPaid === 0 || !res.payment_method) ? (paymentMethod || null) : null;
     const updatedTotalPrice = isOverdue ? Math.max(totalPrice, newPaidAmount) : totalPrice;
     const resStmt = db.prepare(`
@@ -2034,7 +2051,13 @@ function updateReservationReceipt({
     throw new Error('معرف الحجز أو السند غير صالح.');
   }
 
-  const res = queryOne("SELECT id, guest_id, room_id, status, booking_type, check_in_date, check_out_date, total_price, paid_amount, discount_amount, monthly_extension_amount FROM reservations WHERE id = ?", [targetId]);
+  const res = queryOne(`
+    SELECT r.id, r.guest_id, r.room_id, r.status, r.booking_type, r.check_in_date, r.check_out_date,
+           r.total_price, r.paid_amount, r.discount_amount, r.monthly_extension_amount,
+           (SELECT SUM(p.amount) FROM payments p WHERE p.reservation_id = r.id) AS ledger_paid_amount
+    FROM reservations r
+    WHERE r.id = ?
+  `, [targetId]);
   if (!res) {
     throw new Error('الحجز غير موجود.');
   }
@@ -2154,7 +2177,8 @@ function updateReservationReceipt({
     updateResStmt.free();
 
     // 2. Insert delta adjustment if the paid amount was manually changed
-    const previousPaid = roundMoney(res.paid_amount || 0);
+    const hasLedger = res.ledger_paid_amount !== null && res.ledger_paid_amount !== undefined;
+    const previousPaid = roundMoney(hasLedger ? Number(res.ledger_paid_amount) : (res.paid_amount || 0));
     const delta = roundMoney(paid - previousPaid);
     if (Math.abs(delta) > 0.005) {
       const receiptNumber = generateReceiptNumber(targetId);
@@ -2182,9 +2206,24 @@ function updateReservationReceipt({
         const newName = (guestName && guestName.trim()) ? guestName.trim() : currentGuest.name;
         const newPhone = cleanPhone || currentGuest.phone;
         const newId = cleanId || currentGuest.id_number;
-        const updateGuestStmt = db.prepare("UPDATE guests SET name = ?, phone = ?, id_number = ? WHERE id = ?");
-        updateGuestStmt.run([newName, newPhone, newId, res.guest_id]);
-        updateGuestStmt.free();
+        const guestChanged = newName !== currentGuest.name || newPhone !== currentGuest.phone || newId !== currentGuest.id_number;
+        if (guestChanged) {
+          const usageCount = queryOne("SELECT COUNT(*) AS count FROM reservations WHERE guest_id = ?", [res.guest_id])?.count || 0;
+          if (usageCount > 1) {
+            // Fork guest record for this reservation so older reservations maintain historical integrity
+            const newGuestStmt = db.prepare("INSERT INTO guests (name, phone, id_number) VALUES (?, ?, ?)");
+            newGuestStmt.run([newName, newPhone, newId]);
+            newGuestStmt.free();
+            const newGuestId = queryOne("SELECT last_insert_rowid() AS id").id;
+            const updateResGuest = db.prepare("UPDATE reservations SET guest_id = ? WHERE id = ?");
+            updateResGuest.run([newGuestId, targetId]);
+            updateResGuest.free();
+          } else {
+            const updateGuestStmt = db.prepare("UPDATE guests SET name = ?, phone = ?, id_number = ? WHERE id = ?");
+            updateGuestStmt.run([newName, newPhone, newId, res.guest_id]);
+            updateGuestStmt.free();
+          }
+        }
       }
     }
 

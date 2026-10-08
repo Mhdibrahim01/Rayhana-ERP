@@ -184,6 +184,9 @@
         const legacyDeposit = Number(reservation.deposit_legacy_unreconciled || 0) === 1
           ? Number(reservation.deposit_amount || 0) : 0;
         const deposit = Math.max(0, ledgerDeposit || legacyDeposit);
+        const isLegacyDeposit = Number(reservation.deposit_legacy_unreconciled || 0) === 1 && deposit > 0;
+        const depositBadge = isLegacyDeposit ? ` <span class="deposit-legacy-badge" title="تأمين مسجل بالنظام القديم يحتاج لمطابقة" style="color:#d97706;font-size:0.75rem;font-weight:700;">(قديم ⚠️)</span>` : '';
+        const depositHtml = `${formatRoomCardMoney(deposit)}${depositBadge}`;
 
         let paymentStatus;
         if (isOpenContract) {
@@ -208,8 +211,8 @@
           ? `متبقي: <strong style="color:#dc2626;">${formatRoomCardMoney(remaining)}</strong>`
           : `مسدد بالكامل`;
         const financialLine = isOpenContract
-          ? `المستحق (${elapsedNights} ليالٍ): ${formatRoomCardMoney(runningCharge)} · مدفوع: ${formatRoomCardMoney(paid)} · ${isEffectiveCredit ? contractCreditHtml : contractOwedHtml} · التأمين: ${formatRoomCardMoney(deposit)}`
-          : `مدفوع: ${formatRoomCardMoney(paid)} · ${isCredit ? creditHtml : overdueRemainingHtml} · التأمين: ${formatRoomCardMoney(deposit)}`;
+          ? `المستحق (${elapsedNights} ليالٍ): ${formatRoomCardMoney(runningCharge)} · مدفوع: ${formatRoomCardMoney(paid)} · ${isEffectiveCredit ? contractCreditHtml : contractOwedHtml} · التأمين: ${depositHtml}`
+          : `مدفوع: ${formatRoomCardMoney(paid)} · ${isCredit ? creditHtml : overdueRemainingHtml} · التأمين: ${depositHtml}`;
         const safeName = App.Helpers.escapeHtml(reservation.guest_name || 'نزيل');
         return `
           <div class="room-card-guest-box" dir="rtl">

@@ -877,7 +877,9 @@
       const isConfirmed = r.status === 'مؤكد';
       const isCompleted = r.status === 'مكتمل';
       const isLateCheckout = App.Helpers.isLateCheckout(r);
-      const expectedCheckoutTime = isConfirmed && r.booking_type !== 'عقد مفتوح' && r.check_out_date && r.check_out_date !== 'مفتوح' ? '14:00' : '';
+      const expectedCheckoutTime = App.Helpers.getExpectedCheckoutTime
+        ? App.Helpers.getExpectedCheckoutTime(r)
+        : (isConfirmed && r.booking_type !== 'عقد مفتوح' && r.check_out_date && r.check_out_date !== 'مفتوح' ? '14:00' : '');
       const checkoutDate = String(r.check_out_date || '').slice(0, 10);
       const statusLabel = isLateCheckout ? getCheckoutDelayLabel(checkoutDate) : (isCompleted ? 'تمت المغادرة' : 'حجز مؤكد');
       const statusTone = isLateCheckout ? 'danger' : (isCompleted ? 'success' : 'neutral');
