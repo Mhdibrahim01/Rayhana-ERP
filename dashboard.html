@@ -1991,6 +1991,7 @@
       <!-- Quick Navigation Bar (Pills) -->
       <div class="no-print" style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 8px 18px; display: flex; gap: 8px; overflow-x: auto; flex-shrink: 0; white-space: nowrap;">
         <button type="button" class="manual-nav-pill" data-target="man-sec-quickstart" style="padding: 5px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #ffffff; color: #1e293b; font-size: 0.82rem; font-weight: 700; cursor: pointer;">🏠 البدء السريع</button>
+        <button type="button" class="manual-nav-pill" data-target="man-sec-palette" style="padding: 5px 12px; border-radius: 20px; border: 1.5px solid #a67c52; background: #fffdf5; color: #854d0e; font-size: 0.82rem; font-weight: 800; cursor: pointer;">⚡ لوحة الأوامر (Ctrl + K)</button>
         <button type="button" class="manual-nav-pill" data-target="man-sec-rooms" style="padding: 5px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #ffffff; color: #1e293b; font-size: 0.82rem; font-weight: 700; cursor: pointer;">🟢 حالات الغرف</button>
         <button type="button" class="manual-nav-pill" data-target="man-sec-checkin" style="padding: 5px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #ffffff; color: #1e293b; font-size: 0.82rem; font-weight: 700; cursor: pointer;">🛏️ التسكين والحجوزات</button>
         <button type="button" class="manual-nav-pill" data-target="man-sec-night" style="padding: 5px 12px; border-radius: 20px; border: 1px solid #cbd5e1; background: #ffffff; color: #1e293b; font-size: 0.82rem; font-weight: 700; cursor: pointer;">🌙 ما بعد منتصف الليل</button>
@@ -2017,6 +2018,15 @@
               <li><strong style="color: #047831;">مدير النظام (Admin):</strong> صلاحيات كاملة تشمل تسعير الغرف، التقارير المالية والإيرادات، إدارة حسابات الموظفين، والنسخ الاحتياطي.</li>
               <li><strong style="color: #0284c7;">موظف الاستقبال (Staff):</strong> عمليات التسكين، تسجيل الخروج، سندات القبض، طباعة الفواتير، وتقفيل الوردية.</li>
             </ul>
+          </div>
+          <div style="background: #fdf8f0; border-radius: 10px; padding: 12px 18px; border: 1.5px solid #fed7aa; margin-top: 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <strong style="color: #9a3412;">⚡ نصيحة لتسريع العمليات اليومية:</strong>
+              <p style="margin: 2px 0 0; font-size: 0.85rem; color: #7c2d12;">
+                يمكنك إنجاز كل العمليات من تسكين، إصدار فواتير، تمديد، وسندات قبض دون لمس الفأرة بالضغط على <kbd style="background: #ffffff; border: 1px solid #fed7aa; padding: 2px 6px; border-radius: 4px; font-weight: 700; color: #9a3412;">Ctrl + K</kbd> لفتح <strong>لوحة الأوامر السريعة</strong>.
+              </p>
+            </div>
+            <button type="button" class="manual-nav-pill" data-target="man-sec-palette" style="padding: 4px 12px; border-radius: 6px; border: 1px solid #ea580c; background: #ea580c; color: #ffffff; font-size: 0.8rem; font-weight: 700; cursor: pointer;">عرض دليل لوحة الأوامر ⚡</button>
           </div>
         </section>
 
@@ -2206,13 +2216,214 @@
           </div>
         </section>
 
-        <!-- 10. FAQs -->
+        <!-- 10. Smart Command Palette (Ctrl + K) -->
+        <section id="man-sec-palette" class="manual-section" style="margin-bottom: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
+          <h2 style="color: #1a432a; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+            <span>⚡</span> 10. لوحة الأوامر السريعة والبحث الذكي (Ctrl + K)
+          </h2>
+          <p>
+            تعد <strong>لوحة الأوامر الذكية (Command Palette)</strong> محرك التحكم المركزي والسريع لنظام ريحانة؛ حيث تتيح لك الوصول إلى أي غرفة، حجز، نزيل، فاتورة، أو تقرير مالي خلال ثوانٍ معدودة مباشرة عبر لوحة المفاتيح دون الحاجة للتنقل بالفأرة بين الشاشات.
+          </p>
+
+          <!-- Hotkey & Activation Box -->
+          <div style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1.5px solid #86efaf; border-radius: 12px; padding: 16px 20px; margin-top: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <strong style="color: #166535; font-size: 1.05rem;">طرق فتح واستخدام لوحة الأوامر:</strong>
+              <ul style="margin: 6px 0 0 20px; padding: 0; font-size: 0.9rem; color: #14532c;">
+                <li>اضغط <kbd style="background: #ffffff; border: 1px solid #86efaf; padding: 2px 8px; border-radius: 5px; font-weight: 700; color: #166535;">Ctrl + K</kbd> (أو <kbd style="background: #ffffff; border: 1px solid #86efaf; padding: 2px 8px; border-radius: 5px; font-weight: 700; color: #166535;">Cmd + K</kbd>) من أي شاشة داخل النظام.</li>
+                <li>أو انقر على زر <strong>لوحة الأوامر</strong> في الشريط العلوي (Topbar).</li>
+                <li>استخدم الأسهم <kbd style="background: #ffffff; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px;">↑</kbd> <kbd style="background: #ffffff; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px;">↓</kbd> للتنقل، و <kbd style="background: #ffffff; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px;">Enter</kbd> لتنفيذ الأمر أو فتح النتيجة، و <kbd style="background: #ffffff; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px;">Esc</kbd> للإغلاق.</li>
+              </ul>
+            </div>
+            <div style="background: #1a432a; color: #ffffff; padding: 10px 18px; border-radius: 10px; font-weight: 800; font-size: 1.15rem; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;">
+              <span>⌨️</span> Ctrl + K
+            </div>
+          </div>
+
+          <!-- Quick Prefix Symbols -->
+          <h3 style="color: #1a432a; font-size: 1.1rem; font-weight: 800; margin-top: 24px; display: flex; align-items: center; gap: 6px;">
+            <span>🏷️</span> أ. رموز الوصول الفوري السريع (Prefix Symbols)
+          </h3>
+          <p style="margin-top: 4px; font-size: 0.9rem; color: #475569;">
+            ابدأ نص البحث بأحد الرموز التالية لتوجيه النظام مباشرة إلى السجل المطلوب بدقة فائقة:
+          </p>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 12px;">
+            <!-- Hash Prefix -->
+            <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 14px 16px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                <strong style="color: #0f172a; font-size: 0.98rem;">رمز الحجز والعقد: <code style="color: #2563eb; background: #eff6ff; padding: 2px 6px; border-radius: 4px;">#</code></strong>
+                <span style="font-size: 0.78rem; background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: 700;">مثال: #105</span>
+              </div>
+              <p style="margin: 0; font-size: 0.85rem; color: #334155; line-height: 1.6;">
+                البحث المباشر برقم الحجز. يعرض تفاصيل الحجز فوراً مع إمكانية فتح الفاتورة، إضافة سند قبض، أو استعراض العقد بنقرة واحدة.
+              </p>
+            </div>
+
+            <!-- At Prefix -->
+            <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 14px 16px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                <strong style="color: #0f172a; font-size: 0.98rem;">رمز النزيل: <code style="color: #7c3aed; background: #f5f3ff; padding: 2px 6px; border-radius: 4px;">@</code></strong>
+                <span style="font-size: 0.78rem; background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: 700;">مثال: @محمد أو @050</span>
+              </div>
+              <p style="margin: 0; font-size: 0.85rem; color: #334155; line-height: 1.6;">
+                البحث في قاعدة بيانات النزلاء بالاسم، رقم الجوال، أو رقم الهوية. يتضمن زر <strong>"إنشاء حجز لهذا النزيل"</strong> الذي يعبئ بياناته تلقائياً في نافذة التسكين، مع تنبيه فوري باللون الأحمر إذا كان النزيل في القائمة المحظورة.
+              </p>
+            </div>
+
+            <!-- Bang / Q Prefix -->
+            <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 14px 16px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                <strong style="color: #0f172a; font-size: 0.98rem;">رمز استعلام الغرفة: <code style="color: #059669; background: #ecfdf5; padding: 2px 6px; border-radius: 4px;">!</code> أو <code style="color: #059669; background: #ecfdf5; padding: 2px 6px; border-radius: 4px;">ق</code></strong>
+                <span style="font-size: 0.78rem; background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: 700;">مثال: !204 أو ق204</span>
+              </div>
+              <p style="margin: 0; font-size: 0.85rem; color: #334155; line-height: 1.6;">
+                استعلام مباشر عن حالة الغرفة والنزيل المقيم بها وحسابه المالي، مع أزرار سريعة للعمليات (فاتورة، سند قبض، تمديد، واتساب).
+              </p>
+            </div>
+          </div>
+
+          <!-- Flexible Operational Commands -->
+          <h3 style="color: #1a432a; font-size: 1.1rem; font-weight: 800; margin-top: 24px; display: flex; align-items: center; gap: 6px;">
+            <span>⚡</span> ب. الأوامر التشغيلية السريعة مع أرقام الغرف
+          </h3>
+          <p style="margin-top: 4px; font-size: 0.9rem; color: #475569;">
+            يدعم النظام الكتابة الطبيعية باللغة العربية، ويوفر حرية كاملة في وضع رقم الغرفة <strong>قبل الكلمة أو بعدها</strong>، مع أو بدون مسافات:
+          </p>
+
+          <div style="overflow-x: auto; margin-top: 10px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.88rem; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+              <thead>
+                <tr style="background: #f1f5f9; color: #1e293b; text-align: right; border-bottom: 2px solid #cbd5e1;">
+                  <th style="padding: 10px 14px;">العملية المطلوبة</th>
+                  <th style="padding: 10px 14px;">أمثلة صالحة للاستخدام</th>
+                  <th style="padding: 10px 14px;">الإجراء الذي ينفذه النظام</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                  <td style="padding: 10px 14px; font-weight: 700; color: #0284c7;">🧾 فتح الفاتورة</td>
+                  <td style="padding: 10px 14px;"><code>فاتورة 205</code> أو <code>205 فاتورة</code></td>
+                  <td style="padding: 10px 14px; color: #334155;">فتح الفاتورة الضريبية للغرفة فوراً للطباعة أو المعاينة.</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e2e8f0; background: #fafafa;">
+                  <td style="padding: 10px 14px; font-weight: 700; color: #166535;">💵 سند قبض مالي</td>
+                  <td style="padding: 10px 14px;"><code>سند 103</code> أو <code>103 سند</code> أو <code>قبض 103</code></td>
+                  <td style="padding: 10px 14px; color: #334155;">فتح نافذة إضافة دفعة / سند قبض لحساب الغرفة مباشرة.</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                  <td style="padding: 10px 14px; font-weight: 700; color: #059669;">🛏️ تسكين وحجز غرفة</td>
+                  <td style="padding: 10px 14px;"><code>تسكين 101</code> أو <code>101 تسكين</code> أو <code>حجز 101</code></td>
+                  <td style="padding: 10px 14px; color: #334155;">فتح نافذة التسكين والحجز للغرفة المحددة.</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e2e8f0; background: #fafafa;">
+                  <td style="padding: 10px 14px; font-weight: 700; color: #d97706;">⏱️ تمديد الإقامة</td>
+                  <td style="padding: 10px 14px;"><code>تمديد 204</code> أو <code>204 تمديد</code></td>
+                  <td style="padding: 10px 14px; color: #334155;">فتح شاشة تمديد مدة إقامة النزيل وتحديث العقد.</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                  <td style="padding: 10px 14px; font-weight: 700; color: #2563eb;">💬 مراسلة واتساب</td>
+                  <td style="padding: 10px 14px;"><code>واتساب 204</code> أو <code>204 واتساب</code></td>
+                  <td style="padding: 10px 14px; color: #334155;">فتح محادثة واتساب فورية مع نزيل الغرفة برسالة مجهزة.</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e2e8f0; background: #fafafa;">
+                  <td style="padding: 10px 14px; font-weight: 700; color: #475569;">🔍 استعلام سريع عن غرفة</td>
+                  <td style="padding: 10px 14px;"><code>204</code> أو <code>مين في 204</code> أو <code>غرفة 204</code></td>
+                  <td style="padding: 10px 14px; color: #334155;">عرض بطاقة الغرفة، حالة النظافة، النزيل المقيم، والرصيد المالي.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- General System Actions -->
+          <h3 style="color: #1a432a; font-size: 1.1rem; font-weight: 800; margin-top: 24px; display: flex; align-items: center; gap: 6px;">
+            <span>🏢</span> ج. الأوامر الإدارية والتقارير الفورية
+          </h3>
+          <p style="margin-top: 4px; font-size: 0.9rem; color: #475569;">
+            أوامر مباشرة بدون أرقام تفتح الشاشات والتقارير الرقابية على الفور:
+          </p>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 10px;">
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px;">
+              <strong style="color: #1a432a;">📊 تقرير الوردية والدرج:</strong>
+              <div style="font-size: 0.85rem; color: #334155; margin-top: 3px;">اكتب: <code>وردية</code>، <code>درج</code>، <code>كاش</code>، <code>فلوس الدرج</code>، أو <code>صندوق</code>.</div>
+              <div style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">يفتح تقرير جرد الوردية الحالية والسيولة النقدية.</div>
+            </div>
+
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px;">
+              <strong style="color: #dc2626;">🚨 المستحقات والديون:</strong>
+              <div style="font-size: 0.85rem; color: #334155; margin-top: 3px;">اكتب: <code>ديون</code>، <code>مستحق</code>، <code>غير مدفوع</code>، أو <code>مين عليه فلوس</code>.</div>
+              <div style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">يعرض قائمة بالنزلاء الذين عليهم متبقي مع زر سند قبض سريع.</div>
+            </div>
+
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px;">
+              <strong style="color: #d97706;">🚪 المغادرات والمتأخرون:</strong>
+              <div style="font-size: 0.85rem; color: #334155; margin-top: 3px;">اكتب: <code>مغادرات</code>، <code>خروج اليوم</code>، أو <code>متأخرين</code>.</div>
+              <div style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">حصر نزلاء اليوم لتسجيل الخروج أو المتابعة الفورية.</div>
+            </div>
+
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px;">
+              <strong style="color: #059669;">🧹 تصفية حالات الغرف:</strong>
+              <div style="font-size: 0.85rem; color: #334155; margin-top: 3px;">اكتب: <code>متاح</code>، <code>فاضية</code>، <code>مشغول</code>، أو <code>تنظيف</code>.</div>
+              <div style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">تصفية الشاشة الرئيسية لعرض الغرف المحددة فقط.</div>
+            </div>
+
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px;">
+              <strong style="color: #4f46e5;">🏢 تصفية الأدوار:</strong>
+              <div style="font-size: 0.85rem; color: #334155; margin-top: 3px;">اكتب: <code>طابق 1</code>، <code>الدور 2</code>، أو <code>طابق 3</code>.</div>
+              <div style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">تصفية الغرف المعروضة حسب رقم الطابق.</div>
+            </div>
+
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px;">
+              <strong style="color: #0f172a;">💾 القائمة السوداء والنسخ الاحتياطي:</strong>
+              <div style="font-size: 0.85rem; color: #334155; margin-top: 3px;">اكتب: <code>محظورين</code>، <code>بلاك ليست</code>، أو <code>نسخ احتياطي</code>.</div>
+              <div style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">فتح سجل الحظر أو نافذة إدارة النسخ الاحتياطي.</div>
+            </div>
+          </div>
+
+          <!-- Autocompletion & Typo Resilience -->
+          <h3 style="color: #1a432a; font-size: 1.1rem; font-weight: 800; margin-top: 24px; display: flex; align-items: center; gap: 6px;">
+            <span>🤖</span> د. الذكاء الاصطناعي والإكمال التلقائي وتصحيح الأخطاء
+          </h3>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 10px;">
+            <!-- Autocompletion -->
+            <div style="background: #f0fdf4; border: 1.5px solid #86efaf; border-radius: 10px; padding: 14px 16px;">
+              <strong style="color: #166535; font-size: 0.98rem;">⚡ الإكمال التلقائي للبادئات (Prefix Autocompletion):</strong>
+              <p style="margin: 6px 0 0; font-size: 0.85rem; color: #14532c; line-height: 1.6;">
+                لا داعي لكتابة الكلمة كاملة! بمجرد كتابة أول حرفين مثل <code style="background: #ffffff; padding: 1px 5px; border-radius: 3px;">فا</code> أو <code style="background: #ffffff; padding: 1px 5px; border-radius: 3px;">تسك</code> أو <code style="background: #ffffff; padding: 1px 5px; border-radius: 3px;">ور</code>، ستظهر بطاقات "أوامر مقترحة". اضغط <kbd style="background: #ffffff; border: 1px solid #86efaf; padding: 1px 5px; border-radius: 3px;">Tab</kbd> أو <kbd style="background: #ffffff; border: 1px solid #86efaf; padding: 1px 5px; border-radius: 3px;">Enter</kbd> ليكتمل الأمر تلقائياً في شريط البحث.
+              </p>
+            </div>
+
+            <!-- Typo Resilience -->
+            <div style="background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 10px; padding: 14px 16px;">
+              <strong style="color: #92400e; font-size: 0.98rem;">🛡️ المعالجة الذكية للأخطاء الإملائية (Typo Resilience):</strong>
+              <p style="margin: 6px 0 0; font-size: 0.85rem; color: #78350f; line-height: 1.6;">
+                إذا أخطأت في حرف أو كتابة كلمة الأمر (مثل <code>تسيكن 101</code> بدلاً من <code>تسكين</code>، أو <code>فتوره 202</code> بدلاً من <code>فاتورة</code>)، يتعرف النظام تلقائياً على قصدك وينفذ العملية فوراً، مع إظهار شريط تنبيه يمكنك النقر عليه للبحث عن النص الأصلي كاسم نزيل إذا أردت.
+              </p>
+            </div>
+
+            <!-- EN Layout Auto Conversion -->
+            <div style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 10px; padding: 14px 16px;">
+              <strong style="color: #1e40af; font-size: 0.98rem;">🌐 التصحيح التلقائي للغة لوحة المفاتيح:</strong>
+              <p style="margin: 6px 0 0; font-size: 0.85rem; color: #1e3a8a; line-height: 1.6;">
+                إذا كتبت بالخطأ ولغة لوحة المفاتيح بالإنجليزية (مثال: كتابة <code>thj,vi 205</code> بدلاً من <code>فاتورة 205</code>)، يقوم النظام بتحويل الحروف إلى العربية تلقائياً والتعرف على الأمر دون الحاجة لحذفه وإعادة كتابته!
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- 11. FAQs -->
         <section id="man-sec-faqs" class="manual-section" style="margin-bottom: 20px;">
           <h2 style="color: #1a432a; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
-            <span>❓</span> 10. الأسئلة الشائعة والأخطاء التشغيلية
+            <span>❓</span> 11. الأسئلة الشائعة والأخطاء التشغيلية
           </h2>
           
           <div style="margin-top: 14px; display: flex; flex-direction: column; gap: 14px;">
+            <div style="background: #f8fafc; border-right: 4px solid #1a432a; border-radius: 8px; padding: 12px 16px;">
+              <strong style="color: #1a432a;">س: كيف أصل لأي غرفة أو نزيل أو فاتورة بأسرع شكل بدون البحث في القوائم؟</strong>
+              <p style="margin: 4px 0 0; font-size: 0.88rem; color: #334155;">ج: اضغط <kbd style="background: #ffffff; border: 1px solid #cbd5e1; padding: 1px 5px; border-radius: 4px; font-weight: 700;">Ctrl + K</kbd> في أي وقت. اكتب رقم الغرفة مباشرة (مثل <code>204</code>)، أو اكتب أمراً مثل <code>فاتورة 205</code> أو <code>تسكين 101</code> أو ابحث برمز الحجز <code>#105</code> أو برمز النزيل <code>@محمد</code>.</p>
+            </div>
+
             <div style="background: #f8fafc; border-right: 4px solid #1a432a; border-radius: 8px; padding: 12px 16px;">
               <strong style="color: #1a432a;">س: النزيل يريد استئجار غرفة لعدة ساعات فقط في النهار بدون مبيت، ماذا أختار؟</strong>
               <p style="margin: 4px 0 0; font-size: 0.88rem; color: #334155;">ج: اختر نوع الحجز <strong>"استخدام يومي (Day Use)"</strong>. هذا النوع يسمح بأن يكون تاريخ الوصول وتاريخ المغادرة في نفس اليوم تماماً.</p>
