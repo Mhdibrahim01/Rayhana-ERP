@@ -109,6 +109,79 @@ window.DashboardApp = {
     return isLateCheckout(reservation);
   }
 
+  function getReservationFinancials(reservation, operationalDate) {
+    if (!reservation) {
+      return {
+        total: 0,
+        effectiveTotal: 0,
+        paid: 0,
+        deposit: 0,
+        legacyDeposit: 0,
+        rawRemaining: 0,
+        remaining: 0,
+        isCredit: false,
+        hasUnpaidBalance: false,
+        paymentStatus: 'غير مدفوع',
+        isOverdue: false,
+        overdueDays: 0,
+        elapsedStayNights: 0
+      };
+    }
+
+    const isConfirmed = reservation.status === 'مؤكد';
+    const isContract = reservation.booking_type === 'عقد مفتوح';
+    const total = parseFloat(reservation.total_price || 0);
+    const paid = parseFloat((reservation.ledger_paid_amount ?? reservation.paid_amount) || 0);
+    const deposit = parseFloat(reservation.deposit_ledger_balance || 0);
+    const legacyDeposit = Number(reservation.deposit_legacy_unreconciled || 0) === 1 ? parseFloat(reservation.deposit_amount || 0) : 0;
+
+    const businessToday = operationalDate || window?.DashboardApp?.State?.businessDate || getLocalDateString();
+    const overdueDate = String(reservation.check_out_date || '').slice(0, 10);
+    const overdueDays = overdueDate
+      ? Math.max(0, Math.floor((Date.parse(`${businessToday}T00:00:00Z`) - Date.parse(`${overdueDate}T00:00:00Z`)) / 86400000))
+      : 0;
+    const isOverdue = isConfirmed && !isContract && overdueDays > 0;
+    const nightlyRate = parseFloat(reservation.custom_nightly_price || reservation.price_per_night || 0);
+
+    let effectiveTotal = total;
+    let elapsedStayNights = 0;
+    if (isConfirmed && (isOverdue || isContract) && nightlyRate > 0 && reservation.check_in_date) {
+      const startParts = String(reservation.check_in_date).slice(0, 10).split('-').map(Number);
+      const endParts = businessToday.slice(0, 10).split('-').map(Number);
+      elapsedStayNights = Math.max(1, Math.round((Date.UTC(endParts[0], endParts[1] - 1, endParts[2]) - Date.UTC(startParts[0], startParts[1] - 1, startParts[2])) / 86400000));
+      const runningTotal = Math.max(0, Math.round((elapsedStayNights * nightlyRate - parseFloat(reservation.discount_amount || 0)) * 100) / 100);
+      effectiveTotal = Math.max(total, runningTotal);
+    }
+
+    const effectiveRawRemaining = Math.round((effectiveTotal - paid) * 100) / 100;
+    const isCredit = effectiveRawRemaining < -0.005;
+    const remaining = Math.max(0, effectiveRawRemaining);
+    const hasUnpaidBalance = remaining > 0.005;
+
+    let paymentStatusForDisplay;
+    if (isContract || isOverdue) {
+      paymentStatusForDisplay = isCredit ? 'رصيد دائن' : (remaining <= 0.005 ? 'مدفوع بالكامل' : (paid > 0 ? 'مدفوع جزئياً' : 'غير مدفوع'));
+    } else {
+      paymentStatusForDisplay = isCredit ? 'مدفوع بالكامل' : (reservation.payment_status || 'غير مدفوع');
+    }
+
+    return {
+      total,
+      effectiveTotal,
+      paid,
+      deposit,
+      legacyDeposit,
+      rawRemaining: effectiveRawRemaining,
+      remaining,
+      isCredit,
+      hasUnpaidBalance,
+      paymentStatus: paymentStatusForDisplay,
+      isOverdue,
+      overdueDays,
+      elapsedStayNights
+    };
+  }
+
   function renderOverdueBadge(reservation, label = 'متأخر عن المغادرة') {
     return isLateCheckout(reservation)
       ? `<span class="late-checkout-badge"><span aria-hidden="true">⚠️</span>${escapeHtml(label)}</span>`
@@ -283,6 +356,8 @@ window.DashboardApp = {
   App.Helpers.formatArabicDateRange = formatArabicDateRange;
   App.Helpers.formatArabicDateTime = formatArabicDateTime;
   App.Helpers.parseStoredTimestamp = parseStoredTimestamp;
+  App.Helpers.getReservationFinancials = getReservationFinancials;
+  window.getReservationFinancials = getReservationFinancials;
   App.Helpers.escapeHtml = escapeHtml;
 
 })(window.DashboardApp);

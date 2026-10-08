@@ -568,4 +568,160 @@ test('Smart Command Palette (Ctrl+K) & Attention Inbox Unit Tests', async t => {
     assert.equal(inbox.departuresToday.length, 1);
     assert.equal(inbox.departuresToday[0].reservation.room_number, '301');
   });
+
+  await t.test('Batch 1, 2, and 3 Enhancements Tests', async t2 => {
+    const today = '2026-10-08';
+
+    await t2.test('Deduplication in All tab combines multiple attention reasons for the same reservation', () => {
+      // Reservation with late checkout AND unpaid balance
+      const mockRes = [
+        {
+          id: 501,
+          room_number: '501',
+          guest_name: 'علي المتأخر والمدين',
+          status: 'مؤكد',
+          check_out_date: '2026-10-07',
+          total_price: 1000,
+          paid_amount: 500,
+          is_late: true
+        }
+      ];
+
+      const { CommandPalette } = createCommandPaletteEnv({
+        businessDate: today,
+        reservationsCache: mockRes
+      });
+
+      const inbox = CommandPalette.computeAttentionInbox();
+      assert.equal(inbox.lateCheckouts.length, 1);
+      assert.equal(inbox.unpaidBalances.length, 0); // Excluded from specific unpaid tab to avoid duplicate noise
+      assert.equal(inbox.deduplicatedAllItems.length, 1, 'Should consolidate to 1 item in All tab');
+      assert.equal(inbox.totalCount, 1);
+      assert.equal(inbox.deduplicatedAllItems[0].action, 'checkout');
+    });
+
+    await t2.test('Correctly reports completed departures today to eliminate receptionist confusion', () => {
+      const mockRes = [
+        {
+          id: 601,
+          room_number: '203',
+          guest_name: 'موزاميل نياز',
+          status: 'مكتمل',
+          check_out_date: today,
+          total_price: 450,
+          paid_amount: 450
+        },
+        {
+          id: 602,
+          room_number: '206',
+          guest_name: 'محمد ربيع',
+          status: 'مكتمل',
+          check_out_date: today,
+          total_price: 350,
+          paid_amount: 350
+        }
+      ];
+
+      const { CommandPalette } = createCommandPaletteEnv({
+        businessDate: today,
+        reservationsCache: mockRes
+      });
+
+      const inbox = CommandPalette.computeAttentionInbox();
+      assert.equal(inbox.departuresToday.length, 0, 'No pending departures');
+      assert.equal(inbox.completedDeparturesToday.length, 2, 'Must report both completed departures today');
+      assert.equal(inbox.completedDeparturesToday[0].reservation.room_number, '203');
+      assert.equal(inbox.completedDeparturesToday[1].reservation.room_number, '206');
+    });
+
+    await t2.test('Legacy deposit strictly requires deposit_legacy_unreconciled === 1 (no false positives for refunded deposits)', () => {
+      const mockRes = [
+        {
+          id: 701,
+          room_number: '701',
+          guest_name: 'نزيل مسترجع تأمينه',
+          status: 'مؤكد',
+          check_out_date: '2026-10-15',
+          total_price: 1000,
+          paid_amount: 1000,
+          deposit_amount: 200,
+          deposit_ledger_balance: 0,
+          deposit_legacy_unreconciled: 0 // Refunded or reconciled
+        },
+        {
+          id: 702,
+          room_number: '702',
+          guest_name: 'نزيل تأمين معلق حقيقي',
+          status: 'مؤكد',
+          check_out_date: '2026-10-15',
+          total_price: 1000,
+          paid_amount: 1000,
+          deposit_amount: 200,
+          deposit_legacy_unreconciled: 1 // True unreconciled legacy
+        }
+      ];
+
+      const { CommandPalette } = createCommandPaletteEnv({
+        businessDate: today,
+        reservationsCache: mockRes
+      });
+
+      const inbox = CommandPalette.computeAttentionInbox();
+      assert.equal(inbox.legacyDeposits.length, 1, 'Only true legacy deposit must be flagged');
+      assert.equal(inbox.legacyDeposits[0].id, 702);
+    });
+
+    await t2.test('Monthly overdue and due soon labels format accurately', () => {
+      const mockRes = [
+        {
+          id: 801,
+          room_number: '801',
+          booking_type: 'حجز شهري',
+          status: 'مؤكد',
+          check_out_date: '2026-10-08' // due today
+        },
+        {
+          id: 802,
+          room_number: '802',
+          booking_type: 'حجز شهري',
+          status: 'مؤكد',
+          check_out_date: '2026-10-06' // expired 2 days ago
+        },
+        {
+          id: 803,
+          room_number: '803',
+          booking_type: 'حجز شهري',
+          status: 'مؤكد',
+          check_out_date: '2026-10-10' // 2 days left
+        }
+      ];
+
+      const { CommandPalette } = createCommandPaletteEnv({
+        businessDate: today,
+        reservationsCache: mockRes
+      });
+
+      const inbox = CommandPalette.computeAttentionInbox();
+      assert.equal(inbox.monthlyDue.length, 3);
+      assert.ok(inbox.monthlyDue.find(m => m.id === 801).badge.includes('مستحق التجديد اليوم'));
+      assert.ok(inbox.monthlyDue.find(m => m.id === 802).badge.includes('منتهي منذ 2 يوم'));
+      assert.ok(inbox.monthlyDue.find(m => m.id === 803).badge.includes('يستحق بعد 2 يوم'));
+    });
+
+    await t2.test('Normalization handles Persian digits, tatweel, and whitespace', () => {
+      const { CommandPalette } = createCommandPaletteEnv();
+      const { normalize } = CommandPalette;
+
+      assert.equal(normalize('غرفة   ۲۰۴'), 'غرفه 204');
+      assert.equal(normalize('تـــسـكـيـن   ۱٠۵'), 'تسكين 105');
+      assert.equal(normalize('مُحَمَّدُ   أَحْمَدُ'), 'محمد احمد');
+    });
+
+    await t2.test('WhatsApp intent captures full target name with remainder of query', () => {
+      const { CommandPalette } = createCommandPaletteEnv();
+      const parsed = CommandPalette.parseCommandIntent('واتساب محمد عبدالله آل سعود');
+      assert.equal(parsed.type, 'whatsapp-intent');
+      assert.equal(parsed.target, 'محمد عبدالله ال سعود');
+    });
+  });
 });
