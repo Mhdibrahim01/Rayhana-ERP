@@ -61,7 +61,7 @@ function createCommandPaletteEnv(mockState = {}, mockHelpers = {}, mockApi = nul
   });
   vm.runInContext(code, context);
 
-  return { App, CommandPalette: App.CommandPalette };
+  return { App, CommandPalette: App.CommandPalette, window: windowMock };
 }
 
 test('Smart Command Palette (Ctrl+K) & Attention Inbox Unit Tests', async t => {
@@ -791,6 +791,156 @@ test('Smart Command Palette (Ctrl+K) & Attention Inbox Unit Tests', async t => {
       const t3 = parse('تميد 201');
       assert.equal(t3.type, 'extend-intent');
       assert.equal(t3.roomNumber, '201');
+    });
+  });
+
+  await t.test('Real-time Attention Inbox synchronization after external checkout and extension (no restart needed)', async t2 => {
+    const bizDate = '2026-10-08';
+
+    await t2.test('Checking out a guest clears them from late checkouts immediately without app restart', () => {
+      const activeLateRes = {
+        id: 501,
+        room_id: 1,
+        room_number: '101',
+        guest_name: 'أحمد علي',
+        status: 'مؤكد',
+        check_out_date: '2026-10-07',
+        is_late: true
+      };
+      const env = createCommandPaletteEnv({
+        businessDate: bizDate,
+        reservationsCache: [activeLateRes],
+        todayCheckoutsRows: [activeLateRes]
+      });
+
+      // Before checkout: 1 late checkout in inbox
+      let inbox = env.CommandPalette.computeAttentionInbox();
+      assert.equal(inbox.lateCheckouts.length, 1);
+      assert.equal(inbox.lateCheckouts[0].id, 501);
+
+      // Simulate external checkout: status becomes 'مكتمل'
+      activeLateRes.status = 'مكتمل';
+      env.App.State.reservationsCache = [activeLateRes];
+      env.App.State.todayCheckoutsRows = [activeLateRes];
+
+      // Recompute attention inbox live
+      inbox = env.CommandPalette.computeAttentionInbox();
+      assert.equal(inbox.lateCheckouts.length, 0, 'Late checkouts should be 0 after checkout');
+      assert.equal(inbox.departuresToday.length, 0);
+    });
+
+    await t2.test('Extending stay clears guest from late checkouts immediately', () => {
+      const resToExtend = {
+        id: 502,
+        room_id: 2,
+        room_number: '102',
+        guest_name: 'سالم خالد',
+        status: 'مؤكد',
+        check_out_date: '2026-10-07',
+        is_late: true
+      };
+      const env = createCommandPaletteEnv({
+        businessDate: bizDate,
+        reservationsCache: [resToExtend],
+        todayCheckoutsRows: [resToExtend]
+      }, {
+        isLateCheckout: (r) => r.status === 'مؤكد' && r.check_out_date < bizDate
+      });
+
+      let inbox = env.CommandPalette.computeAttentionInbox();
+      assert.equal(inbox.lateCheckouts.length, 1);
+
+      // Extend stay: update check_out_date to future date
+      resToExtend.check_out_date = '2026-10-15';
+      resToExtend.is_late = false;
+      env.App.State.reservationsCache = [resToExtend];
+      env.App.State.todayCheckoutsRows = [];
+
+      inbox = env.CommandPalette.computeAttentionInbox();
+      assert.equal(inbox.lateCheckouts.length, 0, 'Extended reservation must not appear in late checkouts');
+    });
+
+    await t2.test('syncAttentionTodayCheckouts invalidates cache and updates live attention state', () => {
+      const initialRow = {
+        id: 503,
+        room_id: 3,
+        room_number: '103',
+        guest_name: 'محمد عمر',
+        status: 'مؤكد',
+        check_out_date: '2026-10-08',
+        is_late: false
+      };
+      const env = createCommandPaletteEnv({
+        businessDate: bizDate,
+        reservationsCache: [initialRow],
+        todayCheckoutsRows: [initialRow]
+      });
+
+      let inbox = env.CommandPalette.computeAttentionInbox();
+      assert.equal(inbox.departuresToday.length, 1);
+
+      // Call syncAttentionTodayCheckouts with updated (checked out) data
+      const updatedRow = { ...initialRow, status: 'مكتمل' };
+      env.window.syncAttentionTodayCheckouts([updatedRow]);
+
+      inbox = env.CommandPalette.computeAttentionInbox();
+      assert.equal(inbox.departuresToday.length, 0);
+    });
+
+    await t2.test('Completed and cancelled reservations are never resurrected by stale localTodayCheckouts', () => {
+      const completedRes = {
+        id: 504,
+        room_id: 4,
+        room_number: '104',
+        guest_name: 'ماجد فيصل',
+        status: 'مكتمل',
+        check_out_date: '2026-10-08'
+      };
+      const cancelledRes = {
+        id: 505,
+        room_id: 5,
+        room_number: '105',
+        guest_name: 'ياسر طارق',
+        status: 'ملغي',
+        check_out_date: '2026-10-08'
+      };
+      const env = createCommandPaletteEnv({
+        businessDate: bizDate,
+        reservationsCache: [completedRes, cancelledRes],
+        todayCheckoutsRows: [completedRes, cancelledRes]
+      });
+
+      const inbox = env.CommandPalette.computeAttentionInbox();
+      assert.equal(inbox.lateCheckouts.length, 0);
+      assert.equal(inbox.departuresToday.length, 0);
+    });
+
+    await t2.test('syncDataFromDb with force=true fetches fresh data even when cache already populated', async () => {
+      let callCount = 0;
+      const mockApi = {
+        getAllRooms: async () => ({ success: true, data: [{ id: 1, room_number: '101', status: 'متاحة' }] }),
+        getAllReservations: async () => {
+          callCount++;
+          return {
+            success: true,
+            data: callCount === 1
+              ? [{ id: 601, status: 'مؤكد', check_out_date: '2026-10-07', is_late: true }]
+              : [{ id: 601, status: 'مكتمل', check_out_date: '2026-10-07' }]
+          };
+        },
+        getAllGuests: async () => ({ success: true, data: [] }),
+        getTodayCheckouts: async () => ({ success: true, data: [] })
+      };
+
+      const env = createCommandPaletteEnv({}, {}, mockApi);
+      await env.CommandPalette.syncDataFromDb();
+      assert.equal(callCount, 1);
+      assert.equal(env.App.State.reservationsCache[0].status, 'مؤكد');
+
+      // With force: true, it fetches from API
+      await env.CommandPalette.syncDataFromDb({ force: true });
+      assert.equal(callCount, 2);
+      assert.equal(env.App.State.reservationsCache[0].status, 'مكتمل');
     });
   });
 });

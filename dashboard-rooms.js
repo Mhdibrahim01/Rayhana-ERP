@@ -23,6 +23,9 @@
         App.State.reservationsCache = resRes.data || [];
       }
       renderRoomsGrid();
+      if (typeof window.updateAttentionInbox === 'function') {
+        window.updateAttentionInbox();
+      }
     } catch (err) {
       console.error('Error loading rooms:', err);
     }
