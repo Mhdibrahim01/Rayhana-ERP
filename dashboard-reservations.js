@@ -1505,6 +1505,58 @@
       reservationsTableRows.forEach(item => cacheById.set(Number(item.id), item));
       window.DashboardApp.State.reservationsCache = [...cacheById.values()];
 
+      // Reconcile late checkouts if needed (ensures live calculation matches isLateCheckout helper and supports un-restarted Electron sessions)
+      let lateRowsFromToday = [];
+      const opDate = getOperationalBusinessDate() || (App.Helpers?.getTodayDateString ? App.Helpers.getTodayDateString() : '') || getLocalDateString();
+      if (typeof window.api?.getTodayCheckouts === 'function' && opDate) {
+        try {
+          const todayRes = await window.api.getTodayCheckouts(opDate);
+          if (todayRes && todayRes.success && Array.isArray(todayRes.data)) {
+            lateRowsFromToday = todayRes.data.filter(r => {
+              if (r.status !== 'مؤكد') return false;
+              if (r.booking_type === 'عقد مفتوح') return false;
+              const isOverdue = r.check_out_date && r.check_out_date < opDate;
+              const isLate = App.Helpers?.isLateCheckout ? App.Helpers.isLateCheckout(r, opDate) : false;
+              return isOverdue || isLate;
+            });
+          }
+        } catch (e) {
+          console.warn('Could not fetch today checkouts for late reconciliation:', e);
+        }
+      }
+
+      const effectiveLateCount = Math.max(
+        Number(data.summary?.lateCount || 0),
+        lateRowsFromToday.length
+      );
+
+      if (currentReservationFilter === 'late' && lateRowsFromToday.length > 0) {
+        const existingIds = new Set(reservationsTableRows.map(r => Number(r.id)));
+        let mergedLateRows = [...reservationsTableRows];
+        for (const lr of lateRowsFromToday) {
+          if (!existingIds.has(Number(lr.id))) {
+            const cached = cacheById.get(Number(lr.id));
+            mergedLateRows.push(cached ? { ...cached, ...lr } : lr);
+            existingIds.add(Number(lr.id));
+          }
+        }
+        const searchVal = String(searchAllReservations?.value || '').trim().toLowerCase();
+        if (searchVal) {
+          mergedLateRows = mergedLateRows.filter(r => {
+            const idMatch = String(r.id || '').includes(searchVal);
+            const nameMatch = String(r.guest_name || '').toLowerCase().includes(searchVal);
+            const roomMatch = String(r.room_number || '').includes(searchVal);
+            const phoneMatch = String(r.guest_phone || '').includes(searchVal);
+            const docMatch = String(r.guest_id_number || '').includes(searchVal);
+            return idMatch || nameMatch || roomMatch || phoneMatch || docMatch;
+          });
+        }
+        mergedLateRows.sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
+        reservationsTableTotal = mergedLateRows.length;
+        const startIdx = (reservationsTablePage - 1) * reservationsTablePageSize;
+        reservationsTableRows = mergedLateRows.slice(startIdx, startIdx + reservationsTablePageSize);
+      }
+
       // Update Summary Cards & Tabs from data.summary
       if (data.summary) {
         const sum = data.summary;
@@ -1515,7 +1567,7 @@
         const elRoomsSub = document.getElementById('res-summary-rooms-sub');
 
         if (elActive) elActive.textContent = Number(sum.activeCount || 0).toLocaleString('en-US');
-        if (elLate) elLate.textContent = Number(sum.lateCount || 0).toLocaleString('en-US');
+        if (elLate) elLate.textContent = effectiveLateCount.toLocaleString('en-US');
         if (elDue) elDue.textContent = Number(sum.dueAmount || 0).toLocaleString('en-US');
         if (elOcc) elOcc.textContent = `${Number(sum.occupancyRate || 0)}%`;
         if (elRoomsSub) elRoomsSub.textContent = `من ${sum.totalRooms} غرفة (${sum.occupiedRooms} مشغولة)`;
@@ -1530,9 +1582,14 @@
         if (pillAll) pillAll.textContent = Number(sum.total || 0).toLocaleString('en-US');
         if (pillActive) pillActive.textContent = Number(sum.activeCount || 0).toLocaleString('en-US');
         if (pillToday) pillToday.textContent = Number(sum.todayCount || 0).toLocaleString('en-US');
-        if (pillLate) pillLate.textContent = Number(sum.lateCount || 0).toLocaleString('en-US');
+        if (pillLate) pillLate.textContent = effectiveLateCount.toLocaleString('en-US');
         if (pillCompleted) pillCompleted.textContent = Number(sum.completedCount || 0).toLocaleString('en-US');
         if (pillCancelled) pillCancelled.textContent = Number(sum.cancelledCount || 0).toLocaleString('en-US');
+      } else {
+        const elLate = document.getElementById('res-summary-late');
+        const pillLate = document.getElementById('tab-pill-late');
+        if (elLate) elLate.textContent = effectiveLateCount.toLocaleString('en-US');
+        if (pillLate) pillLate.textContent = effectiveLateCount.toLocaleString('en-US');
       }
 
       const resTotalPill = document.getElementById('res-total-count-pill');
@@ -1635,6 +1692,7 @@
       const departureTimeText = r.checkout_time || expectedCheckoutTime || '';
 
       const isRowLate = isLateCheckout || isOverdue;
+      const delayHours = (isLateCheckout && App.Helpers.getCheckoutDelayHours) ? App.Helpers.getCheckoutDelayHours(r) : 0;
 
       return `
         <tr class="${isRowLate ? 'late-checkout-row' : ''}">
@@ -1663,10 +1721,10 @@
               <span class="res-date-val"><bdi dir="ltr">${escapeHtml(checkOutDisplay)}</bdi></span>
               ${departureTimeText ? `<span class="res-time-val">${escapeHtml(departureTimeText)}</span>` : ''}
             </div>
-            ${isOverdue ? `
-              <div class="res-late-departure-tag">
+            ${(isOverdue || isLateCheckout) && !isContract ? `
+              <div class="res-late-departure-tag" title="${escapeHtml(isOverdue ? overdueLabel : 'متأخر اليوم')}${(!isOverdue && delayHours > 0) ? ` (تأخير ${delayHours} ساعة)` : ''}">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                <span>${escapeHtml(overdueLabel)}</span>
+                <span>${escapeHtml(isOverdue ? overdueLabel : 'متأخر اليوم')}${(!isOverdue && delayHours > 0) ? ` (${delayHours} س)` : ''}</span>
               </div>
             ` : ''}
           </td>
@@ -1693,8 +1751,14 @@
             <div class="res-payment-method-sub">${escapeHtml(r.payment_method || 'نقداً')}</div>
           </td>
           <td class="res-cell-status">
-            <div class="res-status-badge-wrap">${getReservationStatusBadge(r.status)}</div>
-            <div class="res-booking-type-sub">${escapeHtml(r.booking_type || 'يومي')}</div>
+            <div class="res-status-badge-wrap">
+              ${isRowLate
+                ? `<span class="badge badge-unified badge-danger badge-res-late">${escapeHtml(isOverdue ? overdueLabel : 'متأخر اليوم')}</span>`
+                : getReservationStatusBadge(r.status)}
+            </div>
+            <div class="res-booking-type-sub">
+              ${escapeHtml(r.booking_type || 'يومي')}${(!isOverdue && delayHours > 0) ? ` • <span style="color: #b91c1c; font-weight: 700;">${delayHours} س تأخير</span>` : ''}
+            </div>
           </td>
           <td style="text-align: center;">
             <div class="res-actions-pair">

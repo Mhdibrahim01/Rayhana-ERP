@@ -61,28 +61,81 @@ window.DashboardApp = {
     return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
   }
 
-  function isLateCheckout(reservation) {
+  function isLateCheckout(reservation, operationalDate) {
     if (!reservation || reservation.status !== 'مؤكد') return false;
     const checkOutDate = String(reservation.check_out_date || '').slice(0, 10);
-    if (!checkOutDate || checkOutDate === 'مفتوح') return false;
+    if (!checkOutDate || checkOutDate === 'مفتوح' || reservation.booking_type === 'عقد مفتوح') return false;
 
-    const todayStr = String(App.State.businessDate || getLocalDateString());
-    if (checkOutDate < todayStr) return true;
-    if (checkOutDate > todayStr) return false;
+    const businessToday = String(operationalDate || App.State?.businessDate || '');
+    if (businessToday && checkOutDate < businessToday) return true;
 
     // Use the configured hotel timezone cutoff (default 14:00, or 18:00 for day use / late checkout)
-    const cutoffHour = (reservation.booking_type === 'استخدام يومي' || Number(reservation.late_checkout_fee || 0) > 0) ? 18 : 14;
-    let hotelHour;
+    const expectedTime = getExpectedCheckoutTime(reservation);
+    const [cutoffHour, cutoffMinute] = (expectedTime || '14:00').split(':').map(Number);
+
+    let currentCalendarDate;
+    let currentHour;
+    let currentMinute;
     try {
       const tz = getHotelTimezone();
       const parts = new Intl.DateTimeFormat('en-CA', {
-        timeZone: tz, hour: '2-digit', hourCycle: 'h23'
+        timeZone: tz,
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
       }).formatToParts(new Date());
-      hotelHour = Number(parts.find(p => p.type === 'hour')?.value || 0);
+      const p = Object.fromEntries(parts.filter(x => x.type !== 'literal').map(x => [x.type, x.value]));
+      currentCalendarDate = `${p.year}-${p.month}-${p.day}`;
+      currentHour = Number(p.hour || 0);
+      currentMinute = Number(p.minute || 0);
     } catch (_) {
-      hotelHour = new Date().getHours();
+      const now = new Date();
+      currentCalendarDate = getLocalDateString(now);
+      currentHour = now.getHours();
+      currentMinute = now.getMinutes();
     }
-    return hotelHour >= cutoffHour;
+
+    if (currentCalendarDate > checkOutDate) return true;
+    if (currentCalendarDate < checkOutDate) return false;
+
+    return currentHour > cutoffHour || (currentHour === cutoffHour && currentMinute >= (cutoffMinute || 0));
+  }
+
+  function getCheckoutDelayHours(reservation, operationalDate) {
+    if (!reservation || !isLateCheckout(reservation, operationalDate)) return 0;
+    const checkOutDate = String(reservation.check_out_date || '').slice(0, 10);
+    if (!checkOutDate || checkOutDate === 'مفتوح' || reservation.booking_type === 'عقد مفتوح') return 0;
+
+    const expectedTime = getExpectedCheckoutTime(reservation);
+    const [cutoffHour, cutoffMinute] = (expectedTime || '14:00').split(':').map(Number);
+
+    const tz = getHotelTimezone();
+    let currY, currM, currD, currHour, currMinute;
+    try {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: tz,
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+      }).formatToParts(new Date());
+      const p = Object.fromEntries(parts.filter(x => x.type !== 'literal').map(x => [x.type, x.value]));
+      currY = Number(p.year);
+      currM = Number(p.month);
+      currD = Number(p.day);
+      currHour = Number(p.hour || 0);
+      currMinute = Number(p.minute || 0);
+    } catch (_) {
+      const now = new Date();
+      currY = now.getFullYear();
+      currM = now.getMonth() + 1;
+      currD = now.getDate();
+      currHour = now.getHours();
+      currMinute = now.getMinutes();
+    }
+
+    const [outY, outM, outD] = checkOutDate.split('-').map(Number);
+    const deadlineMs = Date.UTC(outY, outM - 1, outD, cutoffHour || 14, cutoffMinute || 0, 0);
+    const currentMs = Date.UTC(currY, currM - 1, currD, currHour, currMinute, 0);
+
+    return Math.max(0, Math.floor((currentMs - deadlineMs) / 3600000));
   }
 
   function getExpectedCheckoutTime(reservation) {
@@ -345,6 +398,7 @@ window.DashboardApp = {
   App.Helpers.getHotelTimezone = getHotelTimezone;
   App.Helpers.formatHotelDateTime = formatHotelDateTime;
   App.Helpers.isLateCheckout = isLateCheckout;
+  App.Helpers.getCheckoutDelayHours = getCheckoutDelayHours;
   App.Helpers.getExpectedCheckoutTime = getExpectedCheckoutTime;
   App.Helpers.isReservationOverdue = isReservationOverdue;
   App.Helpers.renderOverdueBadge = renderOverdueBadge;

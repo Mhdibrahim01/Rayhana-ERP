@@ -103,8 +103,12 @@
           <td style="font-size: 0.8rem; color: var(--text-muted);">${App.Helpers.escapeHtml(String(u.created_at || '').split(' ')[0])}</td>
           <td style="text-align: center;">
             ${!isDefaultAdmin && (!App.State.currentUser || u.id !== App.State.currentUser.id) ? `
-              <button class="btn btn-danger btn-sm" data-action="delete-user" data-id="${u.id}" data-username="${App.Helpers.escapeHtml(u.username)}" title="حذف هذا المستخدم" style="padding: 4px 12px; font-size: 0.78rem; font-weight: 700; border-radius: 8px;">
-                حذف 🗑️
+              <button class="btn btn-danger btn-sm" data-action="delete-user" data-id="${u.id}" data-username="${App.Helpers.escapeHtml(u.username)}" title="حذف هذا المستخدم" style="display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 5px 12px; font-size: 0.78rem; font-weight: 700; border-radius: 8px; cursor: pointer;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                <span>حذف</span>
               </button>
             ` : `<span style="font-size: 0.75rem; color: var(--text-light);">-</span>`}
           </td>

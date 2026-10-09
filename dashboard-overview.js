@@ -948,6 +948,7 @@
 
       const statusLabel = isLateCheckout ? getCheckoutDelayLabel(checkoutDate) : (isCompleted ? 'تمت المغادرة ✓' : 'حجز مؤكد');
       const statusTone = isLateCheckout ? 'danger' : (isCompleted ? 'success' : 'neutral');
+      const delayHours = (isLateCheckout && App.Helpers.getCheckoutDelayHours) ? App.Helpers.getCheckoutDelayHours(r) : 0;
       const checkoutDetail = r.checkout_time
         ? `المغادرة الفعلية: ${checkoutDate} · ${String(r.checkout_time).slice(0, 5)}`
         : (expectedCheckoutTime && checkoutDate ? `المغادرة المتوقعة: ${checkoutDate} · ${expectedCheckoutTime}` : '');
@@ -1023,7 +1024,12 @@
           <td data-label="حالة الحجز">
             <div class="checkouts-status-stack">
               ${renderDashboardStatusBadge(statusLabel, statusTone)}
-              ${checkoutDetail ? `<small class="checkout-status-detail" title="${App.Helpers.escapeHtml(checkoutDetail)}">${App.Helpers.escapeHtml(checkoutDetail)}</small>` : ''}
+              ${checkoutDetail ? `
+                <small class="checkout-status-detail" title="${App.Helpers.escapeHtml(checkoutDetail)}${delayHours > 0 ? ` (تأخير ${delayHours} ساعة)` : ''}">
+                  ${App.Helpers.escapeHtml(checkoutDetail)}
+                  ${delayHours > 0 ? `<span class="checkout-delay-hours" style="color: #b91c1c; font-weight: 700; white-space: nowrap;"> (${delayHours} س تأخير)</span>` : ''}
+                </small>
+              ` : ''}
             </div>
           </td>
           <td data-label="إجراء المغادرة" style="text-align: center;">

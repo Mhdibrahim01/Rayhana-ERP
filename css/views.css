@@ -307,4 +307,187 @@
     flex: 0 0 auto;
   }
 }
+
+/* ==========================================================================
+   Admin View & Business Day Settings
+   ========================================================================== */
+
+.business-day-shift-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 7px;
+  padding: 6px 9px;
+  border: 1px solid #fbbf24;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+.business-day-shift-notice[hidden] { display: none !important; }
+.business-day-shift-notice button,
+.business-day-pending-row button {
+  border: 1px solid #d6a640;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #7c4a12;
+  padding: 5px 9px;
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}
+
+.business-day-settings-card {
+  padding: 22px 24px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  border-radius: 16px;
+  box-shadow: 0 10px 25px -4px rgba(15, 23, 42, 0.05), 0 4px 10px -2px rgba(15, 23, 42, 0.02);
+}
+
+.business-day-settings-card .card-header {
+  margin-bottom: 20px;
+}
+
+.business-day-settings-card h2 {
+  margin: 0;
+  color: #1a432a;
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.business-day-settings-card p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.business-day-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.business-day-settings-grid {
+  display: grid;
+  grid-template-columns: 200px minmax(280px, 1fr) auto;
+  gap: 16px 20px;
+  align-items: flex-start;
+}
+
+.business-day-settings-grid .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 0;
+}
+
+.business-day-settings-grid .form-group label {
+  font-weight: 700;
+  font-size: 0.84rem;
+  color: #1e293b;
+}
+
+.business-day-settings-grid .form-control {
+  min-height: 42px;
+  height: 42px;
+  padding: 8px 12px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1e293b;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.business-day-settings-grid select.form-control {
+  cursor: pointer;
+}
+
+.timezone-hint {
+  display: block;
+  margin-top: 5px;
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.business-day-toggle-group {
+  padding-top: 27px;
+}
+
+.business-day-auto-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.84rem;
+  color: #1e293b;
+  background: #f8fafc;
+  padding: 0 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  min-height: 42px;
+  height: 42px;
+  box-sizing: border-box;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.business-day-auto-toggle:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.business-day-auto-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #1a432a;
+  cursor: pointer;
+}
+
+.business-day-actions {
+  display: flex;
+  justify-content: flex-start;
+  padding-top: 4px;
+}
+
+.business-day-actions .btn-primary {
+  min-height: 40px;
+  padding: 9px 24px;
+  font-size: 0.88rem;
+  font-weight: 800;
+  border-radius: 10px;
+  background: #1a432a;
+  box-shadow: 0 4px 12px rgba(26, 67, 42, 0.2);
+}
+
+.business-day-pending-reconciliation {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid #fcd34d;
+  border-radius: 10px;
+  background: #fffbeb;
+}
+.business-day-pending-reconciliation[hidden] { display: none !important; }
+.business-day-pending-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #854d0e; font-size: 0.78rem; }
+.business-day-pending-row > div { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
+@media (max-width: 860px) {
+  .business-day-settings-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .business-day-toggle-group {
+    padding-top: 0;
+  }
+}
+
 

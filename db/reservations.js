@@ -112,6 +112,46 @@ const RESERVATION_LIST_SQL = `
   JOIN rooms rm ON r.room_id = rm.id
 `;
 
+function getLateReservationSqlCondition(todayStr, tableAlias = 'r') {
+  const tz = connection.getHotelTimezone ? connection.getHotelTimezone() : 'Asia/Riyadh';
+  let calendarDate, hour;
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+    }).formatToParts(new Date());
+    const p = Object.fromEntries(parts.filter(x => x.type !== 'literal').map(x => [x.type, x.value]));
+    calendarDate = `${p.year}-${p.month}-${p.day}`;
+    hour = Number(p.hour || 0);
+  } catch (_) {
+    const now = new Date();
+    calendarDate = connection.getLocalDateString ? connection.getLocalDateString(now) : now.toISOString().slice(0, 10);
+    hour = now.getHours();
+  }
+
+  const prefix = `${tableAlias}.status = 'مؤكد' AND ${tableAlias}.booking_type != 'عقد مفتوح'`;
+
+  if (calendarDate > todayStr || (calendarDate === todayStr && hour >= 18)) {
+    return {
+      condition: `${prefix} AND ${tableAlias}.check_out_date <= ?`,
+      params: [todayStr]
+    };
+  }
+
+  if (calendarDate === todayStr && hour >= 14) {
+    return {
+      condition: `${prefix} AND (${tableAlias}.check_out_date < ? OR (${tableAlias}.check_out_date = ? AND ${tableAlias}.booking_type != 'استخدام يومي' AND COALESCE(${tableAlias}.late_checkout_fee, 0) <= 0))`,
+      params: [todayStr, todayStr]
+    };
+  }
+
+  return {
+    condition: `${prefix} AND ${tableAlias}.check_out_date < ?`,
+    params: [todayStr]
+  };
+}
+
 function buildReservationListFilter({ search = '', status = 'all', paymentType = 'all', sortBy = 'id_desc' } = {}) {
   const conditions = [];
   const params = [];
@@ -124,8 +164,9 @@ function buildReservationListFilter({ search = '', status = 'all', paymentType =
   } else if (status === 'مكتمل' || status === 'completed') {
     conditions.push("r.status = 'مكتمل'");
   } else if (status === 'late' || status === 'متأخرة') {
-    conditions.push("r.status = 'مؤكد' AND r.booking_type != 'عقد مفتوح' AND r.check_out_date < ?");
-    params.push(todayStr);
+    const lateCond = getLateReservationSqlCondition(todayStr, 'r');
+    conditions.push(lateCond.condition);
+    params.push(...lateCond.params);
   } else if (status === 'today' || status === 'اليوم') {
     conditions.push("r.status = 'مؤكد' AND (r.check_out_date = ? OR r.check_in_date = ?)");
     params.push(todayStr, todayStr);
@@ -213,17 +254,18 @@ function getReservationsPage({ page = 1, pageSize = 50, search = '', status = 'a
   );
 
   const todayStr = connection.getCurrentBusinessDate();
+  const lateCond = getLateReservationSqlCondition(todayStr, 'r');
   const summaryRow = queryOne(`
     SELECT
       COUNT(*) AS total,
       SUM(CASE WHEN r.status = 'مؤكد' THEN 1 ELSE 0 END) AS activeCount,
       SUM(CASE WHEN r.status = 'مؤكد' AND (r.check_out_date = ? OR r.check_in_date = ?) THEN 1 ELSE 0 END) AS todayCount,
-      SUM(CASE WHEN r.status = 'مؤكد' AND r.booking_type != 'عقد مفتوح' AND r.check_out_date < ? THEN 1 ELSE 0 END) AS lateCount,
+      SUM(CASE WHEN ${lateCond.condition} THEN 1 ELSE 0 END) AS lateCount,
       SUM(CASE WHEN r.status = 'مكتمل' THEN 1 ELSE 0 END) AS completedCount,
       SUM(CASE WHEN r.status IN ('ملغي', 'ملغي جزئي') THEN 1 ELSE 0 END) AS cancelledCount,
       SUM(CASE WHEN r.status = 'مؤكد' AND r.total_price > COALESCE(r.paid_amount, 0) THEN (r.total_price - COALESCE(r.paid_amount, 0)) ELSE 0 END) AS dueAmount
     FROM reservations r
-  `, [todayStr, todayStr, todayStr]);
+  `, [todayStr, todayStr, ...lateCond.params]);
 
   const roomStats = queryOne(`
     SELECT
