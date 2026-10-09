@@ -155,6 +155,8 @@ async function init(dbPath) {
         checked_out_at DATETIME,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         created_business_date TEXT,
+        is_early_checkin INTEGER DEFAULT 0,
+        actual_check_in_at DATETIME,
         FOREIGN KEY(guest_id) REFERENCES guests(id),
         FOREIGN KEY(room_id) REFERENCES rooms(id)
       );
@@ -283,6 +285,8 @@ async function init(dbPath) {
       { table: 'reservations', column: 'checkout_policy_reason', sql: 'ALTER TABLE reservations ADD COLUMN checkout_policy_reason TEXT' },
       { table: 'reservations', column: 'booked_check_out_date', sql: 'ALTER TABLE reservations ADD COLUMN booked_check_out_date TEXT' },
       { table: 'reservations', column: 'created_business_date', sql: 'ALTER TABLE reservations ADD COLUMN created_business_date TEXT' },
+      { table: 'reservations', column: 'is_early_checkin', sql: 'ALTER TABLE reservations ADD COLUMN is_early_checkin INTEGER DEFAULT 0' },
+      { table: 'reservations', column: 'actual_check_in_at', sql: 'ALTER TABLE reservations ADD COLUMN actual_check_in_at DATETIME' },
       { table: 'payments', column: 'created_at', sql: 'ALTER TABLE payments ADD COLUMN created_at DATETIME' },
       { table: 'payments', column: 'business_date', sql: 'ALTER TABLE payments ADD COLUMN business_date TEXT' },
       { table: 'deposit_movements', column: 'created_at', sql: 'ALTER TABLE deposit_movements ADD COLUMN created_at DATETIME' },
@@ -383,8 +387,10 @@ async function init(dbPath) {
       BEGIN
         UPDATE reservations
         SET created_business_date = COALESCE(NULLIF(NEW.created_business_date, ''),
-              (SELECT current_business_date FROM hotel_business_state WHERE id = 1))
-        WHERE id = NEW.id AND (NEW.created_business_date IS NULL OR NEW.created_business_date = '');
+              (SELECT current_business_date FROM hotel_business_state WHERE id = 1)),
+            actual_check_in_at = COALESCE(NULLIF(NEW.actual_check_in_at, ''),
+              COALESCE(NEW.created_at, CURRENT_TIMESTAMP))
+        WHERE id = NEW.id AND (NEW.created_business_date IS NULL OR NEW.created_business_date = '' OR NEW.actual_check_in_at IS NULL OR NEW.actual_check_in_at = '');
         INSERT INTO reservation_events (entity_type, entity_id, event_type, new_status, created_at, business_date)
         VALUES ('reservation', NEW.id, 'created', NEW.status, COALESCE(NEW.created_at, CURRENT_TIMESTAMP),
           COALESCE(NULLIF(NEW.created_business_date, ''), (SELECT current_business_date FROM hotel_business_state WHERE id = 1)));

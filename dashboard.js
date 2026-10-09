@@ -826,6 +826,78 @@
         : 'غير محدد';
       const registrationDate = formatReceiptDateTime(inv.created_at);
       const showRegistrationDate = registrationDate !== '-' && registrationDate.slice(0, 10) !== checkInReceiptDate;
+
+      const format12HourTime = dateObj => {
+        if (!dateObj || Number.isNaN(dateObj.getTime())) return '';
+        const parts = new Intl.DateTimeFormat('en-US', {
+          timeZone: tz,
+          hour: '2-digit', minute: '2-digit',
+          hour12: true
+        }).formatToParts(dateObj);
+        const h = parts.find(p => p.type === 'hour')?.value || '00';
+        const m = parts.find(p => p.type === 'minute')?.value || '00';
+        const dp = (parts.find(p => p.type === 'dayPeriod')?.value || 'AM').toUpperCase();
+        const period = dp === 'PM' ? 'م' : 'ص';
+        return `${h}:${m} ${period}`;
+      };
+
+      const checkinRawTs = inv.actual_check_in_at || inv.created_at;
+      const parsedCheckinTs = checkinRawTs
+        ? (window.DashboardApp?.Helpers?.parseStoredTimestamp ? window.DashboardApp.Helpers.parseStoredTimestamp(checkinRawTs) : new Date(checkinRawTs))
+        : null;
+
+      let actualArrivalCalendarDate = checkInReceiptDate;
+      let actualArrivalTimeStr = '';
+      if (parsedCheckinTs && !Number.isNaN(parsedCheckinTs.getTime())) {
+        const arrParts = new Intl.DateTimeFormat('en-CA', {
+          timeZone: tz,
+          year: 'numeric', month: '2-digit', day: '2-digit'
+        }).formatToParts(parsedCheckinTs);
+        const ap = Object.fromEntries(arrParts.filter(x => x.type !== 'literal').map(x => [x.type, x.value]));
+        actualArrivalCalendarDate = `${ap.year}-${ap.month}-${ap.day}`;
+        actualArrivalTimeStr = format12HourTime(parsedCheckinTs);
+      }
+
+      let isEarlyMorningCheckin = Number(inv.is_early_checkin) === 1;
+      if (!isEarlyMorningCheckin && inv.is_early_checkin !== 0 && parsedCheckinTs && !Number.isNaN(parsedCheckinTs.getTime())) {
+        const cParts = new Intl.DateTimeFormat('en-CA', {
+          timeZone: tz,
+          hour: '2-digit', hourCycle: 'h23'
+        }).formatToParts(parsedCheckinTs);
+        const checkinH = Number(cParts.find(p => p.type === 'hour')?.value || 12);
+        if (checkinH < 6 && inv.check_in_date && actualArrivalCalendarDate > inv.check_in_date) {
+          isEarlyMorningCheckin = true;
+        }
+      }
+
+      let actualDepartureCalendarDate = checkOutReceiptDate;
+      let actualDepartureTimeStr = '';
+      const checkoutRawTs = inv.checked_out_at;
+      const parsedCheckoutTs = checkoutRawTs
+        ? (window.DashboardApp?.Helpers?.parseStoredTimestamp ? window.DashboardApp.Helpers.parseStoredTimestamp(checkoutRawTs) : new Date(checkoutRawTs))
+        : null;
+
+      if (parsedCheckoutTs && !Number.isNaN(parsedCheckoutTs.getTime())) {
+        const depParts = new Intl.DateTimeFormat('en-CA', {
+          timeZone: tz,
+          year: 'numeric', month: '2-digit', day: '2-digit'
+        }).formatToParts(parsedCheckoutTs);
+        const dp = Object.fromEntries(depParts.filter(x => x.type !== 'literal').map(x => [x.type, x.value]));
+        actualDepartureCalendarDate = `${dp.year}-${dp.month}-${dp.day}`;
+        actualDepartureTimeStr = format12HourTime(parsedCheckoutTs);
+      } else if (inv.checkout_time) {
+        const [ch, cm] = String(inv.checkout_time).split(':').map(Number);
+        if (Number.isFinite(ch) && Number.isFinite(cm)) {
+          const period = ch >= 12 ? 'م' : 'ص';
+          const h12 = ch % 12 || 12;
+          actualDepartureTimeStr = `${String(h12).padStart(2, '0')}:${String(cm).padStart(2, '0')} ${period}`;
+        }
+      }
+
+      const earlyMorningStayNote = ' (تشمل مبيت الليلة السابقة - دخول فجر مبكر)';
+      const invoiceDisplayDuration = isEarlyMorningCheckin
+        ? `${invoiceNights} ${invoiceNights === 1 ? 'ليلة' : 'ليالٍ'}${earlyMorningStayNote}`
+        : invoiceDurationText;
       let receiptPolicies = [];
       try {
         const policiesResult = await window.api.getReceiptStayPolicies();
@@ -993,9 +1065,10 @@
               <h3 style="font-size: 0.95rem; font-weight: 800; color: #1e293b; margin: 0 0 12px 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">بيانات الإقامة والوحدة (Stay Details)</h3>
               <div style="font-size: 0.85rem; line-height: 1.8; color: #475569;">
                 <div><strong style="color: #1e293b;">رقم الوحدة:</strong> ${escapeHtml(receiptDigits(inv.room_number))} (${escapeHtml(receiptDigits(inv.room_type || ''))})</div>
-                <div><strong style="color: #1e293b;">تاريخ الوصول:</strong> <bdi dir="ltr">${checkInReceiptDate}</bdi></div>
-<div><strong style="color: #1e293b;">تاريخ المغادرة${isMonthly ? '' : ` (${escapeHtml(invoiceDurationText)})`}:</strong> <bdi dir="ltr">${checkOutReceiptDate}</bdi> ${isOverdue ? `<span style="color: #b91c1c; font-weight: 700; font-size: 0.8rem; margin-right: 4px;">(متأخر ${overdueDays} ${overdueDays === 1 ? 'يوم' : 'أيام'})</span>` : ''}</div>                ${showRegistrationDate ? `<div><strong style="color: #1e293b;">تاريخ التسجيل:</strong> <bdi dir="ltr">${registrationDate}</bdi></div>` : ''}
-                ${inv.checkout_time && formatReceiptDate(inv.check_out_date) === checkOutReceiptDate ? `<div><strong style="color: #1e293b;">وقت المغادرة:</strong> <bdi dir="ltr">${formatReceiptTime(inv.checkout_time)}</bdi></div>` : ''}
+                <div><strong style="color: #1e293b;">${isEarlyMorningCheckin ? 'تاريخ الوصول الفعلي:' : 'تاريخ الوصول:'}</strong> <bdi dir="ltr">${isEarlyMorningCheckin ? `${actualArrivalCalendarDate}${actualArrivalTimeStr ? ` (${actualArrivalTimeStr})` : ''}` : checkInReceiptDate}</bdi></div>
+                <div><strong style="color: #1e293b;">${isEarlyMorningCheckin || inv.status === 'مكتمل' ? 'تاريخ المغادرة الفعلي' : 'تاريخ المغادرة'}${isMonthly ? '' : ` (${escapeHtml(invoiceDisplayDuration)})`}:</strong> <bdi dir="ltr">${isEarlyMorningCheckin || inv.status === 'مكتمل' ? `${actualDepartureCalendarDate}${actualDepartureTimeStr ? ` (${actualDepartureTimeStr})` : ''}` : checkOutReceiptDate}</bdi> ${isOverdue ? `<span style="color: #b91c1c; font-weight: 700; font-size: 0.8rem; margin-right: 4px;">(متأخر ${overdueDays} ${overdueDays === 1 ? 'يوم' : 'أيام'})</span>` : ''}</div>
+                ${showRegistrationDate && !isEarlyMorningCheckin ? `<div><strong style="color: #1e293b;">تاريخ التسجيل:</strong> <bdi dir="ltr">${registrationDate}</bdi></div>` : ''}
+                ${inv.checkout_time && !isEarlyMorningCheckin && formatReceiptDate(inv.check_out_date) === checkOutReceiptDate ? `<div><strong style="color: #1e293b;">وقت المغادرة:</strong> <bdi dir="ltr">${formatReceiptTime(inv.checkout_time)}</bdi></div>` : ''}
                 ${policyNote ? `<div style="margin-top: 8px; padding: 6px 10px; border-radius: 6px; background: #eef2ff; color: #3730a3; font-size: 0.8rem; font-weight: 700;">${policyNote}</div>` : ''}
               </div>
             </div>
@@ -1021,7 +1094,7 @@
               <tbody>
                 <tr style="border-bottom: 1px solid #e2e8f0; ${isCancelled ? 'background: #fff8f8;' : ''}">
                   <td style="padding: 14px;">
-                    <div style="font-weight: 700; color: #1e293b;">إقامة سكنية - وحدة ${escapeHtml(receiptDigits(inv.room_number))} ${isContract ? '(عقد مفتوح)' : ''}</div>
+                    <div style="font-weight: 700; color: #1e293b;">إقامة سكنية - وحدة ${escapeHtml(receiptDigits(inv.room_number))} ${isContract ? '(عقد مفتوح)' : ''}${isEarlyMorningCheckin ? ' (تشمل مبيت الليلة السابقة - دخول فجر مبكر)' : ''}</div>
                     <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">
                       ${isCancelled
                         ? '<span style="color: #dc2626; font-weight: 700;">(تم إبطال / إلغاء هذا الحجز بالكامل ولا توجد رسوم إقامة مستحقة)</span>'
@@ -1029,7 +1102,7 @@
                     </div>
                   </td>
                   <td style="padding: 14px; text-align: center; color: #475569;">${isCancelled ? '0.00 ر.س' : `${formatReceiptMoney(shownRate)} ر.س`}</td>
-                  <td style="padding: 14px; text-align: center; font-weight: 700; color: #475569;">${isMonthly && !isActualPolicy ? 'شهر' : (isContract && isConfirmed ? `${elapsedContractNights} ليالٍ` : invoiceDurationText)}</td>
+                  <td style="padding: 14px; text-align: center; font-weight: 700; color: #475569;">${isMonthly && !isActualPolicy ? 'شهر' : (isContract && isConfirmed ? `${elapsedContractNights} ليالٍ` : (isEarlyMorningCheckin ? `${invoiceNights} ${invoiceNights === 1 ? 'ليلة' : 'ليالٍ'}` : invoiceDurationText))}</td>
                   <td style="padding: 14px; text-align: left; font-weight: 800; color: #1e1b4b;">${formatReceiptMoney(isCancelled ? 0 : (isContract && isConfirmed ? (elapsedContractNights * effectiveNightlyRate) : shownSubtotal))} ر.س</td>
                 </tr>
                 ${isOverdue && overdueAdditionalAmount > 0 && !isCancelled ? `

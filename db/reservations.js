@@ -94,9 +94,12 @@ const RESERVATION_LIST_SQL = `
     r.checkout_policy,
     r.checkout_policy_reason,
     r.booked_check_out_date,
+    r.is_early_checkin,
+    r.actual_check_in_at,
     r.checked_out_at,
     r.created_at,
     strftime('%H:%M', r.created_at, 'localtime') AS booking_time,
+    strftime('%H:%M', COALESCE(r.actual_check_in_at, r.created_at), 'localtime') AS actual_checkin_time,
     strftime('%H:%M', r.checked_out_at, 'localtime') AS checkout_time,
     g.name AS guest_name,
     g.phone AS guest_phone,
@@ -281,9 +284,12 @@ function getReservationById(reservationId) {
       r.checkout_policy,
       r.checkout_policy_reason,
       r.booked_check_out_date,
+      r.is_early_checkin,
+      r.actual_check_in_at,
       r.checked_out_at,
       r.created_at,
       strftime('%H:%M', r.created_at, 'localtime') AS booking_time,
+      strftime('%H:%M', COALESCE(r.actual_check_in_at, r.created_at), 'localtime') AS actual_checkin_time,
       strftime('%H:%M', r.checked_out_at, 'localtime') AS checkout_time,
       g.name AS guest_name, 
       g.phone AS guest_phone, 
@@ -330,8 +336,42 @@ function createReservation({
   discountAmount = 0,
   discount_amount = 0,
   discountReason = '',
-  discount_reason = ''
+  discount_reason = '',
+  isEarlyCheckin = null,
+  is_early_checkin = null,
+  actualCheckInAt = null,
+  actual_check_in_at = null
 }) {
+  const explicitEarly = isEarlyCheckin !== null
+    ? isEarlyCheckin
+    : (is_early_checkin !== null ? is_early_checkin : null);
+
+  let finalIsEarlyCheckin = 0;
+  if (explicitEarly !== null && explicitEarly !== undefined) {
+    finalIsEarlyCheckin = (explicitEarly === true || explicitEarly === 1 || explicitEarly === '1' || explicitEarly === 'true') ? 1 : 0;
+  } else {
+    try {
+      const now = new Date();
+      const tz = connection.getHotelTimezone ? connection.getHotelTimezone() : 'Asia/Riyadh';
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: tz,
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+      }).formatToParts(now);
+      const p = Object.fromEntries(parts.filter(x => x.type !== 'literal').map(x => [x.type, x.value]));
+      const hour = Number(p.hour);
+      const settings = connection.getBusinessDaySettings ? connection.getBusinessDaySettings() : { business_day_cutoff_time: '06:00' };
+      const [cutoffH] = String(settings.business_day_cutoff_time || '06:00').split(':').map(Number);
+      const calendarToday = `${p.year}-${p.month}-${p.day}`;
+      if (hour < cutoffH && checkInDate && checkInDate < calendarToday) {
+        finalIsEarlyCheckin = 1;
+      }
+    } catch (_) {
+      finalIsEarlyCheckin = 0;
+    }
+  }
+
+  const finalActualCheckInAt = actualCheckInAt || actual_check_in_at || null;
   const normBookingType = (bookingType || booking_type || 'عادي').trim();
   const rawCustomPrice = customNightlyPrice !== null && customNightlyPrice !== undefined && customNightlyPrice !== ''
     ? customNightlyPrice
@@ -547,9 +587,9 @@ function createReservation({
         guest_id, room_id, check_in_date, check_out_date,
         total_price, paid_amount, deposit_amount, payment_method, payment_status, status,
         booking_type, custom_nightly_price, monthly_rate_snapshot, monthly_extension_amount,
-        discount_amount, discount_reason
+        discount_amount, discount_reason, is_early_checkin, actual_check_in_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'مؤكد', ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'مؤكد', ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     resStmt.run([
       guestId,
@@ -566,7 +606,9 @@ function createReservation({
       monthlyRateSnapshot,
       0,
       normDiscountAmount,
-      normDiscountReason
+      normDiscountReason,
+      finalIsEarlyCheckin,
+      finalActualCheckInAt
     ]);
     resStmt.free();
 

@@ -977,6 +977,35 @@
     const rooms = getRooms();
     const currentBizDate = getCurrentBizDate();
 
+    const ARABIC_MONTH_NAMES = [
+      'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+      'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+    ];
+
+    function formatPaletteArabicDate(dateStr) {
+      if (!dateStr) return '-';
+      const cleanStr = String(dateStr).trim().slice(0, 10);
+      const parts = cleanStr.split('-').map(Number);
+      if (parts.length !== 3 || isNaN(parts[0])) return dateStr;
+      const [year, month, day] = parts;
+      const monthName = ARABIC_MONTH_NAMES[month - 1] || '';
+      const dayPadded = String(day).padStart(2, '0');
+      return `${dayPadded} ${monthName} ${year}`;
+    }
+
+    function formatPalette12HourTime(timeStr) {
+      if (!timeStr) return '';
+      const match = String(timeStr).match(/^(\d{1,2}):(\d{2})/);
+      if (!match) return timeStr;
+      let hours = parseInt(match[1], 10);
+      const minutes = match[2];
+      const period = hours >= 12 ? 'م' : 'ص';
+      if (hours === 0) hours = 12;
+      else if (hours > 12) hours -= 12;
+      const hoursPadded = String(hours).padStart(2, '0');
+      return `${hoursPadded}:${minutes} ${period}`;
+    }
+
     const lateCheckouts = [];
     const departuresToday = [];
     const completedDeparturesToday = [];
@@ -1025,7 +1054,7 @@
           reservation: res,
           type: 'completed-departure',
           title: `غرفة ${res.room_number || '-'} • ${res.guest_name || 'نزيل'} (تمت المغادرة ✓)`,
-          subtitle: `تاريخ المغادرة: ${checkOutDate} • الحالة: مكتمل وسدد الحساب`,
+          subtitle: `تاريخ المغادرة: ${formatPaletteArabicDate(checkOutDate)} • الحالة: مكتمل وسدد الحساب`,
           badge: 'تمت المغادرة ✓',
           badgeClass: 'info',
           primaryActionText: 'معاينة الفاتورة',
@@ -1046,12 +1075,19 @@
 
       // 1. Late checkouts
       if (isLate) {
+        const expectedTime = App?.Helpers?.getExpectedCheckoutTime ? App.Helpers.getExpectedCheckoutTime(res) : '14:00';
+        const formattedDate = formatPaletteArabicDate(checkOutDate);
+        const formattedTime = expectedTime ? ` (${formatPalette12HourTime(expectedTime)})` : '';
+        const balanceTxt = balance <= 0.005
+          ? 'الحساب: مسدد بالكامل ✓'
+          : `المتبقي للسداد: ${balance.toLocaleString('en-US')} ر.س`;
+
         const item = {
           id: res.id,
           reservation: res,
           type: 'late-checkout',
           title: `متأخر عن المغادرة • غرفة ${res.room_number || '-'}`,
-          subtitle: `النزيل: ${res.guest_name || 'نزيل'} • كان متوقعاً: ${checkOutDate || '-'} • المتبقي: ${balance.toLocaleString('en-US')} ر.س`,
+          subtitle: `النزيل: ${res.guest_name || 'نزيل'} • موعد المغادرة المحدد: ${formattedDate}${formattedTime} • ${balanceTxt}`,
           badge: 'متأخر ⚠️',
           badgeClass: 'danger',
           primaryActionText: 'تسجيل مغادرة',
@@ -1063,12 +1099,17 @@
       // 2. Departures due today (not yet late)
       else if (!isContract && checkOutDate === currentBizDate) {
         const expectedTime = App?.Helpers?.getExpectedCheckoutTime ? App.Helpers.getExpectedCheckoutTime(res) : '14:00';
+        const formattedTime = expectedTime ? formatPalette12HourTime(expectedTime) : '02:00 م';
+        const balanceTxt = balance <= 0.005
+          ? 'الحساب: مسدد بالكامل ✓'
+          : `المتبقي للسداد: ${balance.toLocaleString('en-US')} ر.س`;
+
         const item = {
           id: res.id,
           reservation: res,
           type: 'departures-today',
           title: `مغادرة مقررة اليوم • غرفة ${res.room_number || '-'}`,
-          subtitle: `النزيل: ${res.guest_name || 'نزيل'} • موعد الإخلاء: الساعة ${expectedTime || '14:00'}`,
+          subtitle: `النزيل: ${res.guest_name || 'نزيل'} • موعد الإخلاء: الساعة ${formattedTime} • ${balanceTxt}`,
           badge: 'مغادرة اليوم 🚪',
           badgeClass: 'info',
           primaryActionText: 'تسجيل مغادرة',
@@ -1085,7 +1126,7 @@
           reservation: res,
           type: 'unpaid-balance',
           title: `مستحقات معلقة • غرفة ${res.room_number || '-'} (${balance.toLocaleString('en-US')} ر.س)`,
-          subtitle: `النزيل: ${res.guest_name || 'نزيل'} • المدفوع: ${paid.toLocaleString('en-US')} ر.س من إجمالي ${total.toLocaleString('en-US')} ر.س`,
+          subtitle: `النزيل: ${res.guest_name || 'نزيل'} • المستحق: ${balance.toLocaleString('en-US')} ر.س (المسدد: ${paid.toLocaleString('en-US')} ر.س من إجمالي ${total.toLocaleString('en-US')} ر.س)`,
           badge: 'مستحق سداد 💳',
           badgeClass: 'warning',
           primaryActionText: 'تحصيل دفعة',
@@ -1116,12 +1157,13 @@
             subtitleDesc = `متبقي ${daysLeft} يوم`;
           }
 
+          const formattedRenewalDate = formatPaletteArabicDate(checkOutDate);
           const monthlyItem = {
             id: res.id,
             reservation: res,
             type: 'monthly-due',
             title: `إيجار شهري يقترب من التجديد • غرفة ${res.room_number || '-'}`,
-            subtitle: `المستأجر: ${res.guest_name || 'مستأجر'} • تاريخ التجديد: ${checkOutDate} (${subtitleDesc})`,
+            subtitle: `المستأجر: ${res.guest_name || 'مستأجر'} • تاريخ التجديد: ${formattedRenewalDate} (${subtitleDesc})`,
             badge: badgeText,
             badgeClass: daysLeft <= 0 ? 'danger' : 'purple',
             primaryActionText: 'تمديد العقد',
@@ -1178,6 +1220,42 @@
       const isUrgent = record.reasons.some(r => r.badgeClass === 'danger');
       const badgeClass = isUrgent ? 'danger' : (record.reasons.some(r => r.badgeClass === 'warning') ? 'warning' : 'info');
 
+      let consolidatedSubtitle = '';
+      if (record.reasons.length > 1) {
+        // Build a concise, clean summary for multi-requirement cards
+        const parts = [];
+        const hasLate = record.reasons.some(r => r.type === 'late-checkout');
+        const hasDept = record.reasons.some(r => r.type === 'departures-today');
+        const hasUnpaid = record.reasons.some(r => r.type === 'unpaid-balance');
+        const hasMonthly = record.reasons.some(r => r.type === 'monthly-due');
+
+        const res = record.reservation;
+        const fin = getResFin(res, currentBizDate);
+        const checkOutDate = String(res.check_out_date || '').slice(0, 10);
+        const expectedTime = App?.Helpers?.getExpectedCheckoutTime ? App.Helpers.getExpectedCheckoutTime(res) : '14:00';
+
+        if (hasLate) {
+          const formattedDate = formatPaletteArabicDate(checkOutDate);
+          const formattedTime = expectedTime ? ` (${formatPalette12HourTime(expectedTime)})` : '';
+          parts.push(`موعد المغادرة المحدد: ${formattedDate}${formattedTime}`);
+        } else if (hasDept) {
+          const formattedTime = expectedTime ? formatPalette12HourTime(expectedTime) : '02:00 م';
+          parts.push(`موعد الإخلاء اليوم: الساعة ${formattedTime}`);
+        } else if (hasMonthly) {
+          parts.push(`تاريخ التجديد: ${formatPaletteArabicDate(checkOutDate)}`);
+        }
+
+        if (hasUnpaid && fin.remaining > 0.005) {
+          parts.push(`مستحق سداد: ${fin.remaining.toLocaleString('en-US')} ر.س (المسدد: ${fin.paid.toLocaleString('en-US')} من إجمالي ${fin.effectiveTotal.toLocaleString('en-US')} ر.س)`);
+        } else if (fin.remaining <= 0.005) {
+          parts.push('الحساب: مسدد بالكامل ✓');
+        }
+
+        consolidatedSubtitle = parts.join(' • ');
+      } else {
+        consolidatedSubtitle = firstReason.subtitle;
+      }
+
       deduplicatedAllItems.push({
         id: record.id,
         reservation: record.reservation,
@@ -1185,7 +1263,7 @@
         title: record.reasons.length > 1
           ? `غرفة ${record.reservation.room_number || '-'} • ${record.reservation.guest_name || 'نزيل'} (${record.reasons.length} متطلبات)`
           : firstReason.title,
-        subtitle: record.reasons.map(r => r.subtitle).join(' | '),
+        subtitle: consolidatedSubtitle,
         badge: badges.join(' • '),
         badgeClass,
         primaryActionText: record.primaryActionText,
@@ -3467,6 +3545,13 @@
     attentionModal.style.display = 'none';
   }
 
+  function renderAttentionSubtitle(text) {
+    if (!text) return '';
+    const escaped = escapePaletteText(text);
+    const parts = escaped.split(' • ');
+    return parts.map(part => `<span style="display: inline-block;"><bdi>${part}</bdi></span>`).join('<span style="color: #cbd5e1; margin: 0 6px; user-select: none;">•</span>');
+  }
+
   function renderAttentionModalList() {
     const listEl = document.getElementById('attention-inbox-list');
     if (!listEl) return;
@@ -3535,29 +3620,53 @@
 
     listEl.innerHTML = completedNoticeHtml + items.map((item, idx) => {
       const bStyle = badgeStyles[item.badgeClass] || badgeStyles.info;
+      let actionClass = 'attention-btn-default';
+      let actionIcon = '⚡';
+      if (item.action === 'checkout') {
+        actionClass = 'attention-btn-checkout';
+        actionIcon = '🚪';
+      } else if (item.action === 'payment') {
+        actionClass = 'attention-btn-payment';
+        actionIcon = '💳';
+      } else if (item.action === 'mark-clean') {
+        actionClass = 'attention-btn-clean';
+        actionIcon = '✨';
+      } else if (item.action === 'extend') {
+        actionClass = 'attention-btn-default';
+        actionIcon = '⏱️';
+      } else if (item.action === 'preview') {
+        actionClass = 'attention-btn-default';
+        actionIcon = '👁️';
+      }
+
       return `
-        <div class="attention-card" style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 8px; transition: transform 0.15s ease;">
+        <div class="attention-card">
           <div style="min-width: 0;">
             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
               <span style="font-weight: 800; font-size: 0.95rem; color: #1e293b;">${escapePaletteText(item.title)}</span>
               <span style="font-size: 0.74rem; font-weight: 800; padding: 2px 8px; border-radius: 6px; ${bStyle}">${escapePaletteText(item.badge)}</span>
             </div>
-            <div style="font-size: 0.82rem; color: #64748b; line-height: 1.4;">
-              ${escapePaletteText(item.subtitle)}
+            <div style="font-size: 0.82rem; color: #64748b; line-height: 1.6; margin-top: 2px;">
+              ${renderAttentionSubtitle(item.subtitle)}
             </div>
           </div>
-          <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-            <button type="button" class="btn btn-sm btn-primary attention-action-btn" data-item-idx="${idx}" style="font-weight: 800; padding: 6px 14px; border-radius: 8px;">
-              ${escapePaletteText(item.primaryActionText || 'اتخاذ إجراء')}
+          <div class="attention-action-group">
+            <button type="button" class="attention-action-btn ${actionClass}" data-item-idx="${idx}">
+              <span>${actionIcon}</span>
+              <span>${escapePaletteText(item.primaryActionText || 'اتخاذ إجراء')}</span>
             </button>
             ${item.reservation && (item.type === 'late-checkout' || item.type === 'departures-today') ? `
-              <button type="button" class="btn btn-sm attention-extend-btn" data-res-id="${item.reservation.id}" title="تمديد مدة الإقامة للنزيل" style="font-weight: 700; padding: 6px 12px; border-radius: 8px; background: #fffbeb; color: #b45309; border: 1px solid #fde68a; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
-                <span>⏱️</span> <span>تمديد الحجز</span>
+              <button type="button" class="attention-extend-btn" data-res-id="${item.reservation.id}" title="تمديد مدة الإقامة للنزيل">
+                <span>⏱️</span>
+                <span>تمديد الحجز</span>
               </button>
             ` : ''}
             ${item.reservation && item.reservation.guest_phone ? `
-              <button type="button" class="btn btn-sm btn-secondary attention-whatsapp-btn" data-res-id="${item.reservation.id}" title="مراسلة النزيل عبر واتساب" style="font-weight: 700; padding: 6px 10px; border-radius: 8px;">
-                💬
+              <button type="button" class="attention-whatsapp-btn" data-res-id="${item.reservation.id}" title="مراسلة النزيل عبر واتساب (${escapePaletteText(item.reservation.guest_phone)})">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.888 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.746.953 3.71 1.456 5.711 1.457h.004c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                </svg>
+                <span>واتساب</span>
               </button>
             ` : ''}
           </div>

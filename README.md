@@ -56,7 +56,9 @@
 
 ### 2. 📋 إدارة التسكين والحجوزات (Check-in & Reservations)
 - دعم كافة أنماط الإقامة: **يومي، شهري، واستخدام يومي (Day-Use)**.
-- **معالجة ساعات الفجر وما بعد منتصف الليل:** احتساب الليلة بدقة حسب تاريخ الأعمال الفندقي (Business Day) وليس التاريخ المدني فقط.
+- **معالجة دخول الفجر وساعات ما بعد منتصف الليل (Early Morning Check-in):**
+  - عند تسكين نزيل بين **12:00 منتصف الليل ووقت قطع اليوم الفندقي (06:00 صباحاً افتراضياً)**، يحتسب النظام تلقائياً ليلة مبيت كاملة (ليلة البارحة) لأن الغرفة استُهلكت لتلك الليلة.
+  - **مرونة الاستثناء لموظف الاستقبال:** يظهر خيار تفاعلي `[✓] احتساب ليلة سابقة (دخول فجر مبكر)` مفعل افتراضياً؛ يمكن للموظف إلغاؤه بنقرة واحدة عند منح استثناء إداري أو لعملاء الـ VIP للتسكين على تاريخ اليوم مباشرة.
 - التحقق التلقائي من الهوية ورقم الجوال وسجل النزيل السابق.
 
 ### 3. 🚪 المغادرة والتسوية المالية الذكية (Checkout & Settlement)
@@ -68,12 +70,15 @@
 - إمكانية إلغاء حجز خاطئ تم في نفس اليوم (Walk-in) وإعادة الغرفة لمتاحة فوراً واسترداد المبالغ دون تشويه التقارير المحاسبية التاريخية.
 
 ### 5. 🧾 الفواتير والمدفوعات والواتساب (Invoicing & Receipts)
-- إصدار فواتير ضريبية مفصلة تتضمن تفقيط المبالغ والضريبة المضافة.
+- إصدار فواتير ضريبية مفصلة تتضمن تفقيط المبالغ والضريبة المضافة ورمز الـ QR المعتمد.
+- **التواريخ الفعلية في الفاتورة (Actual Calendar Dates):**
+  - في حالات دخول الفجر المبكر المحتسب على ليلة سابقة، تعرض الفاتورة **تاريخ وساعة الوصول الفعلي والمغادرة الفعلية بالتقويم الحقيقي** (مثل: `تاريخ الوصول الفعلي: 2026-10-10 (03:00 ص)` و`تاريخ المغادرة الفعلي: 2026-10-10 (01:00 م)`).
+  - توضيح مدة الإقامة بشفافية تامة تمنع الخلافات: `1 ليلة (تشمل مبيت الليلة السابقة - دخول فجر مبكر)`.
 - إصدار سندات قبض رسمية لكل دفعة مع تتبع وسيلة الدفع (كاش، شبكة، تحويل بنكي).
 - **تكامل واتساب المباشر:** إرسال رسائل ترحيبية وملخص الحجز والفاتورة للنزيل بنقرة واحدة.
 
 ### 6. 🌙 الجرد الليلي وتاريخ الأعمال (Night Audit & Business Day)
-- جدولة تدوير تاريخ الأعمال التشغيلي فندsupportياً.
+- جدولة تدوير تاريخ الأعمال التشغيلي فندقياً عند موعد القطع (Cutoff Time: 06:00 AM).
 - تتبع الإشغال اليومي، متوسط سعر الليلة (ADR)، والإيراد لكل غرفة متاحة (RevPAR).
 
 ### 7. 📊 تقرير الوردية وجرد الدرج (Shift Management & Cash Drawer)
@@ -288,7 +293,7 @@ npm run guard
 - **Offline-First Desktop App**: Powered by Electron 29 and local SQLite database (`sql.js`), guaranteeing high performance and zero external downtime.
 - **RTL-First Arabic UI**: Crafted with care for Arabic-speaking hotel front-desk operations.
 - **Smart Command Palette (`Ctrl + K`)**: Keyboard-driven command center featuring AI typo resilience, prefix autocompletion, number-action reordering, and direct symbol shortcuts (`#` for reservations, `@` for guests, `!` for rooms).
-- **Hospitality Workflows**: Comprehensive night audit, business-date rollover, day-use reservations, early checkout settlements, cash drawer shift handovers, and VAT-compliant invoicing.
+- **Hospitality Workflows**: Comprehensive night audit, business-date rollover, early morning check-in previous night charging with staff waiver options, actual calendar date invoice generation, day-use reservations, early checkout settlements, cash drawer shift handovers, and VAT-compliant invoicing.
 - **Automated Disaster Recovery**: Scheduled 12:00 AM daily SQLite backups with mirror replication and catch-up mechanism.
 
 ---

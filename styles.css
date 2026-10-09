@@ -9004,18 +9004,20 @@ body.login-body {
   border: 1px solid #cbd5e1;
   color: #475569;
   cursor: pointer;
-  transition: all 0.12s;
+  transition: all 0.15s ease;
 }
 
 .attention-tab:hover {
   background: #f1f5f9;
   color: #1e293b;
+  border-color: #94a3b8;
 }
 
 .attention-tab.is-active {
-  background: #a67c52 !important;
+  background: #1a432a !important;
   color: #ffffff !important;
-  border-color: #a67c52 !important;
+  border-color: #1a432a !important;
+  box-shadow: 0 2px 6px rgba(26, 67, 42, 0.2);
 }
 
 .attention-tab-count {
@@ -9026,13 +9028,13 @@ body.login-body {
   height: 18px;
   padding: 0 5px;
   border-radius: 9px;
-  background: rgba(0,0,0,0.08);
-  font-size: 0.7rem;
+  background: rgba(0, 0, 0, 0.08);
+  font-size: 0.72rem;
   font-weight: 800;
 }
 
 .attention-tab.is-active .attention-tab-count {
-  background: rgba(255,255,255,0.25);
+  background: rgba(255, 255, 255, 0.25);
   color: #ffffff;
 }
 
@@ -9045,4 +9047,181 @@ body.login-body {
   gap: 10px;
   max-height: 60vh;
 }
+
+/* Modal Close Button */
+.modal-layout__close-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+
+.modal-layout__close-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+/* Attention Cards & Action Buttons */
+.attention-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.attention-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.attention-action-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Base Action Button */
+.attention-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 800;
+  font-size: 0.82rem;
+  padding: 7px 15px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+/* Checkout Button: Elegant Forest Green */
+.attention-action-btn.attention-btn-checkout {
+  background: #1a432a;
+  color: #ffffff;
+  border-color: #153822;
+  box-shadow: 0 1px 3px rgba(26, 67, 42, 0.18);
+}
+
+.attention-action-btn.attention-btn-checkout:hover {
+  background: #143521;
+  border-color: #0e2718;
+  box-shadow: 0 2px 6px rgba(26, 67, 42, 0.28);
+  transform: translateY(-1px);
+}
+
+/* Payment Button: Crisp Financial Blue */
+.attention-action-btn.attention-btn-payment {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0369a1;
+  box-shadow: 0 1px 3px rgba(2, 132, 199, 0.2);
+}
+
+.attention-action-btn.attention-btn-payment:hover {
+  background: #0369a1;
+  border-color: #075985;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3);
+  transform: translateY(-1px);
+}
+
+/* Clean Room Button: Fresh Emerald */
+.attention-action-btn.attention-btn-clean {
+  background: #059669;
+  color: #ffffff;
+  border-color: #047857;
+  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.2);
+}
+
+.attention-action-btn.attention-btn-clean:hover {
+  background: #047857;
+  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.3);
+  transform: translateY(-1px);
+}
+
+/* Default / Extend Action Button */
+.attention-action-btn.attention-btn-default {
+  background: #1a432a;
+  color: #ffffff;
+  border-color: #153822;
+}
+
+.attention-action-btn.attention-btn-default:hover {
+  background: #143521;
+  transform: translateY(-1px);
+}
+
+/* Extend Stay Button: Clean, subtle secondary button (not alert yellow) */
+.attention-extend-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 700;
+  font-size: 0.8rem;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.attention-extend-btn:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transform: translateY(-1px);
+}
+
+/* WhatsApp Button: Recognizable, polite, beautiful branding */
+.attention-whatsapp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 0.78rem;
+  padding: 6px 11px;
+  border-radius: 8px;
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #86efaf;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.attention-whatsapp-btn:hover {
+  background: #dcfce7;
+  border-color: #4ade80;
+  color: #166534;
+  box-shadow: 0 2px 6px rgba(34, 197, 94, 0.22);
+  transform: translateY(-1px);
+}
+
+.attention-whatsapp-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+  flex-shrink: 0;
+}
+
 
