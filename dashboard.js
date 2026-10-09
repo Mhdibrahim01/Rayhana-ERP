@@ -1405,7 +1405,7 @@
       const payments = rep.payments || [];
       const txs = rep.transactions || [];
       const depositTxs = rep.depositMovements || [];
-      const printTime = new Date().toLocaleTimeString('ar-EG', {
+      const printTime = new Date().toLocaleTimeString('ar-EG-u-nu-latn', {
         timeZone: window.DashboardApp?.Helpers?.getHotelTimezone ? window.DashboardApp.Helpers.getHotelTimezone() : 'Asia/Riyadh',
         hour: '2-digit',
         minute: '2-digit'
@@ -1430,7 +1430,7 @@
                 <div>فترة التقرير: <strong>${escapeHtml(periodLabel)}</strong></div>
                 <div style="font-size: 0.76rem; color: #64748b; font-family: monospace;">(${rep.startDate} إلى ${rep.endDate})</div>
               ` : `
-                <div>التاريخ المستهدف: <strong>${rep.date}</strong></div>
+                <div>التاريخ المستهدف: <strong dir="ltr" style="unicode-bidi: isolate;">${escapeHtml(rep.date)}</strong></div>
               `}
               <div>وقت الاستخراج: <span>${printTime}</span></div>
               <div>المشرف المنفذ: <strong>${escapeHtml(currentUser?.username || 'الإدارة')}</strong></div>
@@ -1544,55 +1544,57 @@
               لا توجد سندات قبض أو استرداد مسجلة في هذه الفترة.
             </div>
           ` : `
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 0.82rem;">
-              <thead>
-                <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
-                  <th style="padding: 8px 10px; text-align: right;">وقت العملية / تاريخ العمل</th>
-                  <th style="padding: 8px 10px; text-align: right;">رقم السند</th>
-                  <th style="padding: 8px 10px; text-align: right;">الحجز / النزيل</th>
-                  <th style="padding: 8px 10px; text-align: right;">الغرفة</th>
-                  <th style="padding: 8px 10px; text-align: center;">نوع السند</th>
-                  <th style="padding: 8px 10px; text-align: center;">تصنيف الدفعة</th>
-                  <th style="padding: 8px 10px; text-align: center;">طريقة الدفع</th>
-                  <th style="padding: 8px 10px; text-align: center;">المبلغ</th>
-                  <th style="padding: 8px 10px; text-align: right;">البيان / الموظف</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${payments.map(p => {
-                  const amt = roundMoney(p.amount || 0);
-                  const isRefund = amt < -0.005;
-                  const amtColor = isRefund ? '#dc2626' : '#05963d';
-                  const formattedAmt = isRefund ? `- ${Math.abs(amt).toLocaleString()} ر.س` : `+ ${amt.toLocaleString()} ر.س`;
-                  const paymentPurpose = ({
-                    advance_payment: 'دفعة مقدمة',
-                    balance_payment: 'سداد رصيد',
-                    extension_payment: 'تمديد إقامة',
-                    late_checkout_fee: 'رسوم تأخير مغادرة',
-                    checkout_settlement: 'تسوية مغادرة',
-                    refund: 'استرداد',
-                    deposit_applied: 'تطبيق تأمين',
-                    legacy_unclassified: 'قديم / غير مصنف'
-                  })[p.payment_type] || 'قديم / غير مصنف';
-                  const typeBadge = isRefund
-                    ? '<span style="background: #fef2f2; color: #b91c1c; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 0.78rem;">استرداد / صرف</span>'
-                    : '<span style="background: #ecfdf3; color: #047831; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 0.78rem;">تحصيل / قبض</span>';
-                  return `
-                    <tr style="border-bottom: 1px solid #e2e8f0; ${isRefund ? 'background: #fffafa;' : ''}">
-                      <td style="padding: 8px 10px; color: #64748b;"><div style="font-family: monospace;">${escapeHtml(String(p.payment_date || p.created_at || '').slice(0, 16))}</div><small style="display:block; margin-top:3px; color:#1a432a;">تاريخ العمل: ${escapeHtml(p.business_date || '-')}</small></td>
-                      <td style="padding: 8px 10px; font-family: monospace; font-weight: 700; color: #4338ca;">${escapeHtml(p.receipt_number || ('#' + p.id))}</td>
-                      <td style="padding: 8px 10px; font-weight: 700;">#${p.reservation_id} - ${escapeHtml(p.guest_name || 'نزيل')}</td>
-                      <td style="padding: 8px 10px;">غرفة ${escapeHtml(p.room_number || '-')}</td>
-                      <td style="padding: 8px 10px; text-align: center;">${typeBadge}</td>
-                      <td style="padding: 8px 10px; text-align: center;">${escapeHtml(paymentPurpose)}</td>
-                      <td style="padding: 8px 10px; text-align: center;">${escapeHtml(p.payment_method || 'نقداً')}</td>
-                      <td style="padding: 8px 10px; text-align: center; font-weight: 800; color: ${amtColor}; font-size: 0.88rem;">${formattedAmt}</td>
-                      <td style="padding: 8px 10px; font-size: 0.78rem; color: #475569;">${escapeHtml(p.notes || '-')}${p.staff_username ? ` <span style="color:#94a3b8;">(${escapeHtml(p.staff_username)})</span>` : ''}</td>
-                    </tr>
-                  `;
-                }).join('')}
-              </tbody>
-            </table>
+            <div class="audit-table-wrap">
+              <table class="audit-table">
+                <thead>
+                  <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+                    <th style="padding: 8px 10px; text-align: right;">وقت العملية / تاريخ العمل</th>
+                    <th style="padding: 8px 10px; text-align: right;">رقم السند</th>
+                    <th style="padding: 8px 10px; text-align: right;">الحجز / النزيل</th>
+                    <th style="padding: 8px 10px; text-align: right;">الغرفة</th>
+                    <th style="padding: 8px 10px; text-align: center;">نوع السند</th>
+                    <th style="padding: 8px 10px; text-align: center;">تصنيف الدفعة</th>
+                    <th style="padding: 8px 10px; text-align: center;">طريقة الدفع</th>
+                    <th style="padding: 8px 10px; text-align: center;">المبلغ</th>
+                    <th style="padding: 8px 10px; text-align: right;">البيان / الموظف</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${payments.map(p => {
+                    const amt = roundMoney(p.amount || 0);
+                    const isRefund = amt < -0.005;
+                    const amtColor = isRefund ? '#dc2626' : '#05963d';
+                    const formattedAmt = isRefund ? `- ${Math.abs(amt).toLocaleString()} ر.س` : `+ ${amt.toLocaleString()} ر.س`;
+                    const paymentPurpose = ({
+                      advance_payment: 'دفعة مقدمة',
+                      balance_payment: 'سداد رصيد',
+                      extension_payment: 'تمديد إقامة',
+                      late_checkout_fee: 'رسوم تأخير مغادرة',
+                      checkout_settlement: 'تسوية مغادرة',
+                      refund: 'استرداد',
+                      deposit_applied: 'تطبيق تأمين',
+                      legacy_unclassified: 'قديم / غير مصنف'
+                    })[p.payment_type] || 'قديم / غير مصنف';
+                    const typeBadge = isRefund
+                      ? '<span style="background: #fef2f2; color: #b91c1c; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 0.78rem;">استرداد / صرف</span>'
+                      : '<span style="background: #ecfdf3; color: #047831; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 0.78rem;">تحصيل / قبض</span>';
+                    return `
+                      <tr style="border-bottom: 1px solid #e2e8f0; ${isRefund ? 'background: #fffafa;' : ''}">
+                        <td style="padding: 8px 10px; color: #64748b;"><div style="font-family: monospace;">${escapeHtml(String(p.payment_date || p.created_at || '').slice(0, 16))}</div><small style="display:block; margin-top:3px; color:#1a432a;">تاريخ العمل: ${escapeHtml(p.business_date || '-')}</small></td>
+                        <td style="padding: 8px 10px; font-family: monospace; font-weight: 700; color: #4338ca;">${escapeHtml(p.receipt_number || ('#' + p.id))}</td>
+                        <td style="padding: 8px 10px; font-weight: 700;">#${p.reservation_id} - ${escapeHtml(p.guest_name || 'نزيل')}</td>
+                        <td style="padding: 8px 10px;">غرفة ${escapeHtml(p.room_number || '-')}</td>
+                        <td style="padding: 8px 10px; text-align: center;">${typeBadge}</td>
+                        <td style="padding: 8px 10px; text-align: center;">${escapeHtml(paymentPurpose)}</td>
+                        <td style="padding: 8px 10px; text-align: center;">${escapeHtml(p.payment_method || 'نقداً')}</td>
+                        <td style="padding: 8px 10px; text-align: center; font-weight: 800; color: ${amtColor}; font-size: 0.88rem;">${formattedAmt}</td>
+                        <td style="padding: 8px 10px; font-size: 0.78rem; color: #475569;">${escapeHtml(p.notes || '-')}${p.staff_username ? ` <span style="color:#94a3b8;">(${escapeHtml(p.staff_username)})</span>` : ''}</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
           `}
 
           <!-- Reservations Breakdown -->
@@ -1604,58 +1606,62 @@
               لا توجد حجوزات مسجلة في هذه الفترة.
             </div>
           ` : `
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 0.82rem;">
-              <thead>
-                <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
-                  <th style="padding: 8px 10px; text-align: right;">الحجز</th>
-                  <th style="padding: 8px 10px; text-align: right;">النزيل</th>
-                  <th style="padding: 8px 10px; text-align: right;">الغرفة</th>
-                  <th style="padding: 8px 10px; text-align: center;">فترة الإقامة</th>
-                  <th style="padding: 8px 10px; text-align: center;">طريقة الدفع</th>
-                  <th style="padding: 8px 10px; text-align: center;">المدفوع</th>
-                  <th style="padding: 8px 10px; text-align: center;">رصيد التأمين</th>
-                  <th style="padding: 8px 10px; text-align: center;">حالة الحجز</th>
-                  <th style="padding: 8px 10px; text-align: center;">حالة السداد</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${txs.map(t => {
-                  const checkIn = t.check_in_date || '-';
-                  const checkOut = t.check_out_date || '-';
-                  const isSameDayStay = checkIn !== '-' && checkIn === checkOut;
-                  const stayText = isSameDayStay ? `${escapeHtml(checkIn)} (نفس اليوم)` : `${escapeHtml(checkIn)} &larr; ${escapeHtml(checkOut)}`;
-                  const isCancelledRow = t.status === 'ملغي';
-                  return `
-                  <tr style="border-bottom: 1px solid #e2e8f0; ${isCancelledRow ? 'background: #fff5f5; opacity: 0.88;' : ''}">
-                    <td style="padding: 8px 10px; font-family: monospace; font-weight: 700;">#${t.id}</td>
-                    <td style="padding: 8px 10px; font-weight: 700;">${escapeHtml(t.guest_name)}</td>
-                    <td style="padding: 8px 10px;">غرفة ${escapeHtml(t.room_number)}</td>
-                    <td style="padding: 8px 10px; text-align: center; font-size: 0.78rem; direction: ltr;">${stayText}</td>
-                    <td style="padding: 8px 10px; text-align: center;">${escapeHtml(t.payment_method || 'نقداً')}</td>
-                    <td style="padding: 8px 10px; text-align: center; font-weight: 700; color: #05963d;">${parseFloat(t.paid_amount || 0).toLocaleString()} ر.س</td>
-                    <td style="padding: 8px 10px; text-align: center; color: #701a75;">${parseFloat(t.deposit_ledger_balance || 0).toLocaleString()} ر.س</td>
-                    <td style="padding: 8px 10px; text-align: center;">${window.DashboardApp.Helpers.getReservationStatusBadge(t.status)}</td>
-                    <td style="padding: 8px 10px; text-align: center;">${window.DashboardApp.Helpers.getPaymentStatusBadge(t.payment_status)}</td>
+            <div class="audit-table-wrap">
+              <table class="audit-table">
+                <thead>
+                  <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+                    <th style="padding: 8px 10px; text-align: right;">الحجز</th>
+                    <th style="padding: 8px 10px; text-align: right;">النزيل</th>
+                    <th style="padding: 8px 10px; text-align: right;">الغرفة</th>
+                    <th style="padding: 8px 10px; text-align: center;">فترة الإقامة</th>
+                    <th style="padding: 8px 10px; text-align: center;">طريقة الدفع</th>
+                    <th style="padding: 8px 10px; text-align: center;">المدفوع</th>
+                    <th style="padding: 8px 10px; text-align: center;">رصيد التأمين</th>
+                    <th style="padding: 8px 10px; text-align: center;">حالة الحجز</th>
+                    <th style="padding: 8px 10px; text-align: center;">حالة السداد</th>
                   </tr>
-                `;}).join('')}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  ${txs.map(t => {
+                    const checkIn = t.check_in_date || '-';
+                    const checkOut = t.check_out_date || '-';
+                    const isSameDayStay = checkIn !== '-' && checkIn === checkOut;
+                    const stayText = isSameDayStay ? `${escapeHtml(checkIn)} (نفس اليوم)` : `${escapeHtml(checkIn)} &rarr; ${escapeHtml(checkOut)}`;
+                    const isCancelledRow = t.status === 'ملغي';
+                    return `
+                    <tr style="border-bottom: 1px solid #e2e8f0; ${isCancelledRow ? 'background: #fff5f5; opacity: 0.88;' : ''}">
+                      <td style="padding: 8px 10px; font-family: monospace; font-weight: 700;">#${t.id}</td>
+                      <td style="padding: 8px 10px; font-weight: 700;">${escapeHtml(t.guest_name)}</td>
+                      <td style="padding: 8px 10px;">غرفة ${escapeHtml(t.room_number)}</td>
+                      <td style="padding: 8px 10px; text-align: center; font-size: 0.78rem; direction: ltr;">${stayText}</td>
+                      <td style="padding: 8px 10px; text-align: center;">${escapeHtml(t.payment_method || 'نقداً')}</td>
+                      <td style="padding: 8px 10px; text-align: center; font-weight: 700; color: #05963d;">${parseFloat(t.paid_amount || 0).toLocaleString()} ر.س</td>
+                      <td style="padding: 8px 10px; text-align: center; color: #701a75;">${parseFloat(t.deposit_ledger_balance || 0).toLocaleString()} ر.س</td>
+                      <td style="padding: 8px 10px; text-align: center;">${window.DashboardApp.Helpers.getReservationStatusBadge(t.status)}</td>
+                      <td style="padding: 8px 10px; text-align: center;">${window.DashboardApp.Helpers.getPaymentStatusBadge(t.payment_status)}</td>
+                    </tr>
+                  `;}).join('')}
+                </tbody>
+              </table>
+            </div>
           `}
 
           <h4 style="font-size: 0.95rem; font-weight: 800; color: #5b21b6; margin: 8px 0 10px;">حركات التأمين المسجلة خلال الفترة (لا تدخل ضمن المقبوضات)</h4>
           ${depositTxs.length === 0 ? `
             <div style="padding: 12px; background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 8px; color: #6b7280; font-size: .82rem; margin-bottom: 22px;">لا توجد حركات تأمين مسجلة خلال هذه الفترة.</div>
           ` : `
-            <table style="width:100%; border-collapse:collapse; margin-bottom:22px; font-size:.8rem;">
-              <thead><tr style="background:#f5f3ff; border-bottom:2px solid #ddd6fe;">
-                <th style="padding:7px; text-align:right;">وقت الحركة / تاريخ العمل</th><th style="padding:7px; text-align:right;">الحجز / النزيل</th><th style="padding:7px; text-align:center;">الحركة</th><th style="padding:7px; text-align:center;">المبلغ</th><th style="padding:7px; text-align:center;">الطريقة</th><th style="padding:7px; text-align:right;">السبب / الموظف</th>
-              </tr></thead><tbody>
-                ${depositTxs.map(d => {
-                  const labels = { collected: 'استلام', reconciled: 'مطابقة رصيد قديم', refunded: 'رد', applied: 'تسوية على الإقامة', retained: 'احتفاظ' };
-                  return `<tr style="border-bottom:1px solid #ede9fe;"><td style="padding:7px; color:#64748b;"><div style="font-family:monospace;">${escapeHtml(String(d.movement_date || d.created_at || '').slice(0, 16))}</div><small style="display:block; margin-top:3px; color:#1a432a;">تاريخ العمل: ${escapeHtml(d.business_date || '-')}</small></td><td style="padding:7px;">#${d.reservation_id} - ${escapeHtml(d.guest_name)} / غرفة ${escapeHtml(d.room_number)}</td><td style="padding:7px; text-align:center;">${labels[d.movement_type] || escapeHtml(d.movement_type)}</td><td style="padding:7px; text-align:center; font-weight:800;">${Number(d.amount || 0).toLocaleString()} ر.س</td><td style="padding:7px; text-align:center;">${escapeHtml(d.payment_method || 'نقداً')}</td><td style="padding:7px;">${escapeHtml(d.reason || '')}${d.staff_username ? ` - ${escapeHtml(d.staff_username)}` : ''}</td></tr>`;
-                }).join('')}
-              </tbody>
-            </table>
+            <div class="audit-table-wrap">
+              <table class="audit-table">
+                <thead><tr style="background:#f5f3ff; border-bottom:2px solid #ddd6fe;">
+                  <th style="padding:7px; text-align:right;">وقت الحركة / تاريخ العمل</th><th style="padding:7px; text-align:right;">الحجز / النزيل</th><th style="padding:7px; text-align:center;">الحركة</th><th style="padding:7px; text-align:center;">المبلغ</th><th style="padding:7px; text-align:center;">الطريقة</th><th style="padding:7px; text-align:right;">السبب / الموظف</th>
+                </tr></thead><tbody>
+                  ${depositTxs.map(d => {
+                    const labels = { collected: 'استلام', reconciled: 'مطابقة رصيد قديم', refunded: 'رد', applied: 'تسوية على الإقامة', retained: 'احتفاظ' };
+                    return `<tr style="border-bottom:1px solid #ede9fe;"><td style="padding:7px; color:#64748b;"><div style="font-family:monospace;">${escapeHtml(String(d.movement_date || d.created_at || '').slice(0, 16))}</div><small style="display:block; margin-top:3px; color:#1a432a;">تاريخ العمل: ${escapeHtml(d.business_date || '-')}</small></td><td style="padding:7px;">#${d.reservation_id} - ${escapeHtml(d.guest_name)} / غرفة ${escapeHtml(d.room_number)}</td><td style="padding:7px; text-align:center;">${labels[d.movement_type] || escapeHtml(d.movement_type)}</td><td style="padding:7px; text-align:center; font-weight:800;">${Number(d.amount || 0).toLocaleString()} ر.س</td><td style="padding:7px; text-align:center;">${escapeHtml(d.payment_method || 'نقداً')}</td><td style="padding:7px;">${escapeHtml(d.reason || '')}${d.staff_username ? ` - ${escapeHtml(d.staff_username)}` : ''}</td></tr>`;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
           `}
 
           <!-- Sign-off & Audit Closure Signatures -->

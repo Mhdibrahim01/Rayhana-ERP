@@ -2174,7 +2174,12 @@
   max-height: 90vh !important;
 }
 
-#shift-audit-modal > .modal-layout,
+#shift-audit-modal > .modal-layout {
+  width: min(1120px, 96vw) !important;
+  max-width: 1120px !important;
+  max-height: 90vh !important;
+}
+
 #daily-backup-modal > .modal-layout {
   width: min(860px, 94vw) !important;
   max-width: 860px !important;
