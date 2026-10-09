@@ -489,6 +489,9 @@
 
       // 5. Load Today's Check-outs Widget
       await loadTodayCheckouts();
+      if (typeof window.updateAttentionInbox === 'function') {
+        window.updateAttentionInbox();
+      }
     } catch (err) {
       console.error('Error loading overview data:', err);
       App.Helpers.showToast?.('فشل تحميل بيانات لوحة التحكم — تحقق من الاتصال وقم بالتحديث.', 'error');
@@ -751,6 +754,11 @@
       if (res && res.success) {
         const checkouts = res.data || [];
         renderTodayCheckoutsTable(checkouts);
+        if (typeof window.syncAttentionTodayCheckouts === 'function') {
+          window.syncAttentionTodayCheckouts(checkouts);
+        } else if (typeof window.updateAttentionInbox === 'function') {
+          window.updateAttentionInbox();
+        }
       } else {
         console.warn('Could not load today checkouts:', res?.error);
       }

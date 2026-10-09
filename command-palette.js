@@ -57,9 +57,14 @@
     return Array.isArray(localGuestsCache) ? localGuestsCache : [];
   }
 
-  function syncDataFromDb() {
+  function syncDataFromDb(options = {}) {
     if (typeof window === 'undefined' || !window.api) return Promise.resolve();
-    if (syncPromise) return syncPromise;
+    if (syncPromise) {
+      if (options.force) {
+        return syncPromise.then(() => syncDataFromDb({ force: false }));
+      }
+      return syncPromise;
+    }
 
     syncPromise = (async () => {
       try {
@@ -75,26 +80,22 @@
 
         if (roomsRes?.success && Array.isArray(roomsRes.data)) {
           localRoomsCache = roomsRes.data;
-          if (!Array.isArray(App?.State?.roomsCache) || App.State.roomsCache.length === 0) {
-            App.State.roomsCache = roomsRes.data;
-          }
+          if (App?.State) App.State.roomsCache = roomsRes.data;
         }
         if (resRes?.success && Array.isArray(resRes.data)) {
           localReservationsCache = resRes.data;
-          if (!Array.isArray(App?.State?.reservationsCache) || App.State.reservationsCache.length === 0) {
-            App.State.reservationsCache = resRes.data;
-          }
+          if (App?.State) App.State.reservationsCache = resRes.data;
         }
         if (guestsRes?.success && Array.isArray(guestsRes.data)) {
           localGuestsCache = guestsRes.data;
-          if (!Array.isArray(App?.State?.guestsCache) || App.State.guestsCache.length === 0) {
-            App.State.guestsCache = guestsRes.data;
-          }
+          if (App?.State) App.State.guestsCache = guestsRes.data;
         }
         if (checkoutsRes?.success && Array.isArray(checkoutsRes.data)) {
           localTodayCheckouts = checkoutsRes.data;
+          if (App?.State) App.State.todayCheckoutsRows = checkoutsRes.data;
         }
 
+        paletteAttentionCache = null;
         if (typeof updateAttentionInbox === 'function') {
           updateAttentionInbox();
         }
@@ -103,6 +104,9 @@
         }
         if (paletteModal && paletteModal.style.display !== 'none' && paletteInput) {
           handlePaletteSearch(paletteInput.value);
+        }
+        if (attentionModal && attentionModal.style.display && attentionModal.style.display !== 'none') {
+          renderAttentionModalList();
         }
       } catch (err) {
         console.warn('Failed to sync command palette data:', err);
@@ -708,7 +712,14 @@
           rm = rooms.find(r => (roomId && r.id === roomId) || (roomNumber && String(r.room_number) === String(roomNumber)));
         }
         if (rm) {
-          openRoomInquiryModal(rm);
+          const num = rm.room_number || roomNumber;
+          if (paletteInput) {
+            paletteInput.value = `!${num}`;
+            paletteInput.focus();
+            handlePaletteSearch(`!${num}`);
+          } else {
+            switchViewSection('rooms');
+          }
         } else {
           showMissingHelperToast();
         }
@@ -844,7 +855,15 @@
         }
       }
       if (room) {
-        return () => openRoomInquiryModal(room);
+        return () => {
+          if (paletteInput) {
+            paletteInput.value = `!${roomNum}`;
+            paletteInput.focus();
+            handlePaletteSearch(`!${roomNum}`);
+          } else {
+            switchViewSection('rooms');
+          }
+        };
       }
     }
 
@@ -957,17 +976,20 @@
       if (r && r.id != null) resMap.set(Number(r.id), r);
     });
 
-    const checkoutsSources = [
-      ...(Array.isArray(localTodayCheckouts) ? localTodayCheckouts : []),
-      ...(Array.isArray(App?.State?.todayCheckoutsRows) ? App.State.todayCheckoutsRows : [])
-    ];
+    const checkoutsSources = Array.isArray(App?.State?.todayCheckoutsRows)
+      ? App.State.todayCheckoutsRows
+      : (Array.isArray(localTodayCheckouts) ? localTodayCheckouts : []);
+
     checkoutsSources.forEach(r => {
       const id = Number(r.reservation_id ?? r.id);
       if (id) {
         const existing = resMap.get(id);
         if (existing) {
+          if (existing.status === 'مكتمل' || existing.status === 'ملغي') {
+            return;
+          }
           resMap.set(id, { ...existing, ...r });
-        } else {
+        } else if (r.status !== 'مكتمل' && r.status !== 'ملغي') {
           resMap.set(id, r);
         }
       }
@@ -3381,7 +3403,9 @@
         }
       });
 
-      el.addEventListener('click', () => {
+      el.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
         const idx = Number(el.dataset.index);
         if (idx >= 0 && idx < currentItemsList.length) {
           executePaletteItem(currentItemsList[idx]);
@@ -3536,8 +3560,15 @@
       });
     }
 
+    paletteAttentionCache = null;
     renderAttentionModalList();
     attentionModal.style.display = 'flex';
+
+    syncDataFromDb({ force: true }).then(() => {
+      if (attentionModal && attentionModal.style.display && attentionModal.style.display !== 'none') {
+        renderAttentionModalList();
+      }
+    }).catch(() => {});
   }
 
   function closeAttentionInboxModal() {
@@ -3847,6 +3878,11 @@
         });
       });
     }
+
+    // 3. Live Attention Inbox Modal list (if modal is currently open in DOM)
+    if (attentionModal && attentionModal.style.display && attentionModal.style.display !== 'none') {
+      renderAttentionModalList();
+    }
   }
 
   function escapePaletteText(str) {
@@ -3909,6 +3945,12 @@
         setTimeout(updateAttentionInbox, 250);
       });
     });
+
+    // Listen to custom system-wide reservation / room events
+    window.addEventListener('reservation:updated', () => syncDataFromDb({ force: true }));
+    window.addEventListener('reservation:checkout', () => syncDataFromDb({ force: true }));
+    window.addEventListener('reservation:extend', () => syncDataFromDb({ force: true }));
+    window.addEventListener('rooms:updated', () => syncDataFromDb({ force: true }));
   }
 
   // Public APIs
@@ -3917,6 +3959,19 @@
   window.openAttentionInboxModal = openAttentionInboxModal;
   window.closeAttentionInboxModal = closeAttentionInboxModal;
   window.updateAttentionInbox = updateAttentionInbox;
+  window.syncAttentionData = syncDataFromDb;
+  window.syncAttentionTodayCheckouts = function(checkouts) {
+    if (Array.isArray(checkouts)) {
+      localTodayCheckouts = checkouts;
+      if (App?.State) App.State.todayCheckoutsRows = checkouts;
+      paletteAttentionCache = null;
+      updateAttentionInbox();
+    }
+  };
+  if (App?.Helpers) {
+    App.Helpers.updateAttentionInbox = updateAttentionInbox;
+    App.Helpers.syncAttentionData = syncDataFromDb;
+  }
 
   // Helpers for testing / modular usage
   App.CommandPalette = {

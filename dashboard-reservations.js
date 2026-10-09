@@ -790,6 +790,19 @@
 
   function loadOverviewData() { return window.DashboardApp.Helpers.loadOverviewData(); }
   function loadTodayCheckouts() { return window.DashboardApp.Helpers.loadTodayCheckouts(); }
+
+  async function notifyAttentionUpdate(reservationId, type = 'update') {
+    if (typeof window.syncAttentionData === 'function') {
+      try {
+        await window.syncAttentionData({ force: true });
+      } catch (e) {}
+    } else if (typeof window.updateAttentionInbox === 'function') {
+      window.updateAttentionInbox();
+    }
+    if (typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('reservation:updated', { detail: { reservationId, type } }));
+    }
+  }
   // =========================================================================
   // RETURNING GUEST AUTO-FILL SYSTEM (البحث التلقائي عن النزلاء السابقين)
   // =========================================================================
@@ -3048,9 +3061,18 @@
         if (isContract) Object.assign(payload, getDepositCheckoutPayload());
         const res = await window.api.checkoutReservation(resId, payload);
         if (res.success) {
+          const numResId = Number(resId);
+          if (Array.isArray(window.DashboardApp?.State?.reservationsCache)) {
+            const cached = window.DashboardApp.State.reservationsCache.find(r => Number(r.id) === numResId);
+            if (cached) cached.status = 'مكتمل';
+          }
+          if (Array.isArray(window.DashboardApp?.State?.todayCheckoutsRows)) {
+            window.DashboardApp.State.todayCheckoutsRows = window.DashboardApp.State.todayCheckoutsRows.filter(r => Number(r.reservation_id ?? r.id) !== numResId);
+          }
           showToast(`تم تسجيل مغادرة الحجز #${resId} بنجاح وترحيل الحساب.`, 'success');
           closeContractSettleModal();
           await Promise.all([loadOverviewData(), loadReservationsData(), loadRoomsData(), loadTodayCheckouts()]);
+          await notifyAttentionUpdate(resId, 'checkout');
         } else {
           showToast(res.error || 'فشل تسجيل المغادرة.', 'error');
         }
@@ -3168,9 +3190,18 @@
         if (btnConfirmSettleCheckout) { btnConfirmSettleCheckout.disabled = true; btnConfirmSettleCheckout.textContent = 'جاري التصفية...'; }
         const res = await window.api.checkoutReservation(resId, payload);
         if (res.success) {
+          const numResId = Number(resId);
+          if (Array.isArray(window.DashboardApp?.State?.reservationsCache)) {
+            const cached = window.DashboardApp.State.reservationsCache.find(r => Number(r.id) === numResId);
+            if (cached) cached.status = 'مكتمل';
+          }
+          if (Array.isArray(window.DashboardApp?.State?.todayCheckoutsRows)) {
+            window.DashboardApp.State.todayCheckoutsRows = window.DashboardApp.State.todayCheckoutsRows.filter(r => Number(r.reservation_id ?? r.id) !== numResId);
+          }
           showToast(`تمت تصفية حساب الحجز #${resId} وتسجيل المغادرة بنجاح!`, 'success');
           closeContractSettleModal();
           await Promise.all([loadOverviewData(), loadReservationsData(), loadRoomsData(), loadTodayCheckouts()]);
+          await notifyAttentionUpdate(resId, 'checkout');
           setTimeout(() => { if (typeof openInvoiceModal === 'function') openInvoiceModal(resId); }, 350);
         } else {
           showToast(res.error || 'فشل تسجيل المغادرة وتصفية الحساب.', 'error');
@@ -3484,6 +3515,18 @@
         });
 
         if (res && res.success) {
+          const numResId = Number(currentExtendingReservation.id);
+          if (Array.isArray(window.DashboardApp?.State?.reservationsCache)) {
+            const cached = window.DashboardApp.State.reservationsCache.find(r => Number(r.id) === numResId);
+            if (cached) {
+              cached.check_out_date = newDate;
+              if (res.reservation?.total_price != null) cached.total_price = res.reservation.total_price;
+              if (res.reservation?.paid_amount != null) cached.paid_amount = res.reservation.paid_amount;
+            }
+          }
+          if (Array.isArray(window.DashboardApp?.State?.todayCheckoutsRows)) {
+            window.DashboardApp.State.todayCheckoutsRows = window.DashboardApp.State.todayCheckoutsRows.filter(r => Number(r.reservation_id ?? r.id) !== numResId);
+          }
           const receiptInfo = res.receiptNumber ? ` (سند قبض رقم: ${res.receiptNumber})` : '';
           const settleInfo = settle > 0 ? ` وتم تحصيل ${settle.toLocaleString()} ريال` : ' (مسجلة ذمة مستحقة)';
           const discountInfo = discount > 0 ? ` [خصم: ${discount.toLocaleString()} ريال]` : '';
@@ -3496,6 +3539,7 @@
             loadOverviewData(),
             typeof loadTodayCheckouts === 'function' ? loadTodayCheckouts() : Promise.resolve()
           ]);
+          await notifyAttentionUpdate(numResId, 'extend');
         } else {
           showToast(res?.error || 'فشل تمديد الحجز.', 'error');
         }
@@ -3734,8 +3778,17 @@
             try {
               const res = await window.api.checkoutReservation(id, { settleMode: 'defer' });
               if (res.success) {
+                const numResId = Number(id);
+                if (Array.isArray(window.DashboardApp?.State?.reservationsCache)) {
+                  const cached = window.DashboardApp.State.reservationsCache.find(r => Number(r.id) === numResId);
+                  if (cached) cached.status = 'مكتمل';
+                }
+                if (Array.isArray(window.DashboardApp?.State?.todayCheckoutsRows)) {
+                  window.DashboardApp.State.todayCheckoutsRows = window.DashboardApp.State.todayCheckoutsRows.filter(r => Number(r.reservation_id ?? r.id) !== numResId);
+                }
                 showToast(`تم تسجيل خروج الحجز #${id} بنجاح.`, 'success');
                 await Promise.all([loadOverviewData(), loadReservationsData(), loadRoomsData(), loadTodayCheckouts()]);
+                await notifyAttentionUpdate(id, 'checkout');
                 setTimeout(() => { if (typeof openInvoiceModal === 'function') openInvoiceModal(id); }, 350);
               } else {
                 showToast(res.error || 'فشل تسجيل الخروج.', 'error');
@@ -3791,9 +3844,18 @@
       try {
         const res = await window.api.cancelReservation(cancelPayload);
         if (res && res.success) {
+          const numResId = Number(id);
+          if (Array.isArray(window.DashboardApp?.State?.reservationsCache)) {
+            const cached = window.DashboardApp.State.reservationsCache.find(r => Number(r.id) === numResId);
+            if (cached) cached.status = 'ملغي';
+          }
+          if (Array.isArray(window.DashboardApp?.State?.todayCheckoutsRows)) {
+            window.DashboardApp.State.todayCheckoutsRows = window.DashboardApp.State.todayCheckoutsRows.filter(r => Number(r.reservation_id ?? r.id) !== numResId);
+          }
           await loadOverviewData();
           await loadReservationsData();
           await loadRoomsData();
+          await notifyAttentionUpdate(id, 'cancel');
 
           let summaryMsg = '';
           if (res.proRatedCharge > 0 || res.hasStarted) {
