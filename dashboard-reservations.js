@@ -245,7 +245,7 @@
         if (rm && rm.price_per_night) nightlyRate = Number(rm.price_per_night);
       }
 
-      const todayStr = getLocalDateString();
+      const todayStr = getOperationalBusinessDate() || getLocalDateString();
       const checkInDate = targetRes.check_in_date || todayStr;
       const activeRole = localStorage.getItem('currentUserRole') || (App.State.currentUser ? App.State.currentUser.role : null);
       const isAdmin = activeRole === 'Admin';
@@ -1478,10 +1478,10 @@
     // once to avoid hundreds of costly individual DOM reflows (layout thrashing).
     const rowsHtml = filtered.map(r => {
       const isConfirmed = r.status === 'مؤكد';
-      const hotelBizDate = getOperationalBusinessDate();
-      const isArrivalDate = r.check_in_date ? (r.check_in_date >= getLocalDateString() || r.check_in_date === hotelBizDate) : false;
+      const hotelBizDate = getOperationalBusinessDate() || getLocalDateString();
+      const isArrivalDate = r.check_in_date ? (r.check_in_date >= hotelBizDate) : false;
       const hasStarted = r.check_in_date ? !isArrivalDate : false;
-      const canCheckOut = isConfirmed && (getLocalDateString() >= r.check_in_date);
+      const canCheckOut = isConfirmed && (hotelBizDate >= r.check_in_date);
       const canCancel = isConfirmed && !hasStarted;
       const isContract = r.booking_type === 'عقد مفتوح';
       const isLateCheckout = App.Helpers.isLateCheckout(r);
@@ -1622,7 +1622,7 @@
                 </button>
               ` : ''}
               ${isConfirmed && canCancel ? `
-                <button type="button" class="btn-row checkout-danger checkout-row-action" data-action="cancel" data-id="${r.id}" title="${r.check_in_date === getLocalDateString() ? 'إبطال / إلغاء الحجز المباشر' : 'إلغاء الحجز'}" aria-label="إلغاء الحجز">
+                <button type="button" class="btn-row checkout-danger checkout-row-action" data-action="cancel" data-id="${r.id}" title="${r.check_in_date === (hotelBizDate || getLocalDateString()) ? 'إبطال / إلغاء الحجز المباشر' : 'إلغاء الحجز'}" aria-label="إلغاء الحجز">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m5.6 5.6 12.8 12.8"></path></svg>
                 </button>
               ` : ''}
@@ -2290,7 +2290,7 @@
     currentSettlingReservation = res;
     currentSettlementPreview = null;
 
-    const todayStr = getLocalDateString();
+    const todayStr = getOperationalBusinessDate() || getLocalDateString();
     const isContract = res.booking_type === 'عقد مفتوح';
     const paidSoFar = roundMoney(res.paid_amount || 0);
     currentDepositAvailable = Math.max(0, parseFloat(res.deposit_ledger_balance || 0) || 0);
@@ -3356,9 +3356,8 @@
         } catch (e) {}
       }
 
-      const todayStr = getLocalDateString();
-      const hotelBizDate = getOperationalBusinessDate();
-      const isArrivalDate = targetRes && targetRes.check_in_date ? (targetRes.check_in_date >= todayStr || targetRes.check_in_date === hotelBizDate) : false;
+      const hotelBizDate = getOperationalBusinessDate() || getLocalDateString();
+      const isArrivalDate = targetRes && targetRes.check_in_date ? (targetRes.check_in_date >= hotelBizDate) : false;
       const hasStarted = targetRes && targetRes.check_in_date ? !isArrivalDate : false;
       if (hasStarted) {
         showToast('الإقامة بدأت بالفعل في تاريخ سابق. استخدم تسجيل الخروج لتصفية الحساب.', 'error');
@@ -3367,7 +3366,7 @@
 
       let cancelPayload = { reservationId: id };
 
-      const isSameDay = targetRes && (targetRes.check_in_date === todayStr || targetRes.check_in_date === hotelBizDate);
+      const isSameDay = targetRes && (targetRes.check_in_date === hotelBizDate);
       const dialogTitle = isSameDay ? 'إبطال / إلغاء حجز اليوم' : 'إلغاء حجز قبل الوصول';
       const dialogMessage = isSameDay
         ? `هل أنت متأكد من إلغاء / إبطال الحجز المباشر #${id} للنزيل (${targetRes?.guest_name || 'نزيل'})؟\n(سيتم إلغاء الحجز فوراً، وإعادة أي مبالغ مدفوعة للنزيل، وإعادة الغرفة لحالة "متاحة").`

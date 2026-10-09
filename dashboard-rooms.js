@@ -66,7 +66,7 @@
 
   function renderRoomsGrid() {
     const searchTerm = currentRoomSearch.trim().toLowerCase();
-    const today = App.Helpers.getLocalDateString();
+    const today = String(App.State.businessDate || App.Helpers.getLocalDateString());
     const futureReservationByRoom = new Map();
 
     // Index each room's nearest future confirmed reservation once per render,

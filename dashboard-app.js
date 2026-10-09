@@ -3,6 +3,7 @@ window.DashboardApp = {
     testVar: 0,
     currentUser: null,
     businessDate: null,
+    hotelTimezone: 'Asia/Riyadh',
     roomsCache: [],
     guestsCache: [],
     usersCache: [],
@@ -41,12 +42,31 @@ window.DashboardApp = {
     return getLocalDateString(date);
   }
 
+  function getHotelTimezone() {
+    return App.State.hotelTimezone || 'Asia/Riyadh';
+  }
+
+  function formatHotelDateTime(dateOrString) {
+    if (!dateOrString) return '-';
+    const tz = getHotelTimezone();
+    const d = typeof dateOrString === 'string' ? parseStoredTimestamp(dateOrString) : dateOrString;
+    if (!d || Number.isNaN(d.getTime())) return '-';
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hourCycle: 'h23'
+    }).formatToParts(d);
+    const p = Object.fromEntries(parts.filter(x => x.type !== 'literal').map(x => [x.type, x.value]));
+    return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
+  }
+
   function isLateCheckout(reservation) {
     if (!reservation || reservation.status !== 'مؤكد') return false;
     const checkOutDate = String(reservation.check_out_date || '').slice(0, 10);
     if (!checkOutDate || checkOutDate === 'مفتوح') return false;
 
-    const todayStr = getLocalDateString();
+    const todayStr = String(App.State.businessDate || getLocalDateString());
     if (checkOutDate < todayStr) return true;
     if (checkOutDate > todayStr) return false;
 
@@ -54,7 +74,7 @@ window.DashboardApp = {
     const cutoffHour = (reservation.booking_type === 'استخدام يومي' || Number(reservation.late_checkout_fee || 0) > 0) ? 18 : 14;
     let hotelHour;
     try {
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      const tz = getHotelTimezone();
       const parts = new Intl.DateTimeFormat('en-CA', {
         timeZone: tz, hour: '2-digit', hourCycle: 'h23'
       }).formatToParts(new Date());
@@ -211,11 +231,14 @@ window.DashboardApp = {
     try {
       const d = parseStoredTimestamp(isoString);
       if (!d) return isoString;
+      const tz = getHotelTimezone();
       return d.toLocaleDateString('ar-EG', {
+        timeZone: tz,
         year: 'numeric',
         month: 'short',
         day: 'numeric'
       }) + ' ' + d.toLocaleTimeString('ar-EG', {
+        timeZone: tz,
         hour: '2-digit',
         minute: '2-digit'
       });
@@ -246,6 +269,8 @@ window.DashboardApp = {
   App.Helpers.getLocalDateString = getLocalDateString;
   App.Helpers.getHotelBusinessDate = getHotelBusinessDate;
   window.getHotelBusinessDate = getHotelBusinessDate;
+  App.Helpers.getHotelTimezone = getHotelTimezone;
+  App.Helpers.formatHotelDateTime = formatHotelDateTime;
   App.Helpers.isLateCheckout = isLateCheckout;
   App.Helpers.getExpectedCheckoutTime = getExpectedCheckoutTime;
   App.Helpers.isReservationOverdue = isReservationOverdue;

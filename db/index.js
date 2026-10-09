@@ -20,6 +20,8 @@ module.exports = {
   getHotelBusinessDate: connection.getHotelBusinessDate,
   getCurrentBusinessDate: connection.getCurrentBusinessDate,
   getCurrentBusinessState: connection.getCurrentBusinessState,
+  getHotelTimezone: connection.getHotelTimezone,
+  formatHotelDateTime: connection.formatHotelDateTime,
   getBusinessDaySettings: connection.getBusinessDaySettings,
   updateBusinessDaySettings: connection.updateBusinessDaySettings,
   getReceiptStayPolicies: connection.getReceiptStayPolicies,

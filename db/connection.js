@@ -311,7 +311,7 @@ async function init(dbPath) {
 
     const defaultSettings = [
       ['business_day_cutoff_time', '06:00'],
-      ['hotel_timezone', Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'],
+      ['hotel_timezone', 'Asia/Riyadh'],
       ['auto_rollover_enabled', 'true']
     ];
     for (const [key, value] of defaultSettings) {
@@ -664,9 +664,27 @@ function getBusinessDaySettings() {
   const values = Object.fromEntries(rows.map(row => [row.setting_key, row.setting_value]));
   return {
     business_day_cutoff_time: values.business_day_cutoff_time || '06:00',
-    hotel_timezone: values.hotel_timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+    hotel_timezone: values.hotel_timezone || 'Asia/Riyadh',
     auto_rollover_enabled: values.auto_rollover_enabled !== 'false'
   };
+}
+
+function getHotelTimezone() {
+  return getBusinessDaySettings().hotel_timezone || 'Asia/Riyadh';
+}
+
+function formatHotelDateTime(d = new Date()) {
+  const tz = getHotelTimezone();
+  const dateObj = typeof d === 'string' ? new Date(d) : d;
+  if (!dateObj || Number.isNaN(dateObj.getTime())) return '-';
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(dateObj);
+  const p = Object.fromEntries(parts.filter(x => x.type !== 'literal').map(x => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
 }
 
 function updateBusinessDaySettings(input = {}) {
@@ -839,6 +857,8 @@ module.exports = {
   getHotelBusinessDate,
   getCurrentBusinessState,
   getCurrentBusinessDate,
+  getHotelTimezone,
+  formatHotelDateTime,
   getBusinessDaySettings,
   updateBusinessDaySettings,
   getReceiptStayPolicies,

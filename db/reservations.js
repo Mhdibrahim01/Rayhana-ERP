@@ -4,7 +4,7 @@
  */
 
 const connection = require('./connection');
-const { db, queryOne, queryAll, saveToFile, roundMoney, getLocalDateString } = connection;
+const { db, queryOne, queryAll, saveToFile, roundMoney, getLocalDateString, getCurrentBusinessDate, getHotelTimezone, formatHotelDateTime } = connection;
 
 function getDepositLedger(reservationId) {
   const row = queryOne(`
@@ -538,7 +538,7 @@ function createReservation({
     // Dynamic Room Status Evaluation:
     // Only mark room as 'مشغولة' if CURRENT_DATE >= check_in_date AND CURRENT_DATE < effectiveNewCheckout.
     // If check_in_date is in the future, mark as 'محجوزة' (unless it is already occupied today by another guest).
-    const todayStr = connection.getCurrentBusinessDate();
+    const todayStr = getCurrentBusinessDate();
     let assignedRoomStatus = 'متاحة';
     const currentRoom = queryOne("SELECT status FROM rooms WHERE id = ?", [parsedRoomId]);
 
@@ -732,7 +732,7 @@ function computeCheckoutSettlement(reservationId, {
   }
 
   const isOpenContract = res.booking_type === 'عقد مفتوح';
-  const todayStr = getLocalDateString();
+  const todayStr = getCurrentBusinessDate();
   if (todayStr < res.check_in_date) {
     throw new Error('لم تبدأ الإقامة بعد. استخدم إلغاء الحجز بدلاً من تسجيل الخروج.');
   }
@@ -906,7 +906,8 @@ function checkoutReservation(reservationId, {
     throw new Error('الحجز مغلق بالفعل ولا يمكن تسجيل مغادرة جديدة له.');
   }
 
-  if (getLocalDateString() < res.check_in_date) {
+  const todayStr = getCurrentBusinessDate();
+  if (todayStr < res.check_in_date) {
     throw new Error('لم تبدأ الإقامة بعد. استخدم إلغاء الحجز بدلاً من تسجيل الخروج.');
   }
 
@@ -950,7 +951,6 @@ function checkoutReservation(reservationId, {
   }
 
   // Compute net charge from actual stay (backend-authoritative)
-  const todayStr = getLocalDateString();
   const d1 = new Date(res.check_in_date + 'T00:00:00');
   const d2 = new Date(todayStr + 'T00:00:00');
   const diffDays = Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
@@ -1544,14 +1544,13 @@ function cancelReservation(reservationId, actualDepartureDate = null, manualOver
   `, [targetId]);
   if (!res) throw new Error('الحجز غير موجود.');
 
-  const today = getLocalDateString();
+  const today = getCurrentBusinessDate();
   if (['مكتمل', 'ملغي', 'ملغي جزئي'].includes(res.status)) {
     throw new Error('الحجز مغلق بالفعل ولا يمكن إلغاؤه.');
   }
   // Cancellation / Void is allowed before arrival or on the arrival date (immediate void of walk-in/same-day booking).
   // Once arrival day has passed (guest stayed overnight), use the checkout settlement flow so the stay keeps one lifecycle.
-  const hotelBizDate = connection.getCurrentBusinessDate();
-  const isArrivalDate = res.check_in_date >= hotelBizDate;
+  const isArrivalDate = res.check_in_date >= today;
   const hasStarted = !isArrivalDate;
   if (hasStarted) {
     throw new Error('الإقامة بدأت بالفعل. استخدم تسجيل الخروج لتصفية الحساب بدلاً من إلغاء الحجز.');
@@ -1768,7 +1767,7 @@ function addPaymentToReservation({ reservationId, amount, paymentMethod = 'نق�
   const currentPaid = roundMoney(hasLedger ? Number(res.ledger_paid_amount) : (res.paid_amount || 0));
   const totalPrice = roundMoney(res.total_price || 0);
   const isContract = res.booking_type === 'عقد مفتوح';
-  const todayStr = connection.getCurrentBusinessDate ? connection.getCurrentBusinessDate() : getLocalDateString();
+  const todayStr = getCurrentBusinessDate();
   const isOverdue = res.status === 'مؤكد' && !isContract && res.check_out_date && res.check_out_date < todayStr;
   let effectiveTotalPrice = totalPrice;
   if ((isOverdue || (isContract && res.status === 'مؤكد')) && res.check_in_date) {

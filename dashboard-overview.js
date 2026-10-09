@@ -79,7 +79,7 @@
     const capacity = Math.max(0, Number(totalCapacity) || 0);
     if (capacity === 0) return [];
 
-    const today = App.Helpers.getLocalDateString();
+    const today = String(App.State.businessDate || App.Helpers.getLocalDateString());
     const [year, month, day] = today.split('-').map(Number);
     const startDate = new Date(year, month - 1, day);
     const confirmedReservations = (reservations || []).filter(reservation => reservation.status === 'مؤكد');
@@ -334,7 +334,7 @@
   }
 
   function renderExecutiveSummaryKpis(stats, reservations, rooms, shiftSummary) {
-    const today = App.Helpers.getLocalDateString();
+    const today = String(App.State.businessDate || App.Helpers.getLocalDateString());
     const confirmedReservations = (reservations || []).filter(reservation => reservation.status === 'مؤكد');
     const checkInsToday = confirmedReservations.filter(reservation => String(reservation.check_in_date || '').slice(0, 10) === today).length;
     const checkoutsToday = confirmedReservations.filter(reservation => String(reservation.check_out_date || '').slice(0, 10) === today);
@@ -504,7 +504,7 @@
     }
     App.DOM.overviewEmpty.style.display = 'none';
     const e = App.Helpers.escapeHtml;
-    const today = App.Helpers.getLocalDateString();
+    const today = String(App.State.businessDate || App.Helpers.getLocalDateString());
     const icons = {
       preview: '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"></path><circle cx="12" cy="12" r="3"></circle></svg>',
       checkout: '<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>',
@@ -725,7 +725,7 @@
   }
 
   function getCheckoutDelayLabel(checkOutDate) {
-    const today = App.Helpers.getLocalDateString();
+    const today = String(App.State.businessDate || App.Helpers.getLocalDateString());
     const dueDate = String(checkOutDate || '').slice(0, 10);
     const diffDays = Math.max(0, Math.floor((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${dueDate}T00:00:00Z`)) / 86400000));
     if (diffDays === 0) return 'متأخر اليوم';
@@ -740,7 +740,7 @@
   // =========================================================================
   async function loadTodayCheckouts() {
     try {
-      const todayStr = App.Helpers.getLocalDateString();
+      const todayStr = String(App.State.businessDate || App.Helpers.getLocalDateString());
       if (App.DOM.todayDateBadge) {
         App.DOM.todayDateBadge.textContent = todayStr;
       }
@@ -811,7 +811,7 @@
     const visibleReservationIds = new Set(latestRoomRows.map(row => String(row.reservation_id ?? row.id)));
     const overdueRows = latestFirst.filter(row =>
       row.status === 'مؤكد' &&
-      String(row.check_out_date || '').slice(0, 10) < App.Helpers.getLocalDateString() &&
+      String(row.check_out_date || '').slice(0, 10) < String(App.State.businessDate || App.Helpers.getLocalDateString()) &&
       !visibleReservationIds.has(String(row.reservation_id ?? row.id))
     );
     checkouts = [...latestRoomRows, ...overdueRows].sort((a, b) => {
@@ -1023,7 +1023,7 @@
       : dailyRate;
     const checkIn = roomDetailsDate(r.check_in_date);
     const checkout = roomDetailsDate(r.check_out_date);
-    const today = App.Helpers.getLocalDateString();
+    const today = String(App.State.businessDate || App.Helpers.getLocalDateString());
     const isOverdue = r.status === 'مؤكد' && !isOpenContract && /^\d{4}-\d{2}-\d{2}$/.test(checkout) && checkout < today;
     const elapsedNights = (isOpenContract || isOverdue) && /^\d{4}-\d{2}-\d{2}$/.test(checkIn) && checkIn <= today
       ? Math.max(1, Math.floor((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${checkIn}T00:00:00Z`)) / 86400000))

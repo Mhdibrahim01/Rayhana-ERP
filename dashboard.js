@@ -323,6 +323,9 @@
       
       // Calculate next rollover time and show in title
       const settings = await window.api.getBusinessDaySettings();
+      if (settings?.data?.hotel_timezone) {
+        window.DashboardApp.State.hotelTimezone = settings.data.hotel_timezone;
+      }
       const cutoffTime = settings?.data?.business_day_cutoff_time || '06:00';
       const autoRollover = settings?.data?.auto_rollover_enabled !== false;
       
@@ -344,10 +347,18 @@
   function roundMoney(val) { return window.DashboardApp.Helpers.roundMoney(val); }
 
   // Set default dates
-  const today = new Date();
-  const tomorrow = new Date(Date.now() + 86400000);
-  checkInInput.value = getLocalDateString(today);
-  checkOutInput.value = getLocalDateString(tomorrow);
+  const currentBizDate = window.DashboardApp?.State?.businessDate;
+  if (currentBizDate) {
+    checkInInput.value = currentBizDate;
+    const [by, bm, bd] = currentBizDate.split('-').map(Number);
+    const nextBizDate = new Date(by, bm - 1, bd + 1);
+    checkOutInput.value = getLocalDateString(nextBizDate);
+  } else {
+    const today = new Date();
+    const tomorrow = new Date(Date.now() + 86400000);
+    checkInInput.value = getLocalDateString(today);
+    checkOutInput.value = getLocalDateString(tomorrow);
+  }
 
   // --- TOAST NOTIFICATIONS ---
   function showToast(message, type = "info") { return window.DashboardApp.Helpers.showToast(message, type); }
@@ -773,27 +784,39 @@
       const formatReceiptDateTime = value => {
         const normalizedValue = receiptDigits(value).trim();
         if (!normalizedValue) return '-';
-        const hasTime = /(\d{1,2}:\d{2})/.test(normalizedValue);
-        if (hasTime) {
-          const parsed = window.DashboardApp?.Helpers?.parseStoredTimestamp
-            ? window.DashboardApp.Helpers.parseStoredTimestamp(normalizedValue)
-            : null;
-          if (parsed && !Number.isNaN(parsed.getTime())) {
-            const y = parsed.getFullYear();
-            const m = String(parsed.getMonth() + 1).padStart(2, '0');
-            const d = String(parsed.getDate()).padStart(2, '0');
-            const hh = String(parsed.getHours()).padStart(2, '0');
-            const mm = String(parsed.getMinutes()).padStart(2, '0');
-            return `${y}-${m}-${d} ${hh}:${mm}`;
+        const parsed = window.DashboardApp?.Helpers?.parseStoredTimestamp
+          ? window.DashboardApp.Helpers.parseStoredTimestamp(normalizedValue)
+          : null;
+        if (parsed && !Number.isNaN(parsed.getTime())) {
+          if (window.DashboardApp?.Helpers?.formatHotelDateTime) {
+            const formatted = window.DashboardApp.Helpers.formatHotelDateTime(parsed);
+            if (formatted && formatted !== '-') return formatted.slice(0, 16);
           }
+          const tz = window.DashboardApp?.Helpers?.getHotelTimezone ? window.DashboardApp.Helpers.getHotelTimezone() : 'Asia/Riyadh';
+          const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone: tz,
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit',
+            hourCycle: 'h23'
+          }).formatToParts(parsed);
+          const p = Object.fromEntries(parts.filter(x => x.type !== 'literal').map(x => [x.type, x.value]));
+          return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;
         }
         const raw = String(normalizedValue || '');
         const date = formatReceiptDate(raw);
         const time = formatReceiptTime(raw.replace('T', ' '));
         return time === '-' ? date : `${date} ${time}`;
       };
-      const printDate = `${issuedAt.getFullYear()}-${String(issuedAt.getMonth() + 1).padStart(2, '0')}-${String(issuedAt.getDate()).padStart(2, '0')}`;
-      const printTime = `${String(issuedAt.getHours()).padStart(2, '0')}:${String(issuedAt.getMinutes()).padStart(2, '0')}`;
+      const tz = window.DashboardApp?.Helpers?.getHotelTimezone ? window.DashboardApp.Helpers.getHotelTimezone() : 'Asia/Riyadh';
+      const printParts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: tz,
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit',
+        hourCycle: 'h23'
+      }).formatToParts(issuedAt);
+      const pp = Object.fromEntries(printParts.filter(x => x.type !== 'literal').map(x => [x.type, x.value]));
+      const printDate = `${pp.year}-${pp.month}-${pp.day}`;
+      const printTime = `${pp.hour}:${pp.minute}`;
       const checkInReceiptDate = formatReceiptDate(inv.check_in_date);
       const receiptScheduledCheckoutDate = isContractPolicy && inv.booked_check_out_date
         ? inv.booked_check_out_date
@@ -1309,7 +1332,11 @@
       const payments = rep.payments || [];
       const txs = rep.transactions || [];
       const depositTxs = rep.depositMovements || [];
-      const printTime = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+      const printTime = new Date().toLocaleTimeString('ar-EG', {
+        timeZone: window.DashboardApp?.Helpers?.getHotelTimezone ? window.DashboardApp.Helpers.getHotelTimezone() : 'Asia/Riyadh',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
       const isMultiDay = Boolean(rep.isRange || (rep.startDate && rep.endDate && rep.startDate !== rep.endDate));
       const periodLabel = formatArabicDateRange(rep.startDate, rep.endDate);
 
