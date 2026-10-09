@@ -89,6 +89,7 @@
       "hotkeys.js",
       "design-tokens.css",
       "styles.css",
+      "css/**/*",
       "assets/**/*",
       "node_modules/**/*"
     ]
