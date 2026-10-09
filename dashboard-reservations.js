@@ -1363,7 +1363,7 @@
     }).formatToParts(new Date());
     const p = Object.fromEntries(parts.filter(x => x.type !== 'literal').map(x => [x.type, x.value]));
     const currentHour = Number(p.hour);
-    const isEarlyMorning = currentHour < 6;
+    const isEarlyMorning = currentHour < 6 || Boolean(window.__SIMULATE_EARLY_CHECKIN__);
 
     if (earlyCheckinContainer) {
       if (isEarlyMorning) {
@@ -3845,4 +3845,9 @@
   App.Helpers.findLoadedReservation = findLoadedReservation;
   App.Helpers.updateMinimumCheckoutDate = updateMinimumCheckoutDate;
   App.Helpers.handleBookingTypeChange = handleBookingTypeChange;
+
+  window.simulateEarlyCheckin = function(enable = true, roomId = null) {
+    window.__SIMULATE_EARLY_CHECKIN__ = Boolean(enable);
+    openNewReservationModal(roomId);
+  };
 })(window.DashboardApp);
