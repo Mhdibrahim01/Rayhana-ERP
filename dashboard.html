@@ -1430,6 +1430,15 @@
             <span id="check-out-day-use-hint" style="display: none;">استخدام يومي: المغادرة في نفس اليوم، والموعد المعتاد الساعة 2 ظهرًا.</span>
             <span id="check-out-open-hint" style="display: none;">عقد مفتوح: لا يتطلب تحديد موعد خروج</span>
           </div>
+          <div id="early-checkin-container" style="display: none; margin-top: 12px; padding: 10px 14px; background: #fefce8; border: 1.5px solid #fde047; border-radius: 10px;">
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: #854d0e; cursor: pointer; margin: 0; font-size: 0.88rem;">
+              <input type="checkbox" id="is-early-checkin-checkbox" checked style="width: 17px; height: 17px; accent-color: #ca8a04; cursor: pointer;">
+              <span>احتساب ليلة سابقة (دخول فجر مبكر)</span>
+            </label>
+            <small style="display: block; color: #a16207; margin-top: 4px; font-size: 0.77rem; line-height: 1.45;">
+              الدخول في ساعات الفجر الأولى (قبل 06:00 ص): تُحسب ليلة البارحة في الفاتورة مع إظهار تاريخ اليوم الفعلي للنزيل. أزل التحديد في حال وجود استثناء معتمد.
+            </small>
+          </div>
           </section>
 
           <!-- Flexible Pricing: Custom Nightly Rate & Discount -->
@@ -2127,17 +2136,24 @@
         <!-- 4. Post-Midnight Business Day -->
         <section id="man-sec-night" class="manual-section" style="margin-bottom: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
           <h2 style="color: #1a432a; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
-            <span>🌙</span> 4. اليوم التشغيلي الفندقي لما بعد منتصف الليل
+            <span>🌙</span> 4. اليوم التشغيلي الفندقي لما بعد منتصف الليل ودخول الفجر المبكر
           </h2>
           <div style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 12px; padding: 16px 20px;">
-            <p style="margin: 0 0 10px; font-weight: 700; color: #1e40af;">كيف يتعامل النظام مع النزلاء الواصلين في ساعات الفجر المتأخرة؟</p>
+            <p style="margin: 0 0 10px; font-weight: 700; color: #1e40af;">كيف يتعامل النظام مع النزلاء الواصلين في ساعات الفجر الأولى (قبل 06:00 ص)؟</p>
             <p style="margin: 0; font-size: 0.9rem; color: #1e3a8a;">
-              فندقياً، تستمر الليلة الفندقية حتى موعد الخروج الساعة 14:00 ظهراً. إذا وصل نزيل بين الساعة <strong>12:00 منتصف الليل وحتى 06:00 صباحاً</strong>، يقوم النظام تلقائياً بـ:
+              فندقياً، تستمر الليلة الفندقية حتى وقت قطع اليوم الفندقي والتدقيق الليلي (المحدد افتراضياً بالساعة <strong>06:00 صباحاً</strong>). إذا وصل نزيل بين الساعة <strong>12:00 منتصف الليل وحتى 06:00 صباحاً</strong>:
             </p>
-            <ul style="margin: 8px 0 0 20px; font-size: 0.88rem; color: #1e3a8a;">
-              <li>اعتبار تاريخ الوصول تابعاً لليلة التشغيلية المستمرة، وتاريخ المغادرة ظهر اليوم (الساعة 14:00).</li>
-              <li>تحويل حالة الغرفة فوراً إلى <strong>"مشغولة 🔴"</strong> (وليس متاحة) حتى لو كانت مغادرته اليوم.</li>
-              <li>حساب تكلفة ليلة مبيت كاملة نظامياً.</li>
+            <ul style="margin: 8px 0 0 20px; font-size: 0.88rem; color: #1e3a8a; line-height: 1.8;">
+              <li><strong>احتساب ليلة البارحة آلياً:</strong> يُحاسب النزيل نظامياً على ليلة مبيت كاملة (ليلة البارحة) لأن الغرفة استُهلكت لتلك الليلة.</li>
+              <li><strong>حالة الغرفة الفورية:</strong> تتحول الغرفة فوراً إلى <strong>"مشغولة 🔴"</strong> وتُمنع من الإتاحة حتى موعد المغادرة.</li>
+              <li><strong>مرونة الاستثناء لموظف الاستقبال (Checkbox):</strong> تظهر في شاشة الحجز خانة اختيار <code>[✓] احتساب ليلة سابقة (دخول فجر مبكر)</code> مفعلة تلقائياً. في حال منح النزيل استثناءً معتمداً (كعميل VIP)، يمكن للموظف إلغاء التحديد ليتم تسكينه على تاريخ اليوم دون محاسبته على ليلة البارحة.</li>
+              <li><strong>عرض التواريخ الحقيقية على الفاتورة:</strong> منعاً لأي لبس مع النزيل أو جهات عمله، تُظهر الفاتورة الرسمية تاريخ الحضور الحقيقي:
+                <ul style="margin: 4px 0 0 18px; color: #1e40af;">
+                  <li><strong>تاريخ الوصول الفعلي:</strong> يُعرض بالتاريخ والوقت الحقيقي للحضور، مثل: <code>2026-10-10 (03:00 ص)</code>.</li>
+                  <li><strong>تاريخ المغادرة الفعلي:</strong> يُعرض بالتاريخ والوقت الحقيقي للمغادرة، مثل: <code>2026-10-10 (01:00 م)</code>.</li>
+                  <li><strong>بيان الإقامة والبنود:</strong> يُوضح الاحتساب بصيغة صريحة: <code>1 ليلة (تشمل مبيت الليلة السابقة - دخول فجر مبكر)</code>.</li>
+                </ul>
+              </li>
             </ul>
           </div>
         </section>
@@ -2215,6 +2231,12 @@
             <div style="flex: 1; min-width: 250px; background: #f0fdf5; border: 1px solid #86efaf; border-radius: 10px; padding: 14px 16px;">
               <strong style="color: #166535;">💬 إرسال عبر واتساب:</strong>
               <p style="margin: 4px 0 0; font-size: 0.85rem; color: #14532c;">بنقرة واحدة على زر "إرسال واتساب"، تُفتح محادثة مباشرة مع النزيل تتضمن رسالة ترحيبية مهذبة وملخص كامل للحجز.</p>
+            </div>
+            <div style="flex: 1 1 100%; background: #eff6ff; border: 1px solid #93c5fd; border-radius: 10px; padding: 14px 16px;">
+              <strong style="color: #1e40af;">🕒 دقة التواريخ الفعلية وحالات دخول الفجر المبكر (Actual Dates):</strong>
+              <p style="margin: 4px 0 0; font-size: 0.85rem; color: #1e3a8a;">
+                تُظهر الفاتورة تاريخ وساعة الحضور والمغادرة الفعليين بالتقويم الحقيقي (مثل: <code>تاريخ الوصول الفعلي: 2026-10-10 (03:00 ص)</code>)، وفي حال تسكين النزيل قبل وقت قطع اليوم الفندقي (06:00 ص) واحتساب ليلة مبيت البارحة، يُوضح بند مدة الإقامة ذلك بشفافية تامة: <code>1 ليلة (تشمل مبيت الليلة السابقة - دخول فجر مبكر)</code> منعاً لأي لبس محاسبي أو نزاع مع النزيل.
+              </p>
             </div>
           </div>
         </section>

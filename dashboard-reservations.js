@@ -14,6 +14,8 @@
   const nightlyRateInput = document.getElementById('nightly-rate-input');
   const discountAmountInput = document.getElementById('discount-amount-input');
   const discountReasonInput = document.getElementById('discount-reason-input');
+  const earlyCheckinContainer = document.getElementById('early-checkin-container');
+  const isEarlyCheckinCheckbox = document.getElementById('is-early-checkin-checkbox');
   const roomDefaultRateBadge = document.getElementById('room-default-rate-badge');
   const priceCalculationBreakdown = document.getElementById('price-calculation-breakdown');
   const totalPriceInput = document.getElementById('total-price');
@@ -1130,7 +1132,8 @@
         monthlyPrice,
         customNightlyPrice,
         discountAmount,
-        discountReason
+        discountReason,
+        isEarlyCheckin: isEarlyCheckinCheckbox ? (isEarlyCheckinCheckbox.checked ? 1 : 0) : null
       });
 
       // Handle soft ban override confirmation
@@ -1160,6 +1163,7 @@
             customNightlyPrice,
             discountAmount,
             discountReason,
+            isEarlyCheckin: isEarlyCheckinCheckbox ? (isEarlyCheckinCheckbox.checked ? 1 : 0) : null,
             overrideBan: true
           });
         } else {
@@ -1348,6 +1352,50 @@
     checkInInput.min = getOperationalBusinessDate();
     checkInInput.value = defaultDates.checkIn;
   }
+
+  // Early morning check-in detection (00:00 to 06:00 cutoff)
+  try {
+    const tz = App.Helpers.getHotelTimezone ? App.Helpers.getHotelTimezone() : 'Asia/Riyadh';
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+    }).formatToParts(new Date());
+    const p = Object.fromEntries(parts.filter(x => x.type !== 'literal').map(x => [x.type, x.value]));
+    const currentHour = Number(p.hour);
+    const isEarlyMorning = currentHour < 6;
+
+    if (earlyCheckinContainer) {
+      if (isEarlyMorning) {
+        earlyCheckinContainer.style.display = 'block';
+        if (isEarlyCheckinCheckbox) isEarlyCheckinCheckbox.checked = true;
+      } else {
+        earlyCheckinContainer.style.display = 'none';
+        if (isEarlyCheckinCheckbox) isEarlyCheckinCheckbox.checked = false;
+      }
+    }
+
+    if (isEarlyCheckinCheckbox && !isEarlyCheckinCheckbox.dataset.bound) {
+      isEarlyCheckinCheckbox.dataset.bound = 'true';
+      isEarlyCheckinCheckbox.addEventListener('change', () => {
+        const calParts = new Intl.DateTimeFormat('en-CA', {
+          timeZone: tz,
+          year: 'numeric', month: '2-digit', day: '2-digit'
+        }).formatToParts(new Date());
+        const cp = Object.fromEntries(calParts.filter(x => x.type !== 'literal').map(x => [x.type, x.value]));
+        const calendarToday = `${cp.year}-${cp.month}-${cp.day}`;
+        const opDate = getOperationalBusinessDate();
+
+        if (!isEarlyCheckinCheckbox.checked) {
+          if (checkInInput) checkInInput.value = calendarToday;
+        } else {
+          if (checkInInput) checkInInput.value = opDate || calendarToday;
+        }
+        updateMinimumCheckoutDate();
+        calculatePrice(false);
+      });
+    }
+  } catch (_) {}
   if (checkOutInput) {
     const bookingType = bookingTypeSelect?.value || 'عادي';
     if (bookingType === 'عقد مفتوح') {
