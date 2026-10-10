@@ -327,7 +327,9 @@ async function init(dbPath) {
       { table: 'night_audits', column: 'payment_net', sql: 'ALTER TABLE night_audits ADD COLUMN payment_net REAL NOT NULL DEFAULT 0' },
       { table: 'night_audits', column: 'deposit_movement_count', sql: 'ALTER TABLE night_audits ADD COLUMN deposit_movement_count INTEGER NOT NULL DEFAULT 0' },
       { table: 'night_audits', column: 'deposit_net', sql: 'ALTER TABLE night_audits ADD COLUMN deposit_net REAL NOT NULL DEFAULT 0' },
-      { table: 'night_audits', column: 'summary_json', sql: "ALTER TABLE night_audits ADD COLUMN summary_json TEXT NOT NULL DEFAULT '{}'" }
+      { table: 'night_audits', column: 'summary_json', sql: "ALTER TABLE night_audits ADD COLUMN summary_json TEXT NOT NULL DEFAULT '{}'" },
+      { table: 'reservation_transfers', column: 'from_rate', sql: 'ALTER TABLE reservation_transfers ADD COLUMN from_rate REAL' },
+      { table: 'reservation_transfers', column: 'transfer_mode', sql: "ALTER TABLE reservation_transfers ADD COLUMN transfer_mode TEXT DEFAULT 'keep_rate'" }
     ];
     for (const migration of migrations) {
       try {

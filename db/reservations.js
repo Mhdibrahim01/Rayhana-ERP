@@ -777,6 +777,127 @@ function isMonthlyEarlyCheckout(res, departureDate) {
 }
 
 /**
+ * Single source of truth for stay segments across historical transfers and the active room.
+ * Read-only helper: queries reservation_transfers and computes per-segment nights and rates.
+ * If total nights across all segments is 0, the active segment is clamped to 1 night
+ * (matching today's Math.max(1, diffDays) behavior).
+ *
+ * @param {object} res - Reservation record (must include room_id)
+ * @param {string} [targetCheckOutDate=null] - Optional cutoff checkout date (e.g. todayStr for actual checkout)
+ * @returns {{ segments: Array, totalNights: number, totalBaseCharge: number, effectiveNightlyRate: number }}
+ */
+function computeStaySegments(res, targetCheckOutDate = null) {
+  if (!res || res.room_id == null) {
+    throw new Error('تعذر احتساب شرائح الإقامة: معرف الغرفة (room_id) مفقود.');
+  }
+
+  const cutoff = targetCheckOutDate || res.check_out_date || getCurrentBusinessDate();
+
+  const pastTransfers = res.id ? queryAll(`
+    SELECT t.id, t.from_room_id, t.to_room_id, t.segment_start_date, t.segment_end_date,
+           t.segment_nights, t.pinned_rate, t.from_rate, t.transfer_mode,
+           rm.room_number AS from_room_number, rm.type AS from_room_type
+    FROM reservation_transfers t
+    LEFT JOIN rooms rm ON t.from_room_id = rm.id
+    WHERE t.reservation_id = ?
+    ORDER BY t.id ASC
+  `, [res.id]) : [];
+
+  const segments = [];
+  let totalNights = 0;
+  let totalBaseCharge = 0;
+  let lastCoveredDate = res.check_in_date;
+
+  for (const t of pastTransfers) {
+    // If past segment starts at or after cutoff, drop it
+    if (cutoff && t.segment_start_date >= cutoff) {
+      continue;
+    }
+
+    // If past segment ends after cutoff, truncate it
+    const effectiveStart = t.segment_start_date;
+    const effectiveEnd = (cutoff && t.segment_end_date > cutoff) ? cutoff : t.segment_end_date;
+    const nights = countNights(effectiveStart, effectiveEnd);
+    const rate = roundMoney(t.from_rate != null ? t.from_rate : t.pinned_rate);
+    const charge = roundMoney(nights * rate);
+
+    segments.push({
+      roomId: t.from_room_id,
+      roomNumber: t.from_room_number || null,
+      roomType: t.from_room_type || null,
+      startDate: effectiveStart,
+      endDate: effectiveEnd,
+      nights,
+      rate,
+      charge,
+      isTransferred: true
+    });
+
+    totalNights += nights;
+    totalBaseCharge = roundMoney(totalBaseCharge + charge);
+    lastCoveredDate = effectiveEnd;
+
+    // If truncated at cutoff, do not process subsequent transfers
+    if (cutoff && effectiveEnd >= cutoff) {
+      break;
+    }
+  }
+
+  let activeRate = (res.custom_nightly_price != null && !isNaN(Number(res.custom_nightly_price)))
+    ? roundMoney(res.custom_nightly_price)
+    : roundMoney(res.price_per_night || 0);
+
+  let activeRoomNumber = res.room_number || null;
+  let activeRoomType = res.room_type || null;
+
+  if (activeRate <= 0 && res.room_id) {
+    const room = queryOne("SELECT room_number, type, price_per_night FROM rooms WHERE id = ?", [res.room_id]);
+    if (room) {
+      if (activeRate <= 0) activeRate = roundMoney(room.price_per_night || 0);
+      if (!activeRoomNumber) activeRoomNumber = room.room_number;
+      if (!activeRoomType) activeRoomType = room.type;
+    }
+  }
+
+  const activeStartDate = lastCoveredDate;
+  const activeEndDate = cutoff;
+
+  let activeNights = 0;
+  if (!cutoff || activeStartDate < cutoff) {
+    activeNights = countNights(activeStartDate, activeEndDate);
+  }
+
+  // Zero-night rule identical to Math.max(1, nights):
+  // when the sum over all segments (clamped) is 0, charge one night at active rate
+  if (totalNights === 0 && activeNights === 0) {
+    activeNights = 1;
+  }
+
+  const activeCharge = roundMoney(activeNights * activeRate);
+  totalNights += activeNights;
+  totalBaseCharge = roundMoney(totalBaseCharge + activeCharge);
+
+  segments.push({
+    roomId: res.room_id,
+    roomNumber: activeRoomNumber,
+    roomType: activeRoomType,
+    startDate: activeStartDate,
+    endDate: activeEndDate,
+    nights: activeNights,
+    rate: activeRate,
+    charge: activeCharge,
+    isTransferred: false
+  });
+
+  return {
+    segments,
+    totalNights,
+    totalBaseCharge,
+    effectiveNightlyRate: activeRate
+  };
+}
+
+/**
  * Single source of truth for the monthly contract value.
  *
  *   contractValue = max(0, savedMonthlyRate + extensionCharges - storedDiscount)
@@ -788,6 +909,11 @@ function isMonthlyEarlyCheckout(res, departureDate) {
  * path which goes through calculateCheckoutDiscount().
  */
 function computeContractValue(res) {
+  // If res.id exists and room_id is missing, throw immediately (persisted reservations must supply room_id)
+  if (res && res.id != null && res.room_id == null) {
+    throw new Error('تعذر حساب قيمة العقد: معرف الغرفة (room_id) مفقود.');
+  }
+
   // Must resolve the rate exactly like the actual-nights path (see the three
   // `custom_nightly_price || price_per_night` sites in this file): a stored 0 means
   // "no custom rate", so it falls back to the room rate. Treating 0 as a real rate
@@ -807,7 +933,9 @@ function computeContractValue(res) {
   // original 30 x nightly-rate calculation, including after later room edits.
   const base = isMonthly
     ? roundMoney((Number(res.monthly_rate_snapshot) > 0 ? Number(res.monthly_rate_snapshot) : MONTHLY_PACKAGE_NIGHTS * storedRate) + extensionAmount)
-    : roundMoney(bookedNights * storedRate);
+    : (res && res.room_id != null
+        ? computeStaySegments(res, res.check_out_date).totalBaseCharge
+        : roundMoney(bookedNights * storedRate));
   const fullDiscount = Math.max(0, roundMoney(res.discount_amount || 0));
   return {
     bookedNights,
@@ -868,11 +996,12 @@ function computeCheckoutSettlement(reservationId, {
   if (!targetId || isNaN(targetId)) throw new Error('معرف الحجز غير صالح.');
 
   const res = queryOne(`
-    SELECT r.id, r.booking_type, r.check_in_date, r.check_out_date, r.total_price, r.paid_amount,
+    SELECT r.id, r.room_id, r.booking_type, r.check_in_date, r.check_out_date, r.total_price, r.paid_amount,
            COALESCE((SELECT SUM(amount) FROM payments WHERE reservation_id = r.id), r.paid_amount) AS ledger_paid_amount,
            r.deposit_amount,
             r.custom_nightly_price, r.monthly_rate_snapshot, r.monthly_extension_amount,
-            r.discount_amount, r.discount_reason, r.status, rm.price_per_night
+            r.discount_amount, r.discount_reason, r.status,
+            rm.room_number, rm.type AS room_type, rm.price_per_night
     FROM reservations r
     LEFT JOIN rooms rm ON r.room_id = rm.id
     WHERE r.id = ?
@@ -909,11 +1038,9 @@ function computeCheckoutSettlement(reservationId, {
     if (!Number.isFinite(effectiveNightlyRate) || effectiveNightlyRate <= 0) {
       throw new Error('تعذر حساب التسوية: سعر الليلة غير صالح (يجب أن يكون أكبر من الصفر).');
     }
-    const d1 = new Date(res.check_in_date + 'T00:00:00');
-    const d2 = new Date(todayStr + 'T00:00:00');
-    const diffDays = Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
-    actualNights = Math.max(1, diffDays);
-    baseCharge = roundMoney(actualNights * effectiveNightlyRate);
+    const stay = computeStaySegments(res, todayStr);
+    actualNights = stay.totalNights;
+    baseCharge = stay.totalBaseCharge;
     appliedDiscount = calculateCheckoutDiscount(
       normDiscount,
       actualNights,
@@ -1046,7 +1173,7 @@ function checkoutReservation(reservationId, {
             r.custom_nightly_price, r.monthly_rate_snapshot, r.monthly_extension_amount,
             r.discount_amount, r.discount_reason,
            r.checkout_policy, r.checkout_policy_reason, r.booked_check_out_date,
-           rm.price_per_night
+           rm.room_number, rm.type AS room_type, rm.price_per_night
     FROM reservations r
     LEFT JOIN rooms rm ON r.room_id = rm.id
     WHERE r.id = ?
@@ -1103,11 +1230,9 @@ function checkoutReservation(reservationId, {
   }
 
   // Compute net charge from actual stay (backend-authoritative)
-  const d1 = new Date(res.check_in_date + 'T00:00:00');
-  const d2 = new Date(todayStr + 'T00:00:00');
-  const diffDays = Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
-  const actualNights = Math.max(1, diffDays);
-  const actualBaseCharge = roundMoney(actualNights * effectiveNightlyRate);
+  const stay = computeStaySegments(res, todayStr);
+  const actualNights = stay.totalNights;
+  const actualBaseCharge = stay.totalBaseCharge;
   const actualDiscount = calculateCheckoutDiscount(
     requestedDiscount,
     actualNights,
@@ -2784,5 +2909,6 @@ module.exports = {
   getTransferEligibleRooms,
   previewRoomTransfer,
   executeRoomTransfer,
-  validateTransferEligibility
+  validateTransferEligibility,
+  computeStaySegments
 };
