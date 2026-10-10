@@ -1,0 +1,109 @@
+/* ==========================================================================
+   Print Optimization for Invoices & Reports
+   100% White Paper Printing with Zero Ink Waste
+   ========================================================================== */
+@media print {
+  html, body {
+    background: white !important;
+    color: #0f172a !important;
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .dashboard-layout,
+  .sidebar,
+  .topbar,
+  .dashboard-main,
+  .dashboard-content,
+  .view-section,
+  .stats-grid,
+  .charts-grid,
+  .card,
+  #logout-confirm-modal,
+  #toast-container,
+  .no-print,
+  .btn,
+  .btn-logout,
+  .filter-tabs-bar,
+  .ambient-orb,
+  .dashboard-layout::before,
+  .dashboard-layout::after {
+    display: none !important;
+  }
+
+  .modal-backdrop,
+  #invoice-modal,
+  #shift-audit-modal {
+    display: none !important;
+  }
+
+  body.printing-invoice #invoice-modal {
+    display: block !important;
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    box-shadow: none !important;
+  }
+
+  body.printing-invoice #invoice-modal > div {
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: none !important;
+    display: block !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body.printing-shift-audit #shift-audit-modal {
+    display: block !important;
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    box-shadow: none !important;
+  }
+
+  body.printing-shift-audit #shift-audit-modal > div {
+    max-width: 100% !important;
+    width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  #invoice-printable-area,
+  #shift-audit-content {
+    padding: 0 !important;
+    margin: 0 !important;
+    min-height: 0 !important;
+    min-width: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
+    background: white !important;
+    color: #0f172a !important;
+  }
+
+  .audit-table-wrap {
+    overflow: visible !important;
+  }
+
+  .audit-table {
+    min-width: 0 !important;
+  }
+
+}
+
+

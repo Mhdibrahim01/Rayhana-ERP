@@ -1,11 +1,11 @@
-# Rayhana ERP | ريحانة للوحدات السكنية والفنادق
+# Rayhana PMS | ريحانة للوحدات السكنية والفنادق
 
 <div align="center">
 
 ![Rayhana Logo](rayhana-logo.png)
 
-### **نظام إدارة الفنادق والشقق الفندقية المتكامل (Desktop ERP)**
-**An Enterprise-Grade, RTL-First Hospitality & Property Management System built with Electron, Node.js & SQLite**
+### **نظام إدارة الفنادق والشقق الفندقية المتكامل (Desktop PMS)**
+**An EntPMSrise-Grade, RTL-First Hospitality & Property Management System built with Electron, Node.js & SQLite**
 
 [![Electron](https://img.shields.io/badge/Electron-29.4.6-47848F?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
@@ -34,7 +34,7 @@
 
 ## 📖 عن النظام (Overview)
 
-**نظام ريحانة (Rayhana ERP)** هو تطبيق مكتبي عالي الكفاءة مخصص لإدارة الفنادق، الأجنحة الفندقية، والشقق المفروشة. صُمم النظام بالكامل ليعمل محلياً (Offline-First) بأعلى درجات الأمان والسرعة، مع واجهة مستخدم عربية احترافية من اليمين لليسار (RTL) تدعم سير العمل الفندقي الحقيقي: من التسكين السريع، الجرد الليلي ومحاسبة الوردية، إلى إصدار الفواتير وسندات القبض ومراسلة النزلاء عبر واتساب.
+**نظام ريحانة (Rayhana PMS)** هو تطبيق مكتبي عالي الكفاءة مخصص لإدارة الفنادق، الأجنحة الفندقية، والشقق المفروشة. صُمم النظام بالكامل ليعمل محلياً (Offline-First) بأعلى درجات الأمان والسرعة، مع واجهة مستخدم عربية احترافية من اليمين لليسار (RTL) تدعم سير العمل الفندقي الحقيقي: من التسكين السريع، الجرد الليلي ومحاسبة الوردية، إلى إصدار الفواتير وسندات القبض ومراسلة النزلاء عبر واتساب.
 
 ### 🎯 أهداف التصميم
 - **السرعة الفائقة:** إنجاز كافة العمليات دون مغادرة لوحة المفاتيح عبر لوحة الأوامر الذكية (`Ctrl + K`).
@@ -56,7 +56,9 @@
 
 ### 2. 📋 إدارة التسكين والحجوزات (Check-in & Reservations)
 - دعم كافة أنماط الإقامة: **يومي، شهري، واستخدام يومي (Day-Use)**.
-- **معالجة ساعات الفجر وما بعد منتصف الليل:** احتساب الليلة بدقة حسب تاريخ الأعمال الفندقي (Business Day) وليس التاريخ المدني فقط.
+- **معالجة دخول الفجر وساعات ما بعد منتصف الليل (Early Morning Check-in):**
+  - عند تسكين نزيل بين **12:00 منتصف الليل ووقت قطع اليوم الفندقي (06:00 صباحاً افتراضياً)**، يحتسب النظام تلقائياً ليلة مبيت كاملة (ليلة البارحة) لأن الغرفة استُهلكت لتلك الليلة.
+  - **مرونة الاستثناء لموظف الاستقبال:** يظهر خيار تفاعلي `[✓] احتساب ليلة سابقة (دخول فجر مبكر)` مفعل افتراضياً؛ يمكن للموظف إلغاؤه بنقرة واحدة عند منح استثناء إداري أو لعملاء الـ VIP للتسكين على تاريخ اليوم مباشرة.
 - التحقق التلقائي من الهوية ورقم الجوال وسجل النزيل السابق.
 
 ### 3. 🚪 المغادرة والتسوية المالية الذكية (Checkout & Settlement)
@@ -68,12 +70,15 @@
 - إمكانية إلغاء حجز خاطئ تم في نفس اليوم (Walk-in) وإعادة الغرفة لمتاحة فوراً واسترداد المبالغ دون تشويه التقارير المحاسبية التاريخية.
 
 ### 5. 🧾 الفواتير والمدفوعات والواتساب (Invoicing & Receipts)
-- إصدار فواتير ضريبية مفصلة تتضمن تفقيط المبالغ والضريبة المضافة.
+- إصدار فواتير ضريبية مفصلة تتضمن تفقيط المبالغ والضريبة المضافة ورمز الـ QR المعتمد.
+- **التواريخ الفعلية في الفاتورة (Actual Calendar Dates):**
+  - في حالات دخول الفجر المبكر المحتسب على ليلة سابقة، تعرض الفاتورة **تاريخ وساعة الوصول الفعلي والمغادرة الفعلية بالتقويم الحقيقي** (مثل: `تاريخ الوصول الفعلي: 2026-10-10 (03:00 ص)` و`تاريخ المغادرة الفعلي: 2026-10-10 (01:00 م)`).
+  - توضيح مدة الإقامة بشفافية تامة تمنع الخلافات: `1 ليلة (تشمل مبيت الليلة السابقة - دخول فجر مبكر)`.
 - إصدار سندات قبض رسمية لكل دفعة مع تتبع وسيلة الدفع (كاش، شبكة، تحويل بنكي).
 - **تكامل واتساب المباشر:** إرسال رسائل ترحيبية وملخص الحجز والفاتورة للنزيل بنقرة واحدة.
 
 ### 6. 🌙 الجرد الليلي وتاريخ الأعمال (Night Audit & Business Day)
-- جدولة تدوير تاريخ الأعمال التشغيلي فندsupportياً.
+- جدولة تدوير تاريخ الأعمال التشغيلي فندقياً عند موعد القطع (Cutoff Time: 06:00 AM).
 - تتبع الإشغال اليومي، متوسط سعر الليلة (ADR)، والإيراد لكل غرفة متاحة (RevPAR).
 
 ### 7. 📊 تقرير الوردية وجرد الدرج (Shift Management & Cash Drawer)
@@ -129,7 +134,7 @@
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│                   Rayhana ERP Desktop                  │
+│                   Rayhana PMS Desktop                  │
 ├────────────────────────────────────────────────────────┤
 │  Frontend Layer (Electron Renderer)                    │
 │  - HTML5 / Vanilla Modular JavaScript (RTL)            │
@@ -157,7 +162,7 @@
 ## 📂 هيكل المشروع (Project Directory Tree)
 
 ```text
-Rayhana-ERP/
+Rayhana-PMS/
 ├── assets/                  # الأيقونات والوسائط الثابتة
 ├── db/                      # طبقة قاعدة البيانات والـ Migrations
 │   ├── index.js             # تهيئة قاعدة البيانات والاتصال
@@ -199,8 +204,8 @@ Rayhana-ERP/
 ### خطوات التثبيت والتشغيل:
 1. **استنساخ المستودع (Clone):**
    ```bash
-   git clone https://github.com/your-username/Rayhana-ERP.git
-   cd Rayhana-ERP
+   git clone https://github.com/your-username/Rayhana-PMS.git
+   cd Rayhana-PMS
    ```
 
 2. **تثبيت الحزم البرمجية (Dependencies):**
@@ -268,7 +273,7 @@ npm run guard
    - يحفظ نسخة مشفرة من قاعدة البيانات في:
      `%APPDATA%\rayhana-suites\backups\`
    - يحفظ نسخة مرآة إضافية في مجلد المستندات:
-     `%USERPROFILE%\Documents\Rayhana_Backups\`
+     `%USPMSROFILE%\Documents\Rayhana_Backups\`
    - **آلية التعويض عند الإغلاق (Catch-up):** إذا كان الجهاز مغلقاً وقت منتصف الليل، يقوم النظام بإنشاء نسخة فورية عند أول فتح صباحاً.
    - تدوير تلقائي يحفظ آخر 60 يوماً من النسخ.
 
@@ -282,13 +287,13 @@ npm run guard
 
 ## 🌐 English Summary
 
-**Rayhana ERP** is a modern, reliable, and secure desktop Property Management System (PMS) tailored for hotels, residential units, and furnished suites. 
+**Rayhana PMS** is a modern, reliable, and secure desktop Property Management System (PMS) tailored for hotels, residential units, and furnished suites. 
 
 ### Key Highlights:
 - **Offline-First Desktop App**: Powered by Electron 29 and local SQLite database (`sql.js`), guaranteeing high performance and zero external downtime.
 - **RTL-First Arabic UI**: Crafted with care for Arabic-speaking hotel front-desk operations.
 - **Smart Command Palette (`Ctrl + K`)**: Keyboard-driven command center featuring AI typo resilience, prefix autocompletion, number-action reordering, and direct symbol shortcuts (`#` for reservations, `@` for guests, `!` for rooms).
-- **Hospitality Workflows**: Comprehensive night audit, business-date rollover, day-use reservations, early checkout settlements, cash drawer shift handovers, and VAT-compliant invoicing.
+- **Hospitality Workflows**: Comprehensive night audit, business-date rollover, early morning check-in previous night charging with staff waiver options, actual calendar date invoice generation, day-use reservations, early checkout settlements, cash drawer shift handovers, and VAT-compliant invoicing.
 - **Automated Disaster Recovery**: Scheduled 12:00 AM daily SQLite backups with mirror replication and catch-up mechanism.
 
 ---

@@ -14,6 +14,8 @@
   const nightlyRateInput = document.getElementById('nightly-rate-input');
   const discountAmountInput = document.getElementById('discount-amount-input');
   const discountReasonInput = document.getElementById('discount-reason-input');
+  const earlyCheckinContainer = document.getElementById('early-checkin-container');
+  const isEarlyCheckinCheckbox = document.getElementById('is-early-checkin-checkbox');
   const roomDefaultRateBadge = document.getElementById('room-default-rate-badge');
   const priceCalculationBreakdown = document.getElementById('price-calculation-breakdown');
   const totalPriceInput = document.getElementById('total-price');
@@ -788,6 +790,19 @@
 
   function loadOverviewData() { return window.DashboardApp.Helpers.loadOverviewData(); }
   function loadTodayCheckouts() { return window.DashboardApp.Helpers.loadTodayCheckouts(); }
+
+  async function notifyAttentionUpdate(reservationId, type = 'update') {
+    if (typeof window.syncAttentionData === 'function') {
+      try {
+        await window.syncAttentionData({ force: true });
+      } catch (e) {}
+    } else if (typeof window.updateAttentionInbox === 'function') {
+      window.updateAttentionInbox();
+    }
+    if (typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('reservation:updated', { detail: { reservationId, type } }));
+    }
+  }
   // =========================================================================
   // RETURNING GUEST AUTO-FILL SYSTEM (البحث التلقائي عن النزلاء السابقين)
   // =========================================================================
@@ -1130,7 +1145,8 @@
         monthlyPrice,
         customNightlyPrice,
         discountAmount,
-        discountReason
+        discountReason,
+        isEarlyCheckin: isEarlyCheckinCheckbox ? (isEarlyCheckinCheckbox.checked ? 1 : 0) : null
       });
 
       // Handle soft ban override confirmation
@@ -1160,6 +1176,7 @@
             customNightlyPrice,
             discountAmount,
             discountReason,
+            isEarlyCheckin: isEarlyCheckinCheckbox ? (isEarlyCheckinCheckbox.checked ? 1 : 0) : null,
             overrideBan: true
           });
         } else {
@@ -1348,6 +1365,50 @@
     checkInInput.min = getOperationalBusinessDate();
     checkInInput.value = defaultDates.checkIn;
   }
+
+  // Early morning check-in detection (00:00 to 06:00 cutoff)
+  try {
+    const tz = App.Helpers.getHotelTimezone ? App.Helpers.getHotelTimezone() : 'Asia/Riyadh';
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+    }).formatToParts(new Date());
+    const p = Object.fromEntries(parts.filter(x => x.type !== 'literal').map(x => [x.type, x.value]));
+    const currentHour = Number(p.hour);
+    const isEarlyMorning = currentHour < 6 || Boolean(window.__SIMULATE_EARLY_CHECKIN__);
+
+    if (earlyCheckinContainer) {
+      if (isEarlyMorning) {
+        earlyCheckinContainer.style.display = 'block';
+        if (isEarlyCheckinCheckbox) isEarlyCheckinCheckbox.checked = true;
+      } else {
+        earlyCheckinContainer.style.display = 'none';
+        if (isEarlyCheckinCheckbox) isEarlyCheckinCheckbox.checked = false;
+      }
+    }
+
+    if (isEarlyCheckinCheckbox && !isEarlyCheckinCheckbox.dataset.bound) {
+      isEarlyCheckinCheckbox.dataset.bound = 'true';
+      isEarlyCheckinCheckbox.addEventListener('change', () => {
+        const calParts = new Intl.DateTimeFormat('en-CA', {
+          timeZone: tz,
+          year: 'numeric', month: '2-digit', day: '2-digit'
+        }).formatToParts(new Date());
+        const cp = Object.fromEntries(calParts.filter(x => x.type !== 'literal').map(x => [x.type, x.value]));
+        const calendarToday = `${cp.year}-${cp.month}-${cp.day}`;
+        const opDate = getOperationalBusinessDate();
+
+        if (!isEarlyCheckinCheckbox.checked) {
+          if (checkInInput) checkInInput.value = calendarToday;
+        } else {
+          if (checkInInput) checkInInput.value = opDate || calendarToday;
+        }
+        updateMinimumCheckoutDate();
+        calculatePrice(false);
+      });
+    }
+  } catch (_) {}
   if (checkOutInput) {
     const bookingType = bookingTypeSelect?.value || 'عادي';
     if (bookingType === 'عقد مفتوح') {
@@ -1444,6 +1505,58 @@
       reservationsTableRows.forEach(item => cacheById.set(Number(item.id), item));
       window.DashboardApp.State.reservationsCache = [...cacheById.values()];
 
+      // Reconcile late checkouts if needed (ensures live calculation matches isLateCheckout helper and supports un-restarted Electron sessions)
+      let lateRowsFromToday = [];
+      const opDate = getOperationalBusinessDate() || (App.Helpers?.getTodayDateString ? App.Helpers.getTodayDateString() : '') || getLocalDateString();
+      if (typeof window.api?.getTodayCheckouts === 'function' && opDate) {
+        try {
+          const todayRes = await window.api.getTodayCheckouts(opDate);
+          if (todayRes && todayRes.success && Array.isArray(todayRes.data)) {
+            lateRowsFromToday = todayRes.data.filter(r => {
+              if (r.status !== 'مؤكد') return false;
+              if (r.booking_type === 'عقد مفتوح') return false;
+              const isOverdue = r.check_out_date && r.check_out_date < opDate;
+              const isLate = App.Helpers?.isLateCheckout ? App.Helpers.isLateCheckout(r, opDate) : false;
+              return isOverdue || isLate;
+            });
+          }
+        } catch (e) {
+          console.warn('Could not fetch today checkouts for late reconciliation:', e);
+        }
+      }
+
+      const effectiveLateCount = Math.max(
+        Number(data.summary?.lateCount || 0),
+        lateRowsFromToday.length
+      );
+
+      if (currentReservationFilter === 'late' && lateRowsFromToday.length > 0) {
+        const existingIds = new Set(reservationsTableRows.map(r => Number(r.id)));
+        let mergedLateRows = [...reservationsTableRows];
+        for (const lr of lateRowsFromToday) {
+          if (!existingIds.has(Number(lr.id))) {
+            const cached = cacheById.get(Number(lr.id));
+            mergedLateRows.push(cached ? { ...cached, ...lr } : lr);
+            existingIds.add(Number(lr.id));
+          }
+        }
+        const searchVal = String(searchAllReservations?.value || '').trim().toLowerCase();
+        if (searchVal) {
+          mergedLateRows = mergedLateRows.filter(r => {
+            const idMatch = String(r.id || '').includes(searchVal);
+            const nameMatch = String(r.guest_name || '').toLowerCase().includes(searchVal);
+            const roomMatch = String(r.room_number || '').includes(searchVal);
+            const phoneMatch = String(r.guest_phone || '').includes(searchVal);
+            const docMatch = String(r.guest_id_number || '').includes(searchVal);
+            return idMatch || nameMatch || roomMatch || phoneMatch || docMatch;
+          });
+        }
+        mergedLateRows.sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
+        reservationsTableTotal = mergedLateRows.length;
+        const startIdx = (reservationsTablePage - 1) * reservationsTablePageSize;
+        reservationsTableRows = mergedLateRows.slice(startIdx, startIdx + reservationsTablePageSize);
+      }
+
       // Update Summary Cards & Tabs from data.summary
       if (data.summary) {
         const sum = data.summary;
@@ -1454,7 +1567,7 @@
         const elRoomsSub = document.getElementById('res-summary-rooms-sub');
 
         if (elActive) elActive.textContent = Number(sum.activeCount || 0).toLocaleString('en-US');
-        if (elLate) elLate.textContent = Number(sum.lateCount || 0).toLocaleString('en-US');
+        if (elLate) elLate.textContent = effectiveLateCount.toLocaleString('en-US');
         if (elDue) elDue.textContent = Number(sum.dueAmount || 0).toLocaleString('en-US');
         if (elOcc) elOcc.textContent = `${Number(sum.occupancyRate || 0)}%`;
         if (elRoomsSub) elRoomsSub.textContent = `من ${sum.totalRooms} غرفة (${sum.occupiedRooms} مشغولة)`;
@@ -1469,9 +1582,14 @@
         if (pillAll) pillAll.textContent = Number(sum.total || 0).toLocaleString('en-US');
         if (pillActive) pillActive.textContent = Number(sum.activeCount || 0).toLocaleString('en-US');
         if (pillToday) pillToday.textContent = Number(sum.todayCount || 0).toLocaleString('en-US');
-        if (pillLate) pillLate.textContent = Number(sum.lateCount || 0).toLocaleString('en-US');
+        if (pillLate) pillLate.textContent = effectiveLateCount.toLocaleString('en-US');
         if (pillCompleted) pillCompleted.textContent = Number(sum.completedCount || 0).toLocaleString('en-US');
         if (pillCancelled) pillCancelled.textContent = Number(sum.cancelledCount || 0).toLocaleString('en-US');
+      } else {
+        const elLate = document.getElementById('res-summary-late');
+        const pillLate = document.getElementById('tab-pill-late');
+        if (elLate) elLate.textContent = effectiveLateCount.toLocaleString('en-US');
+        if (pillLate) pillLate.textContent = effectiveLateCount.toLocaleString('en-US');
       }
 
       const resTotalPill = document.getElementById('res-total-count-pill');
@@ -1574,6 +1692,7 @@
       const departureTimeText = r.checkout_time || expectedCheckoutTime || '';
 
       const isRowLate = isLateCheckout || isOverdue;
+      const delayHours = (isLateCheckout && App.Helpers.getCheckoutDelayHours) ? App.Helpers.getCheckoutDelayHours(r) : 0;
 
       return `
         <tr class="${isRowLate ? 'late-checkout-row' : ''}">
@@ -1602,10 +1721,10 @@
               <span class="res-date-val"><bdi dir="ltr">${escapeHtml(checkOutDisplay)}</bdi></span>
               ${departureTimeText ? `<span class="res-time-val">${escapeHtml(departureTimeText)}</span>` : ''}
             </div>
-            ${isOverdue ? `
-              <div class="res-late-departure-tag">
+            ${(isOverdue || isLateCheckout) && !isContract ? `
+              <div class="res-late-departure-tag" title="${escapeHtml(isOverdue ? overdueLabel : 'متأخر اليوم')}${(!isOverdue && delayHours > 0) ? ` (تأخير ${delayHours} ساعة)` : ''}">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                <span>${escapeHtml(overdueLabel)}</span>
+                <span>${escapeHtml(isOverdue ? overdueLabel : 'متأخر اليوم')}${(!isOverdue && delayHours > 0) ? ` (${delayHours} س)` : ''}</span>
               </div>
             ` : ''}
           </td>
@@ -1632,8 +1751,14 @@
             <div class="res-payment-method-sub">${escapeHtml(r.payment_method || 'نقداً')}</div>
           </td>
           <td class="res-cell-status">
-            <div class="res-status-badge-wrap">${getReservationStatusBadge(r.status)}</div>
-            <div class="res-booking-type-sub">${escapeHtml(r.booking_type || 'يومي')}</div>
+            <div class="res-status-badge-wrap">
+              ${isRowLate
+                ? `<span class="badge badge-unified badge-danger badge-res-late">${escapeHtml(isOverdue ? overdueLabel : 'متأخر اليوم')}</span>`
+                : getReservationStatusBadge(r.status)}
+            </div>
+            <div class="res-booking-type-sub">
+              ${escapeHtml(r.booking_type || 'يومي')}${(!isOverdue && delayHours > 0) ? ` • <span style="color: #b91c1c; font-weight: 700;">${delayHours} س تأخير</span>` : ''}
+            </div>
           </td>
           <td style="text-align: center;">
             <div class="res-actions-pair">
@@ -3010,9 +3135,18 @@
         if (isContract) Object.assign(payload, getDepositCheckoutPayload());
         const res = await window.api.checkoutReservation(resId, payload);
         if (res.success) {
+          const numResId = Number(resId);
+          if (Array.isArray(window.DashboardApp?.State?.reservationsCache)) {
+            const cached = window.DashboardApp.State.reservationsCache.find(r => Number(r.id) === numResId);
+            if (cached) cached.status = 'مكتمل';
+          }
+          if (Array.isArray(window.DashboardApp?.State?.todayCheckoutsRows)) {
+            window.DashboardApp.State.todayCheckoutsRows = window.DashboardApp.State.todayCheckoutsRows.filter(r => Number(r.reservation_id ?? r.id) !== numResId);
+          }
           showToast(`تم تسجيل مغادرة الحجز #${resId} بنجاح وترحيل الحساب.`, 'success');
           closeContractSettleModal();
           await Promise.all([loadOverviewData(), loadReservationsData(), loadRoomsData(), loadTodayCheckouts()]);
+          await notifyAttentionUpdate(resId, 'checkout');
         } else {
           showToast(res.error || 'فشل تسجيل المغادرة.', 'error');
         }
@@ -3130,9 +3264,18 @@
         if (btnConfirmSettleCheckout) { btnConfirmSettleCheckout.disabled = true; btnConfirmSettleCheckout.textContent = 'جاري التصفية...'; }
         const res = await window.api.checkoutReservation(resId, payload);
         if (res.success) {
+          const numResId = Number(resId);
+          if (Array.isArray(window.DashboardApp?.State?.reservationsCache)) {
+            const cached = window.DashboardApp.State.reservationsCache.find(r => Number(r.id) === numResId);
+            if (cached) cached.status = 'مكتمل';
+          }
+          if (Array.isArray(window.DashboardApp?.State?.todayCheckoutsRows)) {
+            window.DashboardApp.State.todayCheckoutsRows = window.DashboardApp.State.todayCheckoutsRows.filter(r => Number(r.reservation_id ?? r.id) !== numResId);
+          }
           showToast(`تمت تصفية حساب الحجز #${resId} وتسجيل المغادرة بنجاح!`, 'success');
           closeContractSettleModal();
           await Promise.all([loadOverviewData(), loadReservationsData(), loadRoomsData(), loadTodayCheckouts()]);
+          await notifyAttentionUpdate(resId, 'checkout');
           setTimeout(() => { if (typeof openInvoiceModal === 'function') openInvoiceModal(resId); }, 350);
         } else {
           showToast(res.error || 'فشل تسجيل المغادرة وتصفية الحساب.', 'error');
@@ -3446,6 +3589,18 @@
         });
 
         if (res && res.success) {
+          const numResId = Number(currentExtendingReservation.id);
+          if (Array.isArray(window.DashboardApp?.State?.reservationsCache)) {
+            const cached = window.DashboardApp.State.reservationsCache.find(r => Number(r.id) === numResId);
+            if (cached) {
+              cached.check_out_date = newDate;
+              if (res.reservation?.total_price != null) cached.total_price = res.reservation.total_price;
+              if (res.reservation?.paid_amount != null) cached.paid_amount = res.reservation.paid_amount;
+            }
+          }
+          if (Array.isArray(window.DashboardApp?.State?.todayCheckoutsRows)) {
+            window.DashboardApp.State.todayCheckoutsRows = window.DashboardApp.State.todayCheckoutsRows.filter(r => Number(r.reservation_id ?? r.id) !== numResId);
+          }
           const receiptInfo = res.receiptNumber ? ` (سند قبض رقم: ${res.receiptNumber})` : '';
           const settleInfo = settle > 0 ? ` وتم تحصيل ${settle.toLocaleString()} ريال` : ' (مسجلة ذمة مستحقة)';
           const discountInfo = discount > 0 ? ` [خصم: ${discount.toLocaleString()} ريال]` : '';
@@ -3458,6 +3613,7 @@
             loadOverviewData(),
             typeof loadTodayCheckouts === 'function' ? loadTodayCheckouts() : Promise.resolve()
           ]);
+          await notifyAttentionUpdate(numResId, 'extend');
         } else {
           showToast(res?.error || 'فشل تمديد الحجز.', 'error');
         }
@@ -3862,8 +4018,17 @@
             try {
               const res = await window.api.checkoutReservation(id, { settleMode: 'defer' });
               if (res.success) {
+                const numResId = Number(id);
+                if (Array.isArray(window.DashboardApp?.State?.reservationsCache)) {
+                  const cached = window.DashboardApp.State.reservationsCache.find(r => Number(r.id) === numResId);
+                  if (cached) cached.status = 'مكتمل';
+                }
+                if (Array.isArray(window.DashboardApp?.State?.todayCheckoutsRows)) {
+                  window.DashboardApp.State.todayCheckoutsRows = window.DashboardApp.State.todayCheckoutsRows.filter(r => Number(r.reservation_id ?? r.id) !== numResId);
+                }
                 showToast(`تم تسجيل خروج الحجز #${id} بنجاح.`, 'success');
                 await Promise.all([loadOverviewData(), loadReservationsData(), loadRoomsData(), loadTodayCheckouts()]);
+                await notifyAttentionUpdate(id, 'checkout');
                 setTimeout(() => { if (typeof openInvoiceModal === 'function') openInvoiceModal(id); }, 350);
               } else {
                 showToast(res.error || 'فشل تسجيل الخروج.', 'error');
@@ -3919,9 +4084,18 @@
       try {
         const res = await window.api.cancelReservation(cancelPayload);
         if (res && res.success) {
+          const numResId = Number(id);
+          if (Array.isArray(window.DashboardApp?.State?.reservationsCache)) {
+            const cached = window.DashboardApp.State.reservationsCache.find(r => Number(r.id) === numResId);
+            if (cached) cached.status = 'ملغي';
+          }
+          if (Array.isArray(window.DashboardApp?.State?.todayCheckoutsRows)) {
+            window.DashboardApp.State.todayCheckoutsRows = window.DashboardApp.State.todayCheckoutsRows.filter(r => Number(r.reservation_id ?? r.id) !== numResId);
+          }
           await loadOverviewData();
           await loadReservationsData();
           await loadRoomsData();
+          await notifyAttentionUpdate(id, 'cancel');
 
           let summaryMsg = '';
           if (res.proRatedCharge > 0 || res.hasStarted) {
@@ -3974,4 +4148,9 @@
   App.Helpers.updateMinimumCheckoutDate = updateMinimumCheckoutDate;
   App.Helpers.handleBookingTypeChange = handleBookingTypeChange;
   App.Helpers.openTransferRoomModal = openTransferRoomModal;
+
+  window.simulateEarlyCheckin = function(enable = true, roomId = null) {
+    window.__SIMULATE_EARLY_CHECKIN__ = Boolean(enable);
+    openNewReservationModal(roomId);
+  };
 })(window.DashboardApp);

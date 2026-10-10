@@ -1068,31 +1068,39 @@
                 </div>
               </div>
               <form id="business-day-settings-form" class="business-day-settings-form">
-                <label>وقت بداية اليوم الفندقي
-                  <input id="business-day-cutoff-time" type="time" value="06:00" required class="form-control" style="width: 140px; display: inline-block;">
-                </label>
-                <label>المنطقة الزمنية
-                  <select id="hotel-timezone" required dir="ltr" class="form-control" style="padding: 8px 12px; font-size: 0.85rem; background: white; cursor: pointer;">
-                    <option value="Asia/Riyadh" selected>Asia/Riyadh (السعودية - GMT+3)</option>
-                    <option value="Asia/Dubai">Asia/Dubai (الإمارات - GMT+4)</option>
-                    <option value="Asia/Kuwait">Asia/Kuwait (الكويت - GMT+3)</option>
-                    <option value="Asia/Qatar">Asia/Qatar (قطر - GMT+3)</option>
-                    <option value="Asia/Bahrain">Asia/Bahrain (البحرين - GMT+3)</option>
-                    <option value="Africa/Cairo">Africa/Cairo (مصر - GMT+2)</option>
-                    <option value="Europe/Istanbul">Europe/Istanbul (تركيا - GMT+3)</option>
-                    <option value="Asia/Amman">Asia/Amman (الأردن - GMT+3)</option>
-                    <option value="Asia/Beirut">Asia/Beirut (لبنان - GMT+2)</option>
-                    <option value="auto" id="timezone-auto-option">🌍 كشف تلقائي من النظام</option>
-                  </select>
-                  <small style="display: block; margin-top: 6px; font-size: 0.75rem; color: var(--text-secondary);">
-                    المنطقة الزمنية المحددة: <strong id="detected-timezone-display">Asia/Riyadh</strong>
-                  </small>
-                </label>
-                <label class="business-day-auto-toggle">
-                  <input id="auto-rollover-enabled" type="checkbox" checked>
-                  تفعيل الإقفال التلقائي
-                </label>
-                <button type="submit" class="btn btn-primary">حفظ الإعدادات</button>
+                <div class="business-day-settings-grid">
+                  <div class="form-group">
+                    <label for="business-day-cutoff-time">وقت بداية اليوم الفندقي</label>
+                    <input id="business-day-cutoff-time" type="time" value="06:00" required class="form-control">
+                  </div>
+                  <div class="form-group">
+                    <label for="hotel-timezone">المنطقة الزمنية</label>
+                    <select id="hotel-timezone" required dir="ltr" class="form-control">
+                      <option value="Asia/Riyadh" selected>Asia/Riyadh (السعودية - GMT+3)</option>
+                      <option value="Asia/Dubai">Asia/Dubai (الإمارات - GMT+4)</option>
+                      <option value="Asia/Kuwait">Asia/Kuwait (الكويت - GMT+3)</option>
+                      <option value="Asia/Qatar">Asia/Qatar (قطر - GMT+3)</option>
+                      <option value="Asia/Bahrain">Asia/Bahrain (البحرين - GMT+3)</option>
+                      <option value="Africa/Cairo">Africa/Cairo (مصر - GMT+2)</option>
+                      <option value="Europe/Istanbul">Europe/Istanbul (تركيا - GMT+3)</option>
+                      <option value="Asia/Amman">Asia/Amman (الأردن - GMT+3)</option>
+                      <option value="Asia/Beirut">Asia/Beirut (لبنان - GMT+2)</option>
+                      <option value="auto" id="timezone-auto-option">🌍 كشف تلقائي من النظام</option>
+                    </select>
+                    <small class="timezone-hint">
+                      المنطقة الزمنية المحددة: <strong id="detected-timezone-display">Asia/Riyadh</strong>
+                    </small>
+                  </div>
+                  <div class="form-group business-day-toggle-group">
+                    <label class="business-day-auto-toggle">
+                      <input id="auto-rollover-enabled" type="checkbox" checked>
+                      <span>تفعيل الإقفال التلقائي</span>
+                    </label>
+                  </div>
+                </div>
+                <div class="business-day-actions">
+                  <button type="submit" class="btn btn-primary">حفظ الإعدادات</button>
+                </div>
               </form>
               <div id="business-day-pending-reconciliation" class="business-day-pending-reconciliation" hidden></div>
             </section>
@@ -1429,6 +1437,15 @@
             <span id="check-out-minimum-hint">الحد الأدنى للإقامة ليلة واحدة؛ المغادرة في اليوم التالي على الأقل.</span>
             <span id="check-out-day-use-hint" style="display: none;">استخدام يومي: المغادرة في نفس اليوم، والموعد المعتاد الساعة 2 ظهرًا.</span>
             <span id="check-out-open-hint" style="display: none;">عقد مفتوح: لا يتطلب تحديد موعد خروج</span>
+          </div>
+          <div id="early-checkin-container" style="display: none; margin-top: 12px; padding: 10px 14px; background: #fefce8; border: 1.5px solid #fde047; border-radius: 10px;">
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: #854d0e; cursor: pointer; margin: 0; font-size: 0.88rem;">
+              <input type="checkbox" id="is-early-checkin-checkbox" checked style="width: 17px; height: 17px; accent-color: #ca8a04; cursor: pointer;">
+              <span>احتساب ليلة سابقة (دخول فجر مبكر)</span>
+            </label>
+            <small style="display: block; color: #a16207; margin-top: 4px; font-size: 0.77rem; line-height: 1.45;">
+              الدخول في ساعات الفجر الأولى (قبل 06:00 ص): تُحسب ليلة البارحة في الفاتورة مع إظهار تاريخ اليوم الفعلي للنزيل. أزل التحديد في حال وجود استثناء معتمد.
+            </small>
           </div>
           </section>
 
@@ -1993,8 +2010,8 @@
   </div>
 
   <!-- Shift Audit & Night Closing Modal (Feature 5) -->
-  <div id="shift-audit-modal" class="modal-backdrop modal-layout-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100000; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
-    <div class="modal-layout" style="background: white; border-radius: 16px; max-width: 860px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35); overflow: hidden; margin: auto;">
+  <div id="shift-audit-modal" class="modal-backdrop modal-layout-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100000; align-items: center; justify-content: center; overflow: hidden; padding: 20px;">
+    <div class="modal-layout" style="background: white; border-radius: 16px; max-width: 1120px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35); overflow: hidden; margin: auto;">
       <!-- Action Toolbar (No-Print) -->
       <div class="no-print modal-layout__header" style="background: #0f172a; color: white; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between;">
         <div style="display: flex; align-items: center; gap: 10px;">
@@ -2006,33 +2023,33 @@
           </svg>
           <span style="font-weight: 800; font-size: 1.05rem;">تقرير إقفال الوردية والموازنة المالية (Night Audit)</span>
         </div>
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <button id="btn-run-night-audit" data-role-required="Admin" type="button" class="btn btn-sm" style="background: #b45309; color: white; font-weight: 800; padding: 7px 14px; border: 1px solid #f59e0b;" title="إقفال تاريخ العمل الحالي والانتقال إلى اليوم التالي">
+        <div class="shift-audit-actions" style="display: flex; gap: 8px;">
+          <button id="btn-run-night-audit" data-role-required="Admin" type="button" class="btn btn-sm" style="background: #b45309; color: white; font-weight: 800; padding: 6px 11px; border: 1px solid #f59e0b;" title="إقفال تاريخ العمل الحالي والانتقال إلى اليوم التالي">
             <span>إقفال اليوم الفندقي</span>
           </button>
-          <button id="btn-print-shift-audit" type="button" class="btn btn-sm" style="background: #05963d; color: white; font-weight: 700; padding: 7px 14px;">
+          <button id="btn-print-shift-audit" type="button" class="btn btn-sm" style="background: #05963d; color: white; font-weight: 700; padding: 6px 11px;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="6 9 6 2 18 2 18 9"></polyline>
               <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
               <rect x="6" y="14" width="12" height="8"></rect>
             </svg>
-            <span>طباعة فورية 🖨️</span>
+            <span>طباعة فورية</span>
           </button>
-          <button id="btn-export-pdf-shift-audit" type="button" class="btn btn-sm" style="background: #143d24; color: white; font-weight: 700; padding: 7px 14px;">
+          <button id="btn-export-pdf-shift-audit" type="button" class="btn btn-sm" style="background: #143d24; color: white; font-weight: 700; padding: 6px 11px;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
               <polyline points="14 2 14 8 20 8"></polyline>
             </svg>
-            <span>حفظ PDF 📄</span>
+            <span>حفظ PDF</span>
           </button>
-          <button id="btn-preview-window-shift-audit" type="button" class="btn btn-sm" style="background: #334155; color: white; font-weight: 700; padding: 7px 14px; border: 1px solid #475569;">
+          <button id="btn-preview-window-shift-audit" type="button" class="btn btn-sm" style="background: #334155; color: white; font-weight: 700; padding: 6px 11px; border: 1px solid #475569;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
-            <span>معاينة مستقلة 🔍</span>
+            <span>معاينة مستقلة</span>
           </button>
-          <button id="btn-close-shift-audit" type="button" class="btn btn-sm" style="background: rgba(255,255,255,0.15); color: white; border: none; font-size: 0.95rem;">
+          <button id="btn-close-shift-audit" type="button" class="btn btn-sm" style="background: rgba(255,255,255,0.15); color: white; border: none; font-size: 0.95rem; padding: 6px 11px;">
             إغلاق &times;
           </button>
         </div>
@@ -2206,17 +2223,24 @@
         <!-- 4. Post-Midnight Business Day -->
         <section id="man-sec-night" class="manual-section" style="margin-bottom: 36px; border-bottom: 1px solid #e2e8f0; padding-bottom: 24px;">
           <h2 style="color: #1a432a; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
-            <span>🌙</span> 4. اليوم التشغيلي الفندقي لما بعد منتصف الليل
+            <span>🌙</span> 4. اليوم التشغيلي الفندقي لما بعد منتصف الليل ودخول الفجر المبكر
           </h2>
           <div style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 12px; padding: 16px 20px;">
-            <p style="margin: 0 0 10px; font-weight: 700; color: #1e40af;">كيف يتعامل النظام مع النزلاء الواصلين في ساعات الفجر المتأخرة؟</p>
+            <p style="margin: 0 0 10px; font-weight: 700; color: #1e40af;">كيف يتعامل النظام مع النزلاء الواصلين في ساعات الفجر الأولى (قبل 06:00 ص)؟</p>
             <p style="margin: 0; font-size: 0.9rem; color: #1e3a8a;">
-              فندقياً، تستمر الليلة الفندقية حتى موعد الخروج الساعة 14:00 ظهراً. إذا وصل نزيل بين الساعة <strong>12:00 منتصف الليل وحتى 06:00 صباحاً</strong>، يقوم النظام تلقائياً بـ:
+              فندقياً، تستمر الليلة الفندقية حتى وقت قطع اليوم الفندقي والتدقيق الليلي (المحدد افتراضياً بالساعة <strong>06:00 صباحاً</strong>). إذا وصل نزيل بين الساعة <strong>12:00 منتصف الليل وحتى 06:00 صباحاً</strong>:
             </p>
-            <ul style="margin: 8px 0 0 20px; font-size: 0.88rem; color: #1e3a8a;">
-              <li>اعتبار تاريخ الوصول تابعاً لليلة التشغيلية المستمرة، وتاريخ المغادرة ظهر اليوم (الساعة 14:00).</li>
-              <li>تحويل حالة الغرفة فوراً إلى <strong>"مشغولة 🔴"</strong> (وليس متاحة) حتى لو كانت مغادرته اليوم.</li>
-              <li>حساب تكلفة ليلة مبيت كاملة نظامياً.</li>
+            <ul style="margin: 8px 0 0 20px; font-size: 0.88rem; color: #1e3a8a; line-height: 1.8;">
+              <li><strong>احتساب ليلة البارحة آلياً:</strong> يُحاسب النزيل نظامياً على ليلة مبيت كاملة (ليلة البارحة) لأن الغرفة استُهلكت لتلك الليلة.</li>
+              <li><strong>حالة الغرفة الفورية:</strong> تتحول الغرفة فوراً إلى <strong>"مشغولة 🔴"</strong> وتُمنع من الإتاحة حتى موعد المغادرة.</li>
+              <li><strong>مرونة الاستثناء لموظف الاستقبال (Checkbox):</strong> تظهر في شاشة الحجز خانة اختيار <code>[✓] احتساب ليلة سابقة (دخول فجر مبكر)</code> مفعلة تلقائياً. في حال منح النزيل استثناءً معتمداً (كعميل VIP)، يمكن للموظف إلغاء التحديد ليتم تسكينه على تاريخ اليوم دون محاسبته على ليلة البارحة.</li>
+              <li><strong>عرض التواريخ الحقيقية على الفاتورة:</strong> منعاً لأي لبس مع النزيل أو جهات عمله، تُظهر الفاتورة الرسمية تاريخ الحضور الحقيقي:
+                <ul style="margin: 4px 0 0 18px; color: #1e40af;">
+                  <li><strong>تاريخ الوصول الفعلي:</strong> يُعرض بالتاريخ والوقت الحقيقي للحضور، مثل: <code>2026-10-10 (03:00 ص)</code>.</li>
+                  <li><strong>تاريخ المغادرة الفعلي:</strong> يُعرض بالتاريخ والوقت الحقيقي للمغادرة، مثل: <code>2026-10-10 (01:00 م)</code>.</li>
+                  <li><strong>بيان الإقامة والبنود:</strong> يُوضح الاحتساب بصيغة صريحة: <code>1 ليلة (تشمل مبيت الليلة السابقة - دخول فجر مبكر)</code>.</li>
+                </ul>
+              </li>
             </ul>
           </div>
         </section>
@@ -2294,6 +2318,12 @@
             <div style="flex: 1; min-width: 250px; background: #f0fdf5; border: 1px solid #86efaf; border-radius: 10px; padding: 14px 16px;">
               <strong style="color: #166535;">💬 إرسال عبر واتساب:</strong>
               <p style="margin: 4px 0 0; font-size: 0.85rem; color: #14532c;">بنقرة واحدة على زر "إرسال واتساب"، تُفتح محادثة مباشرة مع النزيل تتضمن رسالة ترحيبية مهذبة وملخص كامل للحجز.</p>
+            </div>
+            <div style="flex: 1 1 100%; background: #eff6ff; border: 1px solid #93c5fd; border-radius: 10px; padding: 14px 16px;">
+              <strong style="color: #1e40af;">🕒 دقة التواريخ الفعلية وحالات دخول الفجر المبكر (Actual Dates):</strong>
+              <p style="margin: 4px 0 0; font-size: 0.85rem; color: #1e3a8a;">
+                تُظهر الفاتورة تاريخ وساعة الحضور والمغادرة الفعليين بالتقويم الحقيقي (مثل: <code>تاريخ الوصول الفعلي: 2026-10-10 (03:00 ص)</code>)، وفي حال تسكين النزيل قبل وقت قطع اليوم الفندقي (06:00 ص) واحتساب ليلة مبيت البارحة، يُوضح بند مدة الإقامة ذلك بشفافية تامة: <code>1 ليلة (تشمل مبيت الليلة السابقة - دخول فجر مبكر)</code> منعاً لأي لبس محاسبي أو نزاع مع النزيل.
+              </p>
             </div>
           </div>
         </section>

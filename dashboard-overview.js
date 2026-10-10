@@ -489,6 +489,9 @@
 
       // 5. Load Today's Check-outs Widget
       await loadTodayCheckouts();
+      if (typeof window.updateAttentionInbox === 'function') {
+        window.updateAttentionInbox();
+      }
     } catch (err) {
       console.error('Error loading overview data:', err);
       App.Helpers.showToast?.('فشل تحميل بيانات لوحة التحكم — تحقق من الاتصال وقم بالتحديث.', 'error');
@@ -751,6 +754,11 @@
       if (res && res.success) {
         const checkouts = res.data || [];
         renderTodayCheckoutsTable(checkouts);
+        if (typeof window.syncAttentionTodayCheckouts === 'function') {
+          window.syncAttentionTodayCheckouts(checkouts);
+        } else if (typeof window.updateAttentionInbox === 'function') {
+          window.updateAttentionInbox();
+        }
       } else {
         console.warn('Could not load today checkouts:', res?.error);
       }
@@ -940,6 +948,7 @@
 
       const statusLabel = isLateCheckout ? getCheckoutDelayLabel(checkoutDate) : (isCompleted ? 'تمت المغادرة ✓' : 'حجز مؤكد');
       const statusTone = isLateCheckout ? 'danger' : (isCompleted ? 'success' : 'neutral');
+      const delayHours = (isLateCheckout && App.Helpers.getCheckoutDelayHours) ? App.Helpers.getCheckoutDelayHours(r) : 0;
       const checkoutDetail = r.checkout_time
         ? `المغادرة الفعلية: ${checkoutDate} · ${String(r.checkout_time).slice(0, 5)}`
         : (expectedCheckoutTime && checkoutDate ? `المغادرة المتوقعة: ${checkoutDate} · ${expectedCheckoutTime}` : '');
@@ -1015,7 +1024,12 @@
           <td data-label="حالة الحجز">
             <div class="checkouts-status-stack">
               ${renderDashboardStatusBadge(statusLabel, statusTone)}
-              ${checkoutDetail ? `<small class="checkout-status-detail" title="${App.Helpers.escapeHtml(checkoutDetail)}">${App.Helpers.escapeHtml(checkoutDetail)}</small>` : ''}
+              ${checkoutDetail ? `
+                <small class="checkout-status-detail" title="${App.Helpers.escapeHtml(checkoutDetail)}${delayHours > 0 ? ` (تأخير ${delayHours} ساعة)` : ''}">
+                  ${App.Helpers.escapeHtml(checkoutDetail)}
+                  ${delayHours > 0 ? `<span class="checkout-delay-hours" style="color: #b91c1c; font-weight: 700; white-space: nowrap;"> (${delayHours} س تأخير)</span>` : ''}
+                </small>
+              ` : ''}
             </div>
           </td>
           <td data-label="إجراء المغادرة" style="text-align: center;">
