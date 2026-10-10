@@ -97,9 +97,9 @@ module.exports = function registerAppLockIpc(ipcMain, { app, session }) {
         session.mainWindow.setTitle('ريحانة للوحدات السكنية | Rayhana Residential Units');
         if (typeof session.mainWindow.setTitleBarOverlay === 'function') {
           session.mainWindow.setTitleBarOverlay({
-            color: '#1a432a',
-            symbolColor: '#ffffff',
-            height: 36
+            color: '#ffffff',
+            symbolColor: '#1e293b',
+            height: 32
           });
         }
         session.mainWindow.loadFile('login.html');
