@@ -222,16 +222,15 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
       } else {
         const submittedTotal = Number(options.finalTotalPrice);
         if (!isAdmin || options.finalTotalPrice === undefined || options.finalTotalPrice === null || options.finalTotalPrice === '' || !Number.isFinite(submittedTotal) || submittedTotal < 0) {
-          const today = db.getLocalDateString();
-          const [startYear, startMonth, startDay] = String(reservation.check_in_date || today).slice(0, 10).split('-').map(Number);
-          const [endYear, endMonth, endDay] = today.split('-').map(Number);
-          const elapsedNights = Math.max(1, Math.round((Date.UTC(endYear, endMonth - 1, endDay) - Date.UTC(startYear, startMonth - 1, startDay)) / 86400000));
-          const nightlyRate = db.roundMoney(reservation.custom_nightly_price || reservation.price_per_night || 0);
           const storedDiscount = db.roundMoney(reservation.discount_amount || 0);
           const allowedDiscount = isAdmin && options.discountAmount !== undefined && options.discountAmount !== null && options.discountAmount !== ''
             ? Math.max(0, db.roundMoney(options.discountAmount))
             : storedDiscount;
-          const calculatedTotal = Math.max(0, db.roundMoney(elapsedNights * nightlyRate - allowedDiscount));
+          const calculatedTotal = db.getReservationRoomStayCharges(
+            id,
+            db.getCurrentBusinessDate(),
+            { discountAmount: allowedDiscount }
+          ).netCharge;
           options = { ...options, finalTotalPrice: calculatedTotal };
         }
       }
@@ -449,7 +448,54 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
     try {
       const data = db.getReservationById(reservationId);
       if (!data) return { success: false, error: 'لم يتم العثور على بيانات الحجز.' };
+      const chargeDate = data.check_out_date && data.check_out_date !== 'مفتوح'
+        ? data.check_out_date
+        : db.getCurrentBusinessDate();
+      const roomStayCharges = db.getReservationRoomStayCharges(data.id, chargeDate, {
+        contractValue: data.booking_type === 'حجز شهري' && data.checkout_policy !== 'actual'
+      });
+      data.room_stay_charges = roomStayCharges;
       return { success: true, data };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('reservations:room-transfer-preview', async (event, data = {}) => {
+    const denied = requireSession();
+    if (denied) return denied;
+    try {
+      await ensureOpenBusinessDateIsCurrent();
+      const isAdmin = session.currentUser.role === 'Admin';
+      const preview = db.previewRoomTransfer({
+        reservationId: data.reservationId,
+        toRoomId: data.toRoomId,
+        ratePolicy: data.ratePolicy,
+        customRate: data.customRate,
+        isAdmin
+      });
+      return { success: true, data: preview };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('reservations:room-transfer', async (event, data = {}) => {
+    const denied = requireSession();
+    if (denied) return denied;
+    try {
+      await ensureOpenBusinessDateIsCurrent();
+      const result = db.transferReservationRoom({
+        reservationId: data.reservationId,
+        toRoomId: data.toRoomId,
+        ratePolicy: data.ratePolicy,
+        customRate: data.customRate,
+        reason: data.reason,
+        notes: data.notes,
+        userId: session.currentUser.id,
+        isAdmin: session.currentUser.role === 'Admin'
+      });
+      return { success: true, data: result };
     } catch (err) {
       return { success: false, error: err.message };
     }

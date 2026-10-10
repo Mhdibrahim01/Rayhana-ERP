@@ -96,6 +96,8 @@ contextBridge.exposeInMainWorld('api', {
   },
   getShiftAuditReport: (date) => ipcRenderer.invoke('reports:get-shift-audit', date),
   getInvoiceData: (reservationId) => ipcRenderer.invoke('reservations:get-invoice-data', reservationId),
+  previewRoomTransfer: (data) => ipcRenderer.invoke('reservations:room-transfer-preview', data),
+  transferReservationRoom: (data) => ipcRenderer.invoke('reservations:room-transfer', data),
   updateReservationReceipt: (data) => ipcRenderer.invoke('reservations:update-receipt', data),
   printToPdf: (options) => ipcRenderer.invoke('print:to-pdf', options),
   openPrintPreviewWindow: (options) => ipcRenderer.invoke('print:open-preview-window', options),

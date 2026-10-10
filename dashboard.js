@@ -635,12 +635,14 @@
       const isCancelled = inv.status === 'ملغي';
       const isConfirmed = inv.status === 'مؤكد';
       const businessToday = window.DashboardApp?.State?.businessDate || window.DashboardApp?.Helpers?.getLocalDateString?.() || new Date().toISOString().slice(0, 10);
+      const invoiceRoomStays = Array.isArray(inv.room_stays) ? inv.room_stays : [];
       const overdueDate = String(inv.check_out_date || '').slice(0, 10);
       const overdueDays = (isConfirmed && !isContract && overdueDate && overdueDate < businessToday)
         ? Math.max(0, Math.floor((Date.parse(`${businessToday}T00:00:00Z`) - Date.parse(`${overdueDate}T00:00:00Z`)) / 86400000))
         : 0;
       const isOverdue = overdueDays > 0;
-      const effectiveNightlyRate = parseFloat(inv.custom_nightly_price || inv.price_per_night || 0);
+      const latestRoomStay = invoiceRoomStays[invoiceRoomStays.length - 1];
+      const effectiveNightlyRate = parseFloat(latestRoomStay?.nightly_rate_snapshot || inv.custom_nightly_price || inv.price_per_night || 0);
 
       let elapsedContractNights = 0;
       if (isConfirmed && isContract && inv.check_in_date) {
@@ -656,6 +658,8 @@
       if (isOverdue && effectiveNightlyRate > 0) {
         overdueAdditionalAmount = roundMoney(overdueDays * effectiveNightlyRate);
         effectiveTotal = roundMoney(storedTotal + overdueAdditionalAmount);
+      } else if (isConfirmed && isContract && inv.room_stays?.length > 1 && inv.room_stay_charges) {
+        effectiveTotal = Math.max(storedTotal, roundMoney(inv.room_stay_charges.netCharge));
       } else if (isConfirmed && isContract && effectiveNightlyRate > 0) {
         effectiveTotal = Math.max(storedTotal, roundMoney(elapsedContractNights * effectiveNightlyRate - discount));
       }
@@ -908,6 +912,46 @@
         .filter(Boolean)
         .filter((_, index) => isMonthly || index !== 2)
         .slice(0, 7);
+      const invoiceChargeSegments = Array.isArray(inv.room_stay_charges?.segments)
+        ? inv.room_stay_charges.segments
+        : [];
+      const invoiceRoomRows = invoiceRoomStays.length > 1 && !isCancelled
+        ? invoiceRoomStays.map((stay, stayIndex) => {
+          const startDate = String(stay.start_business_date || inv.check_in_date || '').slice(0, 10);
+          const endDate = String(stay.end_business_date || (isConfirmed
+            ? (isContract ? businessToday : inv.check_out_date)
+            : (inv.check_out_date || businessToday)) || '').slice(0, 10);
+          const startMs = Date.parse(`${startDate}T00:00:00Z`);
+          const endMs = Date.parse(`${endDate}T00:00:00Z`);
+          let segmentNights = Number(invoiceChargeSegments[stayIndex]?.nights);
+          if (!Number.isFinite(segmentNights)) segmentNights = Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs
+            ? Math.round((endMs - startMs) / 86400000)
+            : 0;
+          if (inv.booking_type === 'استخدام يومي') segmentNights = stay === invoiceRoomStays[invoiceRoomStays.length - 1] ? 1 : 0;
+          const segmentNightlyRate = Number(stay.nightly_rate_snapshot || 0);
+          const segmentMonthlyRate = Number(stay.monthly_rate_snapshot || 0) || segmentNightlyRate * 30;
+          const segmentAmount = Number.isFinite(Number(invoiceChargeSegments[stayIndex]?.amount))
+            ? Number(invoiceChargeSegments[stayIndex].amount)
+            : (isMonthly
+              ? (nights > 0 ? roundMoney(segmentMonthlyRate * segmentNights / nights) : 0)
+              : roundMoney(segmentNightlyRate * segmentNights));
+          const segmentDuration = inv.booking_type === 'استخدام يومي'
+            ? (segmentNights ? 'يوم استخدام' : 'نقل في اليوم نفسه')
+            : `${segmentNights} ${segmentNights === 1 ? 'ليلة' : 'ليالٍ'}`;
+          const displayRate = isMonthly ? segmentMonthlyRate : segmentNightlyRate;
+          return `
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 12px 14px;">
+                <div style="font-weight: 700; color: #1e293b;">إقامة في الغرفة ${escapeHtml(receiptDigits(stay.room_number || ''))}</div>
+                <div style="font-size: .75rem; color: #64748b; margin-top: 3px;" dir="ltr">${escapeHtml(startDate)} – ${escapeHtml(endDate)}</div>
+              </td>
+              <td style="padding: 12px 14px; text-align: center; color: #475569;">${formatReceiptMoney(displayRate)} ${isMonthly ? 'ر.س/شهر' : 'ر.س'}</td>
+              <td style="padding: 12px 14px; text-align: center; font-weight: 700; color: #475569;">${segmentDuration}</td>
+              <td style="padding: 12px 14px; text-align: left; font-weight: 800; color: #1e1b4b;">${formatReceiptMoney(segmentAmount)} ر.س</td>
+            </tr>
+          `;
+        }).join('')
+        : '';
       const receiptDocumentStyles = `
         <style>
           .receipt-document{box-sizing:border-box;width:100%;max-width:100%;min-height:0;padding:16px;border:1px solid #dbe3ec;border-radius:12px;background:#fff;color:#0f172a;display:flex;flex-direction:column;gap:12px;font:13px/1.45 "Segoe UI",Tahoma,"Cairo",Arial,sans-serif;direction:rtl;text-align:right;overflow-wrap:anywhere}
@@ -1092,7 +1136,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr style="border-bottom: 1px solid #e2e8f0; ${isCancelled ? 'background: #fff8f8;' : ''}">
+                ${invoiceRoomRows || `<tr style="border-bottom: 1px solid #e2e8f0; ${isCancelled ? 'background: #fff8f8;' : ''}">
                   <td style="padding: 14px;">
                     <div style="font-weight: 700; color: #1e293b;">إقامة سكنية - وحدة ${escapeHtml(receiptDigits(inv.room_number))} ${isContract ? '(عقد مفتوح)' : ''}${isEarlyMorningCheckin ? ' (تشمل مبيت الليلة السابقة - دخول فجر مبكر)' : ''}</div>
                     <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">
@@ -1104,7 +1148,7 @@
                   <td style="padding: 14px; text-align: center; color: #475569;">${isCancelled ? '0.00 ر.س' : `${formatReceiptMoney(shownRate)} ر.س`}</td>
                   <td style="padding: 14px; text-align: center; font-weight: 700; color: #475569;">${isMonthly && !isActualPolicy ? 'شهر' : (isContract && isConfirmed ? `${elapsedContractNights} ليالٍ` : (isEarlyMorningCheckin ? `${invoiceNights} ${invoiceNights === 1 ? 'ليلة' : 'ليالٍ'}` : invoiceDurationText))}</td>
                   <td style="padding: 14px; text-align: left; font-weight: 800; color: #1e1b4b;">${formatReceiptMoney(isCancelled ? 0 : (isContract && isConfirmed ? (elapsedContractNights * effectiveNightlyRate) : shownSubtotal))} ر.س</td>
-                </tr>
+                </tr>`}
                 ${isOverdue && overdueAdditionalAmount > 0 && !isCancelled ? `
                   <tr style="background: #fff7ed; border-bottom: 1px solid #ffedd5;">
                     <td style="padding: 12px 14px;">

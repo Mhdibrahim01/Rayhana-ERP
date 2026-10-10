@@ -101,6 +101,50 @@ test('IPC Reservations handlers', async t => {
       assert.equal(res.total_price, 300);
     });
 
+    await t.test('Room transfer IPC derives user and pricing permissions from the active session', async () => {
+      const transferOldRoom = addRoom('IPC-MOVE-OLD', 100);
+      const transferNewRoom = addRoom('IPC-MOVE-NEW', 150);
+      const transferReservationId = createReservation({
+        roomId: transferOldRoom.id,
+        checkIn: addDays(today, -1),
+        checkOut: addDays(today, 2),
+        totalPrice: 300
+      });
+
+      deps.session.currentUser = { id: 2, username: 'staff', role: 'User' };
+      const deniedPreview = await ipcMain.invoke('reservations:room-transfer-preview', {}, {
+        reservationId: transferReservationId,
+        toRoomId: transferNewRoom.id,
+        ratePolicy: 'preserve_rate'
+      });
+      assert.equal(deniedPreview.success, false);
+      assert.match(deniedPreview.error, /صلاحية المدير/);
+
+      const moved = await ipcMain.invoke('reservations:room-transfer', {}, {
+        reservationId: transferReservationId,
+        toRoomId: transferNewRoom.id,
+        reason: 'عطل تكييف',
+        userId: 1,
+        requesterRole: 'Admin'
+      });
+      assert.equal(moved.success, true);
+      const audit = connection.queryOne('SELECT user_id FROM room_transfers WHERE reservation_id = ?', [transferReservationId]);
+      assert.equal(audit.user_id, 2);
+      assert.equal(moved.data.transferId, connection.queryOne('SELECT id FROM room_transfers WHERE reservation_id = ?', [transferReservationId]).id);
+      const invoice = await ipcMain.invoke('reservations:get-invoice-data', {}, transferReservationId);
+      assert.equal(invoice.success, true);
+      assert.equal(invoice.data.room_stays.length, 2);
+      assert.equal(invoice.data.room_stay_charges.segments.length, 2);
+
+      deps.session.currentUser = null;
+      const denied = await ipcMain.invoke('reservations:room-transfer-preview', {}, {
+        reservationId: transferReservationId,
+        toRoomId: transferOldRoom.id
+      });
+      assert.equal(denied.success, false);
+      assert.match(denied.error, /غير مصرح/);
+    });
+
     await t.test('Cancel handler: active stays must use checkout regardless of role or override', async () => {
       const room2 = addRoom('IPC-CANCEL', 200);
       const resId1 = createReservation({ roomId: room2.id, name: 'User Cancel', checkIn: addDays(today, -2), checkOut: addDays(today, 2), totalPrice: 800, paidAmount: 800 });

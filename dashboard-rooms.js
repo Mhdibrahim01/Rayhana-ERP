@@ -236,6 +236,7 @@
       const hasCheckOut = checkOutDateVal && String(checkOutDateVal).trim() !== '';
       const overflowItems = [
         `<button type="button" class="room-card-overflow-item" data-action="room-revenue" data-room-id="${room.id}" title="تقرير إيرادات الغرفة">إيرادات الغرفة</button>`,
+        ...(room.status === 'مشغولة' && activeRes ? [`<button type="button" class="room-card-overflow-item" data-action="room-transfer" data-id="${activeRes.id}" title="نقل النزيل إلى غرفة أخرى">نقل الغرفة</button>`] : []),
         ...(room.status === 'مشغولة' && activeRes && hasCheckOut && String(checkOutDateVal) !== 'مفتوح' ? [`<button type="button" class="room-card-overflow-item" data-action="extend" data-id="${activeRes.id}" title="تمديد فترة الإقامة">تمديد الإقامة</button>`] : []),
         ...(room.status === 'محجوزة' && upcomingRes ? [`<button type="button" class="room-card-overflow-item is-danger" data-action="cancel" data-id="${upcomingRes.id}" aria-label="إلغاء الحجز" title="إلغاء الحجز">إلغاء الحجز</button>`] : []),
         ...((room.status === 'متاحة' || room.status === 'تنظيف') ? [`<label class="room-card-overflow-status">تغيير الحالة<select class="room-status-select" data-room-id="${room.id}"><option value="متاحة" ${room.status === 'متاحة' ? 'selected' : ''}>متاحة</option><option value="تنظيف" ${room.status === 'تنظيف' ? 'selected' : ''}>تنظيف</option></select></label>`] : [])

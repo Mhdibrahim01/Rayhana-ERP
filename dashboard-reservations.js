@@ -800,7 +800,7 @@
       window.updateAttentionInbox();
     }
     if (typeof window.dispatchEvent === 'function') {
-      window.dispatchEvent(new CustomEvent('reservation:updated', { detail: { reservationId, type } }));
+      window.dispatchEvent(new window.CustomEvent('reservation:updated', { detail: { reservationId, type } }));
     }
   }
   // =========================================================================
@@ -1853,6 +1853,15 @@
         <button type="button" class="res-overflow-item" data-action="checkout" data-id="${r.id}">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
           <span>تسجيل خروج وتسليم الغرفة</span>
+        </button>
+      `);
+    }
+
+    if (isConfirmed && canCheckOut) {
+      items.push(`
+        <button type="button" class="res-overflow-item" data-action="room-transfer" data-id="${r.id}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h12"></path><path d="m13 4 3 3-3 3"></path><path d="M20 17H8"></path><path d="m11 14-3 3 3 3"></path></svg>
+          <span>نقل الغرفة</span>
         </button>
       `);
     }
@@ -3670,6 +3679,210 @@
 
   function loadAdminData() { return window.DashboardApp.Helpers.loadAdminData(); }
 
+  let activeRoomTransferReservationId = null;
+  let roomTransferPreviewRequest = 0;
+  let roomTransferPreviewValid = false;
+
+  function closeRoomTransferModal() {
+    const modal = document.getElementById('room-transfer-modal');
+    if (modal) modal.style.display = 'none';
+    activeRoomTransferReservationId = null;
+  }
+
+  function showRoomTransferError(message) {
+    const error = document.getElementById('room-transfer-error');
+    if (!error) return;
+    error.textContent = message || '';
+    error.style.display = message ? 'block' : 'none';
+  }
+
+  async function refreshRoomTransferPreview() {
+    const roomSelectEl = document.getElementById('room-transfer-room');
+    const policySelectEl = document.getElementById('room-transfer-policy');
+    const customRateEl = document.getElementById('room-transfer-custom-rate');
+    const previewEl = document.getElementById('room-transfer-preview');
+    const confirmButton = document.getElementById('room-transfer-confirm');
+    const reasonSelect = document.getElementById('room-transfer-reason');
+    if (!roomSelectEl || !previewEl || !confirmButton || !activeRoomTransferReservationId) return;
+
+    const requestId = ++roomTransferPreviewRequest;
+    const toRoomId = Number(roomSelectEl.value);
+    roomTransferPreviewValid = false;
+    confirmButton.disabled = true;
+    showRoomTransferError('');
+    if (!toRoomId) {
+      previewEl.textContent = 'اختر الغرفة لعرض أثر النقل على قيمة الإقامة.';
+      return;
+    }
+
+    previewEl.textContent = 'جارٍ التحقق من التوفر وحساب فرق السعر...';
+    try {
+      const result = await window.api.previewRoomTransfer({
+        reservationId: activeRoomTransferReservationId,
+        toRoomId,
+        ratePolicy: policySelectEl?.value || 'room_rate',
+        customRate: customRateEl?.value
+      });
+      if (requestId !== roomTransferPreviewRequest) return;
+      if (!result?.success) {
+        previewEl.textContent = 'تعذر إتمام المعاينة.';
+        showRoomTransferError(result?.error || 'تعذر التحقق من الغرفة الجديدة.');
+        return;
+      }
+
+      const quote = result.data;
+      roomTransferPreviewValid = true;
+      const fmt = value => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const rateUnit = quote.rateBasis === 'monthly' ? 'ريال/شهر' : 'ريال/ليلة';
+      const deltaText = quote.isOpenContract
+        ? 'تُحسب القيمة النهائية عند المغادرة من أسعار شرائح الإقامة.'
+        : (Math.abs(Number(quote.priceDelta || 0)) < 0.005
+          ? 'لا يوجد فرق في إجمالي الإقامة.'
+          : `${Number(quote.priceDelta) > 0 ? 'زيادة' : 'انخفاض'} متوقع: ${fmt(Math.abs(quote.priceDelta))} ر.س`);
+      previewEl.innerHTML = `
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <span>السعر المعتمد للغرفة الجديدة: <strong>${fmt(quote.newRate)} ${rateUnit}</strong></span>
+          <strong style="color:${Number(quote.priceDelta) > 0 ? '#a33b21' : '#176b4b'}">${escapeHtml(deltaText)}</strong>
+        </div>
+        ${quote.projectedTotal === null ? '' : `<div style="margin-top:6px">إجمالي الإقامة المتوقع بعد النقل: <strong>${fmt(quote.projectedTotal)} ر.س</strong></div>`}
+        <div style="margin-top:5px;color:#64748b;font-size:.78rem">لن تُسجل دفعة أو عملية استرداد تلقائياً. يظهر الرصيد الجديد في الحجز.</div>
+      `;
+      confirmButton.disabled = !reasonSelect?.value;
+    } catch (err) {
+      if (requestId !== roomTransferPreviewRequest) return;
+      previewEl.textContent = 'تعذر إتمام المعاينة.';
+      showRoomTransferError(err.message || 'تعذر التحقق من الغرفة الجديدة.');
+    }
+  }
+
+  async function openRoomTransferModal(reservationId) {
+    const targetId = parseInt(reservationId, 10);
+    const modal = document.getElementById('room-transfer-modal');
+    const summary = document.getElementById('room-transfer-summary');
+    const roomSelectEl = document.getElementById('room-transfer-room');
+    const policySelectEl = document.getElementById('room-transfer-policy');
+    const customRateWrap = document.getElementById('room-transfer-custom-wrap');
+    const customRateLabel = document.getElementById('room-transfer-custom-label');
+    const customRateEl = document.getElementById('room-transfer-custom-rate');
+    const reasonSelect = document.getElementById('room-transfer-reason');
+    const notesInput = document.getElementById('room-transfer-notes');
+    const previewEl = document.getElementById('room-transfer-preview');
+    const confirmButton = document.getElementById('room-transfer-confirm');
+    if (!targetId || !modal) return;
+
+    activeRoomTransferReservationId = targetId;
+    roomTransferPreviewRequest++;
+    roomTransferPreviewValid = false;
+    showRoomTransferError('');
+    if (confirmButton) confirmButton.disabled = true;
+    if (reasonSelect) reasonSelect.value = '';
+    if (notesInput) notesInput.value = '';
+    if (customRateEl) customRateEl.value = '';
+    if (customRateWrap) customRateWrap.style.display = 'none';
+    if (previewEl) previewEl.textContent = 'اختر الغرفة لعرض أثر النقل على قيمة الإقامة.';
+    if (modal) modal.style.display = 'flex';
+
+    try {
+      const [reservationResult, roomsResult] = await Promise.all([
+        window.api.getInvoiceData(targetId),
+        window.api.getAllRooms()
+      ]);
+      if (!reservationResult?.success || !reservationResult.data) throw new Error(reservationResult?.error || 'تعذر تحميل بيانات الحجز.');
+      if (!roomsResult?.success || !Array.isArray(roomsResult.data)) throw new Error(roomsResult?.error || 'تعذر تحميل الغرف.');
+      const reservation = reservationResult.data;
+      const fmt = value => Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const isMonthly = reservation.booking_type === 'حجز شهري';
+      const guestName = reservation.guest_name || 'النزيل';
+      summary.innerHTML = `
+        <span><strong>النزيل:</strong> ${escapeHtml(guestName)}</span>
+        <span><strong>الغرفة الحالية:</strong> ${escapeHtml(reservation.room_number || '-')}</span>
+        <span><strong>المغادرة:</strong> ${escapeHtml(reservation.check_out_date || 'مفتوح')}</span>
+        <span><strong>المدفوع:</strong> ${fmt(reservation.ledger_paid_amount ?? reservation.paid_amount)} ر.س</span>
+      `;
+
+      const isAdmin = App.State.currentUser?.role === 'Admin';
+      policySelectEl.innerHTML = '<option value="room_rate">سعر الغرفة الجديدة</option>';
+      if (isAdmin) {
+        policySelectEl.insertAdjacentHTML('beforeend', `
+          <option value="preserve_rate">تثبيت السعر الحالي</option>
+          <option value="custom_rate">سعر مخصص</option>
+        `);
+      }
+      if (customRateLabel) customRateLabel.textContent = isMonthly ? 'السعر الشهري المخصص' : 'سعر الليلة المخصص';
+      roomSelectEl.innerHTML = '<option value="">اختر الغرفة</option>';
+      for (const room of roomsResult.data) {
+        if (Number(room.id) === Number(reservation.room_id) || !['متاحة', 'محجوزة'].includes(room.status)) continue;
+        const rate = isMonthly ? Number(room.monthly_price || 0) : Number(room.price_per_night || 0);
+        if (isMonthly && rate <= 0) continue;
+        const rateText = rate > 0 ? ` · ${fmt(rate)} ${isMonthly ? 'ريال/شهر' : 'ريال/ليلة'}` : '';
+        roomSelectEl.insertAdjacentHTML('beforeend', `<option value="${Number(room.id)}">${escapeHtml(room.room_number)} · ${escapeHtml(room.type || '')}${rateText}</option>`);
+      }
+      roomSelectEl.value = '';
+      modal.dataset.bookingType = reservation.booking_type || 'عادي';
+    } catch (err) {
+      showRoomTransferError(err.message || 'تعذر تحميل بيانات النقل.');
+    }
+  }
+
+  const roomTransferModal = document.getElementById('room-transfer-modal');
+  const roomTransferForm = document.getElementById('room-transfer-form');
+  const roomTransferRoomSelect = document.getElementById('room-transfer-room');
+  const roomTransferPolicySelect = document.getElementById('room-transfer-policy');
+  const roomTransferCustomRate = document.getElementById('room-transfer-custom-rate');
+  const roomTransferCustomWrap = document.getElementById('room-transfer-custom-wrap');
+  const roomTransferReason = document.getElementById('room-transfer-reason');
+
+  if (document.getElementById('room-transfer-close')) {
+    document.getElementById('room-transfer-close').addEventListener('click', closeRoomTransferModal);
+  }
+  if (document.getElementById('room-transfer-cancel')) {
+    document.getElementById('room-transfer-cancel').addEventListener('click', closeRoomTransferModal);
+  }
+  if (roomTransferModal) {
+    roomTransferModal.addEventListener('click', event => {
+      if (event.target === roomTransferModal) closeRoomTransferModal();
+    });
+  }
+  if (roomTransferRoomSelect) roomTransferRoomSelect.addEventListener('change', refreshRoomTransferPreview);
+  if (roomTransferPolicySelect) roomTransferPolicySelect.addEventListener('change', () => {
+    const isCustom = roomTransferPolicySelect.value === 'custom_rate';
+    if (roomTransferCustomWrap) roomTransferCustomWrap.style.display = isCustom ? 'block' : 'none';
+    refreshRoomTransferPreview();
+  });
+  if (roomTransferCustomRate) roomTransferCustomRate.addEventListener('input', refreshRoomTransferPreview);
+  if (roomTransferReason) roomTransferReason.addEventListener('change', () => {
+    const confirmButton = document.getElementById('room-transfer-confirm');
+    if (confirmButton) confirmButton.disabled = !roomTransferPreviewValid || !roomTransferReason.value;
+  });
+  if (roomTransferForm) {
+    roomTransferForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const confirmButton = document.getElementById('room-transfer-confirm');
+      if (!activeRoomTransferReservationId || !roomTransferReason?.value || !roomTransferRoomSelect?.value) return;
+      confirmButton.disabled = true;
+      showRoomTransferError('');
+      try {
+        const result = await window.api.transferReservationRoom({
+          reservationId: activeRoomTransferReservationId,
+          toRoomId: Number(roomTransferRoomSelect.value),
+          ratePolicy: roomTransferPolicySelect?.value || 'room_rate',
+          customRate: roomTransferCustomRate?.value,
+          reason: roomTransferReason.value,
+          notes: document.getElementById('room-transfer-notes')?.value || ''
+        });
+        if (!result?.success) throw new Error(result?.error || 'تعذر نقل النزيل.');
+        closeRoomTransferModal();
+        showToast(`تم نقل النزيل من الغرفة ${result.data.fromRoomNumber} إلى ${result.data.toRoomNumber}.`, 'success');
+        window.dispatchEvent(new window.CustomEvent('reservation:updated', {
+          detail: { reservationId: result.data.reservationId, type: 'room-transfer' }
+        }));
+      } catch (err) {
+        showRoomTransferError(err.message || 'تعذر نقل النزيل.');
+        confirmButton.disabled = false;
+      }
+    });
+  }
+
   // =========================================================================
 
   // =========================================================================
@@ -3700,7 +3913,7 @@
       closeReservationsOverflowMenu();
     }
 
-    if (btn.closest('#reservation-preview-modal') && ['invoice', 'whatsapp', 'extend', 'checkout'].includes(action)) {
+    if (btn.closest('#reservation-preview-modal') && ['invoice', 'whatsapp', 'extend', 'checkout', 'room-transfer'].includes(action)) {
       const previewModal = document.getElementById('reservation-preview-modal');
       if (previewModal) previewModal.style.display = 'none';
     }
@@ -3735,6 +3948,11 @@
 
     if (action === 'preview-reservation') {
       await window.DashboardApp.Helpers.openReservationPreview(id);
+      return;
+    }
+
+    if (action === 'room-transfer') {
+      await openRoomTransferModal(id);
       return;
     }
 

@@ -163,6 +163,59 @@ async function init(dbPath) {
 
       CREATE INDEX IF NOT EXISTS idx_reservations_status_id ON reservations(status, id DESC);
 
+      CREATE TABLE IF NOT EXISTS reservation_room_stays (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        reservation_id INTEGER NOT NULL,
+        room_id INTEGER NOT NULL,
+        start_business_date TEXT NOT NULL,
+        end_business_date TEXT,
+        started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        ended_at DATETIME,
+        rate_basis TEXT NOT NULL DEFAULT 'nightly' CHECK (rate_basis IN ('nightly', 'monthly', 'open_contract', 'day_use')),
+        nightly_rate_snapshot REAL NOT NULL DEFAULT 0,
+        monthly_rate_snapshot REAL,
+        rate_policy TEXT NOT NULL DEFAULT 'room_rate' CHECK (rate_policy IN ('room_rate', 'preserve_rate', 'custom_rate')),
+        created_by INTEGER,
+        reason TEXT,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(reservation_id) REFERENCES reservations(id),
+        FOREIGN KEY(room_id) REFERENCES rooms(id),
+        FOREIGN KEY(created_by) REFERENCES users(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS room_transfers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        reservation_id INTEGER NOT NULL,
+        from_room_id INTEGER NOT NULL,
+        to_room_id INTEGER NOT NULL,
+        transfer_datetime DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        business_date TEXT NOT NULL,
+        rate_policy TEXT NOT NULL CHECK (rate_policy IN ('room_rate', 'preserve_rate', 'custom_rate')),
+        old_room_rate REAL NOT NULL,
+        new_room_rate REAL NOT NULL,
+        price_delta REAL NOT NULL DEFAULT 0,
+        transfer_reason TEXT NOT NULL,
+        notes TEXT,
+        user_id INTEGER NOT NULL,
+        FOREIGN KEY(reservation_id) REFERENCES reservations(id),
+        FOREIGN KEY(from_room_id) REFERENCES rooms(id),
+        FOREIGN KEY(to_room_id) REFERENCES rooms(id),
+        FOREIGN KEY(user_id) REFERENCES users(id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_reservation_room_stays_reservation
+        ON reservation_room_stays(reservation_id, start_business_date, id);
+      CREATE INDEX IF NOT EXISTS idx_reservation_room_stays_room
+        ON reservation_room_stays(room_id, start_business_date, end_business_date);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_reservation_room_stays_current
+        ON reservation_room_stays(reservation_id) WHERE ended_at IS NULL;
+      CREATE INDEX IF NOT EXISTS idx_room_transfers_reservation
+        ON room_transfers(reservation_id, transfer_datetime, id);
+      CREATE INDEX IF NOT EXISTS idx_room_transfers_rooms
+        ON room_transfers(from_room_id, to_room_id);
+      CREATE INDEX IF NOT EXISTS idx_room_transfers_business_date
+        ON room_transfers(business_date);
+
       -- جدول سجل المدفوعات وسندات القبض (Payments / Receipts Ledger Table)
       CREATE TABLE IF NOT EXISTS payments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -312,6 +365,35 @@ async function init(dbPath) {
         console.warn('[DB Migration]:', e.message);
       }
     }
+
+    db.run(`
+      INSERT INTO reservation_room_stays (
+        reservation_id, room_id, start_business_date, end_business_date,
+        started_at, ended_at, rate_basis, nightly_rate_snapshot,
+        monthly_rate_snapshot, rate_policy, reason
+      )
+      SELECT r.id, r.room_id, r.check_in_date,
+        CASE WHEN r.status IN ('مكتمل', 'ملغي جزئي')
+          THEN date(COALESCE(NULLIF(r.checked_out_at, ''), NULLIF(r.check_out_date, ''), r.check_in_date))
+          ELSE NULL END,
+        COALESCE(NULLIF(r.actual_check_in_at, ''), NULLIF(r.created_at, ''), CURRENT_TIMESTAMP),
+        CASE WHEN r.status IN ('مكتمل', 'ملغي جزئي')
+          THEN COALESCE(NULLIF(r.checked_out_at, ''), CURRENT_TIMESTAMP)
+          ELSE NULL END,
+        CASE r.booking_type
+          WHEN 'حجز شهري' THEN 'monthly'
+          WHEN 'عقد مفتوح' THEN 'open_contract'
+          WHEN 'استخدام يومي' THEN 'day_use'
+          ELSE 'nightly' END,
+        COALESCE(NULLIF(r.custom_nightly_price, 0), rm.price_per_night, 0),
+        r.monthly_rate_snapshot, 'room_rate', 'ترحيل تلقائي للحجز القديم'
+      FROM reservations r
+      JOIN rooms rm ON rm.id = r.room_id
+      WHERE r.status IN ('مؤكد', 'مكتمل', 'ملغي جزئي')
+        AND NOT EXISTS (
+          SELECT 1 FROM reservation_room_stays s WHERE s.reservation_id = r.id
+        )
+    `);
 
     const defaultSettings = [
       ['business_day_cutoff_time', '06:00'],

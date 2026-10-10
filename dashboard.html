@@ -1604,6 +1604,62 @@
     </div>
   </div>
 
+  <div id="room-transfer-modal" class="modal-backdrop modal-layout-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; z-index: 100010; align-items: center; justify-content: center; padding: 18px; background: rgba(15, 23, 42, 0.62);">
+    <div class="modal-layout" style="width: min(620px, 100%); max-height: calc(100vh - 36px); overflow: auto; background: #fff; border-radius: 12px; box-shadow: 0 24px 60px rgba(15, 23, 42, 0.24);">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 22px; color: #fff; background: #245543;">
+        <div>
+          <h2 style="margin: 0; font-size: 1.05rem;">نقل النزيل إلى غرفة أخرى</h2>
+          <p style="margin: 4px 0 0; font-size: 0.8rem; color: #d8eee3;">راجع التوفر وأثر السعر قبل التأكيد</p>
+        </div>
+        <button id="room-transfer-close" type="button" class="btn btn-sm" aria-label="إغلاق" title="إغلاق" style="width: 34px; height: 34px; border: 0; border-radius: 7px; color: #fff; background: rgba(255,255,255,.15); font-size: 1.2rem;">&times;</button>
+      </div>
+      <form id="room-transfer-form" style="padding: 20px 22px;">
+        <div id="room-transfer-summary" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 18px; padding: 12px 14px; margin-bottom: 18px; border: 1px solid #dce7e1; border-radius: 8px; background: #f6faf7; color: #294438; font-size: .86rem;"></div>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+          <label class="form-group" style="margin: 0;">
+            <span style="display: block; margin-bottom: 6px; font-weight: 700;">الغرفة البديلة</span>
+            <select id="room-transfer-room" class="form-control" required><option value="">اختر الغرفة</option></select>
+          </label>
+          <label class="form-group" style="margin: 0;">
+            <span style="display: block; margin-bottom: 6px; font-weight: 700;">سياسة السعر</span>
+            <select id="room-transfer-policy" class="form-control">
+              <option value="room_rate">سعر الغرفة الجديدة</option>
+            </select>
+          </label>
+          <label id="room-transfer-custom-wrap" class="form-group" style="display: none; margin: 0; grid-column: 1 / -1;">
+            <span id="room-transfer-custom-label" style="display: block; margin-bottom: 6px; font-weight: 700;">السعر المخصص</span>
+            <input id="room-transfer-custom-rate" class="form-control" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00">
+          </label>
+          <label class="form-group" style="margin: 0;">
+            <span style="display: block; margin-bottom: 6px; font-weight: 700;">سبب النقل</span>
+            <select id="room-transfer-reason" class="form-control" required>
+              <option value="">اختر السبب</option>
+              <option>عطل تكييف</option>
+              <option>عطل سباكة</option>
+              <option>صيانة طارئة</option>
+              <option>ترقية فندقية</option>
+              <option>رغبة النزيل</option>
+              <option>انزعاج من الضوضاء</option>
+              <option>أخرى</option>
+            </select>
+          </label>
+          <label class="form-group" style="margin: 0;">
+            <span style="display: block; margin-bottom: 6px; font-weight: 700;">ملاحظات</span>
+            <input id="room-transfer-notes" class="form-control" type="text" maxlength="500" placeholder="اختياري">
+          </label>
+        </div>
+        <div id="room-transfer-preview" aria-live="polite" style="min-height: 62px; margin-top: 16px; padding: 12px 14px; border-radius: 8px; background: #f3f6f4; color: #294438; font-size: .86rem;">
+          اختر الغرفة لعرض أثر النقل على قيمة الإقامة.
+        </div>
+        <p id="room-transfer-error" role="alert" style="display: none; margin: 10px 0 0; color: #b42318; font-size: .84rem;"></p>
+        <div style="display: flex; justify-content: flex-start; gap: 10px; margin-top: 20px;">
+          <button id="room-transfer-cancel" type="button" class="btn btn-secondary">إلغاء</button>
+          <button id="room-transfer-confirm" type="submit" class="btn btn-primary" disabled>تأكيد النقل</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Printable Hotel Tax Invoice Modal (Feature 1) -->
   <div id="invoice-modal" class="modal-backdrop modal-layout-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100000; align-items: center; justify-content: center; overflow: hidden; padding: 12px;">
     <div class="modal-layout" style="background: white; border-radius: 16px; max-width: 1100px; width: 96vw; max-height: calc(100vh - 24px); display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35); overflow: hidden; margin: auto;">
