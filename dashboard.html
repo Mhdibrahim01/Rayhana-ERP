@@ -1913,6 +1913,85 @@
     </div>
   </div>
 
+  <!-- Modal: Transfer Room (Phase 1: Rate-Preserving Transfer) -->
+  <div id="transfer-room-modal" class="modal-backdrop modal-layout-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100060; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
+    <div class="modal-layout" style="background: white; border-radius: 16px; max-width: 560px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35); overflow: hidden; margin: auto;">
+      <div class="modal-layout__header" style="background: #0f766e; color: white; padding: 16px 22px; display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.25rem;">🔄</span>
+          <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800;">نقل النزيل إلى غرفة أخرى (Room Transfer)</h3>
+        </div>
+        <button id="btn-close-transfer-room" type="button" class="modal-layout__close" style="background: none; border: none; color: white; font-size: 1.3rem; cursor: pointer;">&times;</button>
+      </div>
+
+      <form id="transfer-room-form" class="modal-layout__body" style="padding: 22px;">
+        <input type="hidden" id="transfer-res-id">
+
+        <!-- Current Stay Info Card -->
+        <div class="modal-section-card" style="background: #f0fdfa; border: 1px solid #ccfbf1; border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; font-size: 0.85rem; line-height: 1.8;">
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #64748b;">النزيل:</span>
+            <strong id="transfer-guest-name-preview" style="color: #0f172a;">-</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #64748b;">الغرفة الحالية:</span>
+            <strong id="transfer-current-room-preview" style="color: #0f766e;">-</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #64748b;">تاريخ الوصول والمغادرة:</span>
+            <strong id="transfer-dates-preview" style="color: #334155;">-</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-top: 1px solid #ccfbf1; margin-top: 4px; padding-top: 4px;">
+            <span style="color: #64748b;">السعر اليومي الفعال المثبت:</span>
+            <strong id="transfer-pinned-rate-preview" style="color: #05963d;">- ريال</strong>
+          </div>
+        </div>
+
+        <!-- Target Room Selector -->
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label for="transfer-target-room-select" style="display: block; font-size: 0.82rem; font-weight: 700; margin-bottom: 6px; color: #334155;">
+            الغرفة البديلة المتاحة <span class="field-required" aria-hidden="true">*</span>
+          </label>
+          <select id="transfer-target-room-select" required class="form-control" style="font-size: 0.88rem; font-weight: 600;">
+            <option value="">-- جارٍ تحميل الغرف المتاحة... --</option>
+          </select>
+        </div>
+
+        <!-- Transfer Reason Category -->
+        <div class="form-group" style="margin-bottom: 14px;">
+          <label for="transfer-reason-category" style="display: block; font-size: 0.82rem; font-weight: 700; margin-bottom: 6px; color: #334155;">
+            سبب النقل <span class="field-required" aria-hidden="true">*</span>
+          </label>
+          <select id="transfer-reason-category" required class="form-control" style="font-size: 0.88rem;">
+            <option value="maintenance">عطل فني في الغرفة / صيانة</option>
+            <option value="guest_request">رغبة وطلب النزيل (تغيير إطلالة/موقع)</option>
+            <option value="noise_complaint">شكوى من إزعاج / جيران</option>
+            <option value="administrative">تنظيم فندقي / إداري</option>
+            <option value="other" selected>أسباب أخرى</option>
+          </select>
+        </div>
+
+        <!-- Transfer Reason Details / Notes -->
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label for="transfer-reason-details" style="display: block; font-size: 0.82rem; font-weight: 700; margin-bottom: 6px; color: #334155;">
+            تفاصيل إضافية / ملاحظات
+          </label>
+          <textarea id="transfer-reason-details" class="form-control" rows="2" placeholder="اكتب سبباً توضيحياً لحركة النقل..." style="font-size: 0.85rem; resize: vertical;"></textarea>
+        </div>
+
+        <!-- Phase 1 Rate-Preserving Notice -->
+        <div id="transfer-policy-notice" style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 0.8rem; color: #1e40af; line-height: 1.5;">
+          📌 <strong>تنبيه المرحلة الأولى:</strong> يتم نقل النزيل مع تثبيت سعره اليومي الفعال السابق؛ لن يتغير إجمالي الحجز أو رصيد المدفوعات.
+        </div>
+
+        <div class="modal-layout__footer" style="display: flex; gap: 10px; justify-content: flex-end; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+          <button type="button" id="btn-cancel-transfer-room" class="btn btn-secondary btn-sm" style="padding: 8px 18px; font-weight: 700;">إلغاء</button>
+          <button type="submit" id="btn-confirm-transfer-room" class="btn btn-primary btn-sm" style="padding: 8px 22px; font-weight: 800; background: #0f766e; border-color: #0f766e;">تأكيد نقل الغرفة ✓</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Shift Audit & Night Closing Modal (Feature 5) -->
   <div id="shift-audit-modal" class="modal-backdrop modal-layout-backdrop" dir="rtl" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100000; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
     <div class="modal-layout" style="background: white; border-radius: 16px; max-width: 860px; width: 100%; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35); overflow: hidden; margin: auto;">

@@ -86,6 +86,10 @@ module.exports = {
   getPaymentReceipt: reservations.getPaymentReceipt,
   generateReceiptNumber: reservations.generateReceiptNumber,
   bulkImportReservations: reservations.bulkImportReservations,
+  getTransferEligibleRooms: reservations.getTransferEligibleRooms,
+  previewRoomTransfer: reservations.previewRoomTransfer,
+  executeRoomTransfer: reservations.executeRoomTransfer,
+  validateTransferEligibility: reservations.validateTransferEligibility,
 
   // reports
   getTodayCheckouts: reports.getTodayCheckouts,

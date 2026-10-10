@@ -2,59 +2,64 @@
   "note": "Tripwire only: structural counts and names do not prove behavior is unchanged.",
   "namedFunctionsPerFile": {
     "backupScheduler.js": 15,
+    "businessDayScheduler.js": 8,
     "check.js": 0,
-    "dashboard-admin.js": 5,
-    "dashboard-app.js": 11,
+    "command-palette.js": 177,
+    "dashboard-admin.js": 6,
+    "dashboard-app.js": 19,
     "dashboard-guests.js": 10,
     "dashboard-logs.js": 3,
-    "dashboard-overview.js": 9,
-    "dashboard.js": 98,
+    "dashboard-overview.js": 35,
+    "dashboard-reservations.js": 81,
+    "dashboard-rooms.js": 15,
+    "dashboard.js": 49,
     "db.js": 0,
-    "db/connection.js": 15,
+    "db/business-day.js": 2,
+    "db/connection.js": 27,
     "db/guests.js": 8,
     "db/index.js": 0,
-    "db/reports.js": 4,
-    "db/reservations.js": 23,
+    "db/reports.js": 5,
+    "db/reservations.js": 28,
     "db/rooms.js": 9,
     "db/users.js": 10,
-    "extract-phase4.js": 0,
-    "fix-guests-2.js": 0,
-    "fix-guests-3.js": 0,
-    "fix-open-guest.js": 0,
     "guests.js": 5,
+    "hotkeys.js": 20,
     "import-guests.js": 1,
     "ipc/auth.js": 1,
     "ipc/guests.js": 6,
     "ipc/index.js": 1,
     "ipc/reports.js": 1,
-    "ipc/reservations.js": 4,
-    "ipc/rooms.js": 3,
-    "ipc/system.js": 1,
+    "ipc/reservations.js": 5,
+    "ipc/rooms.js": 4,
+    "ipc/system.js": 3,
     "ipc/users.js": 3,
     "login.js": 1,
-    "main.js": 13,
-    "patch-pw-2.js": 0,
-    "patch-pw.js": 0,
+    "main.js": 15,
     "playwright.config.js": 0,
     "playwright.sandbox.config.js": 0,
-    "preload.js": 59,
+    "preload.js": 74,
     "renderer.js": 8,
     "reset-db.js": 1,
     "seed-checkout-tests.js": 7,
     "verify-full.js": 0,
     "verify-full2.js": 0
   },
-  "totalWindowApiCallSites": 78,
+  "totalWindowApiCallSites": 104,
   "windowApiCallSitesPerFile": {
     "backupScheduler.js": 0,
+    "businessDayScheduler.js": 0,
     "check.js": 0,
-    "dashboard-admin.js": 5,
+    "command-palette.js": 5,
+    "dashboard-admin.js": 11,
     "dashboard-app.js": 0,
     "dashboard-guests.js": 6,
     "dashboard-logs.js": 1,
-    "dashboard-overview.js": 5,
-    "dashboard.js": 53,
+    "dashboard-overview.js": 9,
+    "dashboard-reservations.js": 26,
+    "dashboard-rooms.js": 7,
+    "dashboard.js": 31,
     "db.js": 0,
+    "db/business-day.js": 0,
     "db/connection.js": 0,
     "db/guests.js": 0,
     "db/index.js": 0,
@@ -62,11 +67,8 @@
     "db/reservations.js": 0,
     "db/rooms.js": 0,
     "db/users.js": 0,
-    "extract-phase4.js": 0,
-    "fix-guests-2.js": 0,
-    "fix-guests-3.js": 0,
-    "fix-open-guest.js": 0,
     "guests.js": 0,
+    "hotkeys.js": 0,
     "import-guests.js": 0,
     "ipc/auth.js": 0,
     "ipc/guests.js": 0,
@@ -78,8 +80,6 @@
     "ipc/users.js": 0,
     "login.js": 1,
     "main.js": 0,
-    "patch-pw-2.js": 0,
-    "patch-pw.js": 0,
     "playwright.config.js": 0,
     "playwright.sandbox.config.js": 0,
     "preload.js": 0,
@@ -90,18 +90,18 @@
     "verify-full2.js": 0
   },
   "arabicStatusStringCounts": {
-    "متاحة": 50,
-    "مشغولة": 53,
-    "محجوزة": 25,
-    "تنظيف": 35,
-    "مؤكد": 35,
-    "مكتمل": 24,
-    "ملغي": 43,
-    "ملغي جزئي": 17,
-    "غير مدفوع": 13,
-    "مدفوع جزئياً": 19,
-    "مدفوع بالكامل": 22,
-    "عقد مفتوح": 51,
+    "متاحة": 82,
+    "مشغولة": 82,
+    "محجوزة": 39,
+    "تنظيف": 59,
+    "مؤكد": 96,
+    "مكتمل": 39,
+    "ملغي": 48,
+    "ملغي جزئي": 14,
+    "غير مدفوع": 27,
+    "مدفوع جزئياً": 24,
+    "مدفوع بالكامل": 34,
+    "عقد مفتوح": 66,
     "نقداً": 58
   },
   "localStorageKeys": [
@@ -143,6 +143,14 @@
     "guests:search": 2,
     "guests:set-ban-status": 2,
     "guests:update": 2,
+    "hotel-business-day:changed": 2,
+    "hotel-business-day:check-rollover": 2,
+    "hotel-business-day:get-pending-reconciliation": 2,
+    "hotel-business-day:get-settings": 2,
+    "hotel-business-day:get-state": 2,
+    "hotel-business-day:reconcile-shift-audit": 2,
+    "hotel-business-day:run-audit": 2,
+    "hotel-business-day:update-settings": 2,
     "import-guests": 3,
     "logs:get-all": 2,
     "open-whatsapp": 2,
@@ -150,6 +158,9 @@
     "payments:get-receipt": 2,
     "print:open-preview-window": 2,
     "print:to-pdf": 2,
+    "receipt-stay-policies:get": 2,
+    "receipt-stay-policies:update": 2,
+    "reports:get-current-shift-summary": 2,
     "reports:get-shift-audit": 2,
     "reservations:add-payment": 1,
     "reservations:cancel": 2,
@@ -161,6 +172,9 @@
     "reservations:get-invoice-data": 2,
     "reservations:get-page": 2,
     "reservations:get-today-checkouts": 2,
+    "reservations:get-transfer-eligible-rooms": 2,
+    "reservations:transfer-preview": 2,
+    "reservations:transfer-room": 2,
     "reservations:update-receipt": 2,
     "rooms:add": 2,
     "rooms:auto-update-status": 2,
@@ -195,22 +209,32 @@
     "createReservation",
     "deleteRoom",
     "deleteUser",
+    "executeRoomTransfer",
     "extendReservation",
     "factoryReset",
     "findGuestByPhoneOrId",
+    "formatHotelDateTime",
     "generateReceiptNumber",
     "getAllGuests",
     "getAllReservations",
     "getAllRooms",
     "getAllUsers",
     "getAvailableRooms",
+    "getBusinessDaySettings",
+    "getCurrentBusinessDate",
+    "getCurrentBusinessState",
+    "getCurrentShiftRevenueSummary",
     "getDashboardStats",
     "getDatabaseFilePath",
     "getEmployeeLogs",
     "getGuestsPaginated",
+    "getHotelBusinessDate",
+    "getHotelTimezone",
     "getLocalDateString",
     "getMonthlyRevenue",
     "getPaymentReceipt",
+    "getPendingShiftReconciliationAudits",
+    "getReceiptStayPolicies",
     "getReservationById",
     "getReservationDepositMovements",
     "getReservationPayments",
@@ -218,20 +242,27 @@
     "getRoomRevenueStats",
     "getShiftAuditReport",
     "getTodayCheckouts",
+    "getTransferEligibleRooms",
     "init",
     "isMonthlyEarlyCheckout",
     "logEmployeeLogin",
     "logEmployeeLogout",
+    "markShiftAuditReconciled",
+    "previewRoomTransfer",
     "reconcileLegacyDeposit",
     "restoreDatabaseFile",
     "roundMoney",
+    "runNightAudit",
     "searchGuest",
     "setGuestBanStatus",
+    "updateBusinessDaySettings",
     "updateGuest",
+    "updateReceiptStayPolicies",
     "updateReservationReceipt",
     "updateRoom",
     "updateRoomStatus",
     "updateUserPassword",
+    "validateTransferEligibility",
     "verifyUser"
   ],
   "inlineEventAttributeCounts": {
@@ -240,7 +271,7 @@
       "templateAttributes": 1
     },
     "dashboard.html": {
-      "htmlAttributes": 6,
+      "htmlAttributes": 2,
       "templateAttributes": 0
     },
     "dashboard.js": {
@@ -261,40 +292,64 @@
     }
   },
   "knownTopLevelFunctionDuplicates": {
+    "addCalendarDay": [
+      "businessDayScheduler.js",
+      "db/business-day.js"
+    ],
     "escapeHtml": [
       "dashboard-app.js",
+      "dashboard-reservations.js",
       "dashboard.js"
     ],
     "formatArabicDateRange": [
       "dashboard-app.js",
+      "dashboard-reservations.js",
       "dashboard.js"
     ],
     "formatArabicDateTime": [
       "dashboard-app.js",
+      "dashboard-reservations.js",
       "dashboard.js"
+    ],
+    "formatHotelDateTime": [
+      "dashboard-app.js",
+      "db/connection.js"
     ],
     "getBookingTypeBadge": [
       "dashboard-app.js",
-      "dashboard.js"
+      "dashboard-reservations.js"
+    ],
+    "getCalendarMonthCheckOut": [
+      "dashboard-reservations.js",
+      "db/reservations.js"
+    ],
+    "getHotelBusinessDate": [
+      "dashboard-app.js",
+      "db/connection.js"
+    ],
+    "getHotelTimezone": [
+      "dashboard-app.js",
+      "db/connection.js"
     ],
     "getLocalDateString": [
       "backupScheduler.js",
       "dashboard-app.js",
+      "dashboard-reservations.js",
       "dashboard.js",
       "db/connection.js",
       "main.js"
     ],
     "getPaymentStatusBadge": [
       "dashboard-app.js",
-      "dashboard.js"
+      "dashboard-reservations.js"
     ],
     "getReservationStatusBadge": [
       "dashboard-app.js",
-      "dashboard.js"
+      "dashboard-reservations.js"
     ],
     "getRoomStatusBadge": [
       "dashboard-app.js",
-      "dashboard.js"
+      "dashboard-reservations.js"
     ],
     "init": [
       "dashboard.js",
@@ -302,15 +357,16 @@
     ],
     "isReservationOverdue": [
       "dashboard-app.js",
+      "dashboard-reservations.js",
       "dashboard.js"
     ],
     "loadAdminData": [
       "dashboard-admin.js",
-      "dashboard.js"
+      "dashboard-reservations.js"
     ],
     "loadGuestsData": [
       "dashboard-guests.js",
-      "dashboard.js"
+      "dashboard-reservations.js"
     ],
     "loadLogsData": [
       "dashboard-logs.js",
@@ -318,18 +374,54 @@
     ],
     "loadOverviewData": [
       "dashboard-overview.js",
-      "dashboard.js"
+      "dashboard-reservations.js"
+    ],
+    "loadRoomsData": [
+      "dashboard-reservations.js",
+      "dashboard-rooms.js"
     ],
     "loadTodayCheckouts": [
       "dashboard-overview.js",
+      "dashboard-reservations.js"
+    ],
+    "openDailyBackupModal": [
+      "dashboard-reservations.js",
+      "dashboard.js"
+    ],
+    "openInvoiceModal": [
+      "dashboard-reservations.js",
+      "dashboard.js"
+    ],
+    "openShiftAuditModal": [
+      "dashboard-reservations.js",
       "dashboard.js"
     ],
     "renderOverdueBadge": [
       "dashboard-app.js",
+      "dashboard-reservations.js",
+      "dashboard.js"
+    ],
+    "roundMoney": [
+      "dashboard-app.js",
+      "dashboard-reservations.js",
+      "dashboard.js",
+      "db/connection.js"
+    ],
+    "sendReservationWhatsApp": [
+      "dashboard-reservations.js",
+      "dashboard.js"
+    ],
+    "showConfirmDialog": [
+      "dashboard-reservations.js",
+      "dashboard.js"
+    ],
+    "showPromptDialog": [
+      "dashboard-reservations.js",
       "dashboard.js"
     ],
     "showToast": [
       "dashboard-app.js",
+      "dashboard-reservations.js",
       "dashboard.js",
       "renderer.js"
     ]

@@ -2304,6 +2304,379 @@ function updateReservationReceipt({
   }
 }
 
+/**
+ * Phase 1: Room Transfer Functions (Rate-Preserving Transfers)
+ */
+
+/**
+ * Shared helper for Room Transfer validation and evaluation (Phase 1).
+ * Validates reservation stay context and evaluates target room eligibility, collisions, and pricing rules.
+ */
+function validateTransferEligibility(reservationInput, targetRoomInput = null, options = {}) {
+  const { throwOnError = true, userRole = 'Staff' } = options;
+
+  let stay = null;
+  if (reservationInput && reservationInput.isResolvedStayContext) {
+    stay = reservationInput;
+  } else {
+    const targetId = parseInt(reservationInput, 10);
+    if (!targetId || isNaN(targetId)) throw new Error('معرف الحجز غير صالح.');
+
+    const res = queryOne(`
+      SELECT r.*, rm.room_number, rm.type AS room_type, rm.price_per_night, g.name AS guest_name
+      FROM reservations r
+      JOIN rooms rm ON r.room_id = rm.id
+      JOIN guests g ON r.guest_id = g.id
+      WHERE r.id = ?
+    `, [targetId]);
+    if (!res) throw new Error('الحجز غير موجود.');
+
+    // Rule 4: status='مؤكد', checked_out_at IS NULL, check_in_date <= current business date. Reject day-use.
+    if (res.status !== 'مؤكد') throw new Error('لا يمكن نقل غرفة لحجز غير مؤكد أو مغلق.');
+    if (res.checked_out_at) throw new Error('لا يمكن نقل غرفة لحجز تم تسجيل خروجه بالفعل.');
+    if (res.booking_type === 'استخدام يومي') throw new Error('حجوزات الاستخدام اليومي غير قابلة لنقل الغرفة في المرحلة الحالية.');
+
+    const today = getCurrentBusinessDate();
+    if (res.check_in_date > today) throw new Error('لم تبدأ فترة إقامة هذا الحجز بعد.');
+
+    const pinnedRate = roundMoney(res.custom_nightly_price || res.price_per_night || 0);
+
+    // Upgrade check: new list price > max(pinned rate, list price of the stay's original room)
+    const firstTransfer = queryOne(`
+      SELECT from_room_id FROM reservation_transfers
+      WHERE reservation_id = ?
+      ORDER BY id ASC LIMIT 1
+    `, [targetId]);
+    const originalRoomId = firstTransfer ? firstTransfer.from_room_id : res.room_id;
+    const originalRoom = queryOne("SELECT price_per_night FROM rooms WHERE id = ?", [originalRoomId]);
+    const originalRoomListPrice = originalRoom ? roundMoney(originalRoom.price_per_night || 0) : roundMoney(res.price_per_night || 0);
+    const upgradeThreshold = Math.max(pinnedRate, originalRoomListPrice);
+
+    const isMonthly = res.booking_type === 'حجز شهري';
+    const currentRoomListPrice = roundMoney(res.price_per_night || 0);
+
+    const isContract = res.booking_type === 'عقد مفتوح' || !res.check_out_date || res.check_out_date === 'مفتوح';
+    const effectiveStayEnd = isContract ? '9999-12-31' : res.check_out_date;
+
+    const lastTransfer = queryOne(`
+      SELECT transfer_business_date FROM reservation_transfers
+      WHERE reservation_id = ?
+      ORDER BY id DESC LIMIT 1
+    `, [targetId]);
+    const segmentStartDate = lastTransfer?.transfer_business_date || res.check_in_date;
+    const segmentNights = Math.max(0, countNights(segmentStartDate, today));
+
+    let segmentRevenue = 0;
+    if (isContract) {
+      segmentRevenue = roundMoney(segmentNights * pinnedRate);
+    } else {
+      const bookedNights = Math.max(1, countNights(res.check_in_date, res.check_out_date));
+      segmentRevenue = roundMoney(((res.total_price || 0) * segmentNights) / bookedNights);
+    }
+
+    const remainingNights = isContract ? null : Math.max(0, countNights(today, res.check_out_date));
+
+    stay = {
+      isResolvedStayContext: true,
+      res,
+      today,
+      pinnedRate,
+      originalRoomListPrice,
+      upgradeThreshold,
+      isMonthly,
+      currentRoomListPrice,
+      isContract,
+      effectiveStayEnd,
+      segmentStartDate,
+      segmentNights,
+      segmentRevenue,
+      remainingNights
+    };
+
+    if (targetRoomInput === null || targetRoomInput === undefined) {
+      return stay;
+    }
+  }
+
+  // Validate target room
+  let targetRoom = null;
+  if (typeof targetRoomInput === 'object' && targetRoomInput !== null && targetRoomInput.id) {
+    targetRoom = targetRoomInput;
+  } else {
+    const roomId = parseInt(targetRoomInput, 10);
+    if (!roomId || isNaN(roomId)) {
+      if (throwOnError) throw new Error('يرجى تحديد الغرفة البديلة المراد النقل إليها.');
+      return { eligible: false, error: 'يرجى تحديد الغرفة البديلة المراد النقل إليها.' };
+    }
+    if (roomId === stay.res.room_id) {
+      if (throwOnError) throw new Error('لا يمكن النقل إلى نفس الغرفة الحالية.');
+      return { eligible: false, error: 'لا يمكن النقل إلى نفس الغرفة الحالية.' };
+    }
+    targetRoom = queryOne("SELECT * FROM rooms WHERE id = ?", [roomId]);
+    if (!targetRoom) {
+      if (throwOnError) throw new Error('الغرفة المحددة غير موجودة.');
+      return { eligible: false, error: 'الغرفة المحددة غير موجودة.' };
+    }
+  }
+
+  if (targetRoom.id === stay.res.room_id) {
+    if (throwOnError) throw new Error('لا يمكن النقل إلى نفس الغرفة الحالية.');
+    return { eligible: false, error: 'لا يمكن النقل إلى نفس الغرفة الحالية.' };
+  }
+
+  // Rule 3: Target room must be 'متاحة' or 'محجوزة'. Reject 'تنظيف' and 'صيانة'.
+  if (targetRoom.status === 'تنظيف') {
+    if (throwOnError) throw new Error('الغرفة المحددة تحت التنظيف حالياً وغير جاهزة للسكن.');
+    return { eligible: false, error: 'الغرفة المحددة تحت التنظيف حالياً وغير جاهزة للسكن.' };
+  }
+  if (targetRoom.status === 'صيانة') {
+    if (throwOnError) throw new Error('الغرفة المحددة تحت الصيانة حالياً ولا يمكن التسكين فيها.');
+    return { eligible: false, error: 'الغرفة المحددة تحت الصيانة حالياً ولا يمكن التسكين فيها.' };
+  }
+  if (targetRoom.status !== 'متاحة' && targetRoom.status !== 'محجوزة') {
+    const err = `حالة الغرفة (${targetRoom.status}) لا تسمح بالنقل إليها.`;
+    if (throwOnError) throw new Error(err);
+    return { eligible: false, error: err };
+  }
+
+  // Active reservation check on target room (any status='مؤكد' with check_in_date <= today)
+  const activeOccupant = queryOne(`
+    SELECT id FROM reservations
+    WHERE room_id = ? AND status = 'مؤكد' AND check_in_date <= ?
+    LIMIT 1
+  `, [targetRoom.id, stay.today]);
+  if (activeOccupant) {
+    const err = `الغرفة رقم (${targetRoom.room_number}) مشغولة بنزيل حالي أو متأخر عن المغادرة (حجز #${activeOccupant.id}).`;
+    if (throwOnError) throw new Error(err);
+    return { eligible: false, error: err };
+  }
+
+  // Future-overlap check (NULL/''/'مفتوح' treated as 9999-12-31)
+  const futureConflict = queryOne(`
+    SELECT id, check_in_date, check_out_date FROM reservations
+    WHERE room_id = ?
+      AND status = 'مؤكد'
+      AND check_in_date > ?
+      AND check_in_date < ?
+    LIMIT 1
+  `, [targetRoom.id, stay.today, stay.effectiveStayEnd]);
+  if (futureConflict) {
+    const fOut = futureConflict.check_out_date || 'مفتوح';
+    const err = `تعذر النقل: الغرفة رقم (${targetRoom.room_number}) محجوزة مسبقاً (حجز #${futureConflict.id} من ${futureConflict.check_in_date} إلى ${fOut}).`;
+    if (throwOnError) throw new Error(err);
+    return { eligible: false, error: err };
+  }
+
+  const newRoomListPrice = roundMoney(targetRoom.price_per_night || 0);
+  const isDowngrade = newRoomListPrice < stay.pinnedRate;
+  const isUpgrade = newRoomListPrice > stay.upgradeThreshold;
+  const isEqualPrice = !isUpgrade && !isDowngrade;
+  const isMonthlyMismatch = stay.isMonthly && newRoomListPrice !== stay.currentRoomListPrice;
+  const requiresAdmin = isUpgrade;
+
+  // Rule 2: Downgrade check
+  if (isDowngrade && throwOnError) {
+    throw new Error('تخفيض فئة الغرفة (سعر أقل) غير مدعوم في المرحلة الحالية لأن تعديل الأسعار خارج نطاق هذه المرحلة.');
+  }
+
+  // Monthly booking check: only allowed if new room list price equals current room list price
+  if (isMonthlyMismatch && throwOnError) {
+    throw new Error('في الحجوزات الشهرية، يُسمح بالنقل فقط إلى غرف متطابقة في السعر اليومي المعلن مع الغرفة الحالية.');
+  }
+
+  // Upgrade admin check
+  if (isUpgrade && userRole !== 'Admin' && throwOnError) {
+    throw new Error('ترقية الغرفة (سعر أعلى) مع تثبيت السعر الحالي تتطلب صلاحية مدير النظام (Admin).');
+  }
+
+  return {
+    eligible: true,
+    targetRoom,
+    newRoomListPrice,
+    isUpgrade,
+    isDowngrade,
+    isEqualPrice,
+    requiresAdmin,
+    isMonthlyMismatch,
+    roomData: {
+      id: targetRoom.id,
+      room_number: targetRoom.room_number,
+      type: targetRoom.type,
+      price_per_night: newRoomListPrice,
+      status: targetRoom.status,
+      pinnedRate: stay.pinnedRate,
+      isUpgrade,
+      isDowngrade,
+      isEqualPrice,
+      requiresAdmin,
+      isMonthlyMismatch
+    }
+  };
+}
+
+function getTransferEligibleRooms(reservationId) {
+  const stay = validateTransferEligibility(reservationId);
+  const allRooms = queryAll("SELECT * FROM rooms WHERE id != ? ORDER BY CAST(room_number AS INTEGER) ASC, room_number ASC", [stay.res.room_id]);
+  const eligibleRooms = [];
+
+  for (const room of allRooms) {
+    const evalResult = validateTransferEligibility(stay, room, { throwOnError: false });
+    if (!evalResult.eligible) continue;
+    eligibleRooms.push(evalResult.roomData);
+  }
+
+  return {
+    reservation: {
+      id: stay.res.id,
+      guest_name: stay.res.guest_name,
+      current_room_id: stay.res.room_id,
+      current_room_number: stay.res.room_number,
+      current_room_type: stay.res.room_type,
+      check_in_date: stay.res.check_in_date,
+      check_out_date: stay.res.check_out_date,
+      booking_type: stay.res.booking_type,
+      pinnedRate: stay.pinnedRate,
+      isContract: stay.isContract
+    },
+    eligibleRooms
+  };
+}
+
+function previewRoomTransfer({ reservationId, targetRoomId, userRole = 'Staff' }) {
+  const stay = validateTransferEligibility(reservationId);
+  const evalResult = validateTransferEligibility(stay, targetRoomId, { throwOnError: true, userRole });
+
+  return {
+    reservationId: stay.res.id,
+    guestName: stay.res.guest_name,
+    currentRoomId: stay.res.room_id,
+    currentRoomNumber: stay.res.room_number,
+    currentRoomType: stay.res.room_type,
+    targetRoomId: evalResult.targetRoom.id,
+    targetRoomNumber: evalResult.targetRoom.room_number,
+    targetRoomType: evalResult.targetRoom.type,
+    pinnedRate: stay.pinnedRate,
+    targetRoomListPrice: evalResult.newRoomListPrice,
+    segmentStartDate: stay.segmentStartDate,
+    segmentNights: stay.segmentNights,
+    segmentRevenue: stay.segmentRevenue,
+    remainingNights: stay.remainingNights,
+    isUpgrade: evalResult.isUpgrade,
+    requiresAdmin: evalResult.requiresAdmin,
+    isContract: stay.isContract,
+    userRole
+  };
+}
+
+function executeRoomTransfer({
+  reservationId,
+  targetRoomId,
+  reasonCategory = 'other',
+  reasonDetails = '',
+  userId = null,
+  userRole = 'Staff'
+}) {
+  const stay = validateTransferEligibility(reservationId);
+  const evalResult = validateTransferEligibility(stay, targetRoomId, { throwOnError: true, userRole });
+  const targetRoom = evalResult.targetRoom;
+
+  // Rule 1: pinned custom_nightly_price if new room list price differs from pinnedRate
+  const customNightlyPriceToWrite = (evalResult.newRoomListPrice !== stay.pinnedRate)
+    ? stay.pinnedRate
+    : (stay.res.custom_nightly_price !== null && stay.res.custom_nightly_price !== undefined ? roundMoney(stay.res.custom_nightly_price) : null);
+
+  const activeUserId = userId ? parseInt(userId, 10) : null;
+  const validReasonCategory = ['maintenance', 'guest_request', 'noise_complaint', 'administrative', 'other'].includes(reasonCategory)
+    ? reasonCategory
+    : 'other';
+  const cleanReasonDetails = (reasonDetails || '').trim();
+
+  // Rule 6: BEGIN / COMMIT / ROLLBACK, saveToFile() only after COMMIT
+  db.run("BEGIN TRANSACTION;");
+  try {
+    // Rule 5: Old room: always set to 'تنظيف' via direct SQL (like checkout).
+    // Do not write new room's status; derivation handles it.
+    const stmtOldRoom = db.prepare("UPDATE rooms SET status = 'تنظيف' WHERE id = ?");
+    stmtOldRoom.run([stay.res.room_id]);
+    stmtOldRoom.free();
+
+    // Rule 1: check_in_date, check_out_date, total_price, paid_amount and payments untouched.
+    // Only reservations.room_id changes, plus custom_nightly_price pinned when list price differs.
+    const stmtRes = db.prepare(`
+      UPDATE reservations
+      SET room_id = ?,
+          custom_nightly_price = ?
+      WHERE id = ?
+    `);
+    stmtRes.run([targetRoom.id, customNightlyPriceToWrite, stay.res.id]);
+    stmtRes.free();
+
+    // Insert into reservation_transfers (Rule 6)
+    const stmtTrans = db.prepare(`
+      INSERT INTO reservation_transfers (
+        reservation_id, from_room_id, to_room_id,
+        transfer_business_date, segment_start_date, segment_end_date,
+        segment_nights, pinned_rate, segment_revenue,
+        reason_category, reason_details, user_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmtTrans.run([
+      stay.res.id,
+      stay.res.room_id,
+      targetRoom.id,
+      stay.today,
+      stay.segmentStartDate,
+      stay.today,
+      stay.segmentNights,
+      stay.pinnedRate,
+      stay.segmentRevenue,
+      validReasonCategory,
+      cleanReasonDetails || null,
+      activeUserId
+    ]);
+    stmtTrans.free();
+
+    // Insert into reservation_events (Rule 6)
+    const stmtEv = db.prepare(`
+      INSERT INTO reservation_events (
+        entity_type, entity_id, event_type,
+        old_status, new_status, created_at, business_date, user_id
+      ) VALUES ('reservation', ?, 'room_transferred', ?, ?, datetime('now', 'localtime'), ?, ?)
+    `);
+    stmtEv.run([
+      stay.res.id,
+      String(stay.res.room_number),
+      String(targetRoom.room_number),
+      stay.today,
+      activeUserId
+    ]);
+    stmtEv.free();
+
+    db.run("COMMIT;");
+  } catch (err) {
+    try { db.run("ROLLBACK;"); } catch (_) {}
+    throw err;
+  }
+
+  // Ensure room statuses derivation runs immediately after transfer
+  try {
+    const { autoUpdateRoomStatuses } = require('./rooms');
+    autoUpdateRoomStatuses(stay.today, { persist: false });
+  } catch (e) {
+    console.warn('[executeRoomTransfer] autoUpdateRoomStatuses:', e.message);
+  }
+
+  saveToFile();
+
+  return {
+    success: true,
+    reservationId: stay.res.id,
+    fromRoomNumber: stay.res.room_number,
+    toRoomNumber: targetRoom.room_number,
+    pinnedRate: stay.pinnedRate
+  };
+}
+
 module.exports = {
   getAllReservations,
   getReservationsPage,
@@ -2323,5 +2696,9 @@ module.exports = {
   reconcileLegacyDeposit,
   getPaymentReceipt,
   bulkImportReservations,
-  updateReservationReceipt
+  updateReservationReceipt,
+  getTransferEligibleRooms,
+  previewRoomTransfer,
+  executeRoomTransfer,
+  validateTransferEligibility
 };

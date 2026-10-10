@@ -473,4 +473,52 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
       return { success: false, error: err.message };
     }
   });
+
+  // 10. Room Transfer IPC Handlers (Phase 1: Rate-Preserving Transfer)
+  ipcMain.handle('reservations:get-transfer-eligible-rooms', async (event, reservationId) => {
+    const denied = requireSession();
+    if (denied) return denied;
+    try {
+      await ensureOpenBusinessDateIsCurrent();
+      const result = db.getTransferEligibleRooms(reservationId);
+      return { success: true, data: result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('reservations:transfer-preview', async (event, data = {}) => {
+    const denied = requireSession();
+    if (denied) return denied;
+    try {
+      await ensureOpenBusinessDateIsCurrent();
+      const userRole = session.currentUser ? session.currentUser.role : 'Staff';
+      const result = db.previewRoomTransfer({
+        ...data,
+        userRole
+      });
+      return { success: true, data: result };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('reservations:transfer-room', async (event, data = {}) => {
+    const denied = requireSession();
+    if (denied) return denied;
+    try {
+      await ensureOpenBusinessDateIsCurrent();
+      const userRole = session.currentUser ? session.currentUser.role : 'Staff';
+      const userId = session.currentUser ? session.currentUser.id : null;
+      const result = db.executeRoomTransfer({
+        ...data,
+        userId,
+        userRole
+      });
+      helpers.updateAutomatedRoomStatuses();
+      return result;
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
 };
