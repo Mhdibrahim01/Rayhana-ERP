@@ -32,7 +32,8 @@ function createWindow() {
     height: 880,
     minWidth: 1040,
     minHeight: 700,
-    title: 'ريحانة للوحدات السكنية | Rayhana Residential Units',
+    show: false,
+    title: 'بوابة الوصول الآمن | Secure System Access',
     icon: path.join(__dirname, 'icon.ico'),
     backgroundColor: '#f1f5f9',
     webPreferences: {
@@ -48,8 +49,22 @@ function createWindow() {
 
   mainWindow.setMenuBarVisibility(false);
 
-  // Initial screen is always login.html
-  mainWindow.loadFile('login.html');
+  // Initial screen is the master application lock gate
+  mainWindow.loadFile('app-lock.html');
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.maximize();
+    mainWindow.show();
+  });
+
+  // Prevent accidental reload in production to avoid losing active form state
+  if (app.isPackaged) {
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+      if ((input.control && input.key.toLowerCase() === 'r') || input.key === 'F5') {
+        event.preventDefault();
+      }
+    });
+  }
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -261,43 +276,61 @@ function registerIpcHandlers() {
   });
 }
 
-// App Lifecycle
-app.whenReady().then(async () => {
-  try {
-    dbPath = resolveDatabasePath();
-    console.log('[Main] مسار قاعدة البيانات:', dbPath);
-    await db.init(dbPath);
-    updateAutomatedRoomStatuses();
+// Set Windows Application User Model ID for pinned taskbar grouping and branding
+app.setAppUserModelId('com.rayhana.suites');
 
-    businessDayScheduler = createBusinessDayScheduler({
-      db,
-      powerMonitor,
-      getMainWindow: () => mainWindow
-    });
+// Enforce single instance lock to prevent concurrent database access conflicts
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
 
-    registerIpcHandlers();
-    createWindow();
-    businessDayScheduler.start();
+if (!gotSingleInstanceLock) {
+  console.warn('[Main] نسخة أخرى قيد التشغيل بالفعل. جاري إغلاق المثيل المكرر.');
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
 
-    // Start Daily 12:00 AM Automated Backup Scheduler
-    await backupScheduler.initBackupScheduler({
-      db,
-      app,
-      shell,
-      Notification,
-      getMainWindow: () => mainWindow
-    });
+  // App Lifecycle
+  app.whenReady().then(async () => {
+    try {
+      dbPath = resolveDatabasePath();
+      console.log('[Main] مسار قاعدة البيانات:', dbPath);
+      await db.init(dbPath);
+      updateAutomatedRoomStatuses();
 
-    app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) {
-        createWindow();
-      }
-    });
-  } catch (error) {
-    console.error('[Main] فشل في تشغيل التطبيق:', error);
-    app.quit();
-  }
-});
+      businessDayScheduler = createBusinessDayScheduler({
+        db,
+        powerMonitor,
+        getMainWindow: () => mainWindow
+      });
+
+      registerIpcHandlers();
+      createWindow();
+      businessDayScheduler.start();
+
+      // Start Daily 12:00 AM Automated Backup Scheduler
+      await backupScheduler.initBackupScheduler({
+        db,
+        app,
+        shell,
+        Notification,
+        getMainWindow: () => mainWindow
+      });
+
+      app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) {
+          createWindow();
+        }
+      });
+    } catch (error) {
+      console.error('[Main] فشل في تشغيل التطبيق:', error);
+      app.quit();
+    }
+  });
+}
 
 app.on('window-all-closed', () => {
   if (businessDayScheduler) businessDayScheduler.stop();
