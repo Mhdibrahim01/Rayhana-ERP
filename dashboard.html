@@ -1974,6 +1974,58 @@
           </select>
         </div>
 
+        <!-- Transfer Mode Selector (Phase 2) -->
+        <div id="transfer-mode-group" class="form-group" style="margin-bottom: 14px;">
+          <label for="transfer-mode-select" style="display: block; font-size: 0.82rem; font-weight: 700; margin-bottom: 6px; color: #334155;">
+            طريقة احتساب السعر للغرفة الجديدة <span class="field-required" aria-hidden="true">*</span>
+          </label>
+          <select id="transfer-mode-select" class="form-control" style="font-size: 0.88rem; font-weight: 600;">
+            <option value="keep_rate">تثبيت السعر الحالي (Keep Rate) - دون تغيير الإجمالي</option>
+            <option value="upgrade_pay_difference">ترقية مع دفع الفارق (Upgrade) - احتساب فارق القائمة لليالي المتبقية</option>
+            <option value="custom_rate">سعر مخصص (Custom Rate) - للإدارة فقط 🔒</option>
+          </select>
+          <small id="transfer-mode-hint" style="display: block; margin-top: 4px; font-size: 0.78rem; color: #64748b;"></small>
+        </div>
+
+        <!-- Custom Rate Input (Admin Only) -->
+        <div id="transfer-custom-rate-group" class="form-group" style="display: none; margin-bottom: 14px;">
+          <label for="transfer-custom-rate" style="display: block; font-size: 0.82rem; font-weight: 700; margin-bottom: 6px; color: #334155;">
+            السعر اليومي الجديد المعتمد (ر.س / ليلة) <span class="field-required" aria-hidden="true">*</span>
+          </label>
+          <input type="number" id="transfer-custom-rate" class="form-control" step="0.01" min="1" placeholder="أدخل السعر اليومي الجديد المعتمد" style="font-size: 0.88rem;">
+        </div>
+
+        <!-- Live Financial Impact Preview (Phase 2) -->
+        <div id="transfer-preview-card" style="display: none; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; padding: 12px 16px; margin-bottom: 14px; font-size: 0.84rem; line-height: 1.8;">
+          <div style="font-weight: 800; color: #0f172a; margin-bottom: 6px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">
+            <span>الأثر المالي لنقل الغرفة:</span>
+            <span id="transfer-preview-badge" style="font-size: 0.75rem; padding: 1px 8px; border-radius: 4px; font-weight: 700;"></span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #64748b;">السعر اليومي الفعال الجديد:</span>
+            <strong id="transfer-preview-new-rate" style="color: #0f172a;">- ر.س</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #64748b;">فارق السعر اليومي:</span>
+            <strong id="transfer-preview-rate-delta" style="color: #0369a1;">- ر.س</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #64748b;">الليالي المتبقية للإقامة:</span>
+            <strong id="transfer-preview-remaining-nights" style="color: #334155;">-</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-top: 1px dashed #cbd5e1; margin-top: 4px; padding-top: 4px;">
+            <span style="color: #64748b;">إجمالي الفارق المالي (Delta):</span>
+            <strong id="transfer-preview-total-delta" style="font-size: 0.95rem; color: #0f172a;">0 ر.س</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: #64748b;">إجمالي الحجز الجديد (Total Price):</span>
+            <strong id="transfer-preview-new-total" style="font-size: 0.95rem; color: #05963d;">- ر.س</strong>
+          </div>
+          <div id="transfer-preview-settlement-note" style="font-size: 0.76rem; color: #64748b; margin-top: 6px; border-top: 1px solid #f1f5f9; padding-top: 4px;">
+            💡 يتم تسوية الفارق المالي لاحقاً أو عند إجراء المحاسبة النهائية لتسجيل المغادرة.
+          </div>
+        </div>
+
         <!-- Transfer Reason Category -->
         <div class="form-group" style="margin-bottom: 14px;">
           <label for="transfer-reason-category" style="display: block; font-size: 0.82rem; font-weight: 700; margin-bottom: 6px; color: #334155;">
@@ -1996,9 +2048,9 @@
           <textarea id="transfer-reason-details" class="form-control" rows="2" placeholder="اكتب سبباً توضيحياً لحركة النقل..." style="font-size: 0.85rem; resize: vertical;"></textarea>
         </div>
 
-        <!-- Phase 1 Rate-Preserving Notice -->
+        <!-- Policy Notice -->
         <div id="transfer-policy-notice" style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; font-size: 0.8rem; color: #1e40af; line-height: 1.5;">
-          📌 <strong>تنبيه المرحلة الأولى:</strong> يتم نقل النزيل مع تثبيت سعره اليومي الفعال السابق؛ لن يتغير إجمالي الحجز أو رصيد المدفوعات.
+          📌 <strong>سياسة نقل الغرف:</strong> يمكن للموظف تثبيت السعر للغرف المتماثلة أو ترقية الغرفة مع احتساب الفارق لليالي المتبقية. الأسعار المخصصة والترقيات المجانية تتطلب صلاحيات المدير.
         </div>
 
         <div class="modal-layout__footer" style="display: flex; gap: 10px; justify-content: flex-end; border-top: 1px solid #f1f5f9; padding-top: 16px;">

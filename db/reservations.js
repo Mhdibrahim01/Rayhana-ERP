@@ -106,7 +106,8 @@ const RESERVATION_LIST_SQL = `
     g.id_number AS guest_id_number,
     rm.room_number,
     rm.type AS room_type,
-    rm.price_per_night
+    rm.price_per_night,
+    rm.monthly_price
   FROM reservations r
   JOIN guests g ON r.guest_id = g.id
   JOIN rooms rm ON r.room_id = rm.id
@@ -338,13 +339,29 @@ function getReservationById(reservationId) {
       g.id_number AS guest_id_number,
       rm.room_number, 
       rm.type AS room_type, 
-      rm.price_per_night
+      rm.price_per_night,
+      rm.monthly_price
     FROM reservations r
     JOIN guests g ON r.guest_id = g.id
     JOIN rooms rm ON r.room_id = rm.id
     WHERE r.id = ?
   `;
-  return queryOne(sql, [parseInt(reservationId, 10)]);
+  const res = queryOne(sql, [parseInt(reservationId, 10)]);
+  if (res) {
+    res.transfers = queryAll(`
+      SELECT t.id, t.from_room_id, t.to_room_id, t.segment_start_date, t.segment_end_date,
+             t.segment_nights, t.pinned_rate, t.from_rate, t.segment_revenue, t.transfer_mode, t.reason_category, t.reason_details,
+             t.transfer_business_date, t.transfer_timestamp,
+             rf.room_number AS from_room_number, rf.type AS from_room_type, rf.monthly_price AS from_room_monthly_price, rf.price_per_night AS from_room_price_per_night,
+             rt.room_number AS to_room_number, rt.type AS to_room_type, rt.monthly_price AS to_room_monthly_price, rt.price_per_night AS to_room_price_per_night
+      FROM reservation_transfers t
+      LEFT JOIN rooms rf ON t.from_room_id = rf.id
+      LEFT JOIN rooms rt ON t.to_room_id = rt.id
+      WHERE t.reservation_id = ?
+      ORDER BY t.id ASC
+    `, [res.id]);
+  }
+  return res;
 }
 
 /**
@@ -2522,7 +2539,12 @@ function updateReservationReceipt({
  * Validates reservation stay context and evaluates target room eligibility, collisions, and pricing rules.
  */
 function validateTransferEligibility(reservationInput, targetRoomInput = null, options = {}) {
-  const { throwOnError = true, userRole = 'Staff' } = options;
+  const {
+    throwOnError = true,
+    userRole = 'Staff',
+    mode = 'keep_rate',
+    customRate = null
+  } = options;
 
   let stay = null;
   if (reservationInput && reservationInput.isResolvedStayContext) {
@@ -2532,7 +2554,7 @@ function validateTransferEligibility(reservationInput, targetRoomInput = null, o
     if (!targetId || isNaN(targetId)) throw new Error('معرف الحجز غير صالح.');
 
     const res = queryOne(`
-      SELECT r.*, rm.room_number, rm.type AS room_type, rm.price_per_night, g.name AS guest_name
+      SELECT r.*, rm.room_number, rm.type AS room_type, rm.price_per_night, rm.monthly_price, g.name AS guest_name
       FROM reservations r
       JOIN rooms rm ON r.room_id = rm.id
       JOIN guests g ON r.guest_id = g.id
@@ -2550,6 +2572,12 @@ function validateTransferEligibility(reservationInput, targetRoomInput = null, o
 
     const pinnedRate = roundMoney(res.custom_nightly_price || res.price_per_night || 0);
 
+    const isMonthly = res.booking_type === 'حجز شهري';
+    const currentRoomListPrice = roundMoney(res.price_per_night || 0);
+    const currentRoomMonthlyPrice = isMonthly
+      ? roundMoney(Number(res.monthly_rate_snapshot) > 0 ? Number(res.monthly_rate_snapshot) : (res.monthly_price || res.price_per_night * 30 || 0))
+      : null;
+
     // Upgrade check: new list price > max(pinned rate, list price of the stay's original room)
     const firstTransfer = queryOne(`
       SELECT from_room_id FROM reservation_transfers
@@ -2557,12 +2585,11 @@ function validateTransferEligibility(reservationInput, targetRoomInput = null, o
       ORDER BY id ASC LIMIT 1
     `, [targetId]);
     const originalRoomId = firstTransfer ? firstTransfer.from_room_id : res.room_id;
-    const originalRoom = queryOne("SELECT price_per_night FROM rooms WHERE id = ?", [originalRoomId]);
+    const originalRoom = queryOne("SELECT price_per_night, monthly_price FROM rooms WHERE id = ?", [originalRoomId]);
     const originalRoomListPrice = originalRoom ? roundMoney(originalRoom.price_per_night || 0) : roundMoney(res.price_per_night || 0);
+    const originalRoomMonthlyPrice = originalRoom ? roundMoney(originalRoom.monthly_price || originalRoom.price_per_night * 30 || 0) : (currentRoomMonthlyPrice || 0);
     const upgradeThreshold = Math.max(pinnedRate, originalRoomListPrice);
-
-    const isMonthly = res.booking_type === 'حجز شهري';
-    const currentRoomListPrice = roundMoney(res.price_per_night || 0);
+    const upgradeMonthlyThreshold = Math.max(currentRoomMonthlyPrice || 0, originalRoomMonthlyPrice);
 
     const isContract = res.booking_type === 'عقد مفتوح' || !res.check_out_date || res.check_out_date === 'مفتوح';
     const effectiveStayEnd = isContract ? '9999-12-31' : res.check_out_date;
@@ -2594,6 +2621,8 @@ function validateTransferEligibility(reservationInput, targetRoomInput = null, o
       upgradeThreshold,
       isMonthly,
       currentRoomListPrice,
+      currentRoomMonthlyPrice,
+      upgradeMonthlyThreshold,
       isContract,
       effectiveStayEnd,
       segmentStartDate,
@@ -2676,49 +2705,140 @@ function validateTransferEligibility(reservationInput, targetRoomInput = null, o
     return { eligible: false, error: err };
   }
 
+  const validMode = ['keep_rate', 'upgrade_pay_difference', 'custom_rate'].includes(mode) ? mode : 'keep_rate';
+
+  if (mode && !['keep_rate', 'upgrade_pay_difference', 'custom_rate'].includes(mode)) {
+    const err = 'نمط النقل غير صالح.';
+    if (throwOnError) throw new Error(err);
+    return { eligible: false, error: err };
+  }
+
   const newRoomListPrice = roundMoney(targetRoom.price_per_night || 0);
-  const isDowngrade = newRoomListPrice < stay.pinnedRate;
-  const isUpgrade = newRoomListPrice > stay.upgradeThreshold;
-  const isEqualPrice = !isUpgrade && !isDowngrade;
-  const isMonthlyMismatch = stay.isMonthly && newRoomListPrice !== stay.currentRoomListPrice;
-  const requiresAdmin = isUpgrade;
+  const newRoomMonthlyPrice = roundMoney(Number(targetRoom.monthly_price) > 0 ? Number(targetRoom.monthly_price) : (targetRoom.price_per_night * 30 || 0));
 
-  // Rule 2: Downgrade check
-  if (isDowngrade && throwOnError) {
-    throw new Error('تخفيض فئة الغرفة (سعر أقل) غير مدعوم في المرحلة الحالية لأن تعديل الأسعار خارج نطاق هذه المرحلة.');
+  let isUpgrade, isDowngrade, isEqualPrice;
+  if (stay.isMonthly) {
+    const curMonthly = stay.currentRoomMonthlyPrice || 0;
+    const threshMonthly = stay.upgradeMonthlyThreshold || curMonthly;
+    isUpgrade = newRoomMonthlyPrice > threshMonthly;
+    isDowngrade = newRoomMonthlyPrice < curMonthly;
+    isEqualPrice = !isUpgrade && !isDowngrade;
+  } else {
+    isDowngrade = newRoomListPrice < stay.pinnedRate;
+    isUpgrade = newRoomListPrice > stay.upgradeThreshold;
+    isEqualPrice = !isUpgrade && !isDowngrade;
   }
 
-  // Monthly booking check: only allowed if new room list price equals current room list price
-  if (isMonthlyMismatch && throwOnError) {
-    throw new Error('في الحجوزات الشهرية، يُسمح بالنقل فقط إلى غرف متطابقة في السعر اليومي المعلن مع الغرفة الحالية.');
+  // Downgrade check (blocked for all in Phase 2)
+  if (isDowngrade) {
+    const err = 'تخفيض فئة الغرفة (سعر أقل) غير مدعوم في المرحلة الحالية لأن تعديل الأسعار خارج نطاق هذه المرحلة.';
+    if (throwOnError) throw new Error(err);
+    return { eligible: false, error: err };
   }
 
-  // Upgrade admin check
-  if (isUpgrade && userRole !== 'Admin' && throwOnError) {
-    throw new Error('ترقية الغرفة (سعر أعلى) مع تثبيت السعر الحالي تتطلب صلاحية مدير النظام (Admin).');
+  let newRate = stay.pinnedRate;
+  let rateDelta = 0;
+  let monthlyDelta = 0;
+  let totalDelta = 0;
+  let newTotalPrice = roundMoney(stay.res.total_price || 0);
+  let requiresAdmin = false;
+
+  const remNights = stay.isContract ? 0 : Math.max(0, stay.remainingNights || 0);
+
+  if (validMode === 'keep_rate') {
+    newRate = stay.pinnedRate;
+    rateDelta = 0;
+    monthlyDelta = 0;
+    totalDelta = 0;
+    newTotalPrice = roundMoney(stay.res.total_price || 0);
+    requiresAdmin = isUpgrade;
+
+    if (isUpgrade && userRole !== 'Admin') {
+      const err = 'ترقية الغرفة (سعر أعلى) مع تثبيت السعر الحالي تتطلب صلاحية مدير النظام (Admin).';
+      if (throwOnError) throw new Error(err);
+      return { eligible: false, error: err };
+    }
+  } else if (validMode === 'upgrade_pay_difference') {
+    requiresAdmin = false;
+    if (stay.isMonthly) {
+      const bookedNights = Math.max(1, countNights(stay.res.check_in_date, stay.res.check_out_date));
+      monthlyDelta = Math.max(0, roundMoney(newRoomMonthlyPrice - (stay.currentRoomMonthlyPrice || 0)));
+      rateDelta = roundMoney(monthlyDelta / bookedNights);
+      totalDelta = roundMoney((monthlyDelta * remNights) / bookedNights);
+      newTotalPrice = roundMoney((stay.res.total_price || 0) + totalDelta);
+      newRate = roundMoney(newRoomMonthlyPrice / bookedNights);
+    } else if (stay.isContract) {
+      const listDelta = Math.max(0, roundMoney(newRoomListPrice - stay.currentRoomListPrice));
+      newRate = roundMoney(stay.pinnedRate + listDelta);
+      rateDelta = roundMoney(newRate - stay.pinnedRate);
+      totalDelta = 0;
+      newTotalPrice = roundMoney(stay.res.total_price || 0);
+    } else {
+      const listDelta = Math.max(0, roundMoney(newRoomListPrice - stay.currentRoomListPrice));
+      newRate = roundMoney(stay.pinnedRate + listDelta);
+      rateDelta = roundMoney(newRate - stay.pinnedRate);
+      totalDelta = roundMoney(rateDelta * remNights);
+      newTotalPrice = roundMoney((stay.res.total_price || 0) + totalDelta);
+    }
+  } else if (validMode === 'custom_rate') {
+    requiresAdmin = true;
+    if (userRole !== 'Admin') {
+      const err = 'تحديد سعر مخصص للنقل يتطلب صلاحية مدير النظام (Admin).';
+      if (throwOnError) throw new Error(err);
+      return { eligible: false, error: err };
+    }
+
+    const parsedCustomRate = (customRate !== null && customRate !== undefined && customRate !== '')
+      ? roundMoney(Number(customRate)) : null;
+    if (parsedCustomRate === null || !Number.isFinite(parsedCustomRate) || parsedCustomRate <= 0) {
+      const err = 'سعر الليلة المخصص غير صالح (يجب أن يكون أكبر من الصفر).';
+      if (throwOnError) throw new Error(err);
+      return { eligible: false, error: err };
+    }
+
+    newRate = parsedCustomRate;
+    rateDelta = roundMoney(newRate - stay.pinnedRate);
+    totalDelta = stay.isContract ? 0 : roundMoney(rateDelta * remNights);
+    newTotalPrice = stay.isContract ? roundMoney(stay.res.total_price || 0) : roundMoney((stay.res.total_price || 0) + totalDelta);
   }
 
   return {
     eligible: true,
     targetRoom,
     newRoomListPrice,
+    newRoomMonthlyPrice,
+    monthlyDelta,
+    mode: validMode,
+    newRate,
+    rateDelta,
+    totalDelta,
+    newTotalPrice,
+    remainingNights: stay.remainingNights,
     isUpgrade,
     isDowngrade,
     isEqualPrice,
     requiresAdmin,
-    isMonthlyMismatch,
+    isMonthlyMismatch: false,
     roomData: {
       id: targetRoom.id,
       room_number: targetRoom.room_number,
       type: targetRoom.type,
       price_per_night: newRoomListPrice,
+      monthly_price: newRoomMonthlyPrice,
+      displayPrice: stay.isMonthly ? newRoomMonthlyPrice : newRoomListPrice,
+      priceUnit: stay.isMonthly ? 'شهر' : 'يوم',
       status: targetRoom.status,
       pinnedRate: stay.pinnedRate,
+      mode: validMode,
+      newRate,
+      rateDelta,
+      monthlyDelta,
+      totalDelta,
+      newTotalPrice,
       isUpgrade,
       isDowngrade,
       isEqualPrice,
-      requiresAdmin,
-      isMonthlyMismatch
+      requiresAdmin
     }
   };
 }
@@ -2729,9 +2849,99 @@ function getTransferEligibleRooms(reservationId) {
   const eligibleRooms = [];
 
   for (const room of allRooms) {
-    const evalResult = validateTransferEligibility(stay, room, { throwOnError: false });
-    if (!evalResult.eligible) continue;
-    eligibleRooms.push(evalResult.roomData);
+    // 1. Target room status: Reject 'تنظيف' and 'صيانة'. Must be 'متاحة' or 'محجوزة'
+    if (room.status === 'تنظيف' || room.status === 'صيانة') continue;
+    if (room.status !== 'متاحة' && room.status !== 'محجوزة') continue;
+
+    // 2. Active occupant check on target room
+    const activeOccupant = queryOne(`
+      SELECT id FROM reservations
+      WHERE room_id = ? AND status = 'مؤكد' AND check_in_date <= ?
+      LIMIT 1
+    `, [room.id, stay.today]);
+    if (activeOccupant) continue;
+
+    // 3. Future conflict check
+    const futureConflict = queryOne(`
+      SELECT id, check_in_date, check_out_date FROM reservations
+      WHERE room_id = ?
+        AND status = 'مؤكد'
+        AND check_in_date > ?
+        AND check_in_date < ?
+      LIMIT 1
+    `, [room.id, stay.today, stay.effectiveStayEnd]);
+    if (futureConflict) continue;
+
+    const newRoomListPrice = roundMoney(room.price_per_night || 0);
+    const newRoomMonthlyPrice = roundMoney(Number(room.monthly_price) > 0 ? Number(room.monthly_price) : (room.price_per_night * 30 || 0));
+
+    let isUpgrade, isDowngrade, isEqualPrice;
+    if (stay.isMonthly) {
+      const curMonthly = stay.currentRoomMonthlyPrice || 0;
+      const threshMonthly = stay.upgradeMonthlyThreshold || curMonthly;
+      isUpgrade = newRoomMonthlyPrice > threshMonthly;
+      isDowngrade = newRoomMonthlyPrice < curMonthly;
+      isEqualPrice = !isUpgrade && !isDowngrade;
+    } else {
+      isDowngrade = newRoomListPrice < stay.pinnedRate;
+      isUpgrade = newRoomListPrice > stay.upgradeThreshold;
+      isEqualPrice = !isUpgrade && !isDowngrade;
+    }
+
+    const defaultMode = isUpgrade ? 'upgrade_pay_difference' : 'keep_rate';
+    const remNights = stay.isContract ? 0 : Math.max(0, stay.remainingNights || 0);
+
+    let newRate = stay.pinnedRate;
+    let rateDelta = 0;
+    let monthlyDelta = 0;
+    let totalDelta = 0;
+    let newTotalPrice = roundMoney(stay.res.total_price || 0);
+
+    if (defaultMode === 'upgrade_pay_difference') {
+      if (stay.isMonthly) {
+        const bookedNights = Math.max(1, countNights(stay.res.check_in_date, stay.res.check_out_date));
+        monthlyDelta = Math.max(0, roundMoney(newRoomMonthlyPrice - (stay.currentRoomMonthlyPrice || 0)));
+        rateDelta = roundMoney(monthlyDelta / bookedNights);
+        totalDelta = roundMoney((monthlyDelta * remNights) / bookedNights);
+        newTotalPrice = roundMoney((stay.res.total_price || 0) + totalDelta);
+        newRate = roundMoney(newRoomMonthlyPrice / bookedNights);
+      } else if (stay.isContract) {
+        const listDelta = Math.max(0, roundMoney(newRoomListPrice - stay.currentRoomListPrice));
+        newRate = roundMoney(stay.pinnedRate + listDelta);
+        rateDelta = roundMoney(newRate - stay.pinnedRate);
+        totalDelta = 0;
+        newTotalPrice = roundMoney(stay.res.total_price || 0);
+      } else {
+        const listDelta = Math.max(0, roundMoney(newRoomListPrice - stay.currentRoomListPrice));
+        newRate = roundMoney(stay.pinnedRate + listDelta);
+        rateDelta = roundMoney(newRate - stay.pinnedRate);
+        totalDelta = roundMoney(rateDelta * remNights);
+        newTotalPrice = roundMoney((stay.res.total_price || 0) + totalDelta);
+      }
+    }
+
+    eligibleRooms.push({
+      id: room.id,
+      room_number: room.room_number,
+      type: room.type,
+      price_per_night: newRoomListPrice,
+      monthly_price: newRoomMonthlyPrice,
+      displayPrice: stay.isMonthly ? newRoomMonthlyPrice : newRoomListPrice,
+      priceUnit: stay.isMonthly ? 'شهر' : 'يوم',
+      status: room.status,
+      pinnedRate: stay.pinnedRate,
+      currentMonthlyRate: stay.currentRoomMonthlyPrice,
+      mode: defaultMode,
+      newRate,
+      rateDelta,
+      monthlyDelta,
+      totalDelta,
+      newTotalPrice,
+      isUpgrade,
+      isDowngrade,
+      isEqualPrice,
+      requiresAdmin: false
+    });
   }
 
   return {
@@ -2745,15 +2955,28 @@ function getTransferEligibleRooms(reservationId) {
       check_out_date: stay.res.check_out_date,
       booking_type: stay.res.booking_type,
       pinnedRate: stay.pinnedRate,
-      isContract: stay.isContract
+      currentMonthlyRate: stay.currentRoomMonthlyPrice,
+      isContract: stay.isContract,
+      isMonthly: stay.isMonthly
     },
     eligibleRooms
   };
 }
 
-function previewRoomTransfer({ reservationId, targetRoomId, userRole = 'Staff' }) {
+function previewRoomTransfer({
+  reservationId,
+  targetRoomId,
+  userRole = 'Staff',
+  mode = 'keep_rate',
+  customRate = null
+}) {
   const stay = validateTransferEligibility(reservationId);
-  const evalResult = validateTransferEligibility(stay, targetRoomId, { throwOnError: true, userRole });
+  const evalResult = validateTransferEligibility(stay, targetRoomId, {
+    throwOnError: true,
+    userRole,
+    mode,
+    customRate
+  });
 
   return {
     reservationId: stay.res.id,
@@ -2766,6 +2989,18 @@ function previewRoomTransfer({ reservationId, targetRoomId, userRole = 'Staff' }
     targetRoomType: evalResult.targetRoom.type,
     pinnedRate: stay.pinnedRate,
     targetRoomListPrice: evalResult.newRoomListPrice,
+    targetRoomMonthlyPrice: evalResult.newRoomMonthlyPrice,
+    currentRoomMonthlyPrice: stay.currentRoomMonthlyPrice,
+    displayPrice: stay.isMonthly ? evalResult.newRoomMonthlyPrice : evalResult.newRoomListPrice,
+    priceUnit: stay.isMonthly ? 'شهر' : 'يوم',
+    mode: evalResult.mode,
+    newRate: evalResult.newRate,
+    rateDelta: evalResult.rateDelta,
+    monthlyDelta: evalResult.monthlyDelta,
+    totalDelta: evalResult.totalDelta,
+    oldTotalPrice: roundMoney(stay.res.total_price || 0),
+    newTotalPrice: evalResult.newTotalPrice,
+    paidAmount: roundMoney(stay.res.paid_amount || 0),
     segmentStartDate: stay.segmentStartDate,
     segmentNights: stay.segmentNights,
     segmentRevenue: stay.segmentRevenue,
@@ -2773,6 +3008,7 @@ function previewRoomTransfer({ reservationId, targetRoomId, userRole = 'Staff' }
     isUpgrade: evalResult.isUpgrade,
     requiresAdmin: evalResult.requiresAdmin,
     isContract: stay.isContract,
+    isMonthly: stay.isMonthly,
     userRole
   };
 }
@@ -2783,16 +3019,33 @@ function executeRoomTransfer({
   reasonCategory = 'other',
   reasonDetails = '',
   userId = null,
-  userRole = 'Staff'
+  userRole = 'Staff',
+  mode = 'keep_rate',
+  customRate = null
 }) {
   const stay = validateTransferEligibility(reservationId);
-  const evalResult = validateTransferEligibility(stay, targetRoomId, { throwOnError: true, userRole });
+  const evalResult = validateTransferEligibility(stay, targetRoomId, {
+    throwOnError: true,
+    userRole,
+    mode,
+    customRate
+  });
   const targetRoom = evalResult.targetRoom;
 
-  // Rule 1: pinned custom_nightly_price if new room list price differs from pinnedRate
-  const customNightlyPriceToWrite = (evalResult.newRoomListPrice !== stay.pinnedRate)
-    ? stay.pinnedRate
-    : (stay.res.custom_nightly_price !== null && stay.res.custom_nightly_price !== undefined ? roundMoney(stay.res.custom_nightly_price) : null);
+  // Resolve custom_nightly_price to store on reservations
+  const customNightlyPriceToWrite = (evalResult.newRate !== evalResult.newRoomListPrice)
+    ? evalResult.newRate
+    : (stay.res.custom_nightly_price !== null && stay.res.custom_nightly_price !== undefined ? evalResult.newRate : null);
+
+  let monthlySnapshotToWrite = stay.res.monthly_rate_snapshot;
+  if (stay.isMonthly) {
+    const currentSnapshot = (stay.res.monthly_rate_snapshot !== null && Number(stay.res.monthly_rate_snapshot) > 0)
+      ? Number(stay.res.monthly_rate_snapshot)
+      : (Number(stay.res.monthly_price) > 0
+          ? Number(stay.res.monthly_price)
+          : Math.max(0, roundMoney((stay.res.total_price || 0) + (stay.res.discount_amount || 0) - Number(stay.res.monthly_extension_amount || 0))));
+    monthlySnapshotToWrite = roundMoney(currentSnapshot + evalResult.totalDelta);
+  }
 
   const activeUserId = userId ? parseInt(userId, 10) : null;
   const validReasonCategory = ['maintenance', 'guest_request', 'noise_complaint', 'administrative', 'other'].includes(reasonCategory)
@@ -2803,31 +3056,47 @@ function executeRoomTransfer({
   // Rule 6: BEGIN / COMMIT / ROLLBACK, saveToFile() only after COMMIT
   db.run("BEGIN TRANSACTION;");
   try {
-    // Rule 5: Old room: always set to 'تنظيف' via direct SQL (like checkout).
-    // Do not write new room's status; derivation handles it.
+    // Old room: always set to 'تنظيف' via direct SQL (like checkout)
     const stmtOldRoom = db.prepare("UPDATE rooms SET status = 'تنظيف' WHERE id = ?");
     stmtOldRoom.run([stay.res.room_id]);
     stmtOldRoom.free();
 
-    // Rule 1: check_in_date, check_out_date, total_price, paid_amount and payments untouched.
-    // Only reservations.room_id changes, plus custom_nightly_price pinned when list price differs.
+    // Update reservation room_id, custom_nightly_price, total_price, monthly_rate_snapshot, and payment_status
     const stmtRes = db.prepare(`
       UPDATE reservations
       SET room_id = ?,
-          custom_nightly_price = ?
+          custom_nightly_price = ?,
+          total_price = ?,
+          monthly_rate_snapshot = CASE
+            WHEN booking_type = 'حجز شهري' THEN ?
+            ELSE monthly_rate_snapshot
+          END,
+          payment_status = CASE
+            WHEN paid_amount >= ? THEN 'مدفوع بالكامل'
+            WHEN paid_amount > 0 THEN 'مدفوع جزئياً'
+            ELSE 'غير مدفوع'
+          END
       WHERE id = ?
     `);
-    stmtRes.run([targetRoom.id, customNightlyPriceToWrite, stay.res.id]);
+    stmtRes.run([
+      targetRoom.id,
+      customNightlyPriceToWrite,
+      evalResult.newTotalPrice,
+      monthlySnapshotToWrite,
+      evalResult.newTotalPrice,
+      stay.res.id
+    ]);
     stmtRes.free();
 
-    // Insert into reservation_transfers (Rule 6)
+    // Insert into reservation_transfers (with from_rate and transfer_mode)
     const stmtTrans = db.prepare(`
       INSERT INTO reservation_transfers (
         reservation_id, from_room_id, to_room_id,
         transfer_business_date, segment_start_date, segment_end_date,
         segment_nights, pinned_rate, segment_revenue,
-        reason_category, reason_details, user_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        reason_category, reason_details, user_id,
+        from_rate, transfer_mode
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     stmtTrans.run([
       stay.res.id,
@@ -2841,7 +3110,9 @@ function executeRoomTransfer({
       stay.segmentRevenue,
       validReasonCategory,
       cleanReasonDetails || null,
-      activeUserId
+      activeUserId,
+      stay.pinnedRate,
+      evalResult.mode
     ]);
     stmtTrans.free();
 
@@ -2882,7 +3153,14 @@ function executeRoomTransfer({
     reservationId: stay.res.id,
     fromRoomNumber: stay.res.room_number,
     toRoomNumber: targetRoom.room_number,
-    pinnedRate: stay.pinnedRate
+    pinnedRate: stay.pinnedRate,
+    mode: evalResult.mode,
+    newRate: evalResult.newRate,
+    oldTotalPrice: roundMoney(stay.res.total_price || 0),
+    newTotalPrice: evalResult.newTotalPrice,
+    totalDelta: evalResult.totalDelta,
+    segmentNights: stay.segmentNights,
+    segmentRevenue: stay.segmentRevenue
   };
 }
 

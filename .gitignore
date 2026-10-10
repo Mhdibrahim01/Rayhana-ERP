@@ -18,3 +18,4 @@ tests/helpers/prepare-sandbox-db.js
 tests/math-anomaly-report.js
 verify-full.js
 verify-full2.js
+.worktrees/
