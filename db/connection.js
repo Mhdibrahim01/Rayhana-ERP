@@ -256,6 +256,33 @@ async function init(dbPath) {
         user_id INTEGER,
         FOREIGN KEY(user_id) REFERENCES users(id)
       );
+
+      -- جدول حركات نقل النزلاء بين الغرف وتتبع الشرائح وإيرادات الغرف (Phase 1)
+      CREATE TABLE IF NOT EXISTS reservation_transfers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        reservation_id INTEGER NOT NULL,
+        from_room_id INTEGER NOT NULL,
+        to_room_id INTEGER NOT NULL,
+        transfer_business_date TEXT NOT NULL,
+        transfer_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        segment_start_date TEXT NOT NULL,
+        segment_end_date TEXT NOT NULL,
+        segment_nights INTEGER NOT NULL,
+        pinned_rate REAL NOT NULL,
+        segment_revenue REAL NOT NULL,
+        reason_category TEXT NOT NULL DEFAULT 'other',
+        reason_details TEXT,
+        user_id INTEGER,
+        FOREIGN KEY(reservation_id) REFERENCES reservations(id),
+        FOREIGN KEY(from_room_id) REFERENCES rooms(id),
+        FOREIGN KEY(to_room_id) REFERENCES rooms(id),
+        FOREIGN KEY(user_id) REFERENCES users(id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_reservation_transfers_res ON reservation_transfers(reservation_id);
+      CREATE INDEX IF NOT EXISTS idx_reservation_transfers_from ON reservation_transfers(from_room_id);
+      CREATE INDEX IF NOT EXISTS idx_reservation_transfers_to ON reservation_transfers(to_room_id);
+      CREATE INDEX IF NOT EXISTS idx_reservation_transfers_date ON reservation_transfers(transfer_business_date);
     `);
 
     // Enable foreign key enforcement (SQLite has it OFF by default)
@@ -300,7 +327,9 @@ async function init(dbPath) {
       { table: 'night_audits', column: 'payment_net', sql: 'ALTER TABLE night_audits ADD COLUMN payment_net REAL NOT NULL DEFAULT 0' },
       { table: 'night_audits', column: 'deposit_movement_count', sql: 'ALTER TABLE night_audits ADD COLUMN deposit_movement_count INTEGER NOT NULL DEFAULT 0' },
       { table: 'night_audits', column: 'deposit_net', sql: 'ALTER TABLE night_audits ADD COLUMN deposit_net REAL NOT NULL DEFAULT 0' },
-      { table: 'night_audits', column: 'summary_json', sql: "ALTER TABLE night_audits ADD COLUMN summary_json TEXT NOT NULL DEFAULT '{}'" }
+      { table: 'night_audits', column: 'summary_json', sql: "ALTER TABLE night_audits ADD COLUMN summary_json TEXT NOT NULL DEFAULT '{}'" },
+      { table: 'reservation_transfers', column: 'from_rate', sql: 'ALTER TABLE reservation_transfers ADD COLUMN from_rate REAL' },
+      { table: 'reservation_transfers', column: 'transfer_mode', sql: "ALTER TABLE reservation_transfers ADD COLUMN transfer_mode TEXT DEFAULT 'keep_rate'" }
     ];
     for (const migration of migrations) {
       try {

@@ -427,6 +427,7 @@
     'invoice': { icon: '🧾', label: 'فاتورة', subtitle: 'إصدار ومعاينة الفاتورة الضريبية', requiresArg: true, canonical: 'فاتورة' },
     'voucher': { icon: '💳', label: 'سند قبض', subtitle: 'تسجيل سند قبض وتحصيل مالي', requiresArg: true, canonical: 'سند' },
     'extend': { icon: '📅', label: 'تمديد إقامة', subtitle: 'تمديد حجز وإقامة نزيل', requiresArg: true, canonical: 'تمديد' },
+    'transfer': { icon: '🔄', label: 'نقل الغرفة', subtitle: 'نقل نزيل إلى غرفة بديلة', requiresArg: true, canonical: 'نقل' },
     'whatsapp': { icon: '💬', label: 'واتساب', subtitle: 'إرسال رسالة واتساب للنزيل', requiresArg: true, canonical: 'واتساب' },
     'booking': { icon: '➕', label: 'تسكين وحجز', subtitle: 'تسجيل حجز أو تسكين جديد', requiresArg: true, canonical: 'تسكين' },
     'room-inquiry': { icon: '🚪', label: 'استعلام الغرفة', subtitle: 'استعراض بيانات وحالة الغرفة', requiresArg: true, canonical: 'غرفة' },
@@ -646,7 +647,7 @@
 
   function canReplayAction(actionType, payload) {
     if (!actionType) return false;
-    return ['payment', 'checkout', 'extend', 'invoice', 'room-inquiry', 'booking', 'whatsapp', 'mark-clean', 'preview', 'attention-tab', 'view-section', 'backup', 'command'].includes(actionType);
+    return ['payment', 'checkout', 'extend', 'transfer', 'invoice', 'room-inquiry', 'booking', 'whatsapp', 'mark-clean', 'preview', 'attention-tab', 'view-section', 'backup', 'command'].includes(actionType);
   }
 
   function replayAction(actionType, payload, context) {
@@ -690,6 +691,17 @@
           window.openExtendStayModal(id);
         } else if (id && App?.Helpers?.openReservationPreview) {
           App.Helpers.openReservationPreview(id);
+        } else {
+          showMissingHelperToast();
+        }
+        break;
+      }
+      case 'transfer': {
+        const id = resId || (roomNumber ? reservations.find(r => String(r.room_number) === String(roomNumber) && r.status === 'مؤكد')?.id : null);
+        if (id && window.openTransferRoomModal) {
+          window.openTransferRoomModal(id);
+        } else if (id && App?.Helpers?.openTransferRoomModal) {
+          App.Helpers.openTransferRoomModal(id);
         } else {
           showMissingHelperToast();
         }
@@ -1399,6 +1411,27 @@
             }
           });
         }
+
+        if (activeRes.booking_type !== 'استخدام يومي') {
+          ctx.results.push({
+            category: `⚡ إجراءات سريعة للغرفة ${displayRoomNum}`,
+            icon: '🔄',
+            title: `نقل النزيل إلى غرفة أخرى • غرفة ${displayRoomNum}`,
+            subtitle: `نقل النزيل (${activeRes.guest_name || 'نزيل'}) إلى غرفة بديلة مع الاحتفاظ بالسعر`,
+            badge: 'نقل الغرفة',
+            actionType: 'transfer',
+            actionPayload: { reservationId: activeRes.id, reservation: activeRes, roomNumber: activeRes.room_number },
+            actionFn: () => {
+              if (window.openTransferRoomModal) {
+                window.openTransferRoomModal(activeRes.id);
+              } else if (App?.Helpers?.openTransferRoomModal) {
+                App.Helpers.openTransferRoomModal(activeRes.id);
+              } else {
+                showMissingHelperToast();
+              }
+            }
+          });
+        }
       } else if (room && room.status === 'متاحة') {
         ctx.results.push({
           category: `🚪 تفاصيل الغرفة ${displayRoomNum}`,
@@ -1622,6 +1655,28 @@
             actionFn: () => {
               if (window.openExtendStayModal) {
                 window.openExtendStayModal(res.id);
+              } else {
+                showMissingHelperToast();
+              }
+            }
+          });
+        }
+
+        // 6. Transfer room (if confirmed and not day-use)
+        if (res.status === 'مؤكد' && res.booking_type !== 'استخدام يومي') {
+          ctx.results.push({
+            category: `📋 حجز #${res.id} • غرفة ${res.room_number || '-'}`,
+            icon: '🔄',
+            title: 'نقل النزيل إلى غرفة أخرى',
+            subtitle: `نقل النزيل (${res.guest_name || 'نزيل'}) إلى غرفة بديلة مع الاحتفاظ بالسعر`,
+            badge: 'نقل الغرفة',
+            actionType: 'transfer',
+            actionPayload: { reservationId: res.id, reservation: res, roomNumber: res.room_number },
+            actionFn: () => {
+              if (window.openTransferRoomModal) {
+                window.openTransferRoomModal(res.id);
+              } else if (App?.Helpers?.openTransferRoomModal) {
+                App.Helpers.openTransferRoomModal(res.id);
               } else {
                 showMissingHelperToast();
               }
@@ -2450,6 +2505,69 @@
             title: 'تمديد إقامة حجز نشط',
             subtitle: 'حدد رقم الغرفة لتمديد الحجز فوراً (مثال: "تمديد 104")',
             badge: 'تمديد',
+            actionFn: () => switchViewSection('reservations')
+          });
+        }
+      }
+    },
+    {
+      id: 'transfer',
+      name: 'نقل الغرفة للنزيل',
+      keywords: ['نقل', 'تحويل', 'transfer', 'move'],
+      match: (norm) => {
+        const mPrefix = norm.match(/^(?:نقل|تحويل|transfer|move)(?:\s+(?:نزيل|حجز|غرف[هة]|الغرف[هة]))?\s*(?:(?:غرف[هة]|الغرف[هة]|حجز)\s+)*(\d{1,5})?/i);
+        if (mPrefix) {
+          return { roomNumber: mPrefix[1] ? normalizeDigits(mPrefix[1]) : null };
+        }
+        const mSuffix = norm.match(/^(\d{1,5})\s+(?:نقل|تحويل|transfer|move)(?:\s+(?:غرف[هة]|الغرف[هة]))?$/i);
+        if (mSuffix) {
+          return { roomNumber: normalizeDigits(mSuffix[1]) };
+        }
+        return null;
+      },
+      handle: (ctx, match) => {
+        const roomNum = match?.roomNumber;
+        if (roomNum) {
+          const activeRes = ctx.reservations.find(r =>
+            (String(r.room_number) === roomNum || String(r.id) === roomNum) &&
+            r.status === 'مؤكد'
+          );
+          if (activeRes) {
+            ctx.results.push({
+              category: '🔄 نقل الغرفة',
+              icon: '🔄',
+              title: `نقل نزيل الغرفة ${activeRes.room_number || roomNum}: ${activeRes.guest_name || 'نزيل'}`,
+              subtitle: `المغادرة المقررة: ${activeRes.check_out_date || 'مفتوح'} • فتح نافذة نقل الغرفة`,
+              badge: 'نقل فوري 🔄',
+              actionType: 'transfer',
+              actionPayload: { reservationId: activeRes.id, reservation: activeRes, roomNumber: activeRes.room_number },
+              actionFn: () => {
+                if (window.openTransferRoomModal) {
+                  window.openTransferRoomModal(activeRes.id);
+                } else if (App?.Helpers?.openTransferRoomModal) {
+                  App.Helpers.openTransferRoomModal(activeRes.id);
+                } else {
+                  showMissingHelperToast();
+                }
+              }
+            });
+          } else {
+            ctx.results.push({
+              category: '🔄 نقل الغرفة',
+              icon: '❓',
+              title: `لا يوجد حجز مؤكد للغرفة ${roomNum} لنقله`,
+              subtitle: 'تأكد من رقم الغرفة أو وجود حجز نشط في النظام',
+              badge: 'غير متاح',
+              actionFn: () => switchViewSection('reservations')
+            });
+          }
+        } else {
+          ctx.results.push({
+            category: '🔄 نقل الغرفة',
+            icon: '🔄',
+            title: 'نقل نزيل إلى غرفة بديلة',
+            subtitle: 'حدد رقم الغرفة لنقل النزيل فوراً (مثال: "نقل 204" أو "204 نقل")',
+            badge: 'نقل',
             actionFn: () => switchViewSection('reservations')
           });
         }

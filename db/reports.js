@@ -250,9 +250,10 @@ function getShiftAuditReport(startDate, endDate) {
        OR EXISTS (SELECT 1 FROM payments p WHERE p.reservation_id = r.id AND p.business_date BETWEEN ? AND ?)
        OR EXISTS (SELECT 1 FROM deposit_movements dm WHERE dm.reservation_id = r.id AND dm.business_date BETWEEN ? AND ?)
        OR EXISTS (SELECT 1 FROM reservation_events ev WHERE ev.entity_type = 'reservation' AND ev.entity_id = r.id AND ev.business_date BETWEEN ? AND ?)
+       OR EXISTS (SELECT 1 FROM reservation_transfers rt WHERE rt.reservation_id = r.id AND rt.transfer_business_date BETWEEN ? AND ?)
     )
     ORDER BY r.id DESC
-  `, [dateFrom, dateTo, dateFrom, dateTo, dateFrom, dateTo, dateFrom, dateTo, dateFrom, dateTo, dateFrom, dateTo]);
+  `, [dateFrom, dateTo, dateFrom, dateTo, dateFrom, dateTo, dateFrom, dateTo, dateFrom, dateTo, dateFrom, dateTo, dateFrom, dateTo]);
 
   let expectedTotal = 0;
   let outstandingTotal = 0;
@@ -297,7 +298,50 @@ function getShiftAuditReport(startDate, endDate) {
   // Net cash held from deposits in the cash drawer (collected minus refunded to guest)
   const netCashDeposit = roundMoney(depositCashCollected - depositCashRefunded);
 
-  // 3. Movements (Check-ins & Check-outs in range)
+  // 3. Room Transfers in date range
+  const transfersInRange = queryAll(`
+    SELECT 
+      t.id,
+      t.reservation_id,
+      t.transfer_business_date,
+      t.transfer_timestamp,
+      t.segment_start_date,
+      t.segment_end_date,
+      t.segment_nights,
+      t.pinned_rate,
+      t.from_rate,
+      t.segment_revenue,
+      t.transfer_mode,
+      t.reason_category,
+      t.reason_details,
+      r.guest_id,
+      r.booking_type,
+      r.check_in_date,
+      r.check_out_date,
+      r.custom_nightly_price,
+      r.monthly_rate_snapshot,
+      r.total_price,
+      g.name AS guest_name,
+      from_rm.room_number AS from_room_number,
+      from_rm.type AS from_room_type,
+      from_rm.monthly_price AS from_room_monthly_price,
+      from_rm.price_per_night AS from_room_price_per_night,
+      to_rm.room_number AS to_room_number,
+      to_rm.type AS to_room_type,
+      to_rm.price_per_night AS to_room_price_per_night,
+      to_rm.monthly_price AS to_room_monthly_price,
+      u.username AS staff_username
+    FROM reservation_transfers t
+    JOIN reservations r ON t.reservation_id = r.id
+    JOIN guests g ON r.guest_id = g.id
+    JOIN rooms from_rm ON t.from_room_id = from_rm.id
+    JOIN rooms to_rm ON t.to_room_id = to_rm.id
+    LEFT JOIN users u ON t.user_id = u.id
+    WHERE t.transfer_business_date BETWEEN ? AND ?
+    ORDER BY t.id DESC
+  `, [dateFrom, dateTo]);
+
+  // 4. Movements (Check-ins & Check-outs in range)
   const checkinsInRange = queryOne(`
     SELECT COUNT(*) AS count 
     FROM reservations 
@@ -407,7 +451,9 @@ function getShiftAuditReport(startDate, endDate) {
       totalCheckins: checkinsInRange,
       totalCheckouts: checkoutsInRange,
       totalReservationsToday: reservationsInRange.length,
-      totalPaymentsCount: paymentsInRange.length
+      totalPaymentsCount: paymentsInRange.length,
+      totalTransfersToday: transfersInRange.length,
+      totalTransfers: transfersInRange.length
     },
     rooms: {
       totalRooms,
@@ -420,6 +466,7 @@ function getShiftAuditReport(startDate, endDate) {
     dailyBreakdown,
     payments: paymentsInRange,
     depositMovements,
+    transfers: transfersInRange,
     transactions: reservationsInRange
   };
 }

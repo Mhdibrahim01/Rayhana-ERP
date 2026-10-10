@@ -62,6 +62,9 @@ contextBridge.exposeInMainWorld('api', {
   getReservationDepositMovements: (reservationId) => ipcRenderer.invoke('deposits:get-by-reservation', reservationId),
   reconcileLegacyDeposit: (data) => ipcRenderer.invoke('deposits:reconcile-legacy', data),
   getPaymentReceipt: (receiptIdentifier) => ipcRenderer.invoke('payments:get-receipt', receiptIdentifier),
+  getTransferEligibleRooms: (reservationId) => ipcRenderer.invoke('reservations:get-transfer-eligible-rooms', reservationId),
+  previewRoomTransfer: (data) => ipcRenderer.invoke('reservations:transfer-preview', data),
+  transferRoom: (data) => ipcRenderer.invoke('reservations:transfer-room', data),
   autoUpdateRoomStatuses: () => ipcRenderer.invoke('rooms:auto-update-status'),
 
   // Guests & Customers

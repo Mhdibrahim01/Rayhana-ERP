@@ -303,7 +303,7 @@ function getRoomRevenueStats(roomId) {
   }
   total_collected = roundMoney(total_collected);
 
-  // 3. Per-reservation-first calculation for total_expected and total_outstanding
+  // 3. Per-reservation and per-segment calculation for total_expected and total_outstanding
   let total_expected = 0;
   let total_outstanding = 0;
   const breakdown = [];
@@ -311,7 +311,14 @@ function getRoomRevenueStats(roomId) {
   for (const r of reservations) {
     if (r.status === 'ملغي') continue;
 
-    const price = roundMoney(r.total_price || 0);
+    // Check if this reservation was transferred from previous rooms
+    const priorTransfersTotal = roundMoney(queryOne(`
+      SELECT COALESCE(SUM(segment_revenue), 0) AS total
+      FROM reservation_transfers
+      WHERE reservation_id = ? AND from_room_id != ?
+    `, [r.id, targetId])?.total || 0);
+
+    const price = Math.max(0, roundMoney(roundMoney(r.total_price || 0) - priorTransfersTotal));
     const paid = roundMoney(r.paid_amount || 0);
     const collected = roundMoney(payByRes[r.id] || 0);
 
@@ -329,6 +336,37 @@ function getRoomRevenueStats(roomId) {
       amount_collected: collected,
       status: r.status,
       booking_type: r.booking_type || 'عادي'
+    });
+  }
+
+  // Include past transferred-out segments for this room (where reservation moved to another room)
+  const pastSegments = queryAll(`
+    SELECT t.reservation_id, t.segment_nights, t.pinned_rate, t.segment_revenue,
+           t.segment_start_date, t.segment_end_date,
+           r.status AS res_status, r.booking_type, g.name AS guest_name, g.phone AS guest_phone
+    FROM reservation_transfers t
+    JOIN reservations r ON t.reservation_id = r.id
+    JOIN guests g ON r.guest_id = g.id
+    WHERE t.from_room_id = ? AND r.room_id != ? AND r.status != 'ملغي'
+    ORDER BY t.id DESC
+  `, [targetId, targetId]);
+
+  for (const seg of pastSegments) {
+    const segRev = roundMoney(seg.segment_revenue || 0);
+    total_expected += segRev;
+
+    breakdown.push({
+      id: seg.reservation_id,
+      guest_name: seg.guest_name,
+      guest_phone: seg.guest_phone,
+      check_in_date: seg.segment_start_date,
+      check_out_date: seg.segment_end_date,
+      total_price: segRev,
+      paid_amount: 0,
+      amount_collected: 0,
+      status: `شريحة منقولة (${seg.segment_nights} ليل)`,
+      booking_type: seg.booking_type || 'عادي',
+      is_transferred_segment: true
     });
   }
 

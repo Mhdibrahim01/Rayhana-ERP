@@ -650,14 +650,14 @@
       }
 
       const storedTotal = isCancelled ? 0.0 : parseFloat(inv.total_price || 0);
-      const discount = parseFloat(inv.discount_amount || 0);
+      const rawDiscount = parseFloat(inv.discount_amount || 0);
       let overdueAdditionalAmount = 0;
       let effectiveTotal = storedTotal;
       if (isOverdue && effectiveNightlyRate > 0) {
         overdueAdditionalAmount = roundMoney(overdueDays * effectiveNightlyRate);
         effectiveTotal = roundMoney(storedTotal + overdueAdditionalAmount);
       } else if (isConfirmed && isContract && effectiveNightlyRate > 0) {
-        effectiveTotal = Math.max(storedTotal, roundMoney(elapsedContractNights * effectiveNightlyRate - discount));
+        effectiveTotal = Math.max(storedTotal, roundMoney(elapsedContractNights * effectiveNightlyRate - rawDiscount));
       }
 
       const total = effectiveTotal;
@@ -737,7 +737,7 @@
 
       const monthlyRate = Number(inv.monthly_rate_snapshot) > 0
         ? Number(inv.monthly_rate_snapshot)
-        : roundMoney(effectiveNightlyRate * 30);
+        : (Number(inv.monthly_price) > 0 ? Number(inv.monthly_price) : roundMoney(effectiveNightlyRate * 30));
       const monthlyExtensionAmount = Math.max(0, roundMoney(inv.monthly_extension_amount || 0));
       const rawDiscountReason = String(inv.discount_reason || '').trim();
       const normalizedDiscountReason = rawDiscountReason.replace(/[إأآ]/g, 'ا').replace(/[()]/g, '').replace(/[\s-]+/g, ' ').trim();
@@ -761,10 +761,13 @@
       const invoiceDurationText = (isContractPolicy && bookedNights)
         ? `${bookedNights} ${bookedNights === 1 ? 'ليلة' : 'ليالٍ'} (قيمة العقد)`
         : stayDurationText;
+      const monthlyPackageSubtotal = roundMoney(monthlyRate + monthlyExtensionAmount);
+      const discount = (isMonthly && !isActualPolicy)
+        ? Math.max(0, roundMoney(monthlyPackageSubtotal - storedTotal))
+        : rawDiscount;
       const baseSubtotal = (typeof invoiceNights === 'number' && invoiceNights > 0)
         ? (invoiceNights * effectiveNightlyRate)
         : (total + discount);
-      const monthlyPackageSubtotal = roundMoney(monthlyRate + monthlyExtensionAmount);
       const shownSubtotal = isMonthly ? (isActualPolicy ? baseSubtotal : monthlyPackageSubtotal) : baseSubtotal;
       const shownRate = isMonthly && !isActualPolicy ? monthlyRate : effectiveNightlyRate;
 
@@ -964,6 +967,9 @@
           .receipt-deposit-movements h4{margin:0 0 5px!important;font-size:12px!important}
           .receipt-deposit-movements table{font-size:12px!important}
           .receipt-deposit-movements th,.receipt-deposit-movements td{padding:4px!important}
+          .receipt-transfers-card{margin-top:-16px;margin-bottom:20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;break-inside:avoid;page-break-inside:avoid}
+          .receipt-transfers-card table{font-size:11px!important}
+          .receipt-transfers-card th,.receipt-transfers-card td{padding:4px 6px!important}
           @media(max-width:760px){.receipt-details-grid{grid-template-columns:1fr!important}.receipt-summary-row{flex-direction:column}.receipt-policy-card{flex-basis:auto}.receipt-header{flex-direction:column}.receipt-header>div:last-child{width:100%}}
           @page{size:A4;margin:10mm}
           @media print{
@@ -999,6 +1005,9 @@
             .receipt-receiver-signature small{font-size:9pt}
             .receipt-deposit-movements table{font-size:9pt!important}
             .receipt-deposit-movements th,.receipt-deposit-movements td{padding:3px!important}
+            .receipt-transfers-card{padding:5px 8px!important;margin-bottom:8px!important;margin-top:-6px!important}
+            .receipt-transfers-card table{font-size:8.5pt!important}
+            .receipt-transfers-card th,.receipt-transfers-card td{padding:2px 4px!important}
           }
         </style>`;
       const receiptPrintFitScript = `<script>(function(){window.prepareReceiptForPrint=function(){const receipt=document.querySelector('.receipt-document');return receipt?(${fitReceiptToA4Page.toString()})(receipt):null;};window.addEventListener('beforeprint',window.prepareReceiptForPrint);})();</script>`;
@@ -1064,7 +1073,7 @@
             <div>
               <h3 style="font-size: 0.95rem; font-weight: 800; color: #1e293b; margin: 0 0 12px 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">بيانات الإقامة والوحدة (Stay Details)</h3>
               <div style="font-size: 0.85rem; line-height: 1.8; color: #475569;">
-                <div><strong style="color: #1e293b;">رقم الوحدة:</strong> ${escapeHtml(receiptDigits(inv.room_number))} (${escapeHtml(receiptDigits(inv.room_type || ''))})</div>
+                <div><strong style="color: #1e293b;">رقم الوحدة:</strong> ${escapeHtml(receiptDigits(inv.room_number))} (${escapeHtml(receiptDigits(inv.room_type || ''))}) ${(inv.transfers && inv.transfers.length > 0) ? `<span style="display: inline-block; background: #e0e7ff; color: #3730a3; padding: 1px 6px; border-radius: 4px; font-size: 0.72rem; font-weight: 700; margin-right: 4px;">(تم النقل)</span>` : ''}</div>
                 <div><strong style="color: #1e293b;">${isEarlyMorningCheckin ? 'تاريخ الوصول الفعلي:' : 'تاريخ الوصول:'}</strong> <bdi dir="ltr">${isEarlyMorningCheckin ? `${actualArrivalCalendarDate}${actualArrivalTimeStr ? ` (${actualArrivalTimeStr})` : ''}` : checkInReceiptDate}</bdi></div>
                 <div><strong style="color: #1e293b;">${isEarlyMorningCheckin || inv.status === 'مكتمل' ? 'تاريخ المغادرة الفعلي' : 'تاريخ المغادرة'}${isMonthly ? '' : ` (${escapeHtml(invoiceDisplayDuration)})`}:</strong> <bdi dir="ltr">${isEarlyMorningCheckin || inv.status === 'مكتمل' ? `${actualDepartureCalendarDate}${actualDepartureTimeStr ? ` (${actualDepartureTimeStr})` : ''}` : checkOutReceiptDate}</bdi> ${isOverdue ? `<span style="color: #b91c1c; font-weight: 700; font-size: 0.8rem; margin-right: 4px;">(متأخر ${overdueDays} ${overdueDays === 1 ? 'يوم' : 'أيام'})</span>` : ''}</div>
                 ${showRegistrationDate && !isEarlyMorningCheckin ? `<div><strong style="color: #1e293b;">تاريخ التسجيل:</strong> <bdi dir="ltr">${registrationDate}</bdi></div>` : ''}
@@ -1098,10 +1107,64 @@
                     <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">
                       ${isCancelled
                         ? '<span style="color: #dc2626; font-weight: 700;">(تم إبطال / إلغاء هذا الحجز بالكامل ولا توجد رسوم إقامة مستحقة)</span>'
-                        : `نوع الوحدة: ${escapeHtml(receiptDigits(inv.room_type || 'عادية'))} ${inv.custom_nightly_price ? '<span style="color: #05963d; font-weight: 700;">(سعر خاص معتمد)</span>' : ''}`}
+                        : `نوع الوحدة: ${escapeHtml(receiptDigits(inv.room_type || 'عادية'))} ${
+                          (inv.transfers && inv.transfers.length > 0)
+                            ? `<span style="color: #1d4ed8; font-weight: 700;">(ترقية من وحدة ${escapeHtml(receiptDigits(inv.transfers[inv.transfers.length - 1].from_room_number))})</span>`
+                            : (inv.custom_nightly_price ? '<span style="color: #05963d; font-weight: 700;">(سعر خاص معتمد)</span>' : '')
+                        }`}
                     </div>
+                    ${(isMonthly && !isActualPolicy && inv.transfers && inv.transfers.length > 0) ? (() => {
+                      const totalStayNights = (typeof invoiceNights === 'number' && invoiceNights > 0) ? invoiceNights : 30;
+                      let earlierSum = 0;
+                      let pastNightsTotal = 0;
+                      const lastTr = inv.transfers[inv.transfers.length - 1];
+                      const transferDateStr = formatReceiptDate(lastTr.transfer_business_date || lastTr.transfer_timestamp);
+
+                      const pastLines = inv.transfers.map(tr => {
+                        const pNights = tr.segment_nights || 0;
+                        pastNightsTotal += pNights;
+                        const pRate = Number(tr.from_room_monthly_price || 2400);
+                        const pAmount = roundMoney((pRate * pNights) / totalStayNights);
+                        earlierSum = roundMoney(earlierSum + pAmount);
+                        return `<div style="color: #334155;">• وحدة <strong>${escapeHtml(receiptDigits(tr.from_room_number || '-'))}</strong> (<bdi dir="ltr">${formatReceiptDate(tr.segment_start_date)}</bdi> إلى <bdi dir="ltr">${formatReceiptDate(tr.segment_end_date)}</bdi> - ${escapeHtml(receiptDigits(pNights))} ${pNights === 1 ? 'ليلة' : 'ليالٍ'}) بسعر شهر ${formatReceiptMoney(pRate)} ر.س = <strong>${formatReceiptMoney(pAmount)} ر.س</strong></div>`;
+                      });
+
+                      const curNights = Math.max(0, totalStayNights - pastNightsTotal);
+                      const curStartDate = lastTr.segment_end_date || lastTr.transfer_business_date;
+                      const curEndDate = receiptScheduledCheckoutDate;
+                      const curRate = Number(inv.monthly_price || 3200);
+                      const curAmount = roundMoney(shownRate - earlierSum);
+
+                      const curLine = `<div style="color: #334155;">• وحدة <strong>${escapeHtml(receiptDigits(inv.room_number))}</strong> (<bdi dir="ltr">${formatReceiptDate(curStartDate)}</bdi> إلى <bdi dir="ltr">${formatReceiptDate(curEndDate)}</bdi> - ${escapeHtml(receiptDigits(curNights))} ${curNights === 1 ? 'ليلة' : 'ليالٍ'}) بسعر شهر ${formatReceiptMoney(curRate)} ر.س = <strong>${formatReceiptMoney(curAmount)} ر.س</strong></div>`;
+
+                      return `
+                        <div style="margin-top: 8px; padding: 8px 10px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; font-size: 0.78rem; line-height: 1.6; color: #1e293b;">
+                          <div style="font-weight: 800; color: #166534; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between;">
+                            <span>طريقة احتساب قيمة الشهر بعد الترقية:</span>
+                            <span style="font-size: 0.72rem; color: #475569;">(${escapeHtml(receiptDigits(totalStayNights))} ليلة | تاريخ النقل: <bdi dir="ltr">${transferDateStr}</bdi>)</span>
+                          </div>
+                          ${pastLines.join('')}
+                          ${curLine}
+                          <div style="border-top: 1px dashed #86efac; margin-top: 5px; padding-top: 4px; font-weight: 800; color: #166534;">
+                            &larr; المعادلة: ${inv.transfers.map(tr => formatReceiptMoney(roundMoney(((Number(tr.from_room_monthly_price || 2400)) * (tr.segment_nights || 0)) / totalStayNights))).join(' + ')} + ${formatReceiptMoney(curAmount)} = <strong>${formatReceiptMoney(shownRate)} ر.س</strong> (قبل الخصم)
+                          </div>
+                        </div>
+                      `;
+                    })() : ''}
                   </td>
-                  <td style="padding: 14px; text-align: center; color: #475569;">${isCancelled ? '0.00 ر.س' : `${formatReceiptMoney(shownRate)} ر.س`}</td>
+                  <td style="padding: 14px; text-align: center; color: #475569;">
+                    ${isCancelled ? '0.00 ر.س' : (
+                      (isMonthly && !isActualPolicy && inv.transfers && inv.transfers.length > 0)
+                        ? `
+                          <div style="font-weight: 700; color: #1e1b4b; font-size: 0.95rem;">${formatReceiptMoney(inv.monthly_price || shownRate)} ر.س</div>
+                          <div style="font-size: 0.72rem; color: #64748b; margin-top: 1px;">سعر شهر الوحدة</div>
+                          <div style="font-size: 0.75rem; color: #1d4ed8; font-weight: 700; margin-top: 3px; border-top: 1px dashed #cbd5e1; padding-top: 2px;">
+                            سعر الشهر بعد الترقية: ${formatReceiptMoney(shownRate)} ر.س
+                          </div>
+                        `
+                        : `${formatReceiptMoney(shownRate)} ر.س`
+                    )}
+                  </td>
                   <td style="padding: 14px; text-align: center; font-weight: 700; color: #475569;">${isMonthly && !isActualPolicy ? 'شهر' : (isContract && isConfirmed ? `${elapsedContractNights} ليالٍ` : (isEarlyMorningCheckin ? `${invoiceNights} ${invoiceNights === 1 ? 'ليلة' : 'ليالٍ'}` : invoiceDurationText))}</td>
                   <td style="padding: 14px; text-align: left; font-weight: 800; color: #1e1b4b;">${formatReceiptMoney(isCancelled ? 0 : (isContract && isConfirmed ? (elapsedContractNights * effectiveNightlyRate) : shownSubtotal))} ر.س</td>
                 </tr>
@@ -1171,6 +1234,57 @@
               </tbody>
             </table>
           </div>
+
+          ${(inv.transfers && inv.transfers.length > 0) ? `
+            <div class="receipt-transfers-card">
+              <div style="font-weight: 800; color: #1e1b4b; font-size: 0.85rem; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+                <span>سجل حركات نقل وترقية الغرف خلال الإقامة:</span>
+                <span style="font-size: 0.75rem; color: #64748b; font-weight: 600;">(إجمالي حركات النقل: ${inv.transfers.length})</span>
+              </div>
+              <table style="width: 100%; border-collapse: collapse; font-size: 0.78rem; table-layout: fixed; word-break: break-word;">
+                <colgroup>
+                  <col style="width: 14%;">
+                  <col style="width: 20%;">
+                  <col style="width: 15%;">
+                  <col style="width: 20%;">
+                  <col style="width: 16%;">
+                  <col style="width: 15%;">
+                </colgroup>
+                <thead>
+                  <tr style="border-bottom: 1px solid #cbd5e1; color: #475569; background: #f1f5f9;">
+                    <th style="padding: 5px 8px; text-align: right;">تاريخ العملية</th>
+                    <th style="padding: 5px 8px; text-align: right;">مسار النقل</th>
+                    <th style="padding: 5px 8px; text-align: center;">نوع العملية</th>
+                    <th style="padding: 5px 8px; text-align: right;">فترة الغرفة السابقة</th>
+                    <th style="padding: 5px 8px; text-align: left;">${isMonthly ? 'سعر الشهر السابق' : 'سعر الليلة السابق'}</th>
+                    <th style="padding: 5px 8px; text-align: right;">السبب / الملاحظات</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${inv.transfers.map(tr => {
+                    const modeText = tr.transfer_mode === 'upgrade_pay_difference'
+                      ? '<span style="color: #1d4ed8; font-weight: 700;">ترقية بفارق سعر</span>'
+                      : (tr.transfer_mode === 'upgrade_free'
+                        ? '<span style="color: #15803d; font-weight: 700;">ترقية مجانية</span>'
+                        : '<span style="color: #475569;">بنفس السعر</span>');
+                    const fromRateHtml = isMonthly
+                      ? `<div>${formatReceiptMoney(tr.from_room_monthly_price || 2400)} ر.س / شهر</div>`
+                      : `<div>${formatReceiptMoney(tr.from_rate || tr.pinned_rate || tr.from_room_price_per_night || 0)} ر.س / ليلة</div>`;
+                    return `
+                      <tr style="border-bottom: 1px dashed #e2e8f0; color: #334155;">
+                        <td style="padding: 5px 8px;"><bdi dir="ltr">${escapeHtml(formatReceiptDate(tr.transfer_business_date || tr.transfer_timestamp))}</bdi></td>
+                        <td style="padding: 5px 8px; font-weight: 700;">من وحدة ${escapeHtml(receiptDigits(tr.from_room_number || '-'))} إلى وحدة ${escapeHtml(receiptDigits(tr.to_room_number || '-'))}</td>
+                        <td style="padding: 5px 8px; text-align: center;">${modeText}</td>
+                        <td style="padding: 5px 8px;"><bdi dir="ltr">${escapeHtml(formatReceiptDate(tr.segment_start_date))} إلى ${escapeHtml(formatReceiptDate(tr.segment_end_date))}</bdi> (${escapeHtml(receiptDigits(tr.segment_nights || 0))} ليالٍ)</td>
+                        <td style="padding: 5px 8px; text-align: left; font-weight: 700;">${fromRateHtml}</td>
+                        <td style="padding: 5px 8px; color: #64748b;">${escapeHtml(receiptDigits(tr.reason_details || (tr.reason_category === 'maintenance' ? 'صيانة الغرفة' : (tr.reason_category === 'guest_request' ? 'طلب النزيل' : 'نقل إداري'))))}</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          ` : ''}
 
           <div class="receipt-payment-notice">
             <div>
@@ -1405,6 +1519,7 @@
       const payments = rep.payments || [];
       const txs = rep.transactions || [];
       const depositTxs = rep.depositMovements || [];
+      const transfers = rep.transfers || [];
       const printTime = new Date().toLocaleTimeString('ar-EG-u-nu-latn', {
         timeZone: window.DashboardApp?.Helpers?.getHotelTimezone ? window.DashboardApp.Helpers.getHotelTimezone() : 'Asia/Riyadh',
         hour: '2-digit',
@@ -1503,6 +1618,10 @@
                 <div style="display: flex; justify-content: space-between;">
                   <span>${isMultiDay ? 'إجمالي الحجوزات النشطة في الفترة:' : 'إجمالي الحجوزات المنفذة اليوم:'}</span>
                   <strong>${mov.totalReservationsToday || 0}</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                  <span>${isMultiDay ? 'إجمالي حركات نقل وترقية الغرف:' : 'حركات نقل وترقية الغرف اليوم:'}</span>
+                  <strong style="color: #4338ca;">${mov.totalTransfersToday || 0}</strong>
                 </div>
               </div>
             </div>
@@ -1646,7 +1765,165 @@
             </div>
           `}
 
-          <h4 style="font-size: 0.95rem; font-weight: 800; color: #5b21b6; margin: 8px 0 10px;">حركات التأمين المسجلة خلال الفترة (لا تدخل ضمن المقبوضات)</h4>
+          <!-- Room Transfers Breakdown -->
+          <h4 style="font-size: 0.95rem; font-weight: 800; color: #1e1b4b; margin: 18px 0 10px;">
+            ${isMultiDay ? '6. سجل حركات نقل وترقية الغرف في الفترة' : '6. سجل حركات نقل وترقية الغرف في هذا اليوم'}
+          </h4>
+          ${transfers.length === 0 ? `
+            <div style="padding: 14px; text-align: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; color: #64748b; font-size: 0.85rem; margin-bottom: 24px;">
+              لا توجد عمليات نقل أو ترقية غرف مسجلة في هذه الفترة.
+            </div>
+          ` : `
+            <div class="audit-table-wrap" style="margin-bottom: 24px;">
+              <table class="audit-table">
+                <thead>
+                  <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+                    <th style="padding: 8px 10px; text-align: right;">وقت العملية / تاريخ العمل</th>
+                    <th style="padding: 8px 10px; text-align: right;">الحجز / النزيل</th>
+                    <th style="padding: 8px 10px; text-align: center;">مسار النقل</th>
+                    <th style="padding: 8px 10px; text-align: center;">نوع العملية</th>
+                    <th style="padding: 8px 10px; text-align: center;">فترة الغرفة السابقة</th>
+                    <th style="padding: 8px 10px; text-align: center;">سعر الإقامة السابقة</th>
+                    <th style="padding: 8px 10px; text-align: center;">فترة الغرفة الحالية</th>
+                    <th style="padding: 8px 10px; text-align: center;">سعر الإقامة الجديد</th>
+                    <th style="padding: 8px 10px; text-align: right;">سبب النقل / الملاحظات</th>
+                    <th style="padding: 8px 10px; text-align: center;">الموظف المنفذ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${transfers.map(t => {
+                    const modeLabels = {
+                      upgrade_pay_difference: '<span style="background: #eff6ff; color: #1d4ed8; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 0.78rem;">ترقية مع فارق سعر</span>',
+                      keep_rate: '<span style="background: #f1f5f9; color: #475569; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 0.78rem;">نقل بنفس السعر</span>',
+                      custom_rate: '<span style="background: #ecfdf5; color: #047857; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 0.78rem;">سعر مخصص</span>'
+                    };
+                    const modeBadge = modeLabels[t.transfer_mode] || `<span style="background: #f1f5f9; color: #475569; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 0.78rem;">${escapeHtml(t.transfer_mode || 'نقل')}</span>`;
+
+                    const reasonCategoryLabels = {
+                      guest_request: 'طلب النزيل',
+                      maintenance: 'صيانة بالغرفة',
+                      noise_complaint: 'شكوى إزعاج',
+                      administrative: 'إداري',
+                      other: 'أخرى'
+                    };
+                    const reasonLabel = reasonCategoryLabels[t.reason_category] || (t.reason_category || 'أخرى');
+
+                    const fromRoomInfo = `غرفة ${escapeHtml(t.from_room_number || '-')}`;
+                    const toRoomInfo = `غرفة ${escapeHtml(t.to_room_number || '-')}`;
+                    const nightsCount = t.segment_nights || 0;
+                    const nightsText = `${nightsCount} ${nightsCount === 1 ? 'ليلة' : 'ليالٍ'}`;
+                    const segmentRate = Number(t.from_rate != null ? t.from_rate : t.pinned_rate || 0);
+
+                    // Compute current stay segment
+                    const relatedRes = txs.find(x => x.id === t.reservation_id) || {};
+                    const curStartDate = t.segment_end_date || t.transfer_business_date;
+                    const curEndDate = t.check_out_date || relatedRes.check_out_date || '';
+                    const isCurContract = t.booking_type === 'عقد مفتوح';
+                    const isCurMonthly = t.booking_type === 'حجز شهري';
+
+                    let curNights = 0;
+                    let curNightsText = '';
+                    let curDatesText = '';
+
+                    if (isCurContract) {
+                      curNightsText = 'مستمرة (عقد مفتوح)';
+                      curDatesText = `(من ${escapeHtml(curStartDate)} حتى الآن)`;
+                    } else if (curEndDate && curEndDate > curStartDate) {
+                      const d1 = new Date(curStartDate + 'T00:00:00');
+                      const d2 = new Date(curEndDate + 'T00:00:00');
+                      curNights = Math.max(1, Math.round((d2 - d1) / 86400000));
+                      curNightsText = `${curNights} ${curNights === 1 ? 'ليلة' : 'ليالٍ'}`;
+                      curDatesText = `(${escapeHtml(curStartDate)} &rarr; ${escapeHtml(curEndDate)})`;
+                    } else if (isCurMonthly) {
+                      curNights = 30;
+                      curNightsText = 'شهر إقامة';
+                      curDatesText = curEndDate ? `(${escapeHtml(curStartDate)} &rarr; ${escapeHtml(curEndDate)})` : `(من ${escapeHtml(curStartDate)})`;
+                    } else {
+                      curNights = 1;
+                      curNightsText = 'مغادرة في نفس اليوم';
+                      curDatesText = `(${escapeHtml(curStartDate)})`;
+                    }
+
+                    let newRateHtml = '';
+                    if (isCurMonthly) {
+                      const mRate = Number(
+                        t.monthly_rate_snapshot ||
+                        relatedRes.monthly_rate_snapshot ||
+                        t.to_room_monthly_price ||
+                        (isCurMonthly ? relatedRes.total_price : 0) ||
+                        0
+                      );
+                      const nRate = Number(
+                        t.custom_nightly_price != null ? t.custom_nightly_price :
+                        relatedRes.custom_nightly_price != null ? relatedRes.custom_nightly_price :
+                        (mRate > 0 ? Math.round(mRate / 30) : (t.to_room_price_per_night || 0))
+                      );
+                      newRateHtml = `
+                        <div style="font-weight: 700; color: #1e1b4b;">${mRate.toLocaleString()} ر.س / شهر</div>
+                      `;
+                    } else {
+                      const nRate = Number(
+                        t.custom_nightly_price != null ? t.custom_nightly_price :
+                        relatedRes.custom_nightly_price != null ? relatedRes.custom_nightly_price :
+                        (t.to_room_price_per_night || 0)
+                      );
+                      const curSubtotal = curNights > 0 ? roundMoney(curNights * nRate) : 0;
+                      newRateHtml = `
+                        <div style="font-weight: 700; color: #1e1b4b;">${nRate.toLocaleString()} ر.س / ليلة</div>
+                        ${curSubtotal > 0 && !isCurContract ? `<small style="color: #64748b;">متبقي: ${curSubtotal.toLocaleString()} ر.س</small>` : ''}
+                      `;
+                    }
+
+                    return `
+                      <tr style="border-bottom: 1px solid #e2e8f0;">
+                        <td style="padding: 8px 10px; color: #64748b;">
+                          <div style="font-family: monospace;">${escapeHtml(String(t.transfer_timestamp || '').slice(0, 16))}</div>
+                          <small style="display: block; margin-top: 3px; color: #1a432a;">تاريخ العمل: ${escapeHtml(t.transfer_business_date || '-')}</small>
+                        </td>
+                        <td style="padding: 8px 10px;">
+                          <div style="font-weight: 700;">#${t.reservation_id} - ${escapeHtml(t.guest_name || 'نزيل')}</div>
+                          <small style="color: #64748b;">${escapeHtml(t.booking_type || '')}</small>
+                        </td>
+                        <td style="padding: 8px 10px; text-align: center; direction: ltr;">
+                          <span style="font-weight: 700; color: #dc2626;">${fromRoomInfo}</span> &rarr; <span style="font-weight: 700; color: #047857;">${toRoomInfo}</span>
+                        </td>
+                        <td style="padding: 8px 10px; text-align: center;">${modeBadge}</td>
+                        <td style="padding: 8px 10px; text-align: center; font-weight: 700; color: #334155;">
+                          <div>${nightsText}</div>
+                          <small style="color: #64748b; font-family: monospace;">(${escapeHtml(t.segment_start_date || '')} &rarr; ${escapeHtml(t.segment_end_date || '')})</small>
+                        </td>
+                        <td style="padding: 8px 10px; text-align: center; font-weight: 700; color: #1e1b4b;">
+                          ${isCurMonthly ? `
+                            <div>${Number(t.from_room_monthly_price || 2400).toLocaleString()} ر.س / شهر</div>
+                          ` : `
+                            <div>${segmentRate.toLocaleString()} ر.س / ليلة</div>
+                            <small style="color: #64748b;">إجمالي: ${Number(t.segment_revenue || 0).toLocaleString()} ر.س</small>
+                          `}
+                        </td>
+                        <td style="padding: 8px 10px; text-align: center; font-weight: 700; color: #047857;">
+                          <div>${curNightsText}</div>
+                          <small style="color: #64748b; font-family: monospace;">${curDatesText}</small>
+                        </td>
+                        <td style="padding: 8px 10px; text-align: center;">
+                          ${newRateHtml}
+                        </td>
+                        <td style="padding: 8px 10px; font-size: 0.82rem; color: #334155;">
+                          <div><span style="font-weight: 700; color: #4338ca;">[${escapeHtml(reasonLabel)}]</span> ${escapeHtml(t.reason_details || '')}</div>
+                        </td>
+                        <td style="padding: 8px 10px; text-align: center; font-size: 0.82rem; color: #475569;">
+                          ${escapeHtml(t.staff_username || '-')}
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          `}
+
+          <h4 style="font-size: 0.95rem; font-weight: 800; color: #5b21b6; margin: 8px 0 10px;">
+            ${isMultiDay ? '7. حركات التأمين المسجلة خلال الفترة (لا تدخل ضمن المقبوضات)' : '7. حركات التأمين المسجلة خلال الفترة (لا تدخل ضمن المقبوضات)'}
+          </h4>
           ${depositTxs.length === 0 ? `
             <div style="padding: 12px; background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 8px; color: #6b7280; font-size: .82rem; margin-bottom: 22px;">لا توجد حركات تأمين مسجلة خلال هذه الفترة.</div>
           ` : `
