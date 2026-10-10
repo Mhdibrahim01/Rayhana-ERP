@@ -222,16 +222,24 @@ module.exports = function registerReservationsIpc(ipcMain, { db, session, helper
       } else {
         const submittedTotal = Number(options.finalTotalPrice);
         if (!isAdmin || options.finalTotalPrice === undefined || options.finalTotalPrice === null || options.finalTotalPrice === '' || !Number.isFinite(submittedTotal) || submittedTotal < 0) {
-          const today = db.getLocalDateString();
-          const [startYear, startMonth, startDay] = String(reservation.check_in_date || today).slice(0, 10).split('-').map(Number);
-          const [endYear, endMonth, endDay] = today.split('-').map(Number);
-          const elapsedNights = Math.max(1, Math.round((Date.UTC(endYear, endMonth - 1, endDay) - Date.UTC(startYear, startMonth - 1, startDay)) / 86400000));
-          const nightlyRate = db.roundMoney(reservation.custom_nightly_price || reservation.price_per_night || 0);
+          const today = (options.checkOutDate && /^\d{4}-\d{2}-\d{2}$/.test(String(options.checkOutDate).slice(0, 10)))
+            ? String(options.checkOutDate).slice(0, 10)
+            : (db.getCurrentBusinessDate ? db.getCurrentBusinessDate() : db.getLocalDateString());
           const storedDiscount = db.roundMoney(reservation.discount_amount || 0);
           const allowedDiscount = isAdmin && options.discountAmount !== undefined && options.discountAmount !== null && options.discountAmount !== ''
             ? Math.max(0, db.roundMoney(options.discountAmount))
             : storedDiscount;
-          const calculatedTotal = Math.max(0, db.roundMoney(elapsedNights * nightlyRate - allowedDiscount));
+          let calculatedTotal;
+          try {
+            const segs = db.computeStaySegments(reservation, today);
+            calculatedTotal = Math.max(0, db.roundMoney(segs.totalBaseCharge - allowedDiscount));
+          } catch (_) {
+            const [startYear, startMonth, startDay] = String(reservation.check_in_date || today).slice(0, 10).split('-').map(Number);
+            const [endYear, endMonth, endDay] = today.split('-').map(Number);
+            const elapsedNights = Math.max(1, Math.round((Date.UTC(endYear, endMonth - 1, endDay) - Date.UTC(startYear, startMonth - 1, startDay)) / 86400000));
+            const nightlyRate = db.roundMoney(reservation.custom_nightly_price || reservation.price_per_night || 0);
+            calculatedTotal = Math.max(0, db.roundMoney(elapsedNights * nightlyRate - allowedDiscount));
+          }
           options = { ...options, finalTotalPrice: calculatedTotal };
         }
       }

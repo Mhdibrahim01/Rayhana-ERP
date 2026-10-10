@@ -198,12 +198,16 @@ window.DashboardApp = {
 
     let effectiveTotal = total;
     let elapsedStayNights = 0;
-    if (isConfirmed && (isOverdue || isContract) && nightlyRate > 0 && reservation.check_in_date) {
-      const startParts = String(reservation.check_in_date).slice(0, 10).split('-').map(Number);
-      const endParts = businessToday.slice(0, 10).split('-').map(Number);
-      elapsedStayNights = Math.max(1, Math.round((Date.UTC(endParts[0], endParts[1] - 1, endParts[2]) - Date.UTC(startParts[0], startParts[1] - 1, startParts[2])) / 86400000));
-      const runningTotal = Math.max(0, Math.round((elapsedStayNights * nightlyRate - parseFloat(reservation.discount_amount || 0)) * 100) / 100);
-      effectiveTotal = Math.max(total, runningTotal);
+    if (isConfirmed && (isOverdue || isContract) && reservation.check_in_date) {
+      if (reservation.running_total !== undefined && reservation.running_total !== null) {
+        effectiveTotal = Math.max(total, parseFloat(reservation.running_total || 0));
+      } else if (nightlyRate > 0) {
+        const startParts = String(reservation.check_in_date).slice(0, 10).split('-').map(Number);
+        const endParts = businessToday.slice(0, 10).split('-').map(Number);
+        elapsedStayNights = Math.max(1, Math.round((Date.UTC(endParts[0], endParts[1] - 1, endParts[2]) - Date.UTC(startParts[0], startParts[1] - 1, startParts[2])) / 86400000));
+        const runningTotal = Math.max(0, Math.round((elapsedStayNights * nightlyRate - parseFloat(reservation.discount_amount || 0)) * 100) / 100);
+        effectiveTotal = Math.max(total, runningTotal);
+      }
     }
 
     const effectiveRawRemaining = Math.round((effectiveTotal - paid) * 100) / 100;

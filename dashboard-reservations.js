@@ -354,7 +354,9 @@
         const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
         const days = Math.max(1, diffDays);
 
-        const autoCharge = roundMoney(days * nightlyRate);
+        const autoCharge = (depVal === todayStr && targetRes.running_total !== undefined && targetRes.running_total !== null)
+          ? roundMoney(targetRes.running_total)
+          : roundMoney(days * nightlyRate);
         if (daysEl) daysEl.textContent = `${days} ليلة`;
         if (autoChargeEl) autoChargeEl.textContent = `${autoCharge.toLocaleString()} ريال`;
 
@@ -1662,7 +1664,9 @@
         const startParts = String(r.check_in_date).slice(0, 10).split('-').map(Number);
         const endParts = businessToday.slice(0, 10).split('-').map(Number);
         elapsedStayNights = Math.max(1, Math.round((Date.UTC(endParts[0], endParts[1] - 1, endParts[2]) - Date.UTC(startParts[0], startParts[1] - 1, startParts[2])) / 86400000));
-        const runningTotal = Math.max(0, Math.round((elapsedStayNights * nightlyRate - parseFloat(r.discount_amount || 0)) * 100) / 100);
+        const runningTotal = (r.running_total !== undefined && r.running_total !== null)
+          ? parseFloat(r.running_total)
+          : Math.max(0, Math.round((elapsedStayNights * nightlyRate - parseFloat(r.discount_amount || 0)) * 100) / 100);
         effectiveTotal = Math.max(total, runningTotal);
       }
 
@@ -2317,7 +2321,9 @@
         const endParts = businessToday.slice(0, 10).split('-').map(Number);
         const elapsedNights = Math.max(1, Math.round((Date.UTC(endParts[0], endParts[1] - 1, endParts[2]) - Date.UTC(startParts[0], startParts[1] - 1, startParts[2])) / 86400000));
         elapsedContractNights = elapsedNights;
-        const runningTotal = Math.max(0, Math.round((elapsedNights * nightlyRate - Number(res.discount_amount || 0)) * 100) / 100);
+        const runningTotal = (res.running_total !== undefined && res.running_total !== null)
+          ? Number(res.running_total)
+          : Math.max(0, Math.round((elapsedNights * nightlyRate - Number(res.discount_amount || 0)) * 100) / 100);
         effectiveTotal = Math.max(total, runningTotal);
       }
     }
