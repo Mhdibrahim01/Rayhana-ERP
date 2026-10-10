@@ -37,8 +37,8 @@ function createWindow() {
     icon: path.join(__dirname, 'icon.ico'),
     titleBarStyle: 'hidden',
     titleBarOverlay: {
-      color: '#1a432a',       // Brand Forest Green background for titlebar controls
-      symbolColor: '#ffffff', // Clean white minimize, maximize, and close symbols
+      color: '#ffffff',       // Seamless white background matching topbar
+      symbolColor: '#1e293b', // High contrast dark slate icons
       height: 38
     },
     webPreferences: {
