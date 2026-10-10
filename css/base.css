@@ -566,7 +566,7 @@ body {
   min-height: 70px;
   background: var(--glass-topbar);  /* 0.97 opacity — no blur needed */
   border-bottom: 1px solid #e2e8f0; /* solid crisp border */
-  padding: 8px 160px 8px 24px; /* 160px right clearance for Windows titlebar controls overlay in RTL */
+  padding: 8px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
