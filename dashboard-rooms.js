@@ -171,7 +171,9 @@
         const start = String(reservation.check_in_date || today).slice(0, 10).split('-').map(Number);
         const end = today.split('-').map(Number);
         const elapsedNights = Math.max(1, Math.round((Date.UTC(end[0], end[1] - 1, end[2]) - Date.UTC(start[0], start[1] - 1, start[2])) / 86400000));
-        const runningCharge = Math.max(0, Math.round((elapsedNights * nightlyRate - Number(reservation.discount_amount || 0)) * 100) / 100);
+        const runningCharge = (reservation.running_total !== undefined && reservation.running_total !== null)
+          ? Number(reservation.running_total)
+          : Math.max(0, Math.round((elapsedNights * nightlyRate - Number(reservation.discount_amount || 0)) * 100) / 100);
 
         const checkOutDateStr = String(reservation.check_out_date || '').slice(0, 10);
         const isOverdue = reservation.status === 'مؤكد' && !isOpenContract && checkOutDateStr && checkOutDateStr < today;

@@ -656,8 +656,10 @@
       if (isOverdue && effectiveNightlyRate > 0) {
         overdueAdditionalAmount = roundMoney(overdueDays * effectiveNightlyRate);
         effectiveTotal = roundMoney(storedTotal + overdueAdditionalAmount);
-      } else if (isConfirmed && isContract && effectiveNightlyRate > 0) {
-        effectiveTotal = Math.max(storedTotal, roundMoney(elapsedContractNights * effectiveNightlyRate - rawDiscount));
+      } else if (isConfirmed && isContract) {
+        effectiveTotal = (inv.running_total !== undefined && inv.running_total !== null)
+          ? Math.max(storedTotal, parseFloat(inv.running_total))
+          : Math.max(storedTotal, roundMoney(elapsedContractNights * effectiveNightlyRate - rawDiscount));
       }
 
       const total = effectiveTotal;
@@ -1123,7 +1125,7 @@
                       const pastLines = inv.transfers.map(tr => {
                         const pNights = tr.segment_nights || 0;
                         pastNightsTotal += pNights;
-                        const pRate = Number(tr.from_room_monthly_price || 2400);
+                        const pRate = Number(tr.from_monthly_price || tr.from_room_monthly_price || 0);
                         const pAmount = roundMoney((pRate * pNights) / totalStayNights);
                         earlierSum = roundMoney(earlierSum + pAmount);
                         return `<div style="color: #334155;">• وحدة <strong>${escapeHtml(receiptDigits(tr.from_room_number || '-'))}</strong> (<bdi dir="ltr">${formatReceiptDate(tr.segment_start_date)}</bdi> إلى <bdi dir="ltr">${formatReceiptDate(tr.segment_end_date)}</bdi> - ${escapeHtml(receiptDigits(pNights))} ${pNights === 1 ? 'ليلة' : 'ليالٍ'}) بسعر شهر ${formatReceiptMoney(pRate)} ر.س = <strong>${formatReceiptMoney(pAmount)} ر.س</strong></div>`;
@@ -1132,7 +1134,7 @@
                       const curNights = Math.max(0, totalStayNights - pastNightsTotal);
                       const curStartDate = lastTr.segment_end_date || lastTr.transfer_business_date;
                       const curEndDate = receiptScheduledCheckoutDate;
-                      const curRate = Number(inv.monthly_price || 3200);
+                      const curRate = Number(lastTr.to_monthly_price || inv.monthly_price || 0);
                       const curAmount = roundMoney(shownRate - earlierSum);
 
                       const curLine = `<div style="color: #334155;">• وحدة <strong>${escapeHtml(receiptDigits(inv.room_number))}</strong> (<bdi dir="ltr">${formatReceiptDate(curStartDate)}</bdi> إلى <bdi dir="ltr">${formatReceiptDate(curEndDate)}</bdi> - ${escapeHtml(receiptDigits(curNights))} ${curNights === 1 ? 'ليلة' : 'ليالٍ'}) بسعر شهر ${formatReceiptMoney(curRate)} ر.س = <strong>${formatReceiptMoney(curAmount)} ر.س</strong></div>`;
@@ -1146,7 +1148,7 @@
                           ${pastLines.join('')}
                           ${curLine}
                           <div style="border-top: 1px dashed #86efac; margin-top: 5px; padding-top: 4px; font-weight: 800; color: #166534;">
-                            &larr; المعادلة: ${inv.transfers.map(tr => formatReceiptMoney(roundMoney(((Number(tr.from_room_monthly_price || 2400)) * (tr.segment_nights || 0)) / totalStayNights))).join(' + ')} + ${formatReceiptMoney(curAmount)} = <strong>${formatReceiptMoney(shownRate)} ر.س</strong> (قبل الخصم)
+                            &larr; المعادلة: ${inv.transfers.map(tr => formatReceiptMoney(roundMoney(((Number(tr.from_monthly_price || tr.from_room_monthly_price || 0)) * (tr.segment_nights || 0)) / totalStayNights))).join(' + ')} + ${formatReceiptMoney(curAmount)} = <strong>${formatReceiptMoney(shownRate)} ر.س</strong> (قبل الخصم)
                           </div>
                         </div>
                       `;
@@ -1156,7 +1158,7 @@
                     ${isCancelled ? '0.00 ر.س' : (
                       (isMonthly && !isActualPolicy && inv.transfers && inv.transfers.length > 0)
                         ? `
-                          <div style="font-weight: 700; color: #1e1b4b; font-size: 0.95rem;">${formatReceiptMoney(inv.monthly_price || shownRate)} ر.س</div>
+                          <div style="font-weight: 700; color: #1e1b4b; font-size: 0.95rem;">${formatReceiptMoney(inv.transfers[inv.transfers.length - 1].to_monthly_price || inv.monthly_price || shownRate)} ر.س</div>
                           <div style="font-size: 0.72rem; color: #64748b; margin-top: 1px;">سعر شهر الوحدة</div>
                           <div style="font-size: 0.75rem; color: #1d4ed8; font-weight: 700; margin-top: 3px; border-top: 1px dashed #cbd5e1; padding-top: 2px;">
                             سعر الشهر بعد الترقية: ${formatReceiptMoney(shownRate)} ر.س
@@ -1166,7 +1168,7 @@
                     )}
                   </td>
                   <td style="padding: 14px; text-align: center; font-weight: 700; color: #475569;">${isMonthly && !isActualPolicy ? 'شهر' : (isContract && isConfirmed ? `${elapsedContractNights} ليالٍ` : (isEarlyMorningCheckin ? `${invoiceNights} ${invoiceNights === 1 ? 'ليلة' : 'ليالٍ'}` : invoiceDurationText))}</td>
-                  <td style="padding: 14px; text-align: left; font-weight: 800; color: #1e1b4b;">${formatReceiptMoney(isCancelled ? 0 : (isContract && isConfirmed ? (elapsedContractNights * effectiveNightlyRate) : shownSubtotal))} ر.س</td>
+                  <td style="padding: 14px; text-align: left; font-weight: 800; color: #1e1b4b;">${formatReceiptMoney(isCancelled ? 0 : (isContract && isConfirmed ? ((inv.running_total !== undefined && inv.running_total !== null) ? Number(inv.running_total) : (elapsedContractNights * effectiveNightlyRate)) : shownSubtotal))} ر.س</td>
                 </tr>
                 ${isOverdue && overdueAdditionalAmount > 0 && !isCancelled ? `
                   <tr style="background: #fff7ed; border-bottom: 1px solid #ffedd5;">

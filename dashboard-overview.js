@@ -1129,7 +1129,9 @@
       : 0;
     const overdueNights = isOverdue ? Math.max(0, elapsedNights - bookedNights) : 0;
     const stayNights = (isOpenContract || isOverdue) ? elapsedNights : bookedNights;
-    const runningCharge = Math.max(0, Math.round((elapsedNights * previewRate - Number(r.discount_amount || 0)) * 100) / 100);
+    const runningCharge = (r.running_total !== undefined && r.running_total !== null)
+      ? Number(r.running_total)
+      : Math.max(0, Math.round((elapsedNights * previewRate - Number(r.discount_amount || 0)) * 100) / 100);
     const previewTotal = (isOpenContract || isOverdue) ? Math.max(total, runningCharge) : total;
     const previewBalance = Math.max(0, previewTotal - paid);
     const paidPercent = getPaymentProgressPercent(previewTotal, paid);
