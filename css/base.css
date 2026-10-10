@@ -143,10 +143,54 @@ body {
   100% { transform: translate(50px, -30px) scale(0.96); }
 }
 
+/* ── Dedicated Native Window Titlebar Strip (Lifts controls above app) ── */
+.window-titlebar-strip {
+  height: 36px;
+  background: var(--color-brand-forest, #1a432a);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 16px;
+  -webkit-app-region: drag;
+  user-select: none;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  z-index: 1000;
+  position: relative;
+  font-family: var(--font-family-sans, 'Cairo', sans-serif);
+}
+
+.window-titlebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.window-titlebar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+}
+
+.window-titlebar-sep {
+  opacity: 0.4;
+}
+
+.window-titlebar-sub {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
 .dashboard-layout {
   position: relative;
   display: flex;
-  height: 100vh;
+  height: calc(100vh - 36px);
   overflow: hidden;
   /* Light airy mesh background: Pure white + soft slate + mint */
   background: 

@@ -36,6 +36,12 @@ function createWindow() {
     title: 'بوابة الوصول الآمن | Secure System Access',
     icon: path.join(__dirname, 'icon.ico'),
     backgroundColor: '#f1f5f9',
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: '#0f172a',
+      symbolColor: '#ffffff',
+      height: 36
+    },
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
