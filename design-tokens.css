@@ -725,3 +725,16 @@ textarea:focus-visible {
   }
 }
 
+/* ── Window Controls Overlay & Drag Support ──────────────────────────────── */
+.topbar, .drag-region {
+  -webkit-app-region: drag;
+}
+
+.topbar button,
+.topbar input,
+.topbar select,
+.topbar a,
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+

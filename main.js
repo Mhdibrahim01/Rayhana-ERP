@@ -35,7 +35,12 @@ function createWindow() {
     show: false,
     title: 'بوابة الوصول الآمن | Secure System Access',
     icon: path.join(__dirname, 'icon.ico'),
-    backgroundColor: '#f1f5f9',
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: '#1a432a',       // Brand Forest Green background for titlebar controls
+      symbolColor: '#ffffff', // Clean white minimize, maximize, and close symbols
+      height: 38
+    },
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -57,14 +62,17 @@ function createWindow() {
     mainWindow.show();
   });
 
-  // Prevent accidental reload in production to avoid losing active form state
-  if (app.isPackaged) {
-    mainWindow.webContents.on('before-input-event', (event, input) => {
-      if ((input.control && input.key.toLowerCase() === 'r') || input.key === 'F5') {
-        event.preventDefault();
-      }
-    });
-  }
+  // Handle keyboard shortcuts (F11 fullscreen toggle & prevent accidental reload in production)
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'F11' && input.type === 'keyDown') {
+      mainWindow.setFullScreen(!mainWindow.isFullScreen());
+      event.preventDefault();
+      return;
+    }
+    if (app.isPackaged && ((input.control && input.key.toLowerCase() === 'r') || input.key === 'F5')) {
+      event.preventDefault();
+    }
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
